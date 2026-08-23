@@ -120,3 +120,82 @@ def predict_goalscorer(home_team: str, away_team: str, match_data: dict) -> list
         {"name": "Топ бомбардир гостей", "probability": 18.2},
         {"name": "Другой игрок", "probability": 12.8},
     ]
+
+# ============================================================
+# ПРОГНОЗ ПО ТАЙМАМ
+# ============================================================
+
+def predict_half_goals(home_xg: float, away_xg: float) -> dict:
+    """
+    Прогноз голов по таймам
+    """
+    first_half_factor = 0.45
+    second_half_factor = 0.55
+    
+    home_first = home_xg * first_half_factor
+    away_first = away_xg * first_half_factor
+    home_second = home_xg * second_half_factor
+    away_second = away_xg * second_half_factor
+    
+    import math
+    prob_first = 1 - (math.exp(-home_first) * math.exp(-away_first))
+    prob_second = 1 - (math.exp(-home_second) * math.exp(-away_second))
+    
+    return {
+        'first_half': {
+            'home_xg': round(home_first, 2),
+            'away_xg': round(away_first, 2),
+            'goal_probability': round(prob_first * 100, 1)
+        },
+        'second_half': {
+            'home_xg': round(home_second, 2),
+            'away_xg': round(away_second, 2),
+            'goal_probability': round(prob_second * 100, 1)
+        }
+    }
+
+
+# ============================================================
+# ПРОГНОЗ ТОЧНОГО СЧЕТА
+# ============================================================
+
+def predict_exact_score(home_xg: float, away_xg: float, max_goals: int = 4) -> dict:
+    """
+    Прогноз точного счета через распределение Пуассона
+    """
+    from app.analytics.probability import poisson_probability
+    
+    home_probs = [poisson_probability(home_xg, i) for i in range(max_goals + 1)]
+    away_probs = [poisson_probability(away_xg, i) for i in range(max_goals + 1)]
+    
+    home_sum = sum(home_probs)
+    away_sum = sum(away_probs)
+    if home_sum > 0:
+        home_probs = [p / home_sum for p in home_probs]
+    if away_sum > 0:
+        away_probs = [p / away_sum for p in away_probs]
+    
+    scores = {}
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = home_probs[i] * away_probs[j]
+            scores[f"{i}-{j}"] = round(prob * 100, 1)
+    
+    sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+    return dict(list(sorted_scores.items())[:5])
+
+
+# ============================================================
+# ПРОГНОЗ УГЛОВЫХ
+# ============================================================
+
+def predict_corners(home_xg: float, away_xg: float) -> dict:
+    """
+    Прогноз угловых
+    """
+    avg_corners = (home_xg + away_xg) * 3.5
+    return {
+        "total": round(avg_corners, 1),
+        "over_8_5": round(min(avg_corners / 10 * 100, 95), 1),
+        "over_10_5": round(min(max(avg_corners / 12 * 100, 5), 90), 1),
+    }
