@@ -3,7 +3,7 @@ import time
 import os
 from datetime import datetime
 
-from config import Config
+from app.config import Config
 from app.database.storage import storage
 from app.api.football import football_api
 from app.api.weather import weather_api
