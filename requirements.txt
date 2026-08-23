@@ -2,3 +2,6 @@ Flask==2.3.3
 requests==2.31.0
 python-dotenv==1.0.0
 numpy==1.24.3
+schedule==1.2.0
+setuptools==68.0.0
+wheel==0.41.0
