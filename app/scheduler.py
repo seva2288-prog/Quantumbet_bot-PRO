@@ -9,7 +9,7 @@ def auto_update():
     """Автоматический поиск матчей каждые 4 часа"""
     logger.info("🔄 Автоматический поиск матчей...")
     try:
-        from app.bot import get_matches_with_factors, find_top_matches, send_top_5_matches
+        from app.bot import get_matches_with_factors, find_top_matches
         from app.database.storage import storage
         
         matches = get_matches_with_factors()
@@ -42,4 +42,4 @@ def start_scheduler():
     
     thread = Thread(target=run_schedule, daemon=True)
     thread.start()
-    logger.info("✅ Планировщик запущен (обновление каждые 6 часов)")
+    logger.info("✅ Планировщик запущен (обновление каждые 4 часа)")
