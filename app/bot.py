@@ -8,7 +8,7 @@ from app.database.storage import storage
 from app.api.football import football_api
 from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
-from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types
+from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 
@@ -50,6 +50,28 @@ def send_match_with_buttons(match, index):
             emoji = ["🥇", "🥈", "🥉"][j-1]
             ev_emoji = "✅" if bet['ev'] > 5 else "⚠️" if bet['ev'] > 0 else "❌"
             msg += f"   {emoji} {bet['label']} | КЭФ: {bet['odds']} | EV: {bet['ev']}% {ev_emoji}\n"
+    
+    # Прогноз по таймам
+    half_goals = predict_half_goals(match['home_xg'], match['away_xg'])
+    msg += f"\n📊 <b>По таймам:</b>\n"
+    msg += f"   1-й тайм: {half_goals['first_half']['home_xg']}:{half_goals['first_half']['away_xg']} (гол {half_goals['first_half']['goal_probability']}%)\n"
+    msg += f"   2-й тайм: {half_goals['second_half']['home_xg']}:{half_goals['second_half']['away_xg']} (гол {half_goals['second_half']['goal_probability']}%)\n"
+    
+    # Прогноз точного счета
+    exact_scores = predict_exact_score(match['home_xg'], match['away_xg'])
+    msg += f"\n🎯 <b>Точный счет (топ-5):</b>\n"
+    for score, prob in exact_scores.items():
+        msg += f"   {score} — {prob}%\n"
+    
+    # Прогноз угловых
+    corners = predict_corners(match['home_xg'], match['away_xg'])
+    msg += f"\n📐 <b>Угловые:</b>\n"
+    msg += f"   Тотал: {corners['total']}\n"
+    msg += f"   Тотал > 8.5: {corners['over_8_5']}%\n"
+    msg += f"   Тотал > 10.5: {corners['over_10_5']}%\n"
+    
+    if is_weak:
+        msg += "\n⚠️ <b>СЛАБАЯ ЛИГА!</b> Бот может ошибаться на ОЗ - ДА."
     
     msg += "\n\n📌 <b>Выбери результат матча (для обучения):</b>"
     
@@ -241,25 +263,24 @@ def webhook():
             
             elif text == '/help':
                 send_telegram(handlers.handle_start())
-
+            
             elif text == '/team':
-    # Использование: /team Real Madrid
-    try:
-        parts = text.split()
-        if len(parts) > 1:
-            team_name = ' '.join(parts[1:])
-            send_telegram(handlers.handle_team_stats(team_name))
-        else:
-            send_telegram("📝 Напишите: /team <название команды>\n\nПример: /team Real Madrid")
-    except Exception as e:
-        logger.error(f"Ошибка /team: {e}")
-        send_telegram("❌ Ошибка. Напишите: /team Real Madrid")
-
-elif text == '/bettypes':
-    send_telegram(handlers.handle_bet_type_stats())
-
-elif text == '/timestats':
-    send_telegram(handlers.handle_time_stats())
+                try:
+                    parts = text.split()
+                    if len(parts) > 1:
+                        team_name = ' '.join(parts[1:])
+                        send_telegram(handlers.handle_team_stats(team_name))
+                    else:
+                        send_telegram("📝 Напишите: /team <название команды>\n\nПример: /team Real Madrid")
+                except Exception as e:
+                    logger.error(f"Ошибка /team: {e}")
+                    send_telegram("❌ Ошибка. Напишите: /team Real Madrid")
+            
+            elif text == '/bettypes':
+                send_telegram(handlers.handle_bet_type_stats())
+            
+            elif text == '/timestats':
+                send_telegram(handlers.handle_time_stats())
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
@@ -281,7 +302,7 @@ if __name__ == "__main__":
     from app.scheduler import start_scheduler
     
     setup_logging()
-    start_scheduler()  # <-- ДОБАВЛЯЕМ АВТО-ОБНОВЛЕНИЕ
+    start_scheduler()
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН С ВСЕМИ УЛУЧШЕНИЯМИ!")
     app.run(host='0.0.0.0', port=port)
