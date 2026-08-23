@@ -241,6 +241,25 @@ def webhook():
             
             elif text == '/help':
                 send_telegram(handlers.handle_start())
+
+            elif text == '/team':
+    # Использование: /team Real Madrid
+    try:
+        parts = text.split()
+        if len(parts) > 1:
+            team_name = ' '.join(parts[1:])
+            send_telegram(handlers.handle_team_stats(team_name))
+        else:
+            send_telegram("📝 Напишите: /team <название команды>\n\nПример: /team Real Madrid")
+    except Exception as e:
+        logger.error(f"Ошибка /team: {e}")
+        send_telegram("❌ Ошибка. Напишите: /team Real Madrid")
+
+elif text == '/bettypes':
+    send_telegram(handlers.handle_bet_type_stats())
+
+elif text == '/timestats':
+    send_telegram(handlers.handle_time_stats())
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
