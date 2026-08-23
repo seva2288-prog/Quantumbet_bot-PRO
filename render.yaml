@@ -2,7 +2,10 @@ services:
   - type: web
     name: quantumbet-bot
     env: python
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: |
+      pip install --upgrade pip
+      pip install setuptools wheel
+      pip install -r requirements.txt
     startCommand: python app/bot.py
     envVars:
       - key: TELEGRAM_TOKEN
