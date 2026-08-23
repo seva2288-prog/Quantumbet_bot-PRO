@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: quantumbet-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app/bot.py
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: FOOTBALL_API_KEY
+        sync: false
+      - key: WEATHER_API_KEY
+        sync: false
+      - key: ADMIN_CHAT_ID
+        sync: false
+    plan: free
