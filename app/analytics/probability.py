@@ -57,3 +57,66 @@ def get_bet_types() -> List:
         ('home_or_draw', 1.5, '1Х'),
         ('away_or_draw', 1.5, '2Х'),
     ]
+
+# ============================================================
+# ПРОГНОЗ ТОЧНОГО СЧЕТА (Улучшение 4)
+# ============================================================
+
+def predict_exact_score(home_xg: float, away_xg: float, max_goals: int = 4) -> dict:
+    """
+    Прогноз точного счета через распределение Пуассона
+    Возвращает топ-5 наиболее вероятных счетов
+    """
+    from app.analytics.probability import poisson_probability
+    
+    # Вероятности для каждого количества голов
+    home_probs = [poisson_probability(home_xg, i) for i in range(max_goals + 1)]
+    away_probs = [poisson_probability(away_xg, i) for i in range(max_goals + 1)]
+    
+    # Нормализация (чтобы сумма была = 1)
+    home_sum = sum(home_probs)
+    away_sum = sum(away_probs)
+    if home_sum > 0:
+        home_probs = [p / home_sum for p in home_probs]
+    if away_sum > 0:
+        away_probs = [p / away_sum for p in away_probs]
+    
+    # Расчет вероятностей для всех счетов
+    scores = {}
+    for i in range(max_goals + 1):
+        for j in range(max_goals + 1):
+            prob = home_probs[i] * away_probs[j]
+            scores[f"{i}-{j}"] = round(prob * 100, 1)
+    
+    # Сортируем по убыванию вероятности
+    sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+    
+    # Возвращаем топ-5
+    return dict(list(sorted_scores.items())[:5])
+
+
+def predict_corners(home_xg: float, away_xg: float) -> dict:
+    """
+    Прогноз угловых на основе xG
+    """
+    # Среднее количество угловых = (сумма xG) * 3.5
+    avg_corners = (home_xg + away_xg) * 3.5
+    
+    return {
+        "total": round(avg_corners, 1),
+        "over_8_5": round(min(avg_corners / 10 * 100, 95), 1),
+        "over_10_5": round(min(max(avg_corners / 12 * 100, 5), 90), 1),
+    }
+
+
+def predict_goalscorer(home_team: str, away_team: str, match_data: dict) -> list:
+    """
+    Прогноз бомбардира матча (заглушка)
+    В реальном проекте нужна статистика игроков
+    """
+    # Заглушка - в реальности нужны данные о игроках
+    return [
+        {"name": "Топ бомбардир хозяев", "probability": 25.5},
+        {"name": "Топ бомбардир гостей", "probability": 18.2},
+        {"name": "Другой игрок", "probability": 12.8},
+    ]
