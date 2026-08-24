@@ -12,8 +12,25 @@ class Storage:
             'history': 'history.json',
             'weights': 'weights.json',
             'stats': 'stats_total.json',
-            'cache': 'cache.json'
+            'cache': 'cache.json',
+            'blocked_ips': 'blocked_ips.json'
         }
+        
+        # Автоматическое создание файлов
+        default_data = {
+            'bank': {'bank': 1000},
+            'history': [],
+            'stats': {'total': 0, 'wins': 0, 'losses': 0, 'pushes': 0},
+            'weights': {},
+            'cache': {},
+            'blocked_ips': {'ips': []}
+        }
+        
+        for name, default in default_data.items():
+            path = self._get_path(name)
+            if not os.path.exists(path):
+                self.save(name, default)
+                print(f"✅ Создан файл: {path}")
     
     def _get_path(self, name: str) -> str:
         return os.path.join(self.data_dir, self.files.get(name, f'{name}.json'))
@@ -52,7 +69,7 @@ class Storage:
         self.save('weights', weights)
     
     def load_stats(self) -> Dict:
-        return self.load('stats', {'total': 0, 'wins': 0, 'losses': 0, 'pushes': 0, 'history': []})
+        return self.load('stats', {'total': 0, 'wins': 0, 'losses': 0, 'pushes': 0})
     
     def save_stats(self, stats: Dict):
         self.save('stats', stats)
