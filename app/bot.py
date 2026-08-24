@@ -14,6 +14,7 @@ from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
 from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners, predict_yellow_cards
 from app.analytics.arbitrage import arbitrage_analyzer
+from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
@@ -525,6 +526,42 @@ def webhook():
                 except Exception as e:
                     logger.error(f"Ошибка /arb: {e}")
                     send_telegram("❌ Ошибка поиска вилок")
+            
+            elif text == '/anomalies':
+                try:
+                    send_telegram("🔍 Поиск аномалий в коэффициентах...")
+                    
+                    matches = get_matches_with_factors()
+                    if not matches:
+                        send_telegram("❌ Матчей не найдено")
+                        return "ok", 200
+                    
+                    found = 0
+                    for match in matches:
+                        fixture_id = match["fixture"]["id"]
+                        odds_data = football_api.get_match_odds(fixture_id)
+                        
+                        if odds_data:
+                            match_data = {
+                                'home': match["teams"]["home"]["name"],
+                                'away': match["teams"]["away"]["name"],
+                                'league': match["league"]["name"]
+                            }
+                            anomalies = anomaly_detector.find_anomalies(match_data, odds_data)
+                            if anomalies:
+                                msg = anomaly_detector.format_anomalies_message(match_data, anomalies)
+                                send_telegram(msg)
+                                found += 1
+                                time.sleep(0.5)
+                    
+                    if found == 0:
+                        send_telegram("✅ Аномалий не найдено в сегодняшних матчах")
+                    else:
+                        send_telegram(f"✅ Найдено аномалий в {found} матчах")
+                        
+                except Exception as e:
+                    logger.error(f"Ошибка /anomalies: {e}")
+                    send_telegram("❌ Ошибка поиска аномалий")
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
