@@ -35,6 +35,74 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
     except Exception as e:
         logger.error(f"Send error: {e}")
 
+def export_to_excel():
+    """Экспорт истории ставок в Excel"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    import io
+    
+    history = storage.load_history()
+    
+    if not history:
+        return None, "📭 Нет данных для экспорта"
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ставки"
+    
+    # Заголовки
+    headers = ["Дата", "Матч", "Лига", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
+    ws.append(headers)
+    
+    # Стили для заголовков
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+    
+    # Данные
+    total_profit = 0
+    for bet in history:
+        date = bet.get('date', '')
+        home = bet.get('home', '')
+        away = bet.get('away', '')
+        league = bet.get('league', '')
+        bet_type = bet.get('bet', '')
+        odds = bet.get('odds', 0)
+        ev = bet.get('ev', 0)
+        stake = bet.get('stake', 0)
+        result = bet.get('result', 'pending')
+        
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+            total_profit += profit
+        elif result == 'loss':
+            profit = -round(stake, 2)
+            total_profit += profit
+        else:
+            profit = 0
+        
+        ws.append([date, f"{home} vs {away}", league, bet_type, odds, ev, stake, result, profit])
+    
+    # Итоговая строка
+    ws.append([])
+    ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2)])
+    
+    # Автоширина колонок
+    for col in range(1, len(headers) + 1):
+        column_letter = chr(64 + col)
+        ws.column_dimensions[column_letter].width = 15
+    
+    # Сохраняем в BytesIO
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
+
 def send_match_with_buttons(match, index):
     if not match:
         return
@@ -267,6 +335,22 @@ def webhook():
             elif text == '/stop':
                 search_running = False
                 send_telegram("🛑 ПОИСК ОСТАНОВЛЕН!")
+
+            elif text == '/export':
+    file, message = export_to_excel()
+    if file:
+        send_telegram(message)
+        # Отправляем файл
+        import requests
+        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
+        files = {'document': ('history.xlsx', file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+        data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
+        try:
+            requests.post(url, files=files, data=data, timeout=30)
+        except Exception as e:
+            logger.error(f"Ошибка отправки файла: {e}")
+    else:
+        send_telegram(message)
             
             elif text == '/bank':
                 send_telegram(handlers.handle_bank())
