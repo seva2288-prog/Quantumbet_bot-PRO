@@ -17,6 +17,7 @@ from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
 from app.betting.auto_bet import auto_bet
+from app.ml.neural_network import neural_net
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -233,7 +234,15 @@ def find_top_matches(matches):
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             
             try:
-                home_xg, away_xg = ml_predictor.predict_xg(factors)
+                neural_home, neural_away = neural_net.predict_xg(factors)
+if neural_home and neural_away:
+    home_xg = neural_home
+    away_xg = neural_away
+    logger.info("🧠 Используем нейросеть для прогноза")
+else:
+    home_xg, away_xg = ml_predictor.predict_xg(factors)
+    logger.info("📊 Используем ML для прогноза")
+                
             except Exception as e:
                 logger.warning(f"ML ошибка: {e}")
             
@@ -368,6 +377,19 @@ def webhook():
             
             elif text == '/timestats':
                 send_telegram(handlers.handle_time_stats())
+
+            elif text == '/train':
+    # Обучение нейросети на истории
+    history = storage.load_history()
+    if len(history) < 50:
+        send_telegram(f"⚠️ Недостаточно данных для обучения. Нужно 50+ матчей (есть {len(history)})")
+    else:
+        send_telegram("🧠 Начинаю обучение нейросети...")
+        result = neural_net.train(history)
+        if result:
+            send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
+        else:
+            send_telegram("❌ Ошибка обучения нейросети")
             
             elif text == '/mlstats':
                 stats = ml_predictor.get_stats()
