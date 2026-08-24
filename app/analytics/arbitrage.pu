@@ -1,0 +1,122 @@
+import requests
+from typing import Dict, List
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+class ArbitrageAnalyzer:
+    def __init__(self):
+        self.bookmakers = ['БК А', 'БК Б', 'БК В', 'БК Г']
+    
+    def get_odds_from_api(self, fixture_id: int) -> Dict:
+        """
+        Получение коэффициентов из API
+        """
+        try:
+            from app.api.football import football_api
+            return football_api.get_match_odds(fixture_id)
+        except Exception as e:
+            logger.error(f"Ошибка получения коэфов: {e}")
+            return None
+    
+    def find_arbitrage(self, odds_data: Dict) -> List[Dict]:
+        """
+        Поиск вилок между букмекерами
+        """
+        if not odds_data:
+            return []
+        
+        arb_opportunities = []
+        
+        # Проверяем возможные вилки
+        # Например, между победами хозяев и гостей
+        home_odds = odds_data.get('home_win', 0)
+        away_odds = odds_data.get('away_win', 0)
+        draw_odds = odds_data.get('draw', 0)
+        
+        # Проверка вилки на 2 исхода (П1 и П2)
+        if home_odds > 0 and away_odds > 0:
+            arb = (1 / home_odds + 1 / away_odds) * 100
+            if arb < 100:
+                profit = round(100 - arb, 2)
+                arb_opportunities.append({
+                    'type': '2-way',
+                    'markets': ['П1', 'П2'],
+                    'odds': [home_odds, away_odds],
+                    'arb_percent': arb,
+                    'profit': profit,
+                    'stake_home': round(100 / home_odds, 2),
+                    'stake_away': round(100 / away_odds, 2)
+                })
+        
+        # Проверка вилки на 3 исхода (П1, Х, П2)
+        if home_odds > 0 and draw_odds > 0 and away_odds > 0:
+            arb = (1 / home_odds + 1 / draw_odds + 1 / away_odds) * 100
+            if arb < 100:
+                profit = round(100 - arb, 2)
+                arb_opportunities.append({
+                    'type': '3-way',
+                    'markets': ['П1', 'Х', 'П2'],
+                    'odds': [home_odds, draw_odds, away_odds],
+                    'arb_percent': arb,
+                    'profit': profit,
+                    'stake_home': round(100 / home_odds, 2),
+                    'stake_draw': round(100 / draw_odds, 2),
+                    'stake_away': round(100 / away_odds, 2)
+                })
+        
+        # Проверка вилки на ОЗ
+        btts_yes = odds_data.get('btts', 0)
+        btts_no = odds_data.get('btts_no', 0)
+        
+        if btts_yes > 0 and btts_no > 0:
+            arb = (1 / btts_yes + 1 / btts_no) * 100
+            if arb < 100:
+                profit = round(100 - arb, 2)
+                arb_opportunities.append({
+                    'type': 'btts',
+                    'markets': ['ОЗ - ДА', 'ОЗ - НЕТ'],
+                    'odds': [btts_yes, btts_no],
+                    'arb_percent': arb,
+                    'profit': profit,
+                    'stake_yes': round(100 / btts_yes, 2),
+                    'stake_no': round(100 / btts_no, 2)
+                })
+        
+        # Сортируем по профиту
+        arb_opportunities.sort(key=lambda x: x['profit'], reverse=True)
+        
+        return arb_opportunities
+    
+    def format_arb_message(self, match_data: Dict, arb_opps: List[Dict]) -> str:
+        """Форматирование сообщения о вилках"""
+        if not arb_opps:
+            return "❌ Вилок не найдено"
+        
+        msg = f"🔍 <b>ВИЛКИ НАЙДЕНЫ!</b>\n"
+        msg += f"🏟️ {match_data['home']} vs {match_data['away']}\n"
+        msg += f"🏆 {match_data['league']}\n\n"
+        
+        for opp in arb_opps[:3]:  # Показываем топ-3
+            if opp['type'] == '2-way':
+                msg += f"💰 <b>Вилка 2-х исходов</b>\n"
+                msg += f"   {opp['markets'][0]}: {opp['odds'][0]} → ${opp['stake_home']}\n"
+                msg += f"   {opp['markets'][1]}: {opp['odds'][1]} → ${opp['stake_away']}\n"
+                msg += f"   📈 Прибыль: {opp['profit']}%\n\n"
+            
+            elif opp['type'] == '3-way':
+                msg += f"💰 <b>Вилка 3-х исходов</b>\n"
+                msg += f"   {opp['markets'][0]}: {opp['odds'][0]} → ${opp['stake_home']}\n"
+                msg += f"   {opp['markets'][1]}: {opp['odds'][1]} → ${opp['stake_draw']}\n"
+                msg += f"   {opp['markets'][2]}: {opp['odds'][2]} → ${opp['stake_away']}\n"
+                msg += f"   📈 Прибыль: {opp['profit']}%\n\n"
+            
+            elif opp['type'] == 'btts':
+                msg += f"💰 <b>Вилка на ОЗ</b>\n"
+                msg += f"   {opp['markets'][0]}: {opp['odds'][0]} → ${opp['stake_yes']}\n"
+                msg += f"   {opp['markets'][1]}: {opp['odds'][1]} → ${opp['stake_no']}\n"
+                msg += f"   📈 Прибыль: {opp['profit']}%\n\n"
+        
+        return msg
+
+arbitrage_analyzer = ArbitrageAnalyzer()
