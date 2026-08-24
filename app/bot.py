@@ -404,6 +404,10 @@ def webhook():
             
             elif text == '/help':
                 send_telegram(handlers.handle_start())
+
+            elif text == '/report':
+    from app.scheduler import send_weekly_report
+    send_weekly_report()
             
             elif text == '/team':
                 try:
