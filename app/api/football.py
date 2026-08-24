@@ -1,7 +1,7 @@
 import requests
 import time
 from typing import Dict, List, Optional
-from config import Config
+from app.config import Config
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
