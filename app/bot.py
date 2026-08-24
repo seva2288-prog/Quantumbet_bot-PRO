@@ -16,7 +16,7 @@ from app.analytics.probability import calculate_probabilities, calculate_ev, get
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
-from app.ml.neural_network import neural_net
+# from app.ml.neural_network import neural_net
 from app.betting.auto_bet import auto_bet
 
 logger = get_logger(__name__)
