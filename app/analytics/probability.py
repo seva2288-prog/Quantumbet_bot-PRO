@@ -199,3 +199,49 @@ def predict_corners(home_xg: float, away_xg: float) -> dict:
         "over_8_5": round(min(avg_corners / 10 * 100, 95), 1),
         "over_10_5": round(min(max(avg_corners / 12 * 100, 5), 90), 1),
     }
+
+# ============================================================
+# ПРОГНОЗ ЖЕЛТЫХ КАРТОЧЕК
+# ============================================================
+
+def predict_yellow_cards(home_team_cards: Dict, away_team_cards: Dict, referee_stats: Dict = None) -> Dict:
+    """
+    Прогноз желтых карточек на основе статистики команд и судьи
+    """
+    # Базовые значения
+    home_avg = home_team_cards.get('yellow_cards_avg', 1.8)
+    away_avg = away_team_cards.get('yellow_cards_avg', 1.8)
+    
+    # Корректировка на стиль команды
+    if home_team_cards.get('trend') == 'aggressive':
+        home_avg *= 1.25
+    elif home_team_cards.get('trend') == 'disciplined':
+        home_avg *= 0.75
+    
+    if away_team_cards.get('trend') == 'aggressive':
+        away_avg *= 1.25
+    elif away_team_cards.get('trend') == 'disciplined':
+        away_avg *= 0.75
+    
+    # Корректировка на судью
+    if referee_stats:
+        if referee_stats.get('style') == 'strict':
+            home_avg *= 1.15
+            away_avg *= 1.15
+        elif referee_stats.get('style') == 'lenient':
+            home_avg *= 0.85
+            away_avg *= 0.85
+    
+    total_avg = home_avg + away_avg
+    
+    # Расчет вероятностей для тоталов
+    probs = {
+        'total': round(total_avg, 1),
+        'over_3_5': round(min(total_avg / 4 * 100, 95), 1),
+        'over_4_5': round(min(max(total_avg / 5 * 100, 5), 90), 1),
+        'over_5_5': round(min(max(total_avg / 6 * 100, 5), 85), 1),
+        'home_avg': round(home_avg, 1),
+        'away_avg': round(away_avg, 1),
+    }
+    
+    return probs
