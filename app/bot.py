@@ -18,6 +18,7 @@ from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
 from app.ml.neural_network import neural_net
 from app.betting.auto_bet import auto_bet
+from app.scheduler import start_scheduler
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -404,10 +405,6 @@ def webhook():
             
             elif text == '/help':
                 send_telegram(handlers.handle_start())
-
-            elif text == '/report':
-    from app.scheduler import send_weekly_report
-    send_weekly_report()
             
             elif text == '/team':
                 try:
@@ -471,6 +468,10 @@ def webhook():
                     else:
                         send_telegram("❌ Ошибка обучения нейросети")
             
+            elif text == '/report':
+                from app.scheduler import send_weekly_report
+                send_weekly_report()
+            
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
@@ -488,8 +489,6 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 if __name__ == "__main__":
-    from app.scheduler import start_scheduler
-    
     setup_logging()
     start_scheduler()
     port = int(os.environ.get("PORT", 10000))
