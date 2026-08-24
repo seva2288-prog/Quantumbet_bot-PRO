@@ -15,6 +15,7 @@ from app.analytics.xg import xg_analyzer
 from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
+from app.ml.predictor import ml_predictor
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -168,7 +169,8 @@ def find_top_matches(matches):
                     match_time = "Время не указано"
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-            probs = calculate_probabilities(home_xg, away_xg)
+home_xg, away_xg = ml_predictor.predict_xg(factors)
+probs = calculate_probabilities(home_xg, away_xg)
             
             match_data = {
                 "home": home,
