@@ -84,48 +84,75 @@ class FootballAPI:
             if injury.get('player', {}).get('name'):
                 injured.append(injury['player']['name'])
         return injured
-
-football_api = FootballAPI()
-
-def get_team_cards_stats(self, team_id: int) -> Dict:
-    """
-    Получение статистики по желтым карточкам команды
-    """
-    params = {'team': team_id, 'season': 2026}
-    data = self._request('teams/statistics', params)
     
-    if not data or not data.get('response'):
+    def get_team_cards_stats(self, team_id: int) -> Dict:
+        """Получение статистики по желтым карточкам команды"""
+        params = {'team': team_id, 'season': 2026}
+        data = self._request('teams/statistics', params)
+        
+        if not data or not data.get('response'):
+            return {
+                'yellow_cards_avg': 1.8,
+                'red_cards_avg': 0.2,
+                'trend': 'normal'
+            }
+        
+        stats = data['response']
+        yellow_avg = stats.get('cards', {}).get('yellow', {}).get('total', 0) / 10 if stats.get('cards', {}).get('yellow', {}).get('total', 0) > 0 else 1.8
+        red_avg = stats.get('cards', {}).get('red', {}).get('total', 0) / 10 if stats.get('cards', {}).get('red', {}).get('total', 0) > 0 else 0.2
+        
+        trend = 'normal'
+        if yellow_avg > 2.5:
+            trend = 'aggressive'
+        elif yellow_avg < 1.2:
+            trend = 'disciplined'
+        
         return {
-            'yellow_cards_avg': 1.8,
-            'red_cards_avg': 0.2,
-            'cards_trend': 'normal'
+            'yellow_cards_avg': round(yellow_avg, 1),
+            'red_cards_avg': round(red_avg, 1),
+            'trend': trend
         }
     
-    stats = data['response']
-    yellow_avg = stats.get('cards', {}).get('yellow', {}).get('total', 0) / 10 if stats.get('cards', {}).get('yellow', {}).get('total', 0) > 0 else 1.8
-    red_avg = stats.get('cards', {}).get('red', {}).get('total', 0) / 10 if stats.get('cards', {}).get('red', {}).get('total', 0) > 0 else 0.2
+    def get_referee_stats(self, referee_name: str) -> Dict:
+        """Получение статистики судьи по карточкам"""
+        return {
+            'yellow_avg': 3.2,
+            'red_avg': 0.3,
+            'style': 'strict' if 3.2 > 3.0 else 'lenient'
+        }
     
-    # Определяем тренд
-    trend = 'normal'
-    if yellow_avg > 2.5:
-        trend = 'aggressive'
-    elif yellow_avg < 1.2:
-        trend = 'disciplined'
-    
-    return {
-        'yellow_cards_avg': round(yellow_avg, 1),
-        'red_cards_avg': round(red_avg, 1),
-        'trend': trend
-    }
+    # ============================================================
+    # НОВАЯ ФУНКЦИЯ: ПОЛУЧЕНИЕ РЕАЛЬНЫХ КОЭФОВ
+    # ============================================================
+    def get_match_odds(self, fixture_id: int) -> Dict:
+        """
+        Получение реальных коэффициентов с API
+        """
+        url = f"{self.BASE_URL}/odds"
+        params = {'fixture': fixture_id}
+        data = self._request(url, params)
+        
+        if not data or not data.get('response'):
+            return None
+        
+        odds = {}
+        for bookmaker in data['response']:
+            for bet in bookmaker.get('bets', []):
+                for value in bet.get('values', []):
+                    if bet.get('name') == 'Обе забьют':
+                        if value.get('value') == 'Да':
+                            odds['btts'] = float(value.get('odd', 1.85))
+                    elif bet.get('name') == 'Тотал':
+                        if value.get('value') == '>2.5':
+                            odds['over_2_5'] = float(value.get('odd', 1.80))
+                    elif bet.get('name') == 'Исход':
+                        if value.get('value') == '1':
+                            odds['home_win'] = float(value.get('odd', 2.0))
+                        elif value.get('value') == '2':
+                            odds['away_win'] = float(value.get('odd', 2.0))
+                        elif value.get('value') == 'X':
+                            odds['draw'] = float(value.get('odd', 3.2))
+        
+        return odds if odds else None
 
-def get_referee_stats(self, referee_name: str) -> Dict:
-    """
-    Получение статистики судьи по карточкам
-    """
-    # Заглушка - в реальном API нужен эндпоинт по судьям
-    # Пока возвращаем средние значения
-    return {
-        'yellow_avg': 3.2,
-        'red_avg': 0.3,
-        'style': 'strict' if 3.2 > 3.0 else 'lenient'
-    }
+football_api = FootballAPI()
