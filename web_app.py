@@ -557,12 +557,14 @@ def stats_page():
     history = storage.load_history()
     
     for bet in history:
-        if bet.get('result') == 'win':
-            bet['profit'] = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-        elif bet.get('result') == 'loss':
-            bet['profit'] = -round(bet.get('stake', 0), 2)
-        else:
-            bet['profit'] = 0
+    if bet.get('result') == 'win':
+        profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+        bet['profit'] = f"${profit}"
+    elif bet.get('result') == 'loss':
+        profit = -round(bet.get('stake', 0), 2)
+        bet['profit'] = f"${profit}"
+    else:
+        bet['profit'] = "$0.00"
     
     return render_template_string(STATS_HTML, stats=stats, history=history)
 
