@@ -187,6 +187,13 @@ def send_match_with_buttons(match, index):
     
     match_id = f"{match['fixture_id']}_{int(time.time())}"
     
+    # Сохраняем матч в кэш
+    cache = storage.load_cache()
+    if not cache:
+        cache = {}
+    cache[f"match_{match_id}"] = match
+    storage.save_cache(cache)
+    
     keyboard = [
         [{"text": "🏠 Победа хозяев", "callback_data": f"result_home_{match_id}"}],
         [{"text": "✈️ Победа гостей", "callback_data": f"result_away_{match_id}"}],
@@ -362,40 +369,43 @@ def find_top_matches(matches):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    global search_running
+    
     try:
         data = request.get_json()
         if not data:
             return "ok", 200
         
+        # ===== ОБРАБОТКА КНОПОК (callback_query) =====
         if 'callback_query' in data:
-            logger.info(f"📨 Нажата кнопка: {data['callback_query'].get('data', '')}")
+            callback = data['callback_query']
+            callback_data = callback.get('data', '')
             
-            # Отвечаем Telegram
+            logger.info(f"📨 Нажата кнопка: {callback_data}")
+            
+            # Отвечаем Telegram, чтобы убрать часики
             import requests
             answer_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/answerCallbackQuery"
             requests.post(answer_url, json={
-                "callback_query_id": data['callback_query'].get('id', ''),
+                "callback_query_id": callback.get('id', ''),
                 "text": "✅ Результат сохранён!"
             })
             
             # Сохраняем результат
-            callback_data = data['callback_query'].get('data', '')
             if callback_data.startswith('result_'):
                 parts = callback_data.split('_')
                 if len(parts) >= 3:
-                    result_type = parts[1]
+                    result_type = parts[1]  # home, away, draw, skip
                     match_id = parts[2]
                     
-                    # Загружаем матч
                     cache = storage.load_cache()
                     match = cache.get(f"match_{match_id}")
                     
-                    if match:
+                    if match and result_type != 'skip':
                         bets = match.get('bets', [])
                         if bets:
                             best_bet = bets[0]
                             
-                            # Определяем результат
                             if result_type == 'home':
                                 result = 'win' if 'Победа хозяев' in best_bet['label'] else 'loss'
                             elif result_type == 'away':
@@ -405,7 +415,7 @@ def webhook():
                             else:
                                 result = 'loss'
                             
-                            # Сохраняем
+                            # Сохраняем в историю
                             history = storage.load_history()
                             bet_record = {
                                 'home': match.get('home', ''),
@@ -422,17 +432,26 @@ def webhook():
                             storage.save_history(history)
                             logger.info(f"✅ Сохранена ставка: {bet_record}")
                             
-                            # Удаляем из кэша
+                            # Удаляем матч из кэша
                             cache.pop(f"match_{match_id}", None)
                             storage.save_cache(cache)
+                    
+                    elif result_type == 'skip':
+                        cache.pop(f"match_{match_id}", None)
+                        storage.save_cache(cache)
+                        logger.info(f"⏭️ Пропущен матч: {match_id}")
             
             return "ok", 200
         
-        # Остальной код (обработка сообщений)
-        # ...
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return "ok", 200
+        # ===== ОБРАБОТКА СООБЩЕНИЙ =====
+        if 'message' in data:
+            message = data['message']
+            text = message.get('text', '')
+            chat_id = message.get('chat', {}).get('id')
+            
+            if str(chat_id) != Config.ADMIN_CHAT_ID:
+                send_telegram("⛔ Нет доступа")
+                return "ok", 200
             
             # ============================================================
             # ОБРАБОТКА ВСЕХ КОМАНД
