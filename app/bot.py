@@ -21,6 +21,7 @@ from app.ml.predictor import ml_predictor
 from app.ml.neural_network import neural_net
 from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
+from app.security.auth import security
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -562,6 +563,34 @@ def webhook():
                 except Exception as e:
                     logger.error(f"Ошибка /anomalies: {e}")
                     send_telegram("❌ Ошибка поиска аномалий")
+            
+            elif text == '/security':
+                stats = security.get_security_stats()
+                msg = f"""🔒 <b>СТАТИСТИКА БЕЗОПАСНОСТИ</b>
+
+🛡️ Заблокированных IP: {stats['blocked_ips']}
+🔑 Активных токенов: {stats['active_tokens']}
+⚠️ Неудачных попыток: {stats['total_attempts']}
+📊 Активных попыток: {stats['failed_attempts']}
+
+✅ Система защищена!
+"""
+                send_telegram(msg)
+            
+            elif text.startswith('/unblock'):
+                try:
+                    parts = text.split()
+                    if len(parts) > 1:
+                        ip = parts[1]
+                        if security.unblock_ip(ip):
+                            send_telegram(f"✅ IP {ip} разблокирован")
+                        else:
+                            send_telegram(f"❌ IP {ip} не найден в блокировках")
+                    else:
+                        send_telegram("📝 Напишите: /unblock <IP>\n\nПример: /unblock 192.168.1.1")
+                except Exception as e:
+                    logger.error(f"Ошибка /unblock: {e}")
+                    send_telegram("❌ Ошибка разблокировки")
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
