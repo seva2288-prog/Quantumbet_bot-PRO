@@ -159,6 +159,7 @@ def find_top_matches(matches):
             away = match["teams"]["away"]["name"]
             league = match["league"]["name"]
             fixture_id = match["fixture"]["id"]
+            factors = match.get("factors", {})
             
             match_time = match.get("fixture", {}).get("date", "")
             if match_time:
@@ -169,8 +170,14 @@ def find_top_matches(matches):
                     match_time = "Время не указано"
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-home_xg, away_xg = ml_predictor.predict_xg(factors)
-probs = calculate_probabilities(home_xg, away_xg)
+            
+            # Машинное обучение с обработкой ошибок
+            try:
+                home_xg, away_xg = ml_predictor.predict_xg(factors)
+            except Exception as e:
+                logger.warning(f"ML ошибка: {e}")
+            
+            probs = calculate_probabilities(home_xg, away_xg)
             
             match_data = {
                 "home": home,
@@ -287,19 +294,19 @@ def webhook():
             
             elif text == '/timestats':
                 send_telegram(handlers.handle_time_stats())
-
+            
             elif text == '/mlstats':
-    stats = ml_predictor.get_stats()
-    if isinstance(stats, str):
-        send_telegram(stats)
-    else:
-        msg = f"""🧠 <b>СТАТИСТИКА МАШИННОГО ОБУЧЕНИЯ</b>
+                stats = ml_predictor.get_stats()
+                if isinstance(stats, str):
+                    send_telegram(stats)
+                else:
+                    msg = f"""🧠 <b>СТАТИСТИКА МАШИННОГО ОБУЧЕНИЯ</b>
 
 📊 Обработано матчей: {stats['total_matches']}
 🎯 Средняя ошибка xG: {stats['avg_home_error']} : {stats['avg_away_error']}
 📈 Точность (последние 10): {stats['last_10_accuracy']}%"""
-        send_telegram(msg)
-        
+                    send_telegram(msg)
+            
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
