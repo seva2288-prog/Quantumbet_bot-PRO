@@ -13,6 +13,7 @@ from app.api.football import football_api
 from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
 from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners, predict_yellow_cards
+from app.analytics.arbitrage import arbitrage_analyzer
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
@@ -488,6 +489,42 @@ def webhook():
             elif text == '/report':
                 from app.scheduler import send_weekly_report
                 send_weekly_report()
+            
+            elif text == '/arb':
+                try:
+                    send_telegram("🔍 Поиск вилок...")
+                    
+                    matches = get_matches_with_factors()
+                    if not matches:
+                        send_telegram("❌ Матчей не найдено")
+                        return "ok", 200
+                    
+                    found_arbs = 0
+                    for match in matches:
+                        fixture_id = match["fixture"]["id"]
+                        odds_data = football_api.get_match_odds(fixture_id)
+                        
+                        if odds_data:
+                            arb_opps = arbitrage_analyzer.find_arbitrage(odds_data)
+                            if arb_opps:
+                                match_data = {
+                                    'home': match["teams"]["home"]["name"],
+                                    'away': match["teams"]["away"]["name"],
+                                    'league': match["league"]["name"]
+                                }
+                                msg = arbitrage_analyzer.format_arb_message(match_data, arb_opps)
+                                send_telegram(msg)
+                                found_arbs += 1
+                                time.sleep(0.5)
+                    
+                    if found_arbs == 0:
+                        send_telegram("❌ Вилок не найдено в сегодняшних матчах")
+                    else:
+                        send_telegram(f"✅ Найдено вилок в {found_arbs} матчах")
+                        
+                except Exception as e:
+                    logger.error(f"Ошибка /arb: {e}")
+                    send_telegram("❌ Ошибка поиска вилок")
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
