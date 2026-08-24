@@ -383,7 +383,7 @@ def webhook():
             
             logger.info(f"📨 Нажата кнопка: {callback_data}")
             
-            # Отвечаем Telegram, чтобы убрать часики
+            # Отвечаем Telegram
             import requests
             answer_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/answerCallbackQuery"
             try:
@@ -394,23 +394,31 @@ def webhook():
             except Exception as e:
                 logger.error(f"Ошибка ответа: {e}")
             
-            # ===== СОХРАНЯЕМ РЕЗУЛЬТАТ =====
+            # ===== ОБРАБОТКА РЕЗУЛЬТАТА =====
             if callback_data.startswith('result_'):
+                logger.info(f"🔍 Обработка результата: {callback_data}")
+                
                 parts = callback_data.split('_')
                 if len(parts) >= 3:
-                    result_type = parts[1]  # home, away, draw, skip
+                    result_type = parts[1]
                     match_id = parts[2]
                     
+                    logger.info(f"🔍 Тип: {result_type}, ID: {match_id}")
+                    
+                    # Загружаем кэш
                     cache = storage.load_cache()
                     match = cache.get(f"match_{match_id}")
                     
+                    logger.info(f"🔍 Матч найден: {match is not None}")
+                    
                     if match:
-                        logger.info(f"📋 Матч найден: {match.get('home')} vs {match.get('away')}")
+                        logger.info(f"📋 Матч: {match.get('home')} vs {match.get('away')}")
                         
                         if result_type != 'skip':
                             bets = match.get('bets', [])
                             if bets:
                                 best_bet = bets[0]
+                                logger.info(f"📊 Ставка: {best_bet.get('label')}")
                                 
                                 # Определяем результат
                                 if result_type == 'home':
@@ -418,63 +426,64 @@ def webhook():
                                 elif result_type == 'away':
                                     result = 'win' if 'Победа гостей' in best_bet['label'] else 'loss'
                                 elif result_type == 'draw':
-                                    result = 'win' if '1Х' in best_bet['label'] or '2Х' in best_bet['label'] else 'loss'
+                                    if '1Х' in best_bet['label'] or '2Х' in best_bet['label']:
+                                        result = 'win'
+                                    else:
+                                        result = 'loss'
                                 else:
                                     result = 'loss'
                                 
+                                logger.info(f"📊 Результат: {result}")
+                                
                                 # ===== СОХРАНЯЕМ В ИСТОРИЮ =====
-                                history = storage.load_history()
-                                bet_record = {
-                                    'home': match.get('home', ''),
-                                    'away': match.get('away', ''),
-                                    'league': match.get('league', ''),
-                                    'bet': best_bet.get('label', ''),
-                                    'odds': best_bet.get('odds', 0),
-                                    'stake': best_bet.get('stake', 0),
-                                    'ev': best_bet.get('ev', 0),
-                                    'result': result,
-                                    'date': datetime.now().strftime('%Y-%m-%d %H:%M')
-                                }
-                                history.append(bet_record)
-                                storage.save_history(history)
-                                logger.info(f"✅ СОХРАНЕНО: {bet_record}")
-                                
-                                # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
-                                stats = storage.load_stats()
-                                stats['total'] = stats.get('total', 0) + 1
-                                if result == 'win':
-                                    stats['wins'] = stats.get('wins', 0) + 1
-                                elif result == 'loss':
-                                    stats['losses'] = stats.get('losses', 0) + 1
-                                else:
-                                    stats['pushes'] = stats.get('pushes', 0) + 1
-                                storage.save_stats(stats)
-                                logger.info(f"✅ СТАТИСТИКА ОБНОВЛЕНА: {stats}")
-                                
-                                # ===== ОБНОВЛЯЕМ ВЕСА ЛИГ =====
-                                weights = storage.load_weights()
-                                league = match.get('league', 'Unknown')
-                                if league not in weights:
-                                    weights[league] = {'total': 0, 'wins': 0, 'losses': 0, 'factor': 1.0}
-                                weights[league]['total'] += 1
-                                if result == 'win':
-                                    weights[league]['wins'] += 1
-                                    weights[league]['factor'] += 0.02 * (best_bet.get('ev', 0) / 10)
-                                else:
-                                    weights[league]['losses'] += 1
-                                    weights[league]['factor'] -= 0.03 * (best_bet.get('ev', 0) / 10)
-                                weights[league]['factor'] = max(0.5, min(weights[league]['factor'], 1.5))
-                                storage.save_weights(weights)
-                                logger.info(f"✅ ВЕСА ОБНОВЛЕНЫ: {league} = {weights[league]['factor']:.2f}")
-                                
-                                # Удаляем матч из кэша
-                                cache.pop(f"match_{match_id}", None)
-                                storage.save_cache(cache)
-                        
-                        elif result_type == 'skip':
+                                try:
+                                    history = storage.load_history()
+                                    logger.info(f"📋 История загружена: {len(history)} записей")
+                                    
+                                    bet_record = {
+                                        'home': match.get('home', ''),
+                                        'away': match.get('away', ''),
+                                        'league': match.get('league', ''),
+                                        'bet': best_bet.get('label', ''),
+                                        'odds': best_bet.get('odds', 0),
+                                        'stake': best_bet.get('stake', 0),
+                                        'ev': best_bet.get('ev', 0),
+                                        'result': result,
+                                        'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+                                    }
+                                    history.append(bet_record)
+                                    storage.save_history(history)
+                                    logger.info(f"✅ СОХРАНЕНО: {bet_record}")
+                                    
+                                    # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
+                                    stats = storage.load_stats()
+                                    stats['total'] = stats.get('total', 0) + 1
+                                    if result == 'win':
+                                        stats['wins'] = stats.get('wins', 0) + 1
+                                    elif result == 'loss':
+                                        stats['losses'] = stats.get('losses', 0) + 1
+                                    else:
+                                        stats['pushes'] = stats.get('pushes', 0) + 1
+                                    storage.save_stats(stats)
+                                    logger.info(f"✅ СТАТИСТИКА: {stats}")
+                                    
+                                    # Удаляем матч из кэша
+                                    cache.pop(f"match_{match_id}", None)
+                                    storage.save_cache(cache)
+                                    
+                                    # Отправляем подтверждение
+                                    send_telegram(f"✅ Результат сохранён!\n{match.get('home')} vs {match.get('away')} → {result}")
+                                    
+                                except Exception as e:
+                                    logger.error(f"❌ Ошибка сохранения: {e}")
+                            else:
+                                logger.warning(f"⚠️ Нет ставок в матче")
+                        else:
+                            logger.info(f"⏭️ Пропущен матч")
                             cache.pop(f"match_{match_id}", None)
                             storage.save_cache(cache)
-                            logger.info(f"⏭️ Пропущен матч: {match_id}")
+                    else:
+                        logger.warning(f"⚠️ Матч не найден в кэше: {match_id}")
             
             return "ok", 200
         
