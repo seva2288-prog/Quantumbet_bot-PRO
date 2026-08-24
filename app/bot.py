@@ -187,12 +187,17 @@ def send_match_with_buttons(match, index):
     
     match_id = f"{match['fixture_id']}_{int(time.time())}"
     
-    # Сохраняем матч в кэш
-    cache = storage.load_cache()
-    if not cache:
-        cache = {}
-    cache[f"match_{match_id}"] = match
-    storage.save_cache(cache)
+    # ===== СОХРАНЯЕМ МАТЧ В КЭШ С ЛОГИРОВАНИЕМ =====
+    try:
+        cache = storage.load_cache()
+        if not cache:
+            cache = {}
+        cache[f"match_{match_id}"] = match
+        storage.save_cache(cache)
+        logger.info(f"💾 Сохранён матч в кэш: {match_id}")
+        logger.info(f"📋 Матч: {match['home']} vs {match['away']}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения в кэш: {e}")
     
     keyboard = [
         [{"text": "🏠 Победа хозяев", "callback_data": f"result_home_{match_id}"}],
