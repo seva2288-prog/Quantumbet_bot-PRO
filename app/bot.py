@@ -16,8 +16,10 @@ from app.analytics.probability import calculate_probabilities, calculate_ev, get
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
-# from app.ml.neural_network import neural_net
 from app.betting.auto_bet import auto_bet
+
+# Нейросеть временно отключена
+# from app.ml.neural_network import neural_net
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -269,20 +271,12 @@ def find_top_matches(matches):
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             
-            # Нейросеть или ML
+            # Используем ML
             try:
-                neural_home, neural_away = neural_net.predict_xg(factors)
-                if neural_home and neural_away:
-                    home_xg = neural_home
-                    away_xg = neural_away
-                    logger.info("🧠 Используем нейросеть для прогноза")
-                else:
-                    home_xg, away_xg = ml_predictor.predict_xg(factors)
-                    logger.info("📊 Используем ML для прогноза")
-            except Exception as e:
-                logger.warning(f"Ошибка нейросети: {e}")
                 home_xg, away_xg = ml_predictor.predict_xg(factors)
                 logger.info("📊 Используем ML для прогноза")
+            except Exception as e:
+                logger.warning(f"Ошибка ML: {e}")
             
             probs = calculate_probabilities(home_xg, away_xg)
             
@@ -444,17 +438,9 @@ def webhook():
                 else:
                     send_telegram(message)
             
-            elif text == '/train':
-                history = storage.load_history()
-                if len(history) < 50:
-                    send_telegram(f"⚠️ Недостаточно данных для обучения. Нужно 50+ матчей (есть {len(history)})")
-                else:
-                    send_telegram("🧠 Начинаю обучение нейросети...")
-                    result = neural_net.train(history)
-                    if result:
-                        send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
-                    else:
-                        send_telegram("❌ Ошибка обучения нейросети")
+            # /train временно отключен
+            # elif text == '/train':
+            #     ...
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
