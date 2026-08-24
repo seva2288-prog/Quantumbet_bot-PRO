@@ -337,34 +337,38 @@ def find_top_matches(matches):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     global search_running
-    
+
     try:
         data = request.get_json()
         if not data:
             return "ok", 200
-        
+
         if 'callback_query' in data:
             return "ok", 200
-        
+
         if 'message' in data:
             message = data['message']
             text = message.get('text', '')
             chat_id = message.get('chat', {}).get('id')
-            
+
             if str(chat_id) != Config.ADMIN_CHAT_ID:
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
-            
+
+            # ============================================================
+            # ОБРАБОТКА ВСЕХ КОМАНД
+            # ============================================================
+
             if text == '/start':
                 send_telegram(handlers.handle_start())
-            
+
             elif text == '/update':
                 if search_running:
                     send_telegram("⚠️ Поиск уже запущен!")
                 else:
                     search_running = True
                     send_telegram("🔄 Поиск матчей...")
-                    
+
                     matches = get_matches_with_factors()
                     if matches:
                         top_matches = find_top_matches(matches)
@@ -377,22 +381,25 @@ def webhook():
                             send_telegram("❌ Ставок не найдено")
                     else:
                         send_telegram("❌ Матчей не найдено")
-                    
+
                     search_running = False
-            
+
             elif text == '/stop':
                 search_running = False
                 send_telegram("🛑 ПОИСК ОСТАНОВЛЕН!")
-            
+
             elif text == '/bank':
                 send_telegram(handlers.handle_bank())
-            
+
             elif text == '/stats':
                 send_telegram(handlers.handle_stats())
-            
+
+            elif text == '/learn':
+                send_telegram(handlers.handle_learn())
+
             elif text == '/help':
                 send_telegram(handlers.handle_start())
-            
+
             elif text == '/team':
                 try:
                     parts = text.split()
@@ -404,13 +411,13 @@ def webhook():
                 except Exception as e:
                     logger.error(f"Ошибка /team: {e}")
                     send_telegram("❌ Ошибка. Напишите: /team Real Madrid")
-            
+
             elif text == '/bettypes':
                 send_telegram(handlers.handle_bet_type_stats())
-            
+
             elif text == '/timestats':
                 send_telegram(handlers.handle_time_stats())
-            
+
             elif text == '/mlstats':
                 stats = ml_predictor.get_stats()
                 if isinstance(stats, str):
@@ -422,7 +429,7 @@ def webhook():
 🎯 Средняя ошибка xG: {stats['avg_home_error']} : {stats['avg_away_error']}
 📈 Точность (последние 10): {stats['last_10_accuracy']}%"""
                     send_telegram(msg)
-            
+
             elif text == '/export':
                 file, message = export_to_excel()
                 if file:
@@ -437,15 +444,17 @@ def webhook():
                         logger.error(f"Ошибка отправки файла: {e}")
                 else:
                     send_telegram(message)
-            
-            # /train временно отключен
-            # elif text == '/train':
-            #     ...
-            
+
+            elif text == '/autobet':
+                auto_bet.enabled = not getattr(auto_bet, 'enabled', True)
+                status = "ВКЛЮЧЕНЫ" if auto_bet.enabled else "ВЫКЛЮЧЕНЫ"
+                send_telegram(f"🤖 Авто-ставки {status}!")
+
             else:
                 send_telegram("❌ Неизвестная команда. /help")
-        
+
         return "ok", 200
+
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return "ok", 200
