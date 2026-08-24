@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 
 # ============================================================
-# HTML ШАБЛОН С ВСЕМИ УЛУЧШЕНИЯМИ
+# HTML ШАБЛОНЫ
 # ============================================================
 
 DASHBOARD_HTML = """
@@ -28,7 +28,6 @@ DASHBOARD_HTML = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* ===== ОСНОВНЫЕ ПЕРЕМЕННЫЕ ===== */
         :root {
             --bg-primary: #0f0f1a;
             --bg-secondary: #1a1a2e;
@@ -40,7 +39,6 @@ DASHBOARD_HTML = """
             --gradient-start: #667eea;
             --gradient-end: #764ba2;
         }
-        
         [data-theme="light"] {
             --bg-primary: #f0f2f5;
             --bg-secondary: #ffffff;
@@ -50,8 +48,6 @@ DASHBOARD_HTML = """
             --border-color: rgba(0,0,0,0.08);
             --shadow-color: rgba(0,0,0,0.1);
         }
-        
-        /* ===== ОБЩИЕ СТИЛИ ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -61,8 +57,6 @@ DASHBOARD_HTML = """
             transition: all 0.3s ease;
         }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        
-        /* ===== ШАПКА ===== */
         .header {
             display: flex;
             justify-content: space-between;
@@ -88,8 +82,6 @@ DASHBOARD_HTML = """
             gap: 12px;
             flex-wrap: wrap;
         }
-        
-        /* ===== КНОПКА ТЕМЫ ===== */
         .theme-toggle {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -108,8 +100,6 @@ DASHBOARD_HTML = """
             transform: scale(1.1);
             border-color: var(--gradient-start);
         }
-        
-        /* ===== СТАТУС ===== */
         .status {
             display: flex;
             align-items: center;
@@ -129,8 +119,6 @@ DASHBOARD_HTML = """
             50% { opacity: 0.5; transform: scale(0.8); }
             100% { opacity: 1; transform: scale(1); }
         }
-        
-        /* ===== НАВИГАЦИЯ ===== */
         .nav {
             display: flex;
             gap: 8px;
@@ -160,8 +148,6 @@ DASHBOARD_HTML = """
             color: #fff;
             box-shadow: 0 8px 25px var(--shadow-color);
         }
-        
-        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -190,8 +176,6 @@ DASHBOARD_HTML = """
         .stat-card .value.red { background: linear-gradient(135deg, #cb2d3e, #ef473a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .label { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
-        
-        /* ===== КАРТОЧКИ ===== */
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -209,16 +193,11 @@ DASHBOARD_HTML = """
             margin-bottom: 15px;
         }
         .card-header h2 { color: var(--text-secondary); font-size: 16px; font-weight: normal; }
-        
-        /* ===== ГРАФИК ===== */
         .chart-container {
             position: relative;
             height: 250px;
             margin: 10px 0;
         }
-        .chart-container canvas { width: 100% !important; height: 100% !important; }
-        
-        /* ===== ТАБЛИЦЫ ===== */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -231,7 +210,6 @@ DASHBOARD_HTML = """
         }
         th { color: var(--text-secondary); font-weight: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
         tr:hover td { background: var(--bg-card); }
-        
         .badge {
             display: inline-block;
             padding: 3px 12px;
@@ -242,11 +220,8 @@ DASHBOARD_HTML = """
         .badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
         .badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
         .badge.pending { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
-        
         .profit-positive { color: #38ef7d; }
         .profit-negative { color: #ef473a; }
-        
-        /* ===== ТОП ЛИГ ===== */
         .league-item {
             display: flex;
             justify-content: space-between;
@@ -262,15 +237,9 @@ DASHBOARD_HTML = """
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             transition: width 1s ease;
         }
-        
-        /* ===== НЕТ ДАННЫХ ===== */
         .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
         .no-data .emoji { font-size: 48px; margin-bottom: 10px; }
-        
-        /* ===== ФУТЕР ===== */
         .footer { text-align: center; color: #444466; font-size: 12px; margin-top: 30px; padding: 20px 0; border-top: 1px solid var(--border-color); }
-        
-        /* ===== АДАПТИВНОСТЬ ===== */
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: stretch; gap: 15px; }
             .header h1 { font-size: 22px; text-align: center; }
@@ -284,7 +253,6 @@ DASHBOARD_HTML = """
             th, td { padding: 6px 8px; }
             .chart-container { height: 180px; }
         }
-        
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
             .stat-card { padding: 14px; }
@@ -295,7 +263,6 @@ DASHBOARD_HTML = """
 </head>
 <body>
     <div class="container">
-        <!-- ШАПКА -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -309,7 +276,6 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- НАВИГАЦИЯ -->
         <div class="nav">
             <a href="/"><button class="btn active">📊 Дашборд</button></a>
             <a href="/matches"><button class="btn">⚽ Матчи</button></a>
@@ -317,10 +283,8 @@ DASHBOARD_HTML = """
             <a href="/arbitrage"><button class="btn">🔍 Вилки</button></a>
             <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
-            <button class="btn" onclick="exportPDF()">📄 PDF</button>
         </div>
         
-        <!-- СТАТИСТИКА -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="icon">💰</div>
@@ -344,7 +308,6 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- ГРАФИК ПРИБЫЛИ -->
         <div class="card">
             <div class="card-header">
                 <h2>📈 График прибыли</h2>
@@ -356,7 +319,6 @@ DASHBOARD_HTML = """
         </div>
         
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-            <!-- ТОП ЛИГ -->
             <div class="card">
                 <div class="card-header">
                     <h2>🏆 Топ лиг</h2>
@@ -382,7 +344,6 @@ DASHBOARD_HTML = """
                 </div>
             </div>
             
-            <!-- ПОСЛЕДНИЕ СТАВКИ -->
             <div class="card">
                 <div class="card-header">
                     <h2>📋 Последние ставки</h2>
@@ -414,7 +375,6 @@ DASHBOARD_HTML = """
     </div>
     
     <script>
-        // ===== ТЁМНАЯ/СВЕТЛАЯ ТЕМА =====
         function toggleTheme() {
             const html = document.documentElement;
             const btn = document.getElementById('themeBtn');
@@ -428,20 +388,16 @@ DASHBOARD_HTML = """
                 localStorage.setItem('theme', 'dark');
             }
         }
-        
-        // Восстановление темы
         const savedTheme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        // ===== ГРАФИК ПРИБЫЛИ =====
         document.addEventListener('DOMContentLoaded', function() {
             fetch('/api/profit_data')
                 .then(response => response.json())
                 .then(data => {
                     const ctx = document.getElementById('profitChart').getContext('2d');
                     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-                    
                     new Chart(ctx, {
                         type: 'line',
                         data: {
@@ -471,9 +427,7 @@ DASHBOARD_HTML = """
                                 }
                             },
                             scales: {
-                                x: {
-                                    ticks: { color: isDark ? '#8888aa' : '#666688' }
-                                },
+                                x: { ticks: { color: isDark ? '#8888aa' : '#666688' } },
                                 y: {
                                     ticks: { 
                                         color: isDark ? '#8888aa' : '#666688',
@@ -489,10 +443,324 @@ DASHBOARD_HTML = """
                         '<div class="no-data"><div class="emoji">📊</div>Нет данных для графика</div>';
                 });
         });
+    </script>
+</body>
+</html>
+"""
+
+MATCHES_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Матчи - Quantum Bet Bot</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #667eea; font-size: 28px; margin-bottom: 5px; }
+        .subtitle { color: #8888aa; margin-bottom: 20px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .nav a { text-decoration: none; }
+        .btn { background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+        .btn:hover { background: #667eea; border-color: #667eea; }
+        .btn.active { background: #667eea; border-color: #667eea; }
+        .match-card { background: #1a1a2e; padding: 20px; border-radius: 12px; border: 1px solid #2a2a4a; margin-bottom: 15px; }
+        .match-title { font-size: 18px; font-weight: bold; }
+        .match-league { color: #8888aa; font-size: 14px; }
+        .match-xg { color: #667eea; font-size: 14px; }
+        .match-bets { margin-top: 10px; }
+        .bet-item { display: inline-block; background: #0f0f1a; padding: 5px 12px; border-radius: 6px; margin: 3px; font-size: 13px; border: 1px solid #2a2a4a; }
+        .no-matches { text-align: center; color: #8888aa; padding: 40px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚽ Матчи на сегодня</h1>
+        <div class="subtitle">Прогнозы и валуйные ставки</div>
         
-        // ===== ЭКСПОРТ В PDF =====
-        function exportPDF() {
-            window.open('/export_pdf', '_blank');
+        <div class="nav">
+            <a href="/"><button class="btn">📊 Дашборд</button></a>
+            <a href="/matches"><button class="btn active">⚽ Матчи</button></a>
+            <a href="/stats"><button class="btn">📈 Статистика</button></a>
+            <a href="/arbitrage"><button class="btn">🔍 Вилки</button></a>
+            <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
+        </div>
+        
+        {% if matches %}
+            {% for match in matches %}
+            <div class="match-card">
+                <div class="match-title">{{ match.home }} vs {{ match.away }}</div>
+                <div class="match-league">🏆 {{ match.league }} | ⏰ {{ match.match_time }}</div>
+                <div class="match-xg">📊 xG: {{ match.home_xg }} : {{ match.away_xg }}</div>
+                <div class="match-bets">
+                    {% for bet in match.bets[:3] %}
+                    <span class="bet-item">{{ bet.label }} | КЭФ: {{ bet.odds }} | EV: {{ bet.ev }}%</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-matches">📭 Матчей не найдено</div>
+        {% endif %}
+    </div>
+</body>
+</html>
+"""
+
+STATS_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Статистика - Quantum Bet Bot</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #667eea; font-size: 28px; margin-bottom: 5px; }
+        .subtitle { color: #8888aa; margin-bottom: 20px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .nav a { text-decoration: none; }
+        .btn { background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
+        .btn:hover { background: #667eea; border-color: #667eea; }
+        .btn.active { background: #667eea; border-color: #667eea; }
+        .card { background: #1a1a2e; padding: 20px; border-radius: 12px; border: 1px solid #2a2a4a; margin-bottom: 15px; }
+        .stat-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .stat-item { flex: 1; min-width: 150px; }
+        .stat-item .value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-item .label { color: #8888aa; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #2a2a4a; }
+        th { color: #8888aa; font-weight: normal; font-size: 12px; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .badge.win { background: #1a4a2a; color: #38ef7d; }
+        .badge.loss { background: #4a1a1a; color: #ef473a; }
+        .badge.pending { background: #4a3a1a; color: #ffd200; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Статистика</h1>
+        <div class="subtitle">Детальный анализ ваших ставок</div>
+        
+        <div class="nav">
+            <a href="/"><button class="btn">📊 Дашборд</button></a>
+            <a href="/matches"><button class="btn">⚽ Матчи</button></a>
+            <a href="/stats"><button class="btn active">📈 Статистика</button></a>
+            <a href="/arbitrage"><button class="btn">🔍 Вилки</button></a>
+            <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
+        </div>
+        
+        <div class="card">
+            <h2>📊 Общая статистика</h2>
+            <div class="stat-row">
+                <div class="stat-item">
+                    <div class="value">{{ stats.total_bets or 0 }}</div>
+                    <div class="label">Всего ставок</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" style="color:#38ef7d;">{{ stats.wins or 0 }}</div>
+                    <div class="label">Выигрыши</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" style="color:#ef473a;">{{ stats.losses or 0 }}</div>
+                    <div class="label">Проигрыши</div>
+                </div>
+                <div class="stat-item">
+                    <div class="value" style="color:#ffd200;">{{ stats.total_profit or 0 }}$</div>
+                    <div class="label">Прибыль</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Все ставки</h2>
+            <table>
+                <thead>
+                    <tr><th>Дата</th><th>Матч</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr>
+                </thead>
+                <tbody>
+                    {% for bet in history %}
+                    <tr>
+                        <td>{{ bet.date }}</td>
+                        <td>{{ bet.home }} vs {{ bet.away }}</td>
+                        <td>{{ bet.bet }}</td>
+                        <td>{{ bet.odds }}</td>
+                        <td>{{ bet.ev }}%</td>
+                        <td><span class="badge {{ bet.result }}">{{ bet.result }}</span></td>
+                        <td>${{ bet.profit }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" style="text-align:center;color:#8888aa;">Нет данных</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+ARBITRAGE_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Вилки - Quantum Bet Bot</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #667eea; font-size: 28px; }
+        .subtitle { color: #8888aa; margin-bottom: 20px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .nav a { text-decoration: none; }
+        .btn { background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .btn:hover { background: #667eea; }
+        .btn.active { background: #667eea; }
+        .arb-card { background: #1a1a2e; padding: 20px; border-radius: 12px; border: 1px solid #2a2a4a; margin-bottom: 15px; }
+        .arb-card .profit { color: #38ef7d; font-size: 20px; font-weight: bold; }
+        .no-data { text-align: center; color: #8888aa; padding: 40px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Букмекерские вилки</h1>
+        <div class="subtitle">Гарантированная прибыль</div>
+        
+        <div class="nav">
+            <a href="/"><button class="btn">📊 Дашборд</button></a>
+            <a href="/matches"><button class="btn">⚽ Матчи</button></a>
+            <a href="/stats"><button class="btn">📈 Статистика</button></a>
+            <a href="/arbitrage"><button class="btn active">🔍 Вилки</button></a>
+            <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
+        </div>
+        
+        {% if arbs %}
+            {% for arb in arbs %}
+            <div class="arb-card">
+                <h3>⚽ {{ arb.home }} vs {{ arb.away }}</h3>
+                <div>🏆 {{ arb.league }}</div>
+                {% for opp in arb.arbitrage[:3] %}
+                <div style="margin:10px 0;padding:10px;background:#0f0f1a;border-radius:8px;">
+                    <div style="color:#ffd200;">{{ opp.markets|join(' vs ') }}</div>
+                    <div>Кэфы: {{ opp.odds|join(' : ') }}</div>
+                    <div>Ставки: ${{ opp.stake_home }} : ${{ opp.stake_away }}</div>
+                    <div class="profit">💰 Прибыль: {{ opp.profit }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-data">🔍 Вилок не найдено</div>
+        {% endif %}
+    </div>
+</body>
+</html>
+"""
+
+SETTINGS_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Настройки - Quantum Bet Bot</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #667eea; font-size: 28px; }
+        .subtitle { color: #8888aa; margin-bottom: 20px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .nav a { text-decoration: none; }
+        .btn { background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a4a; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .btn:hover { background: #667eea; }
+        .btn.active { background: #667eea; }
+        .setting-group { background: #1a1a2e; padding: 20px; border-radius: 12px; border: 1px solid #2a2a4a; margin-bottom: 15px; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #0f0f1a; }
+        .setting-item:last-child { border-bottom: none; }
+        .input-group { display: flex; gap: 10px; align-items: center; }
+        .input-group input { background: #0f0f1a; border: 1px solid #2a2a4a; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; width: 150px; }
+        .input-group button { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .input-group button:hover { background: #764ba2; }
+        .toggle { width: 50px; height: 28px; background: #2a2a4a; border-radius: 14px; cursor: pointer; position: relative; }
+        .toggle.active { background: #667eea; }
+        .toggle .dot { width: 22px; height: 22px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.3s; }
+        .toggle.active .dot { left: 25px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Настройки</h1>
+        <div class="subtitle">Управление ботом</div>
+        
+        <div class="nav">
+            <a href="/"><button class="btn">📊 Дашборд</button></a>
+            <a href="/matches"><button class="btn">⚽ Матчи</button></a>
+            <a href="/stats"><button class="btn">📈 Статистика</button></a>
+            <a href="/arbitrage"><button class="btn">🔍 Вилки</button></a>
+            <a href="/settings"><button class="btn active">⚙️ Настройки</button></a>
+        </div>
+        
+        <div class="setting-group">
+            <h2>💰 Банк</h2>
+            <div class="setting-item">
+                <div>
+                    <div class="label">Текущий банк</div>
+                    <div class="desc">Ваш игровой банк</div>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="bankInput" value="{{ bank }}" step="10">
+                    <button onclick="updateBank()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="setting-group">
+            <h2>🤖 Автоматизация</h2>
+            <div class="setting-item">
+                <div>
+                    <div class="label">Авто-ставки</div>
+                    <div class="desc">Автоматическое размещение ставок</div>
+                </div>
+                <div class="toggle active" onclick="this.classList.toggle('active')">
+                    <div class="dot"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="setting-group">
+            <h2>📊 Экспорт</h2>
+            <div class="setting-item">
+                <div>
+                    <div class="label">Экспорт данных</div>
+                    <div class="desc">Скачать историю в Excel</div>
+                </div>
+                <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function updateBank() {
+            const value = document.getElementById('bankInput').value;
+            fetch('/api/bank', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bank: parseFloat(value) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Банк обновлен: $' + data.bank);
+                    location.reload();
+                }
+            });
         }
     </script>
 </body>
@@ -574,43 +842,6 @@ def profit_data():
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     
     return jsonify({'dates': dates, 'profits': profits})
-
-@app.route('/export_pdf')
-def export_pdf():
-    # Простой PDF через HTML
-    from flask import render_template_string
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><title>Отчёт</title></head>
-    <body style="font-family:Arial;padding:40px;">
-        <h1>📊 Отчёт Quantum Bet Bot</h1>
-        <p>Дата: {{ now }}</p>
-        <hr>
-        <h2>Статистика</h2>
-        <ul>
-            <li>Банк: ${{ bank }}</li>
-            <li>Выигрыши: {{ stats.wins }}</li>
-            <li>Проигрыши: {{ stats.losses }}</li>
-            <li>Прибыль: ${{ stats.total_profit }}</li>
-        </ul>
-        <hr>
-        <p style="color:#888;font-size:12px;">Сгенерировано автоматически</p>
-    </body>
-    </html>
-    """
-    stats = storage.load_stats()
-    bank = storage.load_bank()
-    html_rendered = render_template_string(html, stats=stats, bank=bank, now=datetime.now().strftime('%d.%m.%Y %H:%M'))
-    
-    from weasyprint import HTML as WeasyHTML
-    pdf = WeasyHTML(string=html_rendered).write_pdf()
-    
-    return send_file(io.BytesIO(pdf), as_attachment=True, download_name='report.pdf', mimetype='application/pdf')
-
-# ============================================================
-# ОСТАЛЬНЫЕ МАРШРУТЫ
-# ============================================================
 
 @app.route('/matches')
 def matches_page():
