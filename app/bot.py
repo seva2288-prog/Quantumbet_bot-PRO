@@ -170,6 +170,13 @@ def send_match_with_buttons(match, index):
     except Exception as e:
         logger.warning(f"Ошибка прогноза карточек: {e}")
     
+    # ===== ЧУТЬЁ (ИНТУИЦИЯ) =====
+    intuition = match.get('intuition', [])
+    if intuition:
+        msg += "\n🧠 <b>Чутьё:</b>\n"
+        for reason in intuition[:5]:
+            msg += f"   {reason}\n"
+    
     if is_weak:
         msg += "\n⚠️ <b>СЛАБАЯ ЛИГА!</b> Бот может ошибаться на ОЗ - ДА."
     
@@ -286,6 +293,15 @@ def find_top_matches(matches):
             
             probs = calculate_probabilities(home_xg, away_xg)
             
+            # ===== ПОЛУЧАЕМ РЕАЛЬНЫЕ КОЭФЫ =====
+            odds_data = football_api.get_match_odds(fixture_id)
+            if odds_data:
+                logger.info(f"📊 Реальные коэфы: {odds_data}")
+            else:
+                logger.info("⚠️ Коэфы не получены, используем средние")
+            
+            bet_types = get_bet_types(odds_data)
+            
             match_data = {
                 "home": home,
                 "away": away,
@@ -296,10 +312,11 @@ def find_top_matches(matches):
                 "away_xg": round(away_xg, 2),
                 "weather_reason": match.get("weather_reason", "☀️ Без погоды"),
                 "factors": factors,
+                "intuition": reasons,
                 "bets": []
             }
             
-            for bet_type, odds, label in get_bet_types():
+            for bet_type, odds, label in bet_types:
                 prob = probs.get(bet_type, 0)
                 if prob < 0.05 or prob > 0.99:
                     continue
