@@ -86,3 +86,46 @@ class FootballAPI:
         return injured
 
 football_api = FootballAPI()
+
+def get_team_cards_stats(self, team_id: int) -> Dict:
+    """
+    Получение статистики по желтым карточкам команды
+    """
+    params = {'team': team_id, 'season': 2026}
+    data = self._request('teams/statistics', params)
+    
+    if not data or not data.get('response'):
+        return {
+            'yellow_cards_avg': 1.8,
+            'red_cards_avg': 0.2,
+            'cards_trend': 'normal'
+        }
+    
+    stats = data['response']
+    yellow_avg = stats.get('cards', {}).get('yellow', {}).get('total', 0) / 10 if stats.get('cards', {}).get('yellow', {}).get('total', 0) > 0 else 1.8
+    red_avg = stats.get('cards', {}).get('red', {}).get('total', 0) / 10 if stats.get('cards', {}).get('red', {}).get('total', 0) > 0 else 0.2
+    
+    # Определяем тренд
+    trend = 'normal'
+    if yellow_avg > 2.5:
+        trend = 'aggressive'
+    elif yellow_avg < 1.2:
+        trend = 'disciplined'
+    
+    return {
+        'yellow_cards_avg': round(yellow_avg, 1),
+        'red_cards_avg': round(red_avg, 1),
+        'trend': trend
+    }
+
+def get_referee_stats(self, referee_name: str) -> Dict:
+    """
+    Получение статистики судьи по карточкам
+    """
+    # Заглушка - в реальном API нужен эндпоинт по судьям
+    # Пока возвращаем средние значения
+    return {
+        'yellow_avg': 3.2,
+        'red_avg': 0.3,
+        'style': 'strict' if 3.2 > 3.0 else 'lenient'
+    }
