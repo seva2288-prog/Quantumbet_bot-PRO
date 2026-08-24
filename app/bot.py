@@ -488,7 +488,10 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 if __name__ == "__main__":
+    from app.scheduler import start_scheduler
+    
     setup_logging()
+    start_scheduler()
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН С ВСЕМИ УЛУЧШЕНИЯМИ!")
     app.run(host='0.0.0.0', port=port)
