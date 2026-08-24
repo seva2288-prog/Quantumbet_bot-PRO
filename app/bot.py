@@ -16,8 +16,8 @@ from app.analytics.probability import calculate_probabilities, calculate_ev, get
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
-from app.betting.auto_bet import auto_bet
 from app.ml.neural_network import neural_net
+from app.betting.auto_bet import auto_bet
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -37,6 +37,7 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
     except Exception as e:
         logger.error(f"Send error: {e}")
 
+# ============ ЭКСПОРТ В EXCEL ============
 def export_to_excel():
     """Экспорт истории ставок в Excel"""
     from openpyxl import Workbook
@@ -52,7 +53,6 @@ def export_to_excel():
     ws = wb.active
     ws.title = "Ставки"
     
-    # Заголовки
     headers = ["Дата", "Матч", "Лига", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
     ws.append(headers)
     
@@ -99,6 +99,7 @@ def export_to_excel():
     output.seek(0)
     
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
+# ============ КОНЕЦ ЭКСПОРТА ============
 
 def send_match_with_buttons(match, index):
     if not match:
@@ -121,21 +122,53 @@ def send_match_with_buttons(match, index):
             ev_emoji = "✅" if bet['ev'] > 5 else "⚠️" if bet['ev'] > 0 else "❌"
             msg += f"   {emoji} {bet['label']} | КЭФ: {bet['odds']} | EV: {bet['ev']}% {ev_emoji}\n"
     
+    # Прогноз по таймам
     half_goals = predict_half_goals(match['home_xg'], match['away_xg'])
     msg += f"\n📊 <b>По таймам:</b>\n"
     msg += f"   1-й тайм: {half_goals['first_half']['home_xg']}:{half_goals['first_half']['away_xg']} (гол {half_goals['first_half']['goal_probability']}%)\n"
     msg += f"   2-й тайм: {half_goals['second_half']['home_xg']}:{half_goals['second_half']['away_xg']} (гол {half_goals['second_half']['goal_probability']}%)\n"
     
+    # Прогноз точного счета
     exact_scores = predict_exact_score(match['home_xg'], match['away_xg'])
     msg += f"\n🎯 <b>Точный счет (топ-5):</b>\n"
     for score, prob in exact_scores.items():
         msg += f"   {score} — {prob}%\n"
     
+    # Прогноз угловых
     corners = predict_corners(match['home_xg'], match['away_xg'])
     msg += f"\n📐 <b>Угловые:</b>\n"
     msg += f"   Тотал: {corners['total']}\n"
     msg += f"   Тотал > 8.5: {corners['over_8_5']}%\n"
     msg += f"   Тотал > 10.5: {corners['over_10_5']}%\n"
+    
+    # ===== ЖЕЛТЫЕ КАРТОЧКИ =====
+    try:
+        home_id = match.get('factors', {}).get('home_id')
+        away_id = match.get('factors', {}).get('away_id')
+        
+        if home_id and away_id:
+            home_cards = football_api.get_team_cards_stats(home_id)
+            away_cards = football_api.get_team_cards_stats(away_id)
+            
+            referee = match.get('factors', {}).get('referee')
+            referee_stats = None
+            if referee:
+                referee_stats = football_api.get_referee_stats(referee)
+            
+            from app.analytics.probability import predict_yellow_cards
+            cards = predict_yellow_cards(home_cards, away_cards, referee_stats)
+            
+            msg += f"\n🟨 <b>Желтые карточки:</b>\n"
+            msg += f"   Тотал: {cards['total']}\n"
+            msg += f"   Тотал > 3.5: {cards['over_3_5']}%\n"
+            msg += f"   Тотал > 4.5: {cards['over_4_5']}%\n"
+            msg += f"   Тотал > 5.5: {cards['over_5_5']}%\n"
+            msg += f"   Хозяева: {cards['home_avg']} | Гости: {cards['away_avg']}"
+            
+            if referee:
+                msg += f"\n   🧑‍⚖️ Судья: {referee}"
+    except Exception as e:
+        logger.warning(f"Ошибка прогноза карточек: {e}")
     
     if is_weak:
         msg += "\n⚠️ <b>СЛАБАЯ ЛИГА!</b> Бот может ошибаться на ОЗ - ДА."
@@ -187,6 +220,9 @@ def get_matches_with_factors():
                                 "away_form": football_api.get_form(away_id),
                                 "home_injuries_list": football_api.get_injuries(home_id),
                                 "away_injuries_list": football_api.get_injuries(away_id),
+                                "home_id": home_id,
+                                "away_id": away_id,
+                                "referee": match.get("fixture", {}).get("referee")
                             }
                             
                             city = match.get("fixture", {}).get("venue", {}).get("city", "")
@@ -233,18 +269,20 @@ def find_top_matches(matches):
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             
+            # Нейросеть или ML
             try:
                 neural_home, neural_away = neural_net.predict_xg(factors)
-if neural_home and neural_away:
-    home_xg = neural_home
-    away_xg = neural_away
-    logger.info("🧠 Используем нейросеть для прогноза")
-else:
-    home_xg, away_xg = ml_predictor.predict_xg(factors)
-    logger.info("📊 Используем ML для прогноза")
-                
+                if neural_home and neural_away:
+                    home_xg = neural_home
+                    away_xg = neural_away
+                    logger.info("🧠 Используем нейросеть для прогноза")
+                else:
+                    home_xg, away_xg = ml_predictor.predict_xg(factors)
+                    logger.info("📊 Используем ML для прогноза")
             except Exception as e:
-                logger.warning(f"ML ошибка: {e}")
+                logger.warning(f"Ошибка нейросети: {e}")
+                home_xg, away_xg = ml_predictor.predict_xg(factors)
+                logger.info("📊 Используем ML для прогноза")
             
             probs = calculate_probabilities(home_xg, away_xg)
             
@@ -257,6 +295,7 @@ else:
                 "home_xg": round(home_xg, 2),
                 "away_xg": round(away_xg, 2),
                 "weather_reason": match.get("weather_reason", "☀️ Без погоды"),
+                "factors": factors,
                 "bets": []
             }
             
@@ -377,19 +416,6 @@ def webhook():
             
             elif text == '/timestats':
                 send_telegram(handlers.handle_time_stats())
-
-            elif text == '/train':
-    # Обучение нейросети на истории
-    history = storage.load_history()
-    if len(history) < 50:
-        send_telegram(f"⚠️ Недостаточно данных для обучения. Нужно 50+ матчей (есть {len(history)})")
-    else:
-        send_telegram("🧠 Начинаю обучение нейросети...")
-        result = neural_net.train(history)
-        if result:
-            send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
-        else:
-            send_telegram("❌ Ошибка обучения нейросети")
             
             elif text == '/mlstats':
                 stats = ml_predictor.get_stats()
@@ -417,6 +443,18 @@ def webhook():
                         logger.error(f"Ошибка отправки файла: {e}")
                 else:
                     send_telegram(message)
+            
+            elif text == '/train':
+                history = storage.load_history()
+                if len(history) < 50:
+                    send_telegram(f"⚠️ Недостаточно данных для обучения. Нужно 50+ матчей (есть {len(history)})")
+                else:
+                    send_telegram("🧠 Начинаю обучение нейросети...")
+                    result = neural_net.train(history)
+                    if result:
+                        send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
+                    else:
+                        send_telegram("❌ Ошибка обучения нейросети")
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
