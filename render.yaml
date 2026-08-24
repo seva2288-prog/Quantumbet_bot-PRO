@@ -4,7 +4,7 @@ services:
     env: python
     buildCommand: |
       pip install --upgrade pip
-      pip install setuptools wheel
+      pip install setuptools==65.5.0 wheel==0.38.4
       pip install -r requirements.txt
     startCommand: python app/bot.py
     envVars:
