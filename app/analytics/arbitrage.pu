@@ -29,7 +29,6 @@ class ArbitrageAnalyzer:
         arb_opportunities = []
         
         # Проверяем возможные вилки
-        # Например, между победами хозяев и гостей
         home_odds = odds_data.get('home_win', 0)
         away_odds = odds_data.get('away_win', 0)
         draw_odds = odds_data.get('draw', 0)
@@ -97,7 +96,7 @@ class ArbitrageAnalyzer:
         msg += f"🏟️ {match_data['home']} vs {match_data['away']}\n"
         msg += f"🏆 {match_data['league']}\n\n"
         
-        for opp in arb_opps[:3]:  # Показываем топ-3
+        for opp in arb_opps[:3]:
             if opp['type'] == '2-way':
                 msg += f"💰 <b>Вилка 2-х исходов</b>\n"
                 msg += f"   {opp['markets'][0]}: {opp['odds'][0]} → ${opp['stake_home']}\n"
