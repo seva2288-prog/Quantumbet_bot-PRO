@@ -1,11 +1,12 @@
 services:
   - type: web
-    name: quantumbet-bot
+    name: quantumbet-web
     env: python
     buildCommand: |
       pip install --upgrade pip
-      pip install --no-cache-dir -r requirements.txt
-    startCommand: python app/bot.py
+      pip install setuptools wheel
+      pip install -r requirements.txt
+    startCommand: python web_app.py
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
