@@ -51,10 +51,6 @@ DASHBOARD_HTML = """
         .badge.win { background: #1a4a2a; color: #38ef7d; }
         .badge.loss { background: #4a1a1a; color: #ef473a; }
         .badge.pending { background: #4a3a1a; color: #ffd200; }
-        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-        .status-dot.online { background: #38ef7d; }
-        .status-dot.offline { background: #ef473a; }
-        .status-dot.pending { background: #ffd200; }
         .refresh-btn { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
         .refresh-btn:hover { background: #764ba2; }
         .header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
@@ -163,7 +159,6 @@ MATCHES_HTML = """
         .bet-item .ev.negative { color: #ef473a; }
         .refresh-btn { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; }
         .refresh-btn:hover { background: #764ba2; }
-        .header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
         .no-matches { text-align: center; color: #8888aa; padding: 40px 0; }
     </style>
 </head>
@@ -534,11 +529,13 @@ def dashboard():
     
     for bet in history:
         if bet.get('result') == 'win':
-            bet['profit'] = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+            bet['profit'] = f"${profit}"
         elif bet.get('result') == 'loss':
-            bet['profit'] = -round(bet.get('stake', 0), 2)
+            profit = -round(bet.get('stake', 0), 2)
+            bet['profit'] = f"${profit}"
         else:
-            bet['profit'] = 0
+            bet['profit'] = "$0.00"
     
     return render_template_string(DASHBOARD_HTML, stats=stats, bank=bank, history=history)
 
@@ -557,14 +554,14 @@ def stats_page():
     history = storage.load_history()
     
     for bet in history:
-    if bet.get('result') == 'win':
-        profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-        bet['profit'] = f"${profit}"
-    elif bet.get('result') == 'loss':
-        profit = -round(bet.get('stake', 0), 2)
-        bet['profit'] = f"${profit}"
-    else:
-        bet['profit'] = "$0.00"
+        if bet.get('result') == 'win':
+            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+            bet['profit'] = f"${profit}"
+        elif bet.get('result') == 'loss':
+            profit = -round(bet.get('stake', 0), 2)
+            bet['profit'] = f"${profit}"
+        else:
+            bet['profit'] = "$0.00"
     
     return render_template_string(STATS_HTML, stats=stats, history=history)
 
