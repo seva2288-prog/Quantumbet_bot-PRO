@@ -16,6 +16,7 @@ from app.analytics.probability import calculate_probabilities, calculate_ev, get
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
+from app.betting.auto_bet import auto_bet
 
 logger = get_logger(__name__)
 app = Flask(__name__)
@@ -54,7 +55,6 @@ def export_to_excel():
     headers = ["Дата", "Матч", "Лига", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
     ws.append(headers)
     
-    # Стили для заголовков
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     for col in range(1, len(headers) + 1):
@@ -63,7 +63,6 @@ def export_to_excel():
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
     
-    # Данные
     total_profit = 0
     for bet in history:
         date = bet.get('date', '')
@@ -87,16 +86,13 @@ def export_to_excel():
         
         ws.append([date, f"{home} vs {away}", league, bet_type, odds, ev, stake, result, profit])
     
-    # Итоговая строка
     ws.append([])
     ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2)])
     
-    # Автоширина колонок
     for col in range(1, len(headers) + 1):
         column_letter = chr(64 + col)
         ws.column_dimensions[column_letter].width = 15
     
-    # Сохраняем в BytesIO
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -124,19 +120,16 @@ def send_match_with_buttons(match, index):
             ev_emoji = "✅" if bet['ev'] > 5 else "⚠️" if bet['ev'] > 0 else "❌"
             msg += f"   {emoji} {bet['label']} | КЭФ: {bet['odds']} | EV: {bet['ev']}% {ev_emoji}\n"
     
-    # Прогноз по таймам
     half_goals = predict_half_goals(match['home_xg'], match['away_xg'])
     msg += f"\n📊 <b>По таймам:</b>\n"
     msg += f"   1-й тайм: {half_goals['first_half']['home_xg']}:{half_goals['first_half']['away_xg']} (гол {half_goals['first_half']['goal_probability']}%)\n"
     msg += f"   2-й тайм: {half_goals['second_half']['home_xg']}:{half_goals['second_half']['away_xg']} (гол {half_goals['second_half']['goal_probability']}%)\n"
     
-    # Прогноз точного счета
     exact_scores = predict_exact_score(match['home_xg'], match['away_xg'])
     msg += f"\n🎯 <b>Точный счет (топ-5):</b>\n"
     for score, prob in exact_scores.items():
         msg += f"   {score} — {prob}%\n"
     
-    # Прогноз угловых
     corners = predict_corners(match['home_xg'], match['away_xg'])
     msg += f"\n📐 <b>Угловые:</b>\n"
     msg += f"   Тотал: {corners['total']}\n"
@@ -239,7 +232,6 @@ def find_top_matches(matches):
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             
-            # Машинное обучение с обработкой ошибок
             try:
                 home_xg, away_xg = ml_predictor.predict_xg(factors)
             except Exception as e:
@@ -279,6 +271,20 @@ def find_top_matches(matches):
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
+                
+                # Авто-ставка
+                try:
+                    bet_result = auto_bet.check_and_bet(match_data)
+                    if bet_result:
+                        msg = f"🤖 <b>АВТО-СТАВКА СДЕЛАНА!</b>\n"
+                        msg += f"🏟️ {bet_result['match']}\n"
+                        msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
+                        msg += f"💰 Сумма: ${bet_result['stake']}\n"
+                        msg += f"📈 EV: {bet_result['ev']}%"
+                        send_telegram(msg)
+                except Exception as e:
+                    logger.error(f"Ошибка авто-ставки: {e}")
+                    
         except Exception as e:
             logger.error(f"Ошибка: {e}")
             continue
@@ -335,22 +341,6 @@ def webhook():
             elif text == '/stop':
                 search_running = False
                 send_telegram("🛑 ПОИСК ОСТАНОВЛЕН!")
-
-            elif text == '/export':
-    file, message = export_to_excel()
-    if file:
-        send_telegram(message)
-        # Отправляем файл
-        import requests
-        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
-        files = {'document': ('history.xlsx', file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
-        data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
-        try:
-            requests.post(url, files=files, data=data, timeout=30)
-        except Exception as e:
-            logger.error(f"Ошибка отправки файла: {e}")
-    else:
-        send_telegram(message)
             
             elif text == '/bank':
                 send_telegram(handlers.handle_bank())
@@ -390,6 +380,21 @@ def webhook():
 🎯 Средняя ошибка xG: {stats['avg_home_error']} : {stats['avg_away_error']}
 📈 Точность (последние 10): {stats['last_10_accuracy']}%"""
                     send_telegram(msg)
+            
+            elif text == '/export':
+                file, message = export_to_excel()
+                if file:
+                    send_telegram(message)
+                    import requests
+                    url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
+                    files = {'document': ('history.xlsx', file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+                    data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
+                    try:
+                        requests.post(url, files=files, data=data, timeout=30)
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки файла: {e}")
+                else:
+                    send_telegram(message)
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
