@@ -287,7 +287,19 @@ def webhook():
             
             elif text == '/timestats':
                 send_telegram(handlers.handle_time_stats())
-            
+
+            elif text == '/mlstats':
+    stats = ml_predictor.get_stats()
+    if isinstance(stats, str):
+        send_telegram(stats)
+    else:
+        msg = f"""🧠 <b>СТАТИСТИКА МАШИННОГО ОБУЧЕНИЯ</b>
+
+📊 Обработано матчей: {stats['total_matches']}
+🎯 Средняя ошибка xG: {stats['avg_home_error']} : {stats['avg_away_error']}
+📈 Точность (последние 10): {stats['last_10_accuracy']}%"""
+        send_telegram(msg)
+        
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
