@@ -600,4 +600,32 @@ def update_bank():
     data = request.json
     if 'bank' in data:
         storage.save_bank(data['bank'])
-        return jsonify({'success
+        return jsonify({'success': True, 'bank': data['bank']})
+    return jsonify({'error': 'No bank value'}), 400
+
+@app.route('/api/stats')
+def api_stats():
+    stats = storage.load_stats()
+    bank = storage.load_bank()
+    return jsonify({
+        'bank': bank,
+        'total_bets': stats.get('total', 0),
+        'wins': stats.get('wins', 0),
+        'losses': stats.get('losses', 0),
+        'profit': stats.get('total_profit', 0),
+    })
+
+@app.route('/export')
+def export_data():
+    from app.bot import export_to_excel
+    file, message = export_to_excel()
+    if file:
+        return file
+    return "Нет данных для экспорта", 404
+
+# ============================================================
+# ЗАПУСК
+# ============================================================
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001)
