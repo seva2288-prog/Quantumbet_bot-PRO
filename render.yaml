@@ -4,8 +4,7 @@ services:
     env: python
     buildCommand: |
       pip install --upgrade pip
-      pip install setuptools==65.5.0 wheel==0.38.4
-      pip install -r requirements.txt
+      pip install --no-cache-dir -r requirements.txt
     startCommand: python app/bot.py
     envVars:
       - key: TELEGRAM_TOKEN
