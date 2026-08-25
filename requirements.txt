@@ -1,10 +1,4 @@
-Flask
+flask
+gunicorn
 requests
-python-dotenv
-numpy
-schedule
-openpyxl
-scikit-learn
-joblib
-setuptools
-wheel
+xlsxwriter
