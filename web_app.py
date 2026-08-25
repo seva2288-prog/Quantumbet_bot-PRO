@@ -25,6 +25,7 @@ DASHBOARD_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-primary: #0f0f1a;
@@ -363,6 +364,8 @@ DASHBOARD_HTML = """
             <a href="/simulator"><button class="btn">🎲 Симулятор</button></a>
             <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
+            <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">📥 Импорт Excel</button>
+            <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
         </div>
         
         <div class="stats-grid">
@@ -582,6 +585,46 @@ DASHBOARD_HTML = """
                     alert('❌ Ошибка: ' + data.error);
                 }
             });
+        }
+        
+        // ===== ИМПОРТ ИЗ EXCEL =====
+        function importExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+                    
+                    if (json.length === 0) {
+                        alert('❌ Файл пуст или неправильный формат');
+                        return;
+                    }
+                    
+                    fetch('/api/import_excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: json })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('✅ Импортировано ' + data.count + ' ставок!');
+                            location.reload();
+                        } else {
+                            alert('❌ Ошибка: ' + data.error);
+                        }
+                    })
+                    .catch(error => alert('❌ Ошибка: ' + error));
+                } catch (error) {
+                    alert('❌ Ошибка чтения файла: ' + error);
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
         
         document.addEventListener('DOMContentLoaded', function() {
@@ -1280,6 +1323,125 @@ def profit_data():
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     
     return jsonify({'dates': dates, 'profits': profits})
+
+@app.route('/api/import_excel', methods=['POST'])
+def import_excel():
+    """Импорт ставок из Excel"""
+    try:
+        data = request.json
+        excel_data = data.get('data', [])
+        
+        if not excel_data:
+            return jsonify({'error': 'Нет данных'}), 400
+        
+        # Получаем текущую историю
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history = response.json() if response.status_code == 200 else []
+        
+        imported = 0
+        for row in excel_data:
+            # Определяем колонки
+            match = row.get('Матч', '') or row.get('Match', '')
+            home = ''
+            away = ''
+            
+            # Парсим матч
+            if ' vs ' in match:
+                parts = match.split(' vs ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            elif ' - ' in match:
+                parts = match.split(' - ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            
+            # Счёт
+            score = row.get('Счёт', '') or row.get('Scht', '') or row.get('Score', '')
+            home_goals = None
+            away_goals = None
+            if score and '-' in str(score):
+                parts = str(score).split('-')
+                try:
+                    home_goals = int(parts[0].strip())
+                    away_goals = int(parts[1].strip())
+                except:
+                    pass
+            
+            # Ставка
+            bet = row.get('Ставка', '') or row.get('Stanka', '') or 'Ручная ставка'
+            
+            # Коэффициент
+            odds = 1.85
+            try:
+                odds = float(row.get('Коэф', 1.85) or row.get('Kofy', 1.85) or 1.85)
+            except:
+                odds = 1.85
+            
+            # Сумма
+            stake = 0
+            try:
+                stake = float(row.get('Сумма', 0) or row.get('Stake', 0) or 0)
+            except:
+                stake = 0
+            
+            # EV
+            ev = 0
+            try:
+                ev = float(row.get('EV%', 0) or row.get('Ev', 0) or 0)
+            except:
+                ev = 0
+            
+            # Результат
+            result = row.get('Результат', 'pending') or row.get('Result', 'pending')
+            if result.lower() in ['win', 'выигрыш']:
+                result = 'win'
+            elif result.lower() in ['loss', 'проигрыш']:
+                result = 'loss'
+            elif result.lower() in ['push', 'возврат']:
+                result = 'push'
+            else:
+                result = 'pending'
+            
+            # Прибыль
+            profit = 0
+            try:
+                profit = float(row.get('Прибыль', 0) or row.get('Profit', 0) or 0)
+            except:
+                profit = 0
+            
+            # Дата
+            date = row.get('Дата', '') or row.get('Data', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
+            if not date or date == '':
+                date = datetime.now().strftime('%Y-%m-%d %H:%M')
+            
+            # Создаём запись
+            bet_record = {
+                'home': home or 'Unknown',
+                'away': away or 'Unknown',
+                'league': 'Импорт из Excel',
+                'bet': bet,
+                'odds': odds,
+                'stake': stake,
+                'ev': ev,
+                'result': result,
+                'profit': profit,
+                'date': date,
+                'home_goals': home_goals,
+                'away_goals': away_goals
+            }
+            history.append(bet_record)
+            imported += 1
+        
+        # Отправляем обратно в бот
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': imported})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
