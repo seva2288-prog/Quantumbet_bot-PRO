@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, request
 import time
 import os
+import json
 from datetime import datetime
 
 from app.config import Config
@@ -18,7 +19,7 @@ from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.ml.predictor import ml_predictor
-from app.ml.neural_network import neural_net
+# from app.ml.neural_network import neural_net  # Временно отключена
 from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
 from app.security.auth import security
@@ -187,7 +188,7 @@ def send_match_with_buttons(match, index):
     
     match_id = f"{match['fixture_id']}_{int(time.time())}"
     
-    # ===== СОХРАНЯЕМ МАТЧ В КЭШ С ЛОГИРОВАНИЕМ =====
+    # ===== СОХРАНЯЕМ МАТЧ В КЭШ =====
     try:
         cache = storage.load_cache()
         if not cache:
@@ -196,6 +197,15 @@ def send_match_with_buttons(match, index):
         storage.save_cache(cache)
         logger.info(f"💾 Сохранён матч в кэш: {match_id}")
         logger.info(f"📋 Матч: {match['home']} vs {match['away']}")
+        
+        # Дублируем сохранение в отдельный файл
+        try:
+            with open(f"data/match_{match_id}.json", 'w') as f:
+                json.dump(match, f)
+            logger.info(f"💾 Сохранён матч в файл: match_{match_id}.json")
+        except Exception as e:
+            logger.error(f"❌ Ошибка сохранения в файл: {e}")
+            
     except Exception as e:
         logger.error(f"❌ Ошибка сохранения в кэш: {e}")
     
@@ -291,20 +301,12 @@ def find_top_matches(matches):
             
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             
-            # Нейросеть или ML
+            # Используем ML
             try:
-                neural_home, neural_away = neural_net.predict_xg(factors)
-                if neural_home and neural_away:
-                    home_xg = neural_home
-                    away_xg = neural_away
-                    logger.info("🧠 Используем нейросеть для прогноза")
-                else:
-                    home_xg, away_xg = ml_predictor.predict_xg(factors)
-                    logger.info("📊 Используем ML для прогноза")
-            except Exception as e:
-                logger.warning(f"Ошибка нейросети: {e}")
                 home_xg, away_xg = ml_predictor.predict_xg(factors)
                 logger.info("📊 Используем ML для прогноза")
+            except Exception as e:
+                logger.warning(f"Ошибка ML: {e}")
             
             probs = calculate_probabilities(home_xg, away_xg)
             
@@ -410,9 +412,21 @@ def webhook():
                     
                     logger.info(f"🔍 Тип: {result_type}, ID: {match_id}")
                     
-                    # Загружаем кэш
+                    # ===== ПЫТАЕМСЯ НАЙТИ МАТЧ =====
+                    match = None
+                    
+                    # 1. Ищем в кэше
                     cache = storage.load_cache()
                     match = cache.get(f"match_{match_id}")
+                    
+                    # 2. Если не нашли — ищем в файле
+                    if not match:
+                        try:
+                            with open(f"data/match_{match_id}.json", 'r') as f:
+                                match = json.load(f)
+                            logger.info(f"📋 Матч найден в файле: {match_id}")
+                        except:
+                            pass
                     
                     logger.info(f"🔍 Матч найден: {match is not None}")
                     
@@ -472,9 +486,13 @@ def webhook():
                                     storage.save_stats(stats)
                                     logger.info(f"✅ СТАТИСТИКА: {stats}")
                                     
-                                    # Удаляем матч из кэша
+                                    # Удаляем матч из кэша и файла
                                     cache.pop(f"match_{match_id}", None)
                                     storage.save_cache(cache)
+                                    try:
+                                        os.remove(f"data/match_{match_id}.json")
+                                    except:
+                                        pass
                                     
                                     # Отправляем подтверждение
                                     send_telegram(f"✅ Результат сохранён!\n{match.get('home')} vs {match.get('away')} → {result}")
@@ -487,6 +505,10 @@ def webhook():
                             logger.info(f"⏭️ Пропущен матч")
                             cache.pop(f"match_{match_id}", None)
                             storage.save_cache(cache)
+                            try:
+                                os.remove(f"data/match_{match_id}.json")
+                            except:
+                                pass
                     else:
                         logger.warning(f"⚠️ Матч не найден в кэше: {match_id}")
             
@@ -603,11 +625,11 @@ def webhook():
                     send_telegram(f"⚠️ Недостаточно данных. Нужно 50+ матчей (есть {len(history)})")
                 else:
                     send_telegram("🧠 Начинаю обучение нейросети...")
-                    result = neural_net.train(history)
-                    if result:
+                    # result = neural_net.train(history)  # Временно отключено
+                    if False:
                         send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
                     else:
-                        send_telegram("❌ Ошибка обучения нейросети")
+                        send_telegram("❌ Ошибка обучения нейросети (временно отключено)")
             
             elif text == '/report':
                 from app.scheduler import send_weekly_report
