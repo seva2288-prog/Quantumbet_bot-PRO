@@ -458,7 +458,7 @@ def webhook():
                                 # ===== СОХРАНЯЕМ В ИСТОРИЮ =====
                                 try:
                                     history = storage.load_history()
-                                    logger.info(f"📋 История загружена: {len(history)} записей")
+                                    logger.info(f"📋 История до сохранения: {len(history)} записей")
                                     
                                     stake = best_bet.get('stake', 0)
                                     odds = best_bet.get('odds', 1)
@@ -484,7 +484,11 @@ def webhook():
                                     }
                                     history.append(bet_record)
                                     storage.save_history(history)
-                                    logger.info(f"✅ СОХРАНЕНО: {bet_record}")
+                                    logger.info(f"✅ СОХРАНЕНО В ИСТОРИЮ: {bet_record}")
+                                    
+                                    # Проверяем, что сохранилось
+                                    check = storage.load_history()
+                                    logger.info(f"📋 История после сохранения: {len(check)} записей")
                                     
                                     # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
                                     stats = storage.load_stats()
@@ -794,47 +798,59 @@ def webhook():
                             send_telegram("❌ Неправильный формат счёта. Используйте: 2-1")
                             return "ok", 200
                         
-                        # Сохраняем в историю
-                        history = storage.load_history()
-                        bet_record = {
-                            'home': home,
-                            'away': away,
-                            'league': 'Ручной ввод',
-                            'bet': 'Ручная ставка',
-                            'odds': 1.85 if stake > 0 else 0,
-                            'stake': stake,
-                            'ev': 0,
-                            'result': result,
-                            'profit': profit,
-                            'date': datetime.now().strftime('%Y-%m-%d %H:%M')
-                        }
-                        history.append(bet_record)
-                        storage.save_history(history)
-                        logger.info(f"✅ Ручное сохранение: {home} vs {away} → {score} ({result}) Сумма: ${stake}")
-                        
-                        # Обновляем статистику
-                        stats = storage.load_stats()
-                        stats['total'] = stats.get('total', 0) + 1
-                        if result == 'win':
-                            stats['wins'] = stats.get('wins', 0) + 1
-                            stats['total_profit'] = stats.get('total_profit', 0) + profit
-                        elif result == 'loss':
-                            stats['losses'] = stats.get('losses', 0) + 1
-                            stats['total_profit'] = stats.get('total_profit', 0) - stake
-                        else:
-                            stats['pushes'] = stats.get('pushes', 0) + 1
-                        storage.save_stats(stats)
-                        
-                        # Отправляем подтверждение
-                        msg = f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}"
-                        if stake > 0:
+                        # ===== СОХРАНЯЕМ В ИСТОРИЮ С ПРОВЕРКОЙ =====
+                        try:
+                            history = storage.load_history()
+                            logger.info(f"📋 История до сохранения: {len(history)} записей")
+                            
+                            bet_record = {
+                                'home': home,
+                                'away': away,
+                                'league': 'Ручной ввод',
+                                'bet': 'Ручная ставка',
+                                'odds': 1.85 if stake > 0 else 0,
+                                'stake': stake,
+                                'ev': 0,
+                                'result': result,
+                                'profit': profit,
+                                'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+                            }
+                            history.append(bet_record)
+                            storage.save_history(history)
+                            logger.info(f"✅ СОХРАНЕНО В ИСТОРИЮ: {bet_record}")
+                            
+                            # Проверяем, что сохранилось
+                            check = storage.load_history()
+                            logger.info(f"📋 История после сохранения: {len(check)} записей")
+                            
+                            # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
+                            stats = storage.load_stats()
+                            stats['total'] = stats.get('total', 0) + 1
                             if result == 'win':
-                                msg += f"\n💰 Прибыль: +${profit}"
+                                stats['wins'] = stats.get('wins', 0) + 1
+                                stats['total_profit'] = stats.get('total_profit', 0) + profit
                             elif result == 'loss':
-                                msg += f"\n💰 Проигрыш: -${stake}"
+                                stats['losses'] = stats.get('losses', 0) + 1
+                                stats['total_profit'] = stats.get('total_profit', 0) - stake
                             else:
-                                msg += f"\n💰 Возврат: $0"
-                        send_telegram(msg)
+                                stats['pushes'] = stats.get('pushes', 0) + 1
+                            storage.save_stats(stats)
+                            logger.info(f"✅ СТАТИСТИКА: {stats}")
+                            
+                            # Отправляем подтверждение
+                            msg = f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}"
+                            if stake > 0:
+                                if result == 'win':
+                                    msg += f"\n💰 Прибыль: +${profit}"
+                                elif result == 'loss':
+                                    msg += f"\n💰 Проигрыш: -${stake}"
+                                else:
+                                    msg += f"\n💰 Возврат: $0"
+                            send_telegram(msg)
+                            
+                        except Exception as e:
+                            logger.error(f"❌ ОШИБКА СОХРАНЕНИЯ: {e}")
+                            send_telegram(f"❌ Ошибка сохранения: {e}")
                         
                     else:
                         send_telegram("📝 Формат: /result <команда1> <команда2> <счёт> [сумма]\n\nПримеры:\n/result Fulham Chelsea 2-1\n/result Fulham Chelsea 2-1 50")
