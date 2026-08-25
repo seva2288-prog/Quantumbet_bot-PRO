@@ -1,21 +1,20 @@
 # ============================================================
 # Quantum Bet Bot v12 PRO
 # Полный код с документацией и комментариями
-# Версия: 1.0.0
+# Версия: 2.0.0
 # Автор: Seva2288
-# Лицензия: MIT
 # ============================================================
 
 import os
 import json
 import logging
+import sys
+import random
+import traceback
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from datetime import datetime, timedelta
-import random
-import sys
-import traceback
 
 # ============================================================
 # КОНФИГУРАЦИЯ ПРИЛОЖЕНИЯ
@@ -53,11 +52,6 @@ def validate_token(token):
     """
     if not token:
         logger.error("❌ ТОКЕН НЕ НАЙДЕН! Добавь переменную TELEGRAM_TO в Railway.")
-        return False
-    
-    # Базовая проверка формата токена
-    if not token.startswith('') and ':' not in token:
-        logger.error("❌ Неверный формат токена. Ожидается: цифры:буквы")
         return False
     
     if len(token) < 20:
@@ -156,7 +150,6 @@ def add_bet_to_history(home, away, home_goals, away_goals, stake, bet_type='Ру
     Returns:
         dict: Созданная запись о ставке
     """
-    # Определяем результат
     result = 'pending'
     profit = 0
     
@@ -275,7 +268,6 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pushes = sum(1 for b in history if b.get('result') == 'push')
         profit = sum(float(b.get('profit', 0)) for b in history)
         
-        # Дополнительные метрики
         total_stake = sum(float(b.get('stake', 0)) for b in history)
         avg_stake = round(total_stake / total, 2) if total > 0 else 0
         winrate = round(wins / total * 100, 1) if total > 0 else 0
@@ -309,7 +301,6 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         args = context.args
         
-        # Проверка количества аргументов
         if len(args) < 4:
             await update.message.reply_text(
                 "❌ Неправильный формат.\n"
@@ -318,12 +309,10 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # Разбор аргументов
         home = args[0]
         away = args[1]
         score = args[2]
         
-        # Проверка суммы ставки
         try:
             stake = float(args[3])
         except ValueError:
@@ -334,7 +323,6 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Сумма должна быть положительной!")
             return
         
-        # Парсинг счёта
         home_goals = None
         away_goals = None
         
@@ -350,7 +338,6 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Неправильный формат счёта. Используй: 2-1")
             return
         
-        # Определение результата
         result = 'pending'
         profit = 0
         
@@ -364,7 +351,8 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = 'push'
             profit = 0
         
-        # Добавление ставки в историю
+        data = load_data()
+        history = data.get('history', [])
         bet_record = {
             'home': home,
             'away': away,
@@ -378,12 +366,10 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'profit': profit,
             'date': datetime.now().strftime('%Y-%m-%d %H:%M')
         }
-        
-        data = load_data()
-        data['history'].append(bet_record)
+        history.append(bet_record)
+        data['history'] = history
         save_data(data)
         
-        # Отправка подтверждения
         await update.message.reply_text(
             f"✅ Результат сохранён!\n"
             f"{home} vs {away} → {score}\n"
@@ -399,7 +385,7 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Ошибка: {str(e)}")
 
 # ============================================================
-# РЕГИСТРАЦИЯ КОМАНД БОТА
+# РЕГИСТРАЦИЯ КОМАНД
 # ============================================================
 
 def register_handlers():
@@ -440,14 +426,12 @@ def webhook():
         return 'Bot not initialized', 500
     
     try:
-        # Получение данных от Telegram
         update_data = request.get_json()
         
         if not update_data:
             logger.warning("⚠️ Пустой запрос от Telegram")
             return 'No data', 400
         
-        # Обработка обновления
         update = Update.de_json(update_data, bot_app.bot)
         bot_app.process_update(update)
         
@@ -532,7 +516,7 @@ def get_profit_data(history, days=7):
     return {'dates': dates, 'profits': profits}
 
 # ============================================================
-# HTML ШАБЛОН
+# HTML ШАБЛОН ВЕБ-ИНТЕРФЕЙСА
 # ============================================================
 
 DASHBOARD_HTML = """
@@ -1373,57 +1357,31 @@ DASHBOARD_HTML = """
 
 @app.route('/')
 def index():
-    """
-    Главная страница приложения
-    Возвращает HTML-интерфейс
-    """
+    """Главная страница приложения"""
     logger.info("✅ Запрос главной страницы")
     return render_template_string(DASHBOARD_HTML)
 
 @app.route('/api/dashboard_data')
 def dashboard_data():
-    """
-    API для получения данных дашборда
-    
-    Returns:
-        json: Статистика, история ставок и данные для графика
-    """
+    """API для получения данных дашборда"""
     try:
         data = load_data()
         history = data.get('history', [])
         stats = calculate_stats(history)
         profit_data = get_profit_data(history)
-        
-        response = {
-            'stats': stats,
-            'history': history,
-            'profit_data': profit_data
-        }
-        logger.info(f"✅ Дашборд загружен: {len(history)} ставок")
-        return jsonify(response)
+        return jsonify({'stats': stats, 'history': history, 'profit_data': profit_data})
     except Exception as e:
         logger.error(f"❌ Ошибка в dashboard_data: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/matches_data')
 def matches_data():
-    """
-    API для получения данных о матчах
-    
-    Returns:
-        json: Список матчей
-    """
-    # Здесь можно подключить API-Football
+    """API для получения данных о матчах"""
     return jsonify({'matches': []})
 
 @app.route('/api/stats_data')
 def stats_data():
-    """
-    API для получения статистики
-    
-    Returns:
-        json: Статистика и история ставок
-    """
+    """API для получения статистики"""
     try:
         data = load_data()
         history = data.get('history', [])
@@ -1435,12 +1393,7 @@ def stats_data():
 
 @app.route('/api/simulator_data')
 def simulator_data():
-    """
-    API для получения данных для симулятора
-    
-    Returns:
-        json: История ставок
-    """
+    """API для получения данных для симулятора"""
     try:
         data = load_data()
         history = data.get('history', [])
@@ -1451,12 +1404,7 @@ def simulator_data():
 
 @app.route('/api/settings_data')
 def settings_data():
-    """
-    API для получения настроек
-    
-    Returns:
-        json: Текущий банк
-    """
+    """API для получения настроек"""
     try:
         data = load_data()
         return jsonify({'stats': {'bank': data.get('bank', 1000)}})
@@ -1466,12 +1414,7 @@ def settings_data():
 
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
-    """
-    API для запуска симуляции
-    
-    Returns:
-        json: Результаты симуляции
-    """
+    """API для запуска симуляции"""
     try:
         data = request.json
         count = data.get('count', 1000)
@@ -1480,12 +1423,10 @@ def simulate():
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок'}), 400
         
-        # Расчёт параметров на основе истории
         wins = sum(1 for b in history if b.get('result') == 'win')
         winrate = wins / len(history) if len(history) > 0 else 0
         avg_stake = sum(float(b.get('stake', 0)) for b in history) / len(history) if len(history) > 0 else 10
         
-        # Запуск симуляции
         profit_history = []
         total_profit = 0
         
@@ -1500,7 +1441,7 @@ def simulate():
         
         wins_sim = int(winrate * count)
         
-        response = {
+        return jsonify({
             'total': count,
             'wins': wins_sim,
             'losses': count - wins_sim,
@@ -1513,24 +1454,15 @@ def simulate():
             'avg_stake': round(avg_stake, 2),
             'history': profit_history[:100],
             'labels': list(range(1, min(count, 100) + 1))
-        }
-        
-        logger.info(f"✅ Симуляция завершена: {count} итераций")
-        return jsonify(response)
+        })
         
     except Exception as e:
         logger.error(f"❌ Ошибка в simulate: {e}")
-        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
-    """
-    API для импорта данных из Excel
-    
-    Returns:
-        json: Результат импорта
-    """
+    """API для импорта данных из Excel"""
     try:
         excel_data = request.json.get('data', [])
         if not excel_data:
@@ -1541,7 +1473,6 @@ def import_excel():
         imported = 0
         
         for row in excel_data:
-            # Парсинг названия матча
             match = row.get('Матч', '') or row.get('Match', '')
             home = ''
             away = ''
@@ -1555,7 +1486,6 @@ def import_excel():
                 home = parts[0].strip()
                 away = parts[1].strip()
             
-            # Парсинг счёта
             score = row.get('Счёт', '') or row.get('Score', '')
             home_goals = None
             away_goals = None
@@ -1568,7 +1498,6 @@ def import_excel():
                 except ValueError:
                     pass
             
-            # Парсинг остальных данных
             bet = row.get('Ставка', '') or row.get('Bet', '') or 'Ручная ставка'
             
             try:
@@ -1605,7 +1534,6 @@ def import_excel():
             
             date = row.get('Дата', '') or row.get('Date', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
             
-            # Добавление ставки в историю
             history.append({
                 'home': home or 'Unknown',
                 'away': away or 'Unknown',
@@ -1629,17 +1557,11 @@ def import_excel():
         
     except Exception as e:
         logger.error(f"❌ Ошибка в import_excel: {e}")
-        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
-    """
-    API для обновления банка
-    
-    Returns:
-        json: Результат обновления
-    """
+    """API для обновления банка"""
     try:
         data = request.json
         if 'bank' in data:
@@ -1651,7 +1573,6 @@ def update_bank():
             d['bank'] = bank_value
             save_data(d)
             
-            logger.info(f"✅ Банк обновлён: ${bank_value:.2f}")
             return jsonify({'success': True, 'bank': bank_value})
         return jsonify({'error': 'Нет значения банка'}), 400
         
@@ -1661,12 +1582,7 @@ def update_bank():
 
 @app.route('/export')
 def export_data():
-    """
-    Экспорт данных в Excel
-    
-    Returns:
-        file: Excel-файл с историей ставок
-    """
+    """Экспорт данных в Excel"""
     try:
         import io
         import xlsxwriter
@@ -1681,12 +1597,10 @@ def export_data():
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet('История')
         
-        # Заголовки
         headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'Сумма', 'EV', 'Результат', 'Прибыль']
         for col, header in enumerate(headers):
             worksheet.write(0, col, header)
         
-        # Данные
         for row, bet in enumerate(history, 1):
             score = f"{bet.get('home_goals', '')}-{bet.get('away_goals', '')}" if bet.get('home_goals') is not None else '-'
             worksheet.write(row, 0, bet.get('date', ''))
@@ -1702,7 +1616,6 @@ def export_data():
         workbook.close()
         output.seek(0)
         
-        logger.info(f"✅ Экспортировано {len(history)} ставок в Excel")
         return output.getvalue(), 200, {
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition': 'attachment; filename=history.xlsx'
@@ -1710,43 +1623,22 @@ def export_data():
         
     except Exception as e:
         logger.error(f"❌ Ошибка в export_data: {e}")
-        logger.error(traceback.format_exc())
         return f"Ошибка экспорта: {e}", 500
 
 # ============================================================
 # ЗАПУСК ПРИЛОЖЕНИЯ
 # ============================================================
 
-def main():
-    """
-    Главная функция запуска приложения
-    """
-    try:
-        # Создание файла данных при отсутствии
-        if not os.path.exists(DATA_FILE):
-            save_data({'bank': 1000, 'history': []})
-            logger.info("✅ Создан новый файл данных")
-        
-        # Получение порта из переменных окружения
-        port = int(os.environ.get('PORT', 8080))
-        
-        logger.info(f"🚀 Запуск приложения на порту {port}")
-        logger.info(f"📊 Файл данных: {DATA_FILE}")
-        logger.info(f"🤖 Токен бота: {'✅ Установлен' if TOKEN_VALID else '❌ НЕ УСТАНОВЛЕН'}")
-        
-        # Запуск Flask-приложения
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=False,
-            threaded=True
-        )
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка при запуске приложения: {e}")
-        logger.error(traceback.format_exc())
-        sys.exit(1)
-
-# Запуск приложения
 if __name__ == '__main__':
-    main()
+    # Создание файла данных при отсутствии
+    if not os.path.exists(DATA_FILE):
+        save_data({'bank': 1000, 'history': []})
+    
+    # Проверка токена
+    if not TOKEN_VALID:
+        logger.error("❌ Токен невалидный. Бот не запустится.")
+        sys.exit(1)
+    
+    # Запуск приложения
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
