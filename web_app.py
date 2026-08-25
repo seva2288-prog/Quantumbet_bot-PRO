@@ -13,14 +13,14 @@ app = Flask(__name__)
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
 
 # ============================================================
-# HTML ШАБЛОН
+# HTML ШАБЛОН (СО СВЕТЛОЙ ТЕМОЙ ВЕЗДЕ)
 # ============================================================
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
-    <title>Quantum Bet Bot - Полная статистика</title>
+    <title>Quantum Bet Bot</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -32,15 +32,22 @@ DASHBOARD_HTML = """
             --text-primary: #e0e0e0;
             --text-secondary: #8888aa;
             --border-color: rgba(255,255,255,0.08);
+            --input-bg: #0f0f1a;
+            --input-border: #2a2a4a;
             --gradient-start: #667eea;
             --gradient-end: #764ba2;
+            --shadow: rgba(102,126,234,0.3);
         }
         [data-theme="light"] {
             --bg-primary: #f0f2f5;
             --bg-secondary: #ffffff;
+            --bg-card: rgba(0,0,0,0.02);
             --text-primary: #1a1a2e;
             --text-secondary: #666688;
             --border-color: rgba(0,0,0,0.08);
+            --input-bg: #f8f9fa;
+            --input-border: #ddd;
+            --shadow: rgba(0,0,0,0.1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -53,6 +60,7 @@ DASHBOARD_HTML = """
         }
         .container { max-width: 1400px; margin: 0 auto; padding: 15px; }
         
+        /* ===== ШАПКА ===== */
         .header {
             display: flex;
             justify-content: space-between;
@@ -64,6 +72,7 @@ DASHBOARD_HTML = """
             background: var(--bg-secondary);
             border-radius: 16px;
             border: 1px solid var(--border-color);
+            box-shadow: 0 4px 30px var(--shadow);
         }
         .header h1 {
             font-size: 24px;
@@ -109,6 +118,7 @@ DASHBOARD_HTML = """
         }
         .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
         
+        /* ===== НАВИГАЦИЯ ===== */
         .nav {
             display: flex;
             gap: 6px;
@@ -132,16 +142,25 @@ DASHBOARD_HTML = """
             border-color: var(--gradient-start);
             color: var(--text-primary);
             transform: translateY(-2px);
+            box-shadow: 0 4px 15px var(--shadow);
         }
         .btn.active {
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             border-color: var(--gradient-start);
             color: #fff;
+            box-shadow: 0 4px 15px var(--shadow);
         }
+        .btn-danger { background: #ef473a; color: #fff; border-color: #ef473a; }
+        .btn-danger:hover { background: #cb2d3e; border-color: #cb2d3e; }
+        .btn-success { background: #38ef7d; color: #000; border-color: #38ef7d; }
+        .btn-success:hover { background: #11998e; border-color: #11998e; }
+        .btn-warning { background: #ffd200; color: #000; border-color: #ffd200; }
+        .btn-warning:hover { background: #f7971e; border-color: #f7971e; }
         
+        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 12px;
             margin-bottom: 20px;
         }
@@ -152,10 +171,11 @@ DASHBOARD_HTML = """
             background: var(--bg-secondary);
             transition: all 0.3s;
             text-align: center;
+            box-shadow: 0 2px 10px var(--shadow);
         }
         .stat-card:hover { transform: translateY(-3px); border-color: var(--gradient-start); }
         .stat-card .value {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
@@ -167,12 +187,14 @@ DASHBOARD_HTML = """
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .label { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
         
+        /* ===== КАРТОЧКИ ===== */
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 14px;
             padding: 16px;
             margin-bottom: 16px;
+            box-shadow: 0 2px 10px var(--shadow);
             overflow: hidden;
         }
         .card-header {
@@ -186,12 +208,14 @@ DASHBOARD_HTML = """
         .card-header h2 { color: var(--text-secondary); font-size: 16px; font-weight: normal; }
         .card-header .count { color: var(--text-secondary); font-size: 13px; }
         
+        /* ===== ГРАФИК ===== */
         .chart-container {
             position: relative;
             height: 200px;
             width: 100%;
         }
         
+        /* ===== ТАБЛИЦА ===== */
         .table-wrapper {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -219,6 +243,7 @@ DASHBOARD_HTML = """
         }
         tr:hover td { background: var(--bg-card); }
         
+        /* ===== БЭДЖИ ===== */
         .badge {
             display: inline-block;
             padding: 2px 10px;
@@ -234,9 +259,33 @@ DASHBOARD_HTML = """
         .profit-positive { color: #38ef7d; font-weight: bold; }
         .profit-negative { color: #ef473a; font-weight: bold; }
         
+        /* ===== РЕДАКТИРОВАНИЕ ===== */
+        .edit-row {
+            background: var(--bg-card);
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+            margin-top: 5px;
+        }
+        .edit-row.active { display: block; }
+        .edit-row input, .edit-row select {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        .edit-row .btn { padding: 4px 12px; font-size: 12px; }
+        .edit-btn { cursor: pointer; color: var(--text-secondary); }
+        .edit-btn:hover { color: var(--gradient-start); }
+        
+        /* ===== НЕТ ДАННЫХ ===== */
         .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
         .no-data .emoji { font-size: 48px; margin-bottom: 10px; }
         
+        /* ===== ФУТЕР ===== */
         .footer {
             text-align: center;
             color: #444466;
@@ -246,6 +295,7 @@ DASHBOARD_HTML = """
             border-top: 1px solid var(--border-color);
         }
         
+        /* ===== ПОДРОБНАЯ СТАТИСТИКА ===== */
         .summary-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -261,6 +311,12 @@ DASHBOARD_HTML = """
         .summary-item .label { color: var(--text-secondary); font-size: 12px; }
         .summary-item .value { font-size: 18px; font-weight: bold; }
         
+        .scrollable-table {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        /* ===== АДАПТИВ ===== */
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: stretch; gap: 10px; }
             .header h1 { font-size: 20px; text-align: center; }
@@ -277,17 +333,13 @@ DASHBOARD_HTML = """
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
             .stat-card { padding: 10px; }
-            .stat-card .value { font-size: 20px; }
-        }
-        
-        .scrollable-table {
-            max-height: 500px;
-            overflow-y: auto;
+            .stat-card .value { font-size: 18px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- ШАПКА -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -301,6 +353,7 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
+        <!-- НАВИГАЦИЯ -->
         <div class="nav">
             <a href="/"><button class="btn active">📊 Дашборд</button></a>
             <a href="/matches"><button class="btn">⚽ Матчи</button></a>
@@ -310,7 +363,7 @@ DASHBOARD_HTML = """
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
         </div>
         
-        <!-- ===== ОБЩАЯ СТАТИСТИКА ===== -->
+        <!-- СТАТИСТИКА -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value">${{ stats.bank }}</div>
@@ -330,7 +383,7 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- ===== ПОДРОБНАЯ СТАТИСТИКА ===== -->
+        <!-- ПОДРОБНАЯ СТАТИСТИКА -->
         <div class="summary-row">
             <div class="summary-item">
                 <div class="label">📊 Всего ставок</div>
@@ -350,7 +403,7 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- ===== ГРАФИК ПРИБЫЛИ ===== -->
+        <!-- ГРАФИК -->
         <div class="card">
             <div class="card-header">
                 <h2>📈 График прибыли</h2>
@@ -361,7 +414,7 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- ===== ТАБЛИЦА ВСЕХ СТАВОК ===== -->
+        <!-- ТАБЛИЦА СТАВОК С РЕДАКТИРОВАНИЕМ -->
         <div class="card">
             <div class="card-header">
                 <h2>📋 Все ставки</h2>
@@ -381,6 +434,7 @@ DASHBOARD_HTML = """
                                 <th>EV</th>
                                 <th>Результат</th>
                                 <th>Прибыль</th>
+                                <th>✏️</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -397,10 +451,34 @@ DASHBOARD_HTML = """
                                 <td class="{% if bet.profit > 0 %}profit-positive{% elif bet.profit < 0 %}profit-negative{% endif %}">
                                     ${{ bet.profit }}
                                 </td>
+                                <td>
+                                    <span class="edit-btn" onclick="toggleEdit('{{ loop.index0 }}')">✏️</span>
+                                </td>
+                            </tr>
+                            <tr id="edit-row-{{ loop.index0 }}" class="edit-row">
+                                <td colspan="10">
+                                    <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+                                        <input type="text" id="edit_home_{{ loop.index0 }}" value="{{ bet.home }}" placeholder="Хозяева">
+                                        <input type="text" id="edit_away_{{ loop.index0 }}" value="{{ bet.away }}" placeholder="Гости">
+                                        <input type="text" id="edit_bet_{{ loop.index0 }}" value="{{ bet.bet }}" placeholder="Ставка">
+                                        <input type="number" id="edit_odds_{{ loop.index0 }}" value="{{ bet.odds }}" placeholder="Кэф" step="0.01">
+                                        <input type="number" id="edit_stake_{{ loop.index0 }}" value="{{ bet.stake }}" placeholder="Сумма" step="0.5">
+                                        <input type="number" id="edit_ev_{{ loop.index0 }}" value="{{ bet.ev }}" placeholder="EV" step="0.1">
+                                        <select id="edit_result_{{ loop.index0 }}">
+                                            <option value="win" {% if bet.result == 'win' %}selected{% endif %}>win</option>
+                                            <option value="loss" {% if bet.result == 'loss' %}selected{% endif %}>loss</option>
+                                            <option value="push" {% if bet.result == 'push' %}selected{% endif %}>push</option>
+                                            <option value="pending" {% if bet.result == 'pending' %}selected{% endif %}>pending</option>
+                                        </select>
+                                        <button class="btn btn-success" onclick="saveEdit('{{ loop.index0 }}')">💾 Сохранить</button>
+                                        <button class="btn btn-danger" onclick="deleteBet('{{ loop.index0 }}')">🗑️ Удалить</button>
+                                        <button class="btn" onclick="toggleEdit('{{ loop.index0 }}')">❌ Отмена</button>
+                                    </div>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="9" class="no-data">
+                                <td colspan="10" class="no-data">
                                     <div class="emoji">📭</div>
                                     <div>Нет данных</div>
                                     <div style="font-size:13px;color:#444466;">Начните делать ставки!</div>
@@ -417,6 +495,7 @@ DASHBOARD_HTML = """
     </div>
     
     <script>
+        // ===== ТЕМА =====
         function toggleTheme() {
             const html = document.documentElement;
             const btn = document.getElementById('themeBtn');
@@ -434,6 +513,60 @@ DASHBOARD_HTML = """
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
+        // ===== РЕДАКТИРОВАНИЕ =====
+        function toggleEdit(index) {
+            const row = document.getElementById('edit-row-' + index);
+            row.classList.toggle('active');
+        }
+        
+        function saveEdit(index) {
+            const data = {
+                home: document.getElementById('edit_home_' + index).value,
+                away: document.getElementById('edit_away_' + index).value,
+                bet: document.getElementById('edit_bet_' + index).value,
+                odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
+                stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
+                ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
+                result: document.getElementById('edit_result_' + index).value,
+                index: index
+            };
+            
+            fetch('/api/edit_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Ставка обновлена!');
+                    location.reload();
+                } else {
+                    alert('❌ Ошибка: ' + data.error);
+                }
+            });
+        }
+        
+        function deleteBet(index) {
+            if (!confirm('Удалить эту ставку?')) return;
+            
+            fetch('/api/delete_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: index })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Ставка удалена!');
+                    location.reload();
+                } else {
+                    alert('❌ Ошибка: ' + data.error);
+                }
+            });
+        }
+        
+        // ===== ГРАФИК =====
         document.addEventListener('DOMContentLoaded', function() {
             fetch('/api/profit_data')
                 .then(response => response.json())
@@ -569,15 +702,85 @@ def profit_data():
     
     return jsonify({'dates': dates, 'profits': profits})
 
+@app.route('/api/edit_bet', methods=['POST'])
+def edit_bet():
+    """Редактирование ставки"""
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        # Получаем историю
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history = response.json() if response.status_code == 200 else []
+        
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        
+        # Обновляем ставку
+        history[index]['home'] = data.get('home', history[index]['home'])
+        history[index]['away'] = data.get('away', history[index]['away'])
+        history[index]['bet'] = data.get('bet', history[index]['bet'])
+        history[index]['odds'] = data.get('odds', history[index]['odds'])
+        history[index]['stake'] = data.get('stake', history[index]['stake'])
+        history[index]['ev'] = data.get('ev', history[index]['ev'])
+        history[index]['result'] = data.get('result', history[index]['result'])
+        
+        # Пересчитываем прибыль
+        if history[index]['result'] == 'win':
+            history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
+        elif history[index]['result'] == 'loss':
+            history[index]['profit'] = -history[index]['stake']
+        else:
+            history[index]['profit'] = 0
+        
+        # Отправляем обратно в бот
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete_bet', methods=['POST'])
+def delete_bet():
+    """Удаление ставки"""
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        # Получаем историю
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history = response.json() if response.status_code == 200 else []
+        
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        
+        # Удаляем ставку
+        deleted = history.pop(index)
+        
+        # Отправляем обратно в бот
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'deleted': deleted})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================
+# ОСТАЛЬНЫЕ МАРШРУТЫ
+# ============================================================
+
 @app.route('/matches')
 def matches_page():
     try:
-        # Пытаемся получить матчи через API бота
         response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        if response.status_code == 200:
-            matches = response.json()
-        else:
-            matches = []
+        matches = response.json() if response.status_code == 200 else []
         return render_template_string(MATCHES_HTML, matches=matches)
     except:
         return render_template_string(MATCHES_HTML, matches=[])
@@ -951,6 +1154,18 @@ function updateBank() {
 </body>
 </html>
 """
+
+# ============================================================
+# ДОБАВЛЯЕМ API ДЛЯ ОБНОВЛЕНИЯ ИСТОРИИ В БОТЕ
+# ============================================================
+
+# Этот эндпоинт нужно добавить в bot.py:
+# @app.route('/api/update_history', methods=['POST'])
+# def update_history():
+#     data = request.json
+#     history = data.get('history', [])
+#     storage.save_history(history)
+#     return jsonify({'success': True})
 
 # ============================================================
 # ЗАПУСК
