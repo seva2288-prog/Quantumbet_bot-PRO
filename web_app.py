@@ -14,7 +14,7 @@ app = Flask(__name__)
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
 
 # ============================================================
-# HTML ШАБЛОН
+# HTML ШАБЛОН ДАШБОРДА (БЕЗ ИМПОРТА)
 # ============================================================
 
 DASHBOARD_HTML = """
@@ -364,8 +364,6 @@ DASHBOARD_HTML = """
             <a href="/simulator"><button class="btn">🎲 Симулятор</button></a>
             <a href="/settings"><button class="btn">⚙️ Настройки</button></a>
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
-            <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">📥 Импорт Excel</button>
-            <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
         </div>
         
         <div class="stats-grid">
@@ -585,46 +583,6 @@ DASHBOARD_HTML = """
                     alert('❌ Ошибка: ' + data.error);
                 }
             });
-        }
-        
-        // ===== ИМПОРТ ИЗ EXCEL =====
-        function importExcel(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const json = XLSX.utils.sheet_to_json(sheet);
-                    
-                    if (json.length === 0) {
-                        alert('❌ Файл пуст или неправильный формат');
-                        return;
-                    }
-                    
-                    fetch('/api/import_excel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: json })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('✅ Импортировано ' + data.count + ' ставок!');
-                            location.reload();
-                        } else {
-                            alert('❌ Ошибка: ' + data.error);
-                        }
-                    })
-                    .catch(error => alert('❌ Ошибка: ' + error));
-                } catch (error) {
-                    alert('❌ Ошибка чтения файла: ' + error);
-                }
-            };
-            reader.readAsArrayBuffer(file);
         }
         
         document.addEventListener('DOMContentLoaded', function() {
@@ -1076,7 +1034,7 @@ th { color: #8888aa; font-weight: normal; font-size: 11px; text-transform: upper
 """
 
 # ============================================================
-# ШАБЛОН НАСТРОЕК (ОБНОВЛЁННЫЙ С ИМПОРТОМ)
+# ШАБЛОН НАСТРОЕК (С ИМПОРТОМ)
 # ============================================================
 
 SETTINGS_HTML = """
@@ -1159,7 +1117,7 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
         </div>
     </div>
     
-    <!-- Экспорт / Импорт (ОБНОВЛЁННЫЙ БЛОК) -->
+    <!-- Экспорт / Импорт -->
     <div class="setting-group">
         <h2>📊 Экспорт / Импорт</h2>
         
@@ -1402,10 +1360,24 @@ def profit_data():
             try:
                 bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
                 if bet_date.date() == day.date():
+                    # ИСПРАВЛЕНО: проверка типа stake
+                    stake = bet.get('stake', 0)
+                    if isinstance(stake, str):
+                        try:
+                            stake = float(stake)
+                        except:
+                            stake = 0
+                    odds = bet.get('odds', 1)
+                    if isinstance(odds, str):
+                        try:
+                            odds = float(odds)
+                        except:
+                            odds = 1
+                    
                     if bet.get('result') == 'win':
-                        day_profit += bet.get('stake', 0) * (bet.get('odds', 1) - 1)
+                        day_profit += stake * (odds - 1)
                     elif bet.get('result') == 'loss':
-                        day_profit -= bet.get('stake', 0)
+                        day_profit -= stake
             except:
                 pass
         profits.append(round(day_profit, 2))
