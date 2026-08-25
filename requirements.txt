@@ -1,5 +1,7 @@
 flask
 gunicorn
 requests
+python-dotenv
+openpyxl
 xlsxwriter
 python-telegram-bot==20.7
