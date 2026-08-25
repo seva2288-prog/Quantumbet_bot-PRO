@@ -2,3 +2,4 @@ flask
 gunicorn
 requests
 xlsxwriter
+python-telegram-bot==20.7
