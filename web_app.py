@@ -1076,7 +1076,7 @@ th { color: #8888aa; font-weight: normal; font-size: 11px; text-transform: upper
 """
 
 # ============================================================
-# ШАБЛОН НАСТРОЕК
+# ШАБЛОН НАСТРОЕК (ОБНОВЛЁННЫЙ С ИМПОРТОМ)
 # ============================================================
 
 SETTINGS_HTML = """
@@ -1085,6 +1085,7 @@ SETTINGS_HTML = """
 <head><title>Настройки</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 15px; }
@@ -1093,9 +1094,11 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
 .subtitle { color: #8888aa; margin-bottom: 15px; font-size: 14px; }
 .nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
 .nav a { text-decoration: none; }
-.btn { padding: 8px 16px; border-radius: 10px; border: 1px solid #2a2a4a; background: transparent; color: #8888aa; cursor: pointer; font-size: 13px; }
+.btn { padding: 8px 16px; border-radius: 10px; border: 1px solid #2a2a4a; background: transparent; color: #8888aa; cursor: pointer; font-size: 13px; transition: all 0.3s; }
 .btn:hover { background: rgba(102,126,234,0.2); border-color: #667eea; color: #fff; }
 .btn.active { background: #667eea; border-color: #667eea; color: #fff; }
+.btn-success { background: #38ef7d; color: #000; border-color: #38ef7d; }
+.btn-success:hover { background: #11998e; border-color: #11998e; color: #fff; }
 .setting-group { background: #1a1a2e; padding: 15px; border-radius: 12px; border: 1px solid #2a2a4a; margin-bottom: 12px; }
 .setting-group h2 { color: #8888aa; font-size: 14px; font-weight: normal; margin-bottom: 10px; }
 .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #0f0f1a; flex-wrap: wrap; gap: 8px; }
@@ -1110,6 +1113,9 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
 .toggle.active { background: #667eea; }
 .toggle .dot { width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.3s; }
 .toggle.active .dot { left: 23px; }
+.file-input-label { display: inline-block; padding: 6px 14px; background: #667eea; color: white; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.file-input-label:hover { background: #764ba2; }
+.import-status { color: #8888aa; font-size: 12px; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -1123,6 +1129,8 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
         <a href="/simulator"><button class="btn">🎲 Симулятор</button></a>
         <a href="/settings"><button class="btn active">⚙️ Настройки</button></a>
     </div>
+    
+    <!-- Банк -->
     <div class="setting-group">
         <h2>💰 Банк</h2>
         <div class="setting-item">
@@ -1136,6 +1144,8 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
             </div>
         </div>
     </div>
+    
+    <!-- Автоматизация -->
     <div class="setting-group">
         <h2>🤖 Автоматизация</h2>
         <div class="setting-item">
@@ -1148,8 +1158,12 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
             </div>
         </div>
     </div>
+    
+    <!-- Экспорт / Импорт (ОБНОВЛЁННЫЙ БЛОК) -->
     <div class="setting-group">
-        <h2>📊 Экспорт</h2>
+        <h2>📊 Экспорт / Импорт</h2>
+        
+        <!-- Экспорт -->
         <div class="setting-item">
             <div>
                 <div class="label">Экспорт данных</div>
@@ -1157,9 +1171,25 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
             </div>
             <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
         </div>
+        
+        <!-- Импорт -->
+        <div class="setting-item" style="border-bottom: none;">
+            <div>
+                <div class="label">Импорт данных</div>
+                <div class="desc">Загрузить историю из Excel</div>
+            </div>
+            <div class="input-group">
+                <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
+                <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
+                <span id="fileName" style="color:#666688;font-size:12px;">Файл не выбран</span>
+            </div>
+        </div>
+        <div id="importStatus" class="import-status"></div>
     </div>
 </div>
+
 <script>
+// Обновление банка
 function updateBank() {
     const value = document.getElementById('bankInput').value;
     fetch('/api/bank', {
@@ -1175,6 +1205,66 @@ function updateBank() {
         }
     });
 }
+
+// Импорт из Excel
+function importExcel(event) {
+    const file = event.target.files[0];
+    const statusDiv = document.getElementById('importStatus');
+    const fileNameSpan = document.getElementById('fileName');
+    
+    if (!file) {
+        statusDiv.textContent = '❌ Файл не выбран';
+        return;
+    }
+    
+    fileNameSpan.textContent = '📄 ' + file.name;
+    statusDiv.textContent = '⏳ Загрузка файла...';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            
+            if (json.length === 0) {
+                statusDiv.textContent = '❌ Файл пуст или неправильный формат';
+                return;
+            }
+            
+            statusDiv.textContent = '⏳ Отправка данных на сервер...';
+            
+            fetch('/api/import_excel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: json })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок! Страница обновится...';
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    statusDiv.textContent = '❌ Ошибка: ' + data.error;
+                }
+            })
+            .catch(error => {
+                statusDiv.textContent = '❌ Ошибка: ' + error;
+            });
+        } catch (error) {
+            statusDiv.textContent = '❌ Ошибка чтения файла: ' + error;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// Отображение имени файла при выборе
+document.getElementById('importFileInput').addEventListener('change', function() {
+    if (this.files.length > 0) {
+        document.getElementById('fileName').textContent = '📄 ' + this.files[0].name;
+    }
+});
 </script>
 </body>
 </html>
