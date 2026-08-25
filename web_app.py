@@ -1,29 +1,22 @@
 import os
-import sys
 import logging
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# ===== ЗАГРУЗКА ТОКЕНА =====
-TOKEN = os.environ.get('TELEGRAM_TO')
+# ===== ТОКЕН ВСТАВЛЕН ВРУЧНУЮ =====
+TOKEN = "8884017743:AAHkCNM9BTFHaGo5P9dd3aExq9iHL4Jy8LA"
 
-if not TOKEN:
-    logging.error("❌ ТОКЕН НЕ НАЙДЕН! Проверь переменную TELEGRAM_TO в Railway.")
-    sys.exit(1)
-
-logging.basicConfig(level=logging.INFO)
-logging.info(f"✅ Токен загружен: {TOKEN[:10]}...")
-
-# ===== ПРИЛОЖЕНИЕ =====
+# ===== НАСТРОЙКИ =====
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # ===== БОТ =====
 bot_app = Application.builder().token(TOKEN).build()
 
-# ===== КОМАНДЫ =====
+# ===== КОМАНДА /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Бот работает! Токен загружен.")
+    await update.message.reply_text("🤖 Бот работает! Токен вшит в код.")
 
 bot_app.add_handler(CommandHandler("start", start))
 
@@ -40,7 +33,7 @@ def webhook():
 
 @app.route('/')
 def index():
-    return "🤖 Бот работает! Токен загружен."
+    return "🤖 Бот работает!"
 
 # ===== ЗАПУСК =====
 if __name__ == '__main__':
