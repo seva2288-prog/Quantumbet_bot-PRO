@@ -80,12 +80,13 @@ def export_to_excel():
         ev = bet.get('ev', 0)
         stake = bet.get('stake', 0)
         result = bet.get('result', 'pending')
+        profit = bet.get('profit', 0)
         
         if result == 'win':
-            profit = round(stake * (odds - 1), 2)
+            profit = round(stake * (odds - 1), 2) if profit == 0 else profit
             total_profit += profit
         elif result == 'loss':
-            profit = -round(stake, 2)
+            profit = -round(stake, 2) if profit == 0 else profit
             total_profit += profit
         else:
             profit = 0
@@ -459,15 +460,26 @@ def webhook():
                                     history = storage.load_history()
                                     logger.info(f"📋 История загружена: {len(history)} записей")
                                     
+                                    stake = best_bet.get('stake', 0)
+                                    odds = best_bet.get('odds', 1)
+                                    
+                                    if result == 'win':
+                                        profit = round(stake * (odds - 1), 2)
+                                    elif result == 'loss':
+                                        profit = -stake
+                                    else:
+                                        profit = 0
+                                    
                                     bet_record = {
                                         'home': match.get('home', ''),
                                         'away': match.get('away', ''),
                                         'league': match.get('league', ''),
                                         'bet': best_bet.get('label', ''),
-                                        'odds': best_bet.get('odds', 0),
-                                        'stake': best_bet.get('stake', 0),
+                                        'odds': odds,
+                                        'stake': stake,
                                         'ev': best_bet.get('ev', 0),
                                         'result': result,
+                                        'profit': profit,
                                         'date': datetime.now().strftime('%Y-%m-%d %H:%M')
                                     }
                                     history.append(bet_record)
@@ -479,8 +491,10 @@ def webhook():
                                     stats['total'] = stats.get('total', 0) + 1
                                     if result == 'win':
                                         stats['wins'] = stats.get('wins', 0) + 1
+                                        stats['total_profit'] = stats.get('total_profit', 0) + profit
                                     elif result == 'loss':
                                         stats['losses'] = stats.get('losses', 0) + 1
+                                        stats['total_profit'] = stats.get('total_profit', 0) - stake
                                     else:
                                         stats['pushes'] = stats.get('pushes', 0) + 1
                                     storage.save_stats(stats)
@@ -495,7 +509,12 @@ def webhook():
                                         pass
                                     
                                     # Отправляем подтверждение
-                                    send_telegram(f"✅ Результат сохранён!\n{match.get('home')} vs {match.get('away')} → {result}")
+                                    msg = f"✅ Результат сохранён!\n{match.get('home')} vs {match.get('away')} → {result}"
+                                    if result == 'win':
+                                        msg += f"\n💰 Прибыль: +${profit}"
+                                    elif result == 'loss':
+                                        msg += f"\n💰 Проигрыш: -${stake}"
+                                    send_telegram(msg)
                                     
                                 except Exception as e:
                                     logger.error(f"❌ Ошибка сохранения: {e}")
@@ -736,15 +755,25 @@ def webhook():
                     send_telegram("❌ Ошибка разблокировки")
             
             # ============================================================
-            # НОВАЯ КОМАНДА: /result (ручной ввод результата)
+            # КОМАНДА: /result (ручной ввод результата с суммой)
             # ============================================================
             elif text.startswith('/result'):
                 try:
                     parts = text.split()
+                    
+                    # Проверяем формат: /result <команда1> <команда2> <счёт> [сумма]
                     if len(parts) >= 4:
                         home = parts[1]
                         away = parts[2]
                         score = parts[3]
+                        
+                        # Сумма ставки (опционально)
+                        stake = 0
+                        if len(parts) >= 5:
+                            try:
+                                stake = float(parts[4])
+                            except:
+                                stake = 0
                         
                         # Определяем результат
                         try:
@@ -754,10 +783,13 @@ def webhook():
                             
                             if home_goals > away_goals:
                                 result = 'win'
+                                profit = round(stake * 0.85, 2) if stake > 0 else 0
                             elif home_goals < away_goals:
                                 result = 'loss'
+                                profit = -stake if stake > 0 else 0
                             else:
                                 result = 'push'
+                                profit = 0
                         except:
                             send_telegram("❌ Неправильный формат счёта. Используйте: 2-1")
                             return "ok", 200
@@ -769,31 +801,43 @@ def webhook():
                             'away': away,
                             'league': 'Ручной ввод',
                             'bet': 'Ручная ставка',
-                            'odds': 0,
-                            'stake': 0,
+                            'odds': 1.85 if stake > 0 else 0,
+                            'stake': stake,
                             'ev': 0,
                             'result': result,
+                            'profit': profit,
                             'date': datetime.now().strftime('%Y-%m-%d %H:%M')
                         }
                         history.append(bet_record)
                         storage.save_history(history)
-                        logger.info(f"✅ Ручное сохранение: {home} vs {away} → {score} ({result})")
+                        logger.info(f"✅ Ручное сохранение: {home} vs {away} → {score} ({result}) Сумма: ${stake}")
                         
                         # Обновляем статистику
                         stats = storage.load_stats()
                         stats['total'] = stats.get('total', 0) + 1
                         if result == 'win':
                             stats['wins'] = stats.get('wins', 0) + 1
+                            stats['total_profit'] = stats.get('total_profit', 0) + profit
                         elif result == 'loss':
                             stats['losses'] = stats.get('losses', 0) + 1
+                            stats['total_profit'] = stats.get('total_profit', 0) - stake
                         else:
                             stats['pushes'] = stats.get('pushes', 0) + 1
                         storage.save_stats(stats)
                         
-                        send_telegram(f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}")
+                        # Отправляем подтверждение
+                        msg = f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}"
+                        if stake > 0:
+                            if result == 'win':
+                                msg += f"\n💰 Прибыль: +${profit}"
+                            elif result == 'loss':
+                                msg += f"\n💰 Проигрыш: -${stake}"
+                            else:
+                                msg += f"\n💰 Возврат: $0"
+                        send_telegram(msg)
                         
                     else:
-                        send_telegram("📝 Формат: /result <команда1> <команда2> <счёт>\n\nПример: /result Fulham Chelsea 2-1")
+                        send_telegram("📝 Формат: /result <команда1> <команда2> <счёт> [сумма]\n\nПримеры:\n/result Fulham Chelsea 2-1\n/result Fulham Chelsea 2-1 50")
                         
                 except Exception as e:
                     logger.error(f"Ошибка /result: {e}")
