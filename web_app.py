@@ -1911,5 +1911,6 @@ if __name__ == '__main__':
     # Создаём файл данных если его нет
     if not os.path.exists(DATA_FILE):
         save_data({'bank': 1000, 'history': []})
-    
-    app.run(host='0.0.0.0', port=5001, debug=False)
+
+    port = int(os.environ.get('PORT', 5001))
+    app.run(host='0.0.0.0', port=port, debug=False)
