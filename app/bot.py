@@ -790,8 +790,7 @@ def webhook():
                                 profit = round(stake * 0.85, 2) if stake > 0 else 0
                             elif home_goals < away_goals:
                                 result = 'loss'
-                                profit = -stake if stake > 0 else 0
-                            else:
+                                profit = -stake if stake > 0 else 0                            else:
                                 result = 'push'
                                 profit = 0
                         except:
@@ -925,6 +924,54 @@ def api_update_bank():
         storage.save_bank(data['bank'])
         return jsonify({'success': True, 'bank': data['bank']})
     return jsonify({'error': 'No bank value'}), 400
+
+# ============================================================
+# НОВЫЙ ЭНДПОИНТ: ОБНОВЛЕНИЕ ИСТОРИИ ИЗ ВЕБ-ПРИЛОЖЕНИЯ
+# ============================================================
+
+@app.route('/api/update_history', methods=['POST'])
+def update_history():
+    """Обновление истории из веб-приложения (редактирование/удаление)"""
+    try:
+        data = request.json
+        history = data.get('history', [])
+        
+        if not history:
+            return jsonify({'error': 'Нет данных'}), 400
+        
+        # Сохраняем историю
+        storage.save_history(history)
+        logger.info(f"✅ История обновлена из веб-приложения: {len(history)} записей")
+        
+        # Пересчитываем статистику
+        total = len(history)
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        losses = sum(1 for b in history if b.get('result') == 'loss')
+        pushes = sum(1 for b in history if b.get('result') == 'push')
+        total_profit = sum(float(b.get('profit', 0)) for b in history)
+        
+        stats = storage.load_stats()
+        stats['total'] = total
+        stats['wins'] = wins
+        stats['losses'] = losses
+        stats['pushes'] = pushes
+        stats['total_profit'] = round(total_profit, 2)
+        storage.save_stats(stats)
+        
+        logger.info(f"✅ Статистика пересчитана: {stats}")
+        
+        return jsonify({
+            'success': True,
+            'total': total,
+            'wins': wins,
+            'losses': losses,
+            'pushes': pushes,
+            'profit': round(total_profit, 2)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления истории: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # ============================================================
 # ОСНОВНЫЕ МАРШРУТЫ
