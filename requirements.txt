@@ -8,3 +8,6 @@ joblib
 schedule
 python-dotenv
 gunicorn
+pandas
+matplotlib
+seaborn
