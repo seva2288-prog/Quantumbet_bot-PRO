@@ -5,20 +5,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, render_template_string, jsonify, request
 from app.database.storage import storage
 from app.api.football import football_api
-import time
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
 # ============================================================
-# HTML ШАБЛОН
+# HTML ШАБЛОН С ПОЛНОЙ СТАТИСТИКОЙ
 # ============================================================
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
-    <title>Quantum Bet Bot</title>
+    <title>Quantum Bet Bot - Полная статистика</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -49,9 +48,8 @@ DASHBOARD_HTML = """
             transition: all 0.3s ease;
             overflow-x: hidden;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 15px; }
         
-        /* ШАПКА */
         .header {
             display: flex;
             justify-content: space-between;
@@ -108,7 +106,6 @@ DASHBOARD_HTML = """
         }
         .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
         
-        /* НАВИГАЦИЯ */
         .nav {
             display: flex;
             gap: 6px;
@@ -139,10 +136,9 @@ DASHBOARD_HTML = """
             color: #fff;
         }
         
-        /* СТАТИСТИКА */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             margin-bottom: 20px;
         }
@@ -152,25 +148,22 @@ DASHBOARD_HTML = """
             border: 1px solid var(--border-color);
             background: var(--bg-secondary);
             transition: all 0.3s;
-            overflow: hidden;
+            text-align: center;
         }
         .stat-card:hover { transform: translateY(-3px); border-color: var(--gradient-start); }
-        .stat-card .icon { font-size: 20px; margin-bottom: 4px; }
         .stat-card .value {
-            font-size: 24px;
+            font-size: 28px;
             font-weight: bold;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            word-wrap: break-word;
         }
         .stat-card .value.green { background: linear-gradient(135deg, #11998e, #38ef7d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .value.red { background: linear-gradient(135deg, #cb2d3e, #ef473a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .stat-card .label { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+        .stat-card .label { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
         
-        /* КАРТОЧКИ */
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -187,14 +180,15 @@ DASHBOARD_HTML = """
             gap: 8px;
             margin-bottom: 12px;
         }
-        .card-header h2 { color: var(--text-secondary); font-size: 14px; font-weight: normal; }
+        .card-header h2 { color: var(--text-secondary); font-size: 16px; font-weight: normal; }
+        .card-header .count { color: var(--text-secondary); font-size: 13px; }
+        
         .chart-container {
             position: relative;
             height: 200px;
             width: 100%;
         }
         
-        /* ТАБЛИЦА */
         .table-wrapper {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -203,15 +197,23 @@ DASHBOARD_HTML = """
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
-            min-width: 500px;
+            min-width: 700px;
         }
         th, td {
             padding: 8px 10px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
-            white-space: nowrap;
         }
-        th { color: var(--text-secondary); font-weight: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        th { 
+            color: var(--text-secondary); 
+            font-weight: 600; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            background: var(--bg-card);
+            position: sticky;
+            top: 0;
+        }
         tr:hover td { background: var(--bg-card); }
         
         .badge {
@@ -223,30 +225,14 @@ DASHBOARD_HTML = """
         }
         .badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
         .badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
-        .badge.pending { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
+        .badge.push { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
+        .badge.pending { background: rgba(255,255,255,0.05); color: #8888aa; border: 1px solid var(--border-color); }
         
-        .no-data { text-align: center; color: var(--text-secondary); padding: 20px 0; }
-        .no-data .emoji { font-size: 36px; margin-bottom: 8px; }
+        .profit-positive { color: #38ef7d; font-weight: bold; }
+        .profit-negative { color: #ef473a; font-weight: bold; }
         
-        /* ТОП ЛИГ */
-        .league-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 0;
-            border-bottom: 1px solid var(--border-color);
-            flex-wrap: wrap;
-            gap: 5px;
-        }
-        .league-item:last-child { border-bottom: none; }
-        .league-name { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-        .league-bar {
-            height: 5px;
-            border-radius: 3px;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            transition: width 1s ease;
-        }
-        .league-profit { color: #38ef7d; font-size: 13px; }
+        .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
+        .no-data .emoji { font-size: 48px; margin-bottom: 10px; }
         
         .footer {
             text-align: center;
@@ -257,30 +243,48 @@ DASHBOARD_HTML = """
             border-top: 1px solid var(--border-color);
         }
         
-        /* АДАПТИВ */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .summary-item {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+        .summary-item .label { color: var(--text-secondary); font-size: 12px; }
+        .summary-item .value { font-size: 18px; font-weight: bold; }
+        
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: stretch; gap: 10px; }
             .header h1 { font-size: 20px; text-align: center; }
             .header-controls { justify-content: center; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
-            .stat-card .value { font-size: 20px; }
+            .summary-row { grid-template-columns: 1fr; }
             .nav { justify-content: center; }
             .btn { padding: 6px 12px; font-size: 12px; }
             .card { padding: 12px; }
-            table { font-size: 12px; min-width: 400px; }
-            th, td { padding: 5px 8px; }
+            table { font-size: 11px; min-width: 500px; }
+            th, td { padding: 5px 6px; }
             .chart-container { height: 150px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
             .stat-card { padding: 10px; }
-            .stat-card .value { font-size: 16px; }
+            .stat-card .value { font-size: 20px; }
+        }
+        
+        .scrollable-table {
+            max-height: 500px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- ШАПКА -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -294,7 +298,6 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- НАВИГАЦИЯ -->
         <div class="nav">
             <a href="/"><button class="btn active">📊 Дашборд</button></a>
             <a href="/matches"><button class="btn">⚽ Матчи</button></a>
@@ -304,31 +307,47 @@ DASHBOARD_HTML = """
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
         </div>
         
-        <!-- СТАТИСТИКА -->
+        <!-- ===== ОБЩАЯ СТАТИСТИКА ===== -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="icon">💰</div>
                 <div class="value">${{ bank }}</div>
-                <div class="label">Текущий банк</div>
+                <div class="label">💰 Текущий банк</div>
             </div>
             <div class="stat-card">
-                <div class="icon">✅</div>
                 <div class="value green">{{ stats.wins }}</div>
-                <div class="label">Выигрыши</div>
+                <div class="label">✅ Выигрыши</div>
             </div>
             <div class="stat-card">
-                <div class="icon">❌</div>
                 <div class="value red">{{ stats.losses }}</div>
-                <div class="label">Проигрыши</div>
+                <div class="label">❌ Проигрыши</div>
             </div>
             <div class="stat-card">
-                <div class="icon">📈</div>
                 <div class="value gold">${{ stats.total_profit }}</div>
-                <div class="label">Прибыль</div>
+                <div class="label">💰 Прибыль</div>
             </div>
         </div>
         
-        <!-- ГРАФИК -->
+        <!-- ===== ПОДРОБНАЯ СТАТИСТИКА ===== -->
+        <div class="summary-row">
+            <div class="summary-item">
+                <div class="label">📊 Всего ставок</div>
+                <div class="value">{{ stats.total_bets }}</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">🎯 Проходимость</div>
+                <div class="value">{{ stats.winrate }}%</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">📈 ROI</div>
+                <div class="value">{{ stats.roi }}%</div>
+            </div>
+            <div class="summary-item">
+                <div class="label">📅 Средняя ставка</div>
+                <div class="value">${{ stats.avg_stake }}</div>
+            </div>
+        </div>
+        
+        <!-- ===== ГРАФИК ПРИБЫЛИ ===== -->
         <div class="card">
             <div class="card-header">
                 <h2>📈 График прибыли</h2>
@@ -339,54 +358,51 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
-            <!-- ТОП ЛИГ -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>🏆 Топ лиг</h2>
-                </div>
-                {% if top_leagues %}
-                    {% for league in top_leagues %}
-                    <div class="league-item">
-                        <div class="league-name">
-                            <span>{{ loop.index }}.</span>
-                            <span>{{ league.name }}</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;flex:1;max-width:150px;">
-                            <div class="league-bar" style="width:{{ league.winrate }}%;"></div>
-                            <span style="font-size:12px;color:var(--text-secondary);">{{ league.winrate }}%</span>
-                        </div>
-                        <span class="league-profit">+${{ league.profit }}</span>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-data"><div class="emoji">🏆</div>Нет данных</div>
-                {% endif %}
+        <!-- ===== ТАБЛИЦА ВСЕХ СТАВОК ===== -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📋 Все ставки</h2>
+                <span class="count">Всего: {{ history|length }}</span>
             </div>
-            
-            <!-- ПОСЛЕДНИЕ СТАВКИ -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>📋 Последние ставки</h2>
-                </div>
+            <div class="scrollable-table">
                 <div class="table-wrapper">
                     <table>
                         <thead>
                             <tr>
+                                <th>#</th>
+                                <th>Дата</th>
                                 <th>Матч</th>
                                 <th>Ставка</th>
+                                <th>Кэф</th>
+                                <th>Сумма</th>
+                                <th>EV</th>
                                 <th>Результат</th>
+                                <th>Прибыль</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for bet in history[:5] %}
+                            {% for bet in history|reverse %}
                             <tr>
-                                <td style="font-size:12px;">{{ bet.home }} vs {{ bet.away }}</td>
+                                <td>{{ loop.index }}</td>
+                                <td style="font-size:11px;white-space:nowrap;">{{ bet.date }}</td>
+                                <td><strong>{{ bet.home }}</strong> vs <strong>{{ bet.away }}</strong></td>
                                 <td>{{ bet.bet }}</td>
+                                <td>{{ bet.odds }}</td>
+                                <td>${{ bet.stake }}</td>
+                                <td>{{ bet.ev }}%</td>
                                 <td><span class="badge {{ bet.result }}">{{ bet.result }}</span></td>
+                                <td class="{% if bet.profit > 0 %}profit-positive{% elif bet.profit < 0 %}profit-negative{% endif %}">
+                                    ${{ bet.profit }}
+                                </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="3" class="no-data">Нет данных</td></tr>
+                            <tr>
+                                <td colspan="9" class="no-data">
+                                    <div class="emoji">📭</div>
+                                    <div>Нет данных</div>
+                                    <div style="font-size:13px;color:#444466;">Начните делать ставки!</div>
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -482,46 +498,45 @@ def dashboard():
     bank = storage.load_bank()
     history = storage.load_history()
     
+    total_bets = len(history)
+    wins = stats.get('wins', 0)
+    losses = stats.get('losses', 0)
+    pushes = stats.get('pushes', 0)
+    total_profit = stats.get('total_profit', 0)
+    
+    winrate = round(wins / (wins + losses) * 100, 1) if (wins + losses) > 0 else 0
+    
+    # Расчёт ROI
+    total_stake = sum(bet.get('stake', 0) for bet in history)
+    roi = round((total_profit / total_stake) * 100, 1) if total_stake > 0 else 0
+    
+    avg_stake = round(total_stake / total_bets, 2) if total_bets > 0 else 0
+    
     for bet in history:
         if bet.get('result') == 'win':
             profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-            bet['profit'] = f"${profit}"
+            bet['profit'] = profit
         elif bet.get('result') == 'loss':
             profit = -round(bet.get('stake', 0), 2)
-            bet['profit'] = f"${profit}"
+            bet['profit'] = profit
         else:
-            bet['profit'] = "$0.00"
+            bet['profit'] = 0
     
-    # Топ лиги
-    league_stats = {}
-    for bet in history:
-        league = bet.get('league', 'Unknown')
-        if league not in league_stats:
-            league_stats[league] = {'wins': 0, 'total': 0, 'profit': 0}
-        league_stats[league]['total'] += 1
-        if bet.get('result') == 'win':
-            league_stats[league]['wins'] += 1
-            league_stats[league]['profit'] += bet.get('stake', 0) * (bet.get('odds', 1) - 1)
-        elif bet.get('result') == 'loss':
-            league_stats[league]['profit'] -= bet.get('stake', 0)
-    
-    top_leagues = []
-    for league, data in league_stats.items():
-        if data['total'] >= 1:
-            winrate = round(data['wins'] / data['total'] * 100, 1) if data['total'] > 0 else 0
-            top_leagues.append({
-                'name': league,
-                'winrate': winrate,
-                'profit': round(data['profit'], 2)
-            })
-    top_leagues.sort(key=lambda x: x['winrate'], reverse=True)
-    top_leagues = top_leagues[:5]
+    stats_data = {
+        'total_bets': total_bets,
+        'wins': wins,
+        'losses': losses,
+        'pushes': pushes,
+        'total_profit': round(total_profit, 2),
+        'winrate': winrate,
+        'roi': roi,
+        'avg_stake': avg_stake
+    }
     
     return render_template_string(DASHBOARD_HTML, 
-                                   stats=stats, 
+                                   stats=stats_data, 
                                    bank=bank, 
-                                   history=history,
-                                   top_leagues=top_leagues)
+                                   history=history)
 
 @app.route('/api/profit_data')
 def profit_data():
@@ -727,7 +742,7 @@ th { color: #8888aa; font-weight: normal; font-size: 11px; text-transform: upper
 .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
 .badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
 .badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
-.badge.pending { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
+.badge.push { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
 .no-data { text-align: center; color: #8888aa; padding: 20px 0; }
 @media (max-width: 600px) { .stat-item .value { font-size: 18px; } table { font-size: 12px; min-width: 400px; } }
 </style>
