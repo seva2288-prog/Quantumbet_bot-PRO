@@ -735,6 +735,70 @@ def webhook():
                     logger.error(f"Ошибка /unblock: {e}")
                     send_telegram("❌ Ошибка разблокировки")
             
+            # ============================================================
+            # НОВАЯ КОМАНДА: /result (ручной ввод результата)
+            # ============================================================
+            elif text.startswith('/result'):
+                try:
+                    parts = text.split()
+                    if len(parts) >= 4:
+                        home = parts[1]
+                        away = parts[2]
+                        score = parts[3]
+                        
+                        # Определяем результат
+                        try:
+                            home_goals, away_goals = score.split('-')
+                            home_goals = int(home_goals)
+                            away_goals = int(away_goals)
+                            
+                            if home_goals > away_goals:
+                                result = 'win'
+                            elif home_goals < away_goals:
+                                result = 'loss'
+                            else:
+                                result = 'push'
+                        except:
+                            send_telegram("❌ Неправильный формат счёта. Используйте: 2-1")
+                            return "ok", 200
+                        
+                        # Сохраняем в историю
+                        history = storage.load_history()
+                        bet_record = {
+                            'home': home,
+                            'away': away,
+                            'league': 'Ручной ввод',
+                            'bet': 'Ручная ставка',
+                            'odds': 0,
+                            'stake': 0,
+                            'ev': 0,
+                            'result': result,
+                            'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+                        }
+                        history.append(bet_record)
+                        storage.save_history(history)
+                        logger.info(f"✅ Ручное сохранение: {home} vs {away} → {score} ({result})")
+                        
+                        # Обновляем статистику
+                        stats = storage.load_stats()
+                        stats['total'] = stats.get('total', 0) + 1
+                        if result == 'win':
+                            stats['wins'] = stats.get('wins', 0) + 1
+                        elif result == 'loss':
+                            stats['losses'] = stats.get('losses', 0) + 1
+                        else:
+                            stats['pushes'] = stats.get('pushes', 0) + 1
+                        storage.save_stats(stats)
+                        
+                        send_telegram(f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}")
+                        
+                    else:
+                        send_telegram("📝 Формат: /result <команда1> <команда2> <счёт>\n\nПример: /result Fulham Chelsea 2-1")
+                        
+                except Exception as e:
+                    logger.error(f"Ошибка /result: {e}")
+                    send_telegram(f"❌ Ошибка: {e}")
+            
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
