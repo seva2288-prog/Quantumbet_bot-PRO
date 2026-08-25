@@ -1,7 +1,10 @@
 flask
-gunicorn
 requests
-python-dotenv
+python-telegram-bot
 openpyxl
-xlsxwriter
-python-telegram-bot==20.7
+numpy
+scikit-learn
+joblib
+schedule
+python-dotenv
+gunicorn
