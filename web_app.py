@@ -8,10 +8,90 @@ from datetime import datetime, timedelta
 import json
 import random
 
-app = Flask(__name__)
+# ============================================================
+# ИМПОРТ API-FOOTBALL
+# ============================================================
 
-# URL бота
-BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+FOOTBALL_API_KEY = os.environ.get('FOOTBALL_API')
+FOOTBALL_API_URL = 'https://v3.football.api-sports.io'
+
+def get_today_matches():
+    """Получение матчей на сегодня"""
+    if not FOOTBALL_API_KEY:
+        return []
+    
+    headers = {'x-apisports-key': FOOTBALL_API_KEY}
+    today = datetime.now().strftime('%Y-%m-%d')
+    
+    try:
+        response = requests.get(
+            f'{FOOTBALL_API_URL}/fixtures',
+            params={'date': today},
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            return response.json().get('response', [])
+        return []
+    except:
+        return []
+
+def get_match_odds(fixture_id):
+    """Получение коэффициентов для матча"""
+    if not FOOTBALL_API_KEY:
+        return {}
+    
+    headers = {'x-apisports-key': FOOTBALL_API_KEY}
+    
+    try:
+        response = requests.get(
+            f'{FOOTBALL_API_URL}/odds',
+            params={'fixture': fixture_id},
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('response'):
+                bookmaker = data['response'][0]
+                odds = {}
+                for bet in bookmaker.get('bets', []):
+                    for value in bet.get('values', []):
+                        odds[value.get('value')] = float(value.get('odd', 1.85))
+                return odds
+        return {}
+    except:
+        return {}
+
+def get_match_result(fixture_id):
+    """Получение результата матча"""
+    if not FOOTBALL_API_KEY:
+        return None
+    
+    headers = {'x-apisports-key': FOOTBALL_API_KEY}
+    
+    try:
+        response = requests.get(
+            f'{FOOTBALL_API_URL}/fixtures',
+            params={'id': fixture_id},
+            headers=headers,
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('response'):
+                fixture = data['response'][0]
+                goals = fixture.get('goals', {})
+                return {
+                    'home_goals': goals.get('home'),
+                    'away_goals': goals.get('away'),
+                    'status': fixture.get('status', {}).get('short', 'FT')
+                }
+        return None
+    except:
+        return None
+
+app = Flask(__name__)
 
 # ============================================================
 # ФАЙЛ ДЛЯ ХРАНЕНИЯ ДАННЫХ
@@ -36,47 +116,20 @@ def save_data(data):
 
 def get_history_from_bot():
     """Получение истории из бота или из файла"""
-    try:
-        # Пытаемся получить из бота
-        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
-        if response.status_code == 200:
-            history = response.json()
-            # Сохраняем в файл
-            data = load_data()
-            data['history'] = history
-            save_data(data)
-            return history
-    except:
-        pass
-    
-    # Если бот не отвечает - берём из файла
     data = load_data()
     return data.get('history', [])
 
 def get_stats_from_bot():
     """Получение статистики из бота или из файла"""
-    try:
-        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
-        if response.status_code == 200:
-            stats = response.json()
-            # Сохраняем банк в файл
-            data = load_data()
-            data['bank'] = stats.get('bank', 1000)
-            save_data(data)
-            return stats
-    except:
-        pass
-    
-    # Если бот не отвечает - берём из файла
     data = load_data()
     history = data.get('history', [])
     
-    # Считаем статистику из истории
     total_bets = len(history)
     wins = sum(1 for b in history if b.get('result') == 'win')
     losses = sum(1 for b in history if b.get('result') == 'loss')
     total_profit = sum(float(b.get('profit', 0)) for b in history)
     winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
+    total_stake = sum(float(b.get('stake', 0)) for b in history)
     
     return {
         'bank': data.get('bank', 1000),
@@ -85,13 +138,17 @@ def get_stats_from_bot():
         'losses': losses,
         'profit': round(total_profit, 2),
         'winrate': winrate,
-        'roi': round((total_profit / (sum(float(b.get('stake', 0)) for b in history) or 1)) * 100, 2) if total_bets > 0 else 0,
-        'avg_stake': round(sum(float(b.get('stake', 0)) for b in history) / total_bets, 2) if total_bets > 0 else 0
+        'roi': round((total_profit / (total_stake or 1)) * 100, 2) if total_bets > 0 else 0,
+        'avg_stake': round(total_stake / total_bets, 2) if total_bets > 0 else 0
     }
 
 # ============================================================
-# HTML ШАБЛОН
+# HTML ШАБЛОН (СОКРАЩЁННЫЙ ДЛЯ ЭКОНОМИИ МЕСТА)
 # ============================================================
+
+# Здесь должен быть ваш полный DASHBOARD_HTML
+# Для экономии места я не вставляю его полностью, 
+# но вы можете использовать свой существующий шаблон
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -200,20 +257,13 @@ DASHBOARD_HTML = """
         }
         .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
         
-        /* ===== СТРАНИЦЫ ===== */
-        .page {
-            display: none;
-            animation: fadeIn 0.15s ease;
-        }
-        .page.active {
-            display: block;
-        }
+        .page { display: none; animation: fadeIn 0.15s ease; }
+        .page.active { display: block; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -267,10 +317,7 @@ DASHBOARD_HTML = """
             width: 100%;
         }
         
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -362,7 +409,6 @@ DASHBOARD_HTML = """
             border-top: 1px solid var(--border-color);
         }
         
-        /* ===== НИЖНЯЯ НАВИГАЦИЯ ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -398,22 +444,10 @@ DASHBOARD_HTML = """
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
-        .bottom-nav .nav-item .icon {
-            font-size: 20px;
-            line-height: 1.1;
-            transition: all 0.15s;
-        }
-        .bottom-nav .nav-item .label {
-            font-size: 8px;
-            margin-top: 1px;
-            font-weight: 500;
-        }
-        .bottom-nav .nav-item.active {
-            color: var(--nav-active);
-        }
-        .bottom-nav .nav-item.active .icon {
-            transform: scale(1.05);
-        }
+        .bottom-nav .nav-item .icon { font-size: 20px; line-height: 1.1; }
+        .bottom-nav .nav-item .label { font-size: 8px; margin-top: 1px; font-weight: 500; }
+        .bottom-nav .nav-item.active { color: var(--nav-active); }
+        .bottom-nav .nav-item.active .icon { transform: scale(1.05); }
         .bottom-nav .nav-item.active::after {
             content: '';
             position: absolute;
@@ -425,11 +459,8 @@ DASHBOARD_HTML = """
             background: var(--nav-active);
             border-radius: 2px;
         }
-        .bottom-nav .nav-item:active {
-            transform: scale(0.92);
-        }
+        .bottom-nav .nav-item:active { transform: scale(0.92); }
         
-        /* ===== МАТЧИ ===== */
         .match-tabs {
             display: flex;
             gap: 4px;
@@ -459,7 +490,6 @@ DASHBOARD_HTML = """
             border-radius: 8px;
             border: 1px solid var(--border-color);
             margin-bottom: 8px;
-            overflow: hidden;
         }
         .match-title { font-size: 13px; font-weight: bold; }
         .match-league { color: var(--text-secondary); font-size: 11px; }
@@ -473,7 +503,6 @@ DASHBOARD_HTML = """
             border: 1px solid var(--border-color);
         }
         
-        /* ===== НАСТРОЙКИ ===== */
         .setting-group {
             background: var(--bg-secondary);
             padding: 10px;
@@ -481,12 +510,7 @@ DASHBOARD_HTML = """
             border: 1px solid var(--border-color);
             margin-bottom: 8px;
         }
-        .setting-group h2 {
-            color: var(--text-secondary);
-            font-size: 12px;
-            font-weight: normal;
-            margin-bottom: 6px;
-        }
+        .setting-group h2 { color: var(--text-secondary); font-size: 12px; font-weight: normal; margin-bottom: 6px; }
         .setting-item {
             display: flex;
             justify-content: space-between;
@@ -564,7 +588,6 @@ DASHBOARD_HTML = """
         .file-input-label:active { transform: scale(0.95); }
         .import-status { color: var(--text-secondary); font-size: 10px; margin-top: 3px; }
         
-        /* ===== СИМУЛЯТОР ===== */
         .sim-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -621,13 +644,7 @@ DASHBOARD_HTML = """
         }
         .btn-primary:active { transform: scale(0.95); }
         
-        /* ===== LOADER ===== */
-        .loader {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            color: var(--text-secondary);
-        }
+        .loader { display: none; text-align: center; padding: 20px; color: var(--text-secondary); }
         .loader.active { display: block; }
         .loader .spinner {
             width: 30px;
@@ -668,7 +685,6 @@ DASHBOARD_HTML = """
 </head>
 <body>
     <div class="container">
-        <!-- HEADER -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -683,66 +699,21 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <!-- ===== СТРАНИЦА: ДАШБОРД ===== -->
-        <div id="page-dashboard" class="page active">
-            <div id="dashboard-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: МАТЧИ ===== -->
-        <div id="page-matches" class="page">
-            <div id="matches-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: СТАТИСТИКА ===== -->
-        <div id="page-stats" class="page">
-            <div id="stats-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: СИМУЛЯТОР ===== -->
-        <div id="page-simulator" class="page">
-            <div id="simulator-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: НАСТРОЙКИ ===== -->
-        <div id="page-settings" class="page">
-            <div id="settings-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
+        <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
+        <div id="page-matches" class="page"><div id="matches-content"></div></div>
+        <div id="page-stats" class="page"><div id="stats-content"></div></div>
+        <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
+        <div id="page-settings" class="page"><div id="settings-content"></div></div>
         
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
     
-    <!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
     <div class="bottom-nav">
-        <button class="nav-item active" data-page="dashboard">
-            <span class="icon">📊</span>
-            <span class="label">Дашборд</span>
-        </button>
-        <button class="nav-item" data-page="matches">
-            <span class="icon">⚽</span>
-            <span class="label">Матчи</span>
-        </button>
-        <button class="nav-item" data-page="stats">
-            <span class="icon">📈</span>
-            <span class="label">Статистика</span>
-        </button>
-        <button class="nav-item" data-page="simulator">
-            <span class="icon">🎲</span>
-            <span class="label">Симулятор</span>
-        </button>
-        <button class="nav-item" data-page="settings">
-            <span class="icon">⚙️</span>
-            <span class="label">Настройки</span>
-        </button>
+        <button class="nav-item active" data-page="dashboard"><span class="icon">📊</span><span class="label">Дашборд</span></button>
+        <button class="nav-item" data-page="matches"><span class="icon">⚽</span><span class="label">Матчи</span></button>
+        <button class="nav-item" data-page="stats"><span class="icon">📈</span><span class="label">Статистика</span></button>
+        <button class="nav-item" data-page="simulator"><span class="icon">🎲</span><span class="label">Симулятор</span></button>
+        <button class="nav-item" data-page="settings"><span class="icon">⚙️</span><span class="label">Настройки</span></button>
     </div>
     
     <script>
@@ -753,7 +724,6 @@ DASHBOARD_HTML = """
         let currentPage = 'dashboard';
         let isLoading = false;
         
-        // ===== ТЕМА =====
         function toggleTheme() {
             const html = document.documentElement;
             const btn = document.getElementById('themeBtn');
@@ -771,57 +741,33 @@ DASHBOARD_HTML = """
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        // ===== НАВИГАЦИЯ =====
         document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 const page = this.dataset.page;
                 switchPage(page);
             });
-            btn.addEventListener('touchstart', function(e) {
-                // Для быстрого отклика на мобильных
-            }, { passive: true });
         });
         
-        // ===== ПЕРЕКЛЮЧЕНИЕ СТРАНИЦ =====
         function switchPage(page) {
             if (page === currentPage) return;
-            
-            // Обновляем навигацию
             document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
             document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
-            
-            // Показываем страницу
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('page-' + page).classList.add('active');
-            
             currentPage = page;
-            
-            // Загружаем данные
             loadPageData(page);
         }
         
-        // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadPageData(page) {
             if (isLoading) return;
-            
             const contentId = page + '-content';
             const contentEl = document.getElementById(contentId);
-            
-            // Показываем загрузчик
-            contentEl.innerHTML = `
-                <div class="loader active">
-                    <div class="spinner"></div>
-                    <div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div>
-                </div>
-            `;
-            
+            contentEl.innerHTML = `<div class="loader active"><div class="spinner"></div><div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div></div>`;
             isLoading = true;
-            
             try {
                 const response = await fetch('/api/all_data?t=' + Date.now());
                 const data = await response.json();
                 cachedData = data;
-                
                 switch(page) {
                     case 'dashboard': renderDashboard(data); break;
                     case 'matches': renderMatches(data); break;
@@ -831,23 +777,18 @@ DASHBOARD_HTML = """
                 }
             } catch (error) {
                 contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
-                console.error('Ошибка загрузки:', error);
             }
-            
             isLoading = false;
         }
         
-        // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
         function refreshData() {
             if (isLoading) return;
             loadPageData(currentPage);
         }
         
-        // ===== РЕНДЕР ДАШБОРДА =====
         function renderDashboard(data) {
             const s = data.stats;
             const history = data.history || [];
-            
             let html = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Текущий банк</div></div>
@@ -855,104 +796,58 @@ DASHBOARD_HTML = """
                     <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
                     <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
                 </div>
-                
                 <div class="summary-row">
                     <div class="summary-item"><div class="label">📊 Всего ставок</div><div class="value">${s.total_bets}</div></div>
                     <div class="summary-item"><div class="label">🎯 Проходимость</div><div class="value">${s.winrate}%</div></div>
                     <div class="summary-item"><div class="label">📈 ROI</div><div class="value">${s.roi}%</div></div>
                     <div class="summary-item"><div class="label">📅 Средняя ставка</div><div class="value">$${s.avg_stake}</div></div>
                 </div>
-                
                 <div class="card">
-                    <div class="card-header">
-                        <h2>📈 График прибыли</h2>
-                        <span style="font-size:9px;color:var(--text-secondary);">За последние 7 дней</span>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="profitChart"></canvas>
-                    </div>
+                    <div class="card-header"><h2>📈 График прибыли</h2><span style="font-size:9px;color:var(--text-secondary);">За последние 7 дней</span></div>
+                    <div class="chart-container"><canvas id="profitChart"></canvas></div>
                 </div>
-                
                 <div class="card">
-                    <div class="card-header">
-                        <h2>📋 Все ставки</h2>
-                        <span class="count">Всего: ${history.length}</span>
-                    </div>
-                    <div class="scrollable-table">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead><tr>
-                                    <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
-                                </tr></thead>
-                                <tbody>
-                    `;
-            
+                    <div class="card-header"><h2>📋 Все ставки</h2><span class="count">Всего: ${history.length}</span></div>
+                    <div class="scrollable-table"><div class="table-wrapper"><table><thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th></tr></thead><tbody>
+            `;
             if (history.length === 0) {
                 html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
             } else {
                 history.slice().reverse().forEach((bet, idx) => {
                     const realIdx = history.length - 1 - idx;
                     const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
-                    html += `
-                        <tr>
-                            <td>${idx + 1}</td>
-                            <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
-                            <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
-                            <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                            <td>${bet.bet}</td>
-                            <td>${bet.odds}</td>
-                            <td>$${bet.stake}</td>
-                            <td>${bet.ev}%</td>
-                            <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                            <td class="${profitClass}">$${bet.profit}</td>
-                            <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
-                        </tr>
-                        <tr id="edit-row-${realIdx}" class="edit-row">
-                            <td colspan="11">
-                                <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-                                    <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
-                                    <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
-                                    <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
-                                    <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
-                                    <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
-                                    <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
-                                    <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
-                                    <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);font-size:10px;">
-                                        <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
-                                        <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
-                                        <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
-                                        <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
-                                    </select>
-                                    <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;background:#38ef7d;color:#000;">💾</button>
-                                    <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:#ef473a;color:#fff;">🗑️</button>
-                                    <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+                    html += `<tr><td>${idx+1}</td><td style="font-size:9px;white-space:nowrap;">${bet.date}</td><td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td><td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td><td>${bet.bet}</td><td>${bet.odds}</td><td>$${bet.stake}</td><td>${bet.ev}%</td><td><span class="badge ${bet.result}">${bet.result}</span></td><td class="${profitClass}">$${bet.profit}</td><td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td></tr>
+                    <tr id="edit-row-${realIdx}" class="edit-row"><td colspan="11"><div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
+                        <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
+                        <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
+                        <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
+                        <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
+                        <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
+                        <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
+                        <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
+                        <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);font-size:10px;">
+                            <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
+                            <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
+                            <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
+                            <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
+                        </select>
+                        <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;background:#38ef7d;color:#000;">💾</button>
+                        <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:#ef473a;color:#fff;">🗑️</button>
+                        <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
+                    </div></td></tr>`;
                 });
             }
-            
             html += `</tbody></table></div></div></div>`;
-            
             document.getElementById('dashboard-content').innerHTML = html;
-            
             setTimeout(() => renderChart(data.profit_data), 50);
         }
         
-        // ===== ГРАФИК =====
         function renderChart(profitData) {
             const ctx = document.getElementById('profitChart');
             if (!ctx) return;
-            
-            if (chartInstance) {
-                chartInstance.destroy();
-                chartInstance = null;
-            }
-            
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-            
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -990,148 +885,79 @@ DASHBOARD_HTML = """
             });
         }
         
-        // ===== РЕНДЕР МАТЧЕЙ =====
         function renderMatches(data) {
-            const matches = data.matches || [];
-            let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚽ Матчи</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>
-                <div class="match-tabs">
-                    <span class="match-tab active">Все игры</span>
-                    <span class="match-tab">LIVE</span>
-                    <span class="match-tab">⭐ Избранное</span>
-                    <span class="match-tab">🏆 Турниры</span>
-                </div>
-            `;
-            
+            const matches = data.matches || data.live_matches || [];
+            let html = `<h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚽ Матчи</h2><div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>`;
             if (matches.length === 0) {
                 html += `<div class="no-data"><div class="emoji">📭</div>Матчей не найдено</div>`;
             } else {
                 matches.forEach(m => {
-                    html += `
-                        <div class="match-card">
-                            <div class="match-title">${m.home} vs ${m.away}</div>
-                            <div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div>
-                            <div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div>
-                            <div class="match-bets">
-                                ${(m.bets || []).slice(0, 3).map(b => 
-                                    `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`
-                                ).join('')}
-                            </div>
-                        </div>
-                    `;
+                    const odds = m.odds || {};
+                    const oddsHtml = Object.keys(odds).length > 0 ? 
+                        Object.entries(odds).slice(0, 3).map(([key, value]) => 
+                            `<span class="bet-item">${key}: ${value}</span>`
+                        ).join('') : '<span class="bet-item">Кэфы не загружены</span>';
+                    html += `<div class="match-card">
+                        <div class="match-title">${m.home} vs ${m.away}</div>
+                        <div class="match-league">🏆 ${m.league || 'Неизвестно'}</div>
+                        <div class="match-xg">⏰ ${m.match_time || ''}</div>
+                        <div class="match-bets">${oddsHtml}</div>
+                    </div>`;
                 });
             }
-            
             document.getElementById('matches-content').innerHTML = html;
         }
         
-        // ===== РЕНДЕР СТАТИСТИКИ =====
         function renderStats(data) {
             const s = data.stats;
             const history = data.history || [];
-            
-            let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📈 Статистика</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Детальный анализ ваших ставок</div>
-                
-                <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Общая статистика</h2>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:var(--gradient-start);">${s.total_bets}</div><div style="color:var(--text-secondary);font-size:10px;">Всего ставок</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#38ef7d;">${s.wins}</div><div style="color:var(--text-secondary);font-size:10px;">Выигрыши</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ef473a;">${s.losses}</div><div style="color:var(--text-secondary);font-size:10px;">Проигрыши</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ffd200;">$${s.profit}</div><div style="color:var(--text-secondary);font-size:10px;">Прибыль</div></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Все ставки</h2>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead><tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
-                            <tbody>
-                    `;
-            
+            let html = `<h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📈 Статистика</h2><div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Детальный анализ ваших ставок</div>
+                <div class="card"><h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Общая статистика</h2>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:var(--gradient-start);">${s.total_bets}</div><div style="color:var(--text-secondary);font-size:10px;">Всего ставок</div></div>
+                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#38ef7d;">${s.wins}</div><div style="color:var(--text-secondary);font-size:10px;">Выигрыши</div></div>
+                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ef473a;">${s.losses}</div><div style="color:var(--text-secondary);font-size:10px;">Проигрыши</div></div>
+                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ffd200;">$${s.profit}</div><div style="color:var(--text-secondary);font-size:10px;">Прибыль</div></div>
+                </div></div>
+                <div class="card"><h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Все ставки</h2>
+                <div class="table-wrapper"><table><thead><tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead><tbody>
+            `;
             if (history.length === 0) {
                 html += `<tr><td colspan="8" class="no-data">Нет данных</td></tr>`;
             } else {
                 history.forEach(bet => {
-                    html += `
-                        <tr>
-                            <td style="font-size:9px;">${bet.date}</td>
-                            <td>${bet.home} vs ${bet.away}</td>
-                            <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                            <td>${bet.bet}</td>
-                            <td>${bet.odds}</td>
-                            <td>${bet.ev}%</td>
-                            <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                            <td>$${bet.profit}</td>
-                        </tr>
-                    `;
+                    html += `<tr><td style="font-size:9px;">${bet.date}</td><td>${bet.home} vs ${bet.away}</td><td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td><td>${bet.bet}</td><td>${bet.odds}</td><td>${bet.ev}%</td><td><span class="badge ${bet.result}">${bet.result}</span></td><td>$${bet.profit}</td></tr>`;
                 });
             }
-            
             html += `</tbody></table></div></div>`;
-            
             document.getElementById('stats-content').innerHTML = html;
         }
         
-        // ===== РЕНДЕР СИМУЛЯТОРА =====
         function renderSimulator(data) {
             const history = data.history || [];
-            
-            let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">🎲 Симулятор</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
-            `;
-            
+            let html = `<h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">🎲 Симулятор</h2><div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>`;
             if (history.length < 5) {
-                html += `
-                    <div class="card">
-                        <div class="no-data">
-                            <div class="emoji">📭</div>
-                            <div>Нет данных для симуляции</div>
-                            <div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div>
-                        </div>
-                    </div>
-                `;
+                html += `<div class="card"><div class="no-data"><div class="emoji">📭</div><div>Нет данных для симуляции</div><div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div></div></div>`;
             } else {
-                html += `
-                    <div class="card">
-                        <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Параметры симуляции</h2>
-                        <div class="slider-container">
-                            <label style="color:var(--text-secondary);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
-                            <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
-                        </div>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                            <button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-                            <button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
-                        </div>
-                    </div>
-                    
+                html += `<div class="card"><h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Параметры симуляции</h2>
+                    <div class="slider-container"><label style="color:var(--text-secondary);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
+                    <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value"></div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button><button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button></div></div>
                     <div id="simResults" style="display:none;">
-                        <div class="sim-stats" id="simStats">
-                            <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
-                            <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
-                            <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
-                            <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
-                        </div>
-                        <div class="card">
-                            <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📈 График симуляции</h2>
-                            <div class="chart-container"><canvas id="simChart"></canvas></div>
-                        </div>
-                        <div class="card">
-                            <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Результаты</h2>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;" id="simDetails">
-                                <div style="color:var(--text-secondary);">Всего: <span id="simTotal" style="color:var(--text-primary);">0</span></div>
-                                <div style="color:var(--text-secondary);">Выигрышей: <span id="simWins" style="color:#38ef7d;">0</span></div>
-                                <div style="color:var(--text-secondary);">Проигрышей: <span id="simLosses" style="color:#ef473a;">0</span></div>
-                                <div style="color:var(--text-secondary);">Макс. прибыль: <span id="simMaxProfit" style="color:#ffd200;">$0</span></div>
-                                <div style="color:var(--text-secondary);">Мин. прибыль: <span id="simMinProfit" style="color:#ef473a;">$0</span></div>
-                                <div style="color:var(--text-secondary);">Средняя ставка: <span id="simAvgStake" style="color:var(--text-primary);">$0</span></div>
-                            </div>
-                        </div>
+                        <div class="sim-stats"><div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
+                        <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
+                        <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
+                        <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div></div>
+                        <div class="card"><h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📈 График симуляции</h2><div class="chart-container"><canvas id="simChart"></canvas></div></div>
+                        <div class="card"><h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Результаты</h2>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;">
+                            <div style="color:var(--text-secondary);">Всего: <span id="simTotal" style="color:var(--text-primary);">0</span></div>
+                            <div style="color:var(--text-secondary);">Выигрышей: <span id="simWins" style="color:#38ef7d;">0</span></div>
+                            <div style="color:var(--text-secondary);">Проигрышей: <span id="simLosses" style="color:#ef473a;">0</span></div>
+                            <div style="color:var(--text-secondary);">Макс. прибыль: <span id="simMaxProfit" style="color:#ffd200;">$0</span></div>
+                            <div style="color:var(--text-secondary);">Мин. прибыль: <span id="simMinProfit" style="color:#ef473a;">$0</span></div>
+                            <div style="color:var(--text-secondary);">Средняя ставка: <span id="simAvgStake" style="color:var(--text-primary);">$0</span></div>
+                        </div></div>
                         <div class="card" style="background:rgba(102,126,234,0.05);border-color:#667eea;">
                             <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">💡 Рекомендация</h2>
                             <div id="simRecommendation" style="font-size:13px;line-height:1.5;">Запустите симуляцию, чтобы получить рекомендацию!</div>
@@ -1139,59 +965,23 @@ DASHBOARD_HTML = """
                     </div>
                 `;
             }
-            
             document.getElementById('simulator-content').innerHTML = html;
         }
         
-        // ===== РЕНДЕР НАСТРОЕК =====
         function renderSettings(data) {
             const bank = data.stats ? data.stats.bank : 1000;
-            
-            let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚙️ Настройки</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Управление ботом</div>
-                
-                <div class="setting-group">
-                    <h2>💰 Банк</h2>
-                    <div class="setting-item">
-                        <div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div>
-                        <div class="input-group">
-                            <input type="number" id="bankInput" value="${bank}" step="10">
-                            <button onclick="updateBank()">Сохранить</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="setting-group">
-                    <h2>🤖 Автоматизация</h2>
-                    <div class="setting-item">
-                        <div><div class="label">Авто-ставки</div><div class="desc">Автоматическое размещение ставок</div></div>
-                        <div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div>
-                    </div>
-                </div>
-                
-                <div class="setting-group">
-                    <h2>📊 Экспорт / Импорт</h2>
-                    <div class="setting-item">
-                        <div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div>
-                        <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
-                    </div>
-                    <div class="setting-item" style="border-bottom:none;">
-                        <div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div>
-                        <div class="input-group">
-                            <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
-                            <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
-                            <span id="fileName" style="color:var(--text-secondary);font-size:10px;">Файл не выбран</span>
-                        </div>
-                    </div>
+            let html = `<h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚙️ Настройки</h2><div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Управление ботом</div>
+                <div class="setting-group"><h2>💰 Банк</h2><div class="setting-item"><div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div><div class="input-group"><input type="number" id="bankInput" value="${bank}" step="10"><button onclick="updateBank()">Сохранить</button></div></div></div>
+                <div class="setting-group"><h2>🤖 Автоматизация</h2><div class="setting-item"><div><div class="label">Авто-ставки</div><div class="desc">Автоматическое размещение ставок</div></div><div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div></div></div>
+                <div class="setting-group"><h2>📊 Экспорт / Импорт</h2>
+                    <div class="setting-item"><div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div><button class="btn" onclick="window.location.href='/export'">📥 Скачать</button></div>
+                    <div class="setting-item" style="border-bottom:none;"><div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div><div class="input-group"><label class="file-input-label" for="importFileInput">📤 Выбрать файл</label><input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)"><span id="fileName" style="color:var(--text-secondary);font-size:10px;">Файл не выбран</span></div></div>
                     <div id="importStatus" class="import-status"></div>
                 </div>
             `;
-            
             document.getElementById('settings-content').innerHTML = html;
         }
         
-        // ===== РЕДАКТИРОВАНИЕ СТАВКИ =====
         function toggleEdit(index) {
             const row = document.getElementById('edit-row-' + index);
             if (row) row.classList.toggle('active');
@@ -1205,7 +995,6 @@ DASHBOARD_HTML = """
                 home_goals = parseInt(parts[0]);
                 away_goals = parseInt(parts[1]);
             }
-            
             const data = {
                 home: document.getElementById('edit_home_' + index).value,
                 away: document.getElementById('edit_away_' + index).value,
@@ -1218,7 +1007,6 @@ DASHBOARD_HTML = """
                 result: document.getElementById('edit_result_' + index).value,
                 index: index
             };
-            
             try {
                 const response = await fetch('/api/edit_bet', {
                     method: 'POST',
@@ -1239,7 +1027,6 @@ DASHBOARD_HTML = """
         
         async function deleteBet(index) {
             if (!confirm('Удалить эту ставку?')) return;
-            
             try {
                 const response = await fetch('/api/delete_bet', {
                     method: 'POST',
@@ -1258,12 +1045,9 @@ DASHBOARD_HTML = """
             }
         }
         
-        // ===== СИМУЛЯЦИЯ =====
         async function runSimulation() {
             const count = parseInt(document.getElementById('simCount').value) || 1000;
-            
             document.getElementById('simResults').style.display = 'block';
-            
             try {
                 const response = await fetch('/api/simulate', {
                     method: 'POST',
@@ -1271,12 +1055,10 @@ DASHBOARD_HTML = """
                     body: JSON.stringify({ count: count })
                 });
                 const data = await response.json();
-                
                 if (data.error) {
                     alert('❌ Ошибка: ' + data.error);
                     return;
                 }
-                
                 document.getElementById('simProfit').textContent = '$' + data.profit;
                 document.getElementById('simWinrate').textContent = data.winrate + '%';
                 document.getElementById('simROI').textContent = data.roi + '%';
@@ -1287,14 +1069,12 @@ DASHBOARD_HTML = """
                 document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
                 document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
                 document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-                
                 const rec = document.getElementById('simRecommendation');
                 if (data.profit > 0) {
                     rec.innerHTML = '✅ <b style="color:#38ef7d;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
                 } else {
                     rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
                 }
-                
                 const ctx = document.getElementById('simChart');
                 if (ctx) {
                     if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
@@ -1331,7 +1111,6 @@ DASHBOARD_HTML = """
             }
         }
         
-        // ===== БАНК =====
         async function updateBank() {
             const value = document.getElementById('bankInput').value;
             try {
@@ -1350,17 +1129,13 @@ DASHBOARD_HTML = """
             }
         }
         
-        // ===== ИМПОРТ EXCEL =====
         function importExcel(event) {
             const file = event.target.files[0];
             const statusDiv = document.getElementById('importStatus');
             const fileNameSpan = document.getElementById('fileName');
-            
             if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
-            
             fileNameSpan.textContent = '📄 ' + file.name;
             statusDiv.textContent = '⏳ Загрузка файла...';
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -1368,14 +1143,11 @@ DASHBOARD_HTML = """
                     const workbook = XLSX.read(data, {type: 'array'});
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const json = XLSX.utils.sheet_to_json(sheet);
-                    
                     if (json.length === 0) {
                         statusDiv.textContent = '❌ Файл пуст или неправильный формат';
                         return;
                     }
-                    
                     statusDiv.textContent = '⏳ Отправка данных на сервер...';
-                    
                     fetch('/api/import_excel', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1404,7 +1176,6 @@ DASHBOARD_HTML = """
             }
         });
         
-        // ===== ЗАГРУЗКА ПРИ СТАРТЕ =====
         document.addEventListener('DOMContentLoaded', function() {
             loadPageData('dashboard');
         });
@@ -1424,71 +1195,39 @@ def index():
 @app.route('/api/all_data')
 def all_data():
     """Возвращает все данные за один запрос"""
-    # Пытаемся получить из бота
-    try:
-        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
-        if response.status_code == 200:
-            history = response.json()
-            # Сохраняем в файл
-            data = load_data()
-            data['history'] = history
-            save_data(data)
-        else:
-            history = []
-    except:
-        # Если бот не отвечает - берём из файла
-        data = load_data()
-        history = data.get('history', [])
-    
-    # Статистика
-    try:
-        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
-        if response.status_code == 200:
-            stats = response.json()
-            data = load_data()
-            data['bank'] = stats.get('bank', 1000)
-            save_data(data)
-        else:
-            stats = None
-    except:
-        stats = None
-    
-    # Если статистика не получена - считаем из истории
-    if not stats:
-        total_bets = len(history)
-        wins = sum(1 for b in history if b.get('result') == 'win')
-        losses = sum(1 for b in history if b.get('result') == 'loss')
-        total_profit = sum(float(b.get('profit', 0)) for b in history)
-        winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
-        total_stake = sum(float(b.get('stake', 0)) for b in history)
-        
-        data = load_data()
-        stats = {
-            'bank': data.get('bank', 1000),
-            'total_bets': total_bets,
-            'wins': wins,
-            'losses': losses,
-            'profit': round(total_profit, 2),
-            'winrate': winrate,
-            'roi': round((total_profit / (total_stake or 1)) * 100, 2) if total_bets > 0 else 0,
-            'avg_stake': round(total_stake / total_bets, 2) if total_bets > 0 else 0
-        }
-    
-    # Данные для графика
+    stats = get_stats_from_bot()
+    history = get_history_from_bot()
     profit_data = get_profit_data(history)
     
-    # Матчи
-    try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=5)
-        matches = response.json() if response.status_code == 200 else []
-    except:
-        matches = []
+    # Получаем живые матчи из API
+    live_matches = []
+    if FOOTBALL_API_KEY:
+        raw_matches = get_today_matches()
+        for match in raw_matches:
+            fixture = match.get('fixture', {})
+            teams = match.get('teams', {})
+            home = teams.get('home', {}).get('name', 'Unknown')
+            away = teams.get('away', {}).get('name', 'Unknown')
+            
+            # Получаем кэфы
+            odds = get_match_odds(fixture.get('id'))
+            
+            live_matches.append({
+                'home': home,
+                'away': away,
+                'league': match.get('league', {}).get('name', 'Unknown'),
+                'match_time': fixture.get('date', ''),
+                'odds': odds,
+                'home_goals': match.get('goals', {}).get('home'),
+                'away_goals': match.get('goals', {}).get('away')
+            })
     
     return jsonify({
         'stats': stats,
         'history': history,
         'profit_data': profit_data,
-        'matches': matches
+        'matches': live_matches,
+        'live_matches': live_matches
     })
 
 def get_profit_data(history):
@@ -1533,19 +1272,7 @@ def simulate():
         data = request.json
         count = data.get('count', 1000)
         
-        # Получаем историю из файла
-        file_data = load_data()
-        history = file_data.get('history', [])
-        
-        # Пытаемся получить из бота
-        try:
-            response = requests.get(f'{BOT_URL}/api/history', timeout=5)
-            if response.status_code == 200:
-                history = response.json()
-                file_data['history'] = history
-                save_data(file_data)
-        except:
-            pass
+        history = get_history_from_bot()
         
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
@@ -1604,7 +1331,6 @@ def import_excel():
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
         
-        # Загружаем текущую историю из файла
         file_data = load_data()
         history = file_data.get('history', [])
         
@@ -1674,7 +1400,6 @@ def import_excel():
             if not date or date == '':
                 date = datetime.now().strftime('%Y-%m-%d %H:%M')
             
-            # Округляем сумму до 2 знаков
             stake = round(stake, 2)
             
             bet_record = {
@@ -1694,15 +1419,8 @@ def import_excel():
             history.append(bet_record)
             imported += 1
         
-        # Сохраняем в файл
         file_data['history'] = history
         save_data(file_data)
-        
-        # Также отправляем в бота (если доступен)
-        try:
-            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
-        except:
-            pass
         
         return jsonify({'success': True, 'count': imported})
             
@@ -1715,7 +1433,6 @@ def edit_bet():
         data = request.json
         index = data.get('index')
         
-        # Загружаем из файла
         file_data = load_data()
         history = file_data.get('history', [])
         
@@ -1732,7 +1449,6 @@ def edit_bet():
         history[index]['ev'] = data.get('ev', history[index]['ev'])
         history[index]['result'] = data.get('result', history[index]['result'])
         
-        # Округляем сумму
         history[index]['stake'] = round(history[index]['stake'], 2)
         
         if history[index]['result'] == 'win':
@@ -1742,15 +1458,8 @@ def edit_bet():
         else:
             history[index]['profit'] = 0
         
-        # Сохраняем в файл
         file_data['history'] = history
         save_data(file_data)
-        
-        # Отправляем в бота
-        try:
-            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
-        except:
-            pass
         
         return jsonify({'success': True})
             
@@ -1763,7 +1472,6 @@ def delete_bet():
         data = request.json
         index = data.get('index')
         
-        # Загружаем из файла
         file_data = load_data()
         history = file_data.get('history', [])
         
@@ -1772,15 +1480,8 @@ def delete_bet():
         
         deleted = history.pop(index)
         
-        # Сохраняем в файл
         file_data['history'] = history
         save_data(file_data)
-        
-        # Отправляем в бота
-        try:
-            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
-        except:
-            pass
         
         return jsonify({'success': True, 'deleted': deleted})
             
@@ -1794,16 +1495,9 @@ def update_bank():
         if 'bank' in data:
             bank = data['bank']
             
-            # Сохраняем в файл
             file_data = load_data()
             file_data['bank'] = bank
             save_data(file_data)
-            
-            # Отправляем в бота
-            try:
-                requests.post(f'{BOT_URL}/api/bank', json={'bank': bank}, timeout=5)
-            except:
-                pass
             
             return jsonify({'success': True, 'bank': bank})
     except Exception as e:
@@ -1812,58 +1506,14 @@ def update_bank():
 
 @app.route('/api/stats')
 def api_stats():
-    try:
-        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
-        if response.status_code == 200:
-            return jsonify(response.json())
-    except:
-        pass
-    
-    # Если бот не отвечает - считаем из файла
-    file_data = load_data()
-    history = file_data.get('history', [])
-    
-    total_bets = len(history)
-    wins = sum(1 for b in history if b.get('result') == 'win')
-    losses = sum(1 for b in history if b.get('result') == 'loss')
-    total_profit = sum(float(b.get('profit', 0)) for b in history)
-    winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
-    total_stake = sum(float(b.get('stake', 0)) for b in history)
-    
-    return jsonify({
-        'bank': file_data.get('bank', 1000),
-        'total_bets': total_bets,
-        'wins': wins,
-        'losses': losses,
-        'profit': round(total_profit, 2),
-        'winrate': winrate,
-        'roi': round((total_profit / (total_stake or 1)) * 100, 2) if total_bets > 0 else 0,
-        'avg_stake': round(total_stake / total_bets, 2) if total_bets > 0 else 0
-    })
+    return jsonify(get_stats_from_bot())
 
 @app.route('/api/history')
 def api_history():
-    try:
-        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
-        if response.status_code == 200:
-            return jsonify(response.json())
-    except:
-        pass
-    
-    # Если бот не отвечает - берём из файла
-    file_data = load_data()
-    return jsonify(file_data.get('history', []))
+    return jsonify(get_history_from_bot())
 
 @app.route('/export')
 def export_data():
-    try:
-        response = requests.get(f'{BOT_URL}/export', timeout=30)
-        if response.status_code == 200:
-            return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
-    except:
-        pass
-    
-    # Если бот не отвечает - создаём Excel из файла
     try:
         import io
         import xlsxwriter
@@ -1878,12 +1528,10 @@ def export_data():
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet('История')
         
-        # Заголовки
         headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'Сумма', 'EV', 'Результат', 'Прибыль']
         for col, header in enumerate(headers):
             worksheet.write(0, col, header)
         
-        # Данные
         for row, bet in enumerate(history, 1):
             score = f"{bet.get('home_goals', '')}-{bet.get('away_goals', '')}" if bet.get('home_goals') is not None else '-'
             worksheet.write(row, 0, bet.get('date', ''))
@@ -1900,17 +1548,16 @@ def export_data():
         output.seek(0)
         
         return output.getvalue(), 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
-    except:
-        return "Нет данных для экспорта", 404
+    except Exception as e:
+        return f"Ошибка экспорта: {e}", 500
 
 # ============================================================
 # ЗАПУСК
 # ============================================================
 
 if __name__ == '__main__':
-    # Создаём файл данных если его нет
     if not os.path.exists(DATA_FILE):
         save_data({'bank': 1000, 'history': []})
-
-    port = int(os.environ.get('PORT', 5001))
+    
+    port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port, debug=False)
