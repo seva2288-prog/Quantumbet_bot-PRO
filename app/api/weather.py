@@ -1,6 +1,6 @@
 import requests
 from typing import Optional, Dict
-from config import Config
+from app.config import Config
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
