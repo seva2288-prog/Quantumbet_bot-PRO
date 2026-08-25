@@ -14,10 +14,86 @@ app = Flask(__name__)
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
 
 # ============================================================
-# ЕДИНЫЙ HTML ШАБЛОН (SPA - ВСЕ СТРАНИЦЫ В ОДНОМ ФАЙЛЕ)
+# ФАЙЛ ДЛЯ ХРАНЕНИЯ ДАННЫХ
 # ============================================================
 
-MAIN_HTML = """
+DATA_FILE = 'data.json'
+
+def load_data():
+    """Загрузка данных из файла"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {'bank': 1000, 'history': []}
+    return {'bank': 1000, 'history': []}
+
+def save_data(data):
+    """Сохранение данных в файл"""
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def get_history_from_bot():
+    """Получение истории из бота или из файла"""
+    try:
+        # Пытаемся получить из бота
+        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
+        if response.status_code == 200:
+            history = response.json()
+            # Сохраняем в файл
+            data = load_data()
+            data['history'] = history
+            save_data(data)
+            return history
+    except:
+        pass
+    
+    # Если бот не отвечает - берём из файла
+    data = load_data()
+    return data.get('history', [])
+
+def get_stats_from_bot():
+    """Получение статистики из бота или из файла"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
+        if response.status_code == 200:
+            stats = response.json()
+            # Сохраняем банк в файл
+            data = load_data()
+            data['bank'] = stats.get('bank', 1000)
+            save_data(data)
+            return stats
+    except:
+        pass
+    
+    # Если бот не отвечает - берём из файла
+    data = load_data()
+    history = data.get('history', [])
+    
+    # Считаем статистику из истории
+    total_bets = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    total_profit = sum(float(b.get('profit', 0)) for b in history)
+    winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
+    
+    return {
+        'bank': data.get('bank', 1000),
+        'total_bets': total_bets,
+        'wins': wins,
+        'losses': losses,
+        'profit': round(total_profit, 2),
+        'winrate': winrate,
+        'roi': round((total_profit / (sum(float(b.get('stake', 0)) for b in history) or 1)) * 100, 2) if total_bets > 0 else 0,
+        'avg_stake': round(sum(float(b.get('stake', 0)) for b in history) / total_bets, 2) if total_bets > 0 else 0
+    }
+
+# ============================================================
+# HTML ШАБЛОН
+# ============================================================
+
+DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
@@ -701,14 +777,14 @@ MAIN_HTML = """
                 const page = this.dataset.page;
                 switchPage(page);
             });
-            // Для быстрого отклика на мобильных
             btn.addEventListener('touchstart', function(e) {
-                // Просто чтобы было отзывчиво
+                // Для быстрого отклика на мобильных
             }, { passive: true });
         });
         
+        // ===== ПЕРЕКЛЮЧЕНИЕ СТРАНИЦ =====
         function switchPage(page) {
-            if (page === currentPage && document.getElementById('page-' + page).classList.contains('active')) return;
+            if (page === currentPage) return;
             
             // Обновляем навигацию
             document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
@@ -720,7 +796,7 @@ MAIN_HTML = """
             
             currentPage = page;
             
-            // Загружаем данные если нужно
+            // Загружаем данные
             loadPageData(page);
         }
         
@@ -731,10 +807,13 @@ MAIN_HTML = """
             const contentId = page + '-content';
             const contentEl = document.getElementById(contentId);
             
-            // Если уже есть данные и это не дашборд (он обновляется чаще)
-            if (page !== 'dashboard' && cachedData && contentEl.innerHTML) {
-                return;
-            }
+            // Показываем загрузчик
+            contentEl.innerHTML = `
+                <div class="loader active">
+                    <div class="spinner"></div>
+                    <div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div>
+                </div>
+            `;
             
             isLoading = true;
             
@@ -752,6 +831,7 @@ MAIN_HTML = """
                 }
             } catch (error) {
                 contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
+                console.error('Ошибка загрузки:', error);
             }
             
             isLoading = false;
@@ -759,7 +839,7 @@ MAIN_HTML = """
         
         // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
         function refreshData() {
-            cachedData = null;
+            if (isLoading) return;
             loadPageData(currentPage);
         }
         
@@ -857,7 +937,6 @@ MAIN_HTML = """
             
             document.getElementById('dashboard-content').innerHTML = html;
             
-            // Рендер графика
             setTimeout(() => renderChart(data.profit_data), 50);
         }
         
@@ -1112,7 +1191,7 @@ MAIN_HTML = """
             document.getElementById('settings-content').innerHTML = html;
         }
         
-        // ===== ФУНКЦИИ ДЛЯ СТАВОК =====
+        // ===== РЕДАКТИРОВАНИЕ СТАВКИ =====
         function toggleEdit(index) {
             const row = document.getElementById('edit-row-' + index);
             if (row) row.classList.toggle('active');
@@ -1216,7 +1295,6 @@ MAIN_HTML = """
                     rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
                 }
                 
-                // График
                 const ctx = document.getElementById('simChart');
                 if (ctx) {
                     if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
@@ -1336,62 +1414,78 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
+# API МАРШРУТЫ
 # ============================================================
-
-def get_data_from_bot():
-    """Получение данных из бота через API"""
-    try:
-        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
-        stats_data = stats_response.json() if stats_response.status_code == 200 else {}
-        
-        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = history_response.json() if history_response.status_code == 200 else []
-        
-        return stats_data, history
-    except Exception as e:
-        print(f"Ошибка получения данных: {e}")
-        return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
 
 @app.route('/')
 def index():
-    return render_template_string(MAIN_HTML)
+    return render_template_string(DASHBOARD_HTML)
 
 @app.route('/api/all_data')
 def all_data():
     """Возвращает все данные за один запрос"""
-    stats_data, history = get_data_from_bot()
-    
-    # Получаем данные для графика
-    profit_data = get_profit_data(history)
-    
-    # Получаем матчи
+    # Пытаемся получить из бота
     try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        matches = response.json() if response.status_code == 200 else []
+        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
+        if response.status_code == 200:
+            history = response.json()
+            # Сохраняем в файл
+            data = load_data()
+            data['history'] = history
+            save_data(data)
+        else:
+            history = []
     except:
-        matches = []
+        # Если бот не отвечает - берём из файла
+        data = load_data()
+        history = data.get('history', [])
     
-    bank = stats_data.get('bank', 1000)
-    total_bets = stats_data.get('total_bets', 0)
-    wins = stats_data.get('wins', 0)
-    losses = stats_data.get('losses', 0)
-    total_profit = stats_data.get('profit', 0)
-    winrate = stats_data.get('winrate', 0)
-    roi = stats_data.get('roi', 0)
-    avg_stake = stats_data.get('avg_stake', 0)
+    # Статистика
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
+        if response.status_code == 200:
+            stats = response.json()
+            data = load_data()
+            data['bank'] = stats.get('bank', 1000)
+            save_data(data)
+        else:
+            stats = None
+    except:
+        stats = None
     
-    return jsonify({
-        'stats': {
-            'bank': bank,
+    # Если статистика не получена - считаем из истории
+    if not stats:
+        total_bets = len(history)
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        losses = sum(1 for b in history if b.get('result') == 'loss')
+        total_profit = sum(float(b.get('profit', 0)) for b in history)
+        winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
+        total_stake = sum(float(b.get('stake', 0)) for b in history)
+        
+        data = load_data()
+        stats = {
+            'bank': data.get('bank', 1000),
             'total_bets': total_bets,
             'wins': wins,
             'losses': losses,
             'profit': round(total_profit, 2),
             'winrate': winrate,
-            'roi': roi,
-            'avg_stake': avg_stake
-        },
+            'roi': round((total_profit / (total_stake or 1)) * 100, 2) if total_bets > 0 else 0,
+            'avg_stake': round(total_stake / total_bets, 2) if total_bets > 0 else 0
+        }
+    
+    # Данные для графика
+    profit_data = get_profit_data(history)
+    
+    # Матчи
+    try:
+        response = requests.get(f'{BOT_URL}/matches', timeout=5)
+        matches = response.json() if response.status_code == 200 else []
+    except:
+        matches = []
+    
+    return jsonify({
+        'stats': stats,
         'history': history,
         'profit_data': profit_data,
         'matches': matches
@@ -1433,18 +1527,25 @@ def get_profit_data(history):
     
     return {'dates': dates, 'profits': profits}
 
-# ============================================================
-# ОСТАЛЬНЫЕ API МАРШРУТЫ
-# ============================================================
-
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
     try:
         data = request.json
         count = data.get('count', 1000)
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        # Получаем историю из файла
+        file_data = load_data()
+        history = file_data.get('history', [])
+        
+        # Пытаемся получить из бота
+        try:
+            response = requests.get(f'{BOT_URL}/api/history', timeout=5)
+            if response.status_code == 200:
+                history = response.json()
+                file_data['history'] = history
+                save_data(file_data)
+        except:
+            pass
         
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
@@ -1503,8 +1604,9 @@ def import_excel():
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        # Загружаем текущую историю из файла
+        file_data = load_data()
+        history = file_data.get('history', [])
         
         imported = 0
         for row in excel_data:
@@ -1572,6 +1674,9 @@ def import_excel():
             if not date or date == '':
                 date = datetime.now().strftime('%Y-%m-%d %H:%M')
             
+            # Округляем сумму до 2 знаков
+            stake = round(stake, 2)
+            
             bet_record = {
                 'home': home or 'Unknown',
                 'away': away or 'Unknown',
@@ -1589,12 +1694,17 @@ def import_excel():
             history.append(bet_record)
             imported += 1
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        # Сохраняем в файл
+        file_data['history'] = history
+        save_data(file_data)
         
-        if response.status_code == 200:
-            return jsonify({'success': True, 'count': imported})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
+        # Также отправляем в бота (если доступен)
+        try:
+            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
+        except:
+            pass
+        
+        return jsonify({'success': True, 'count': imported})
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1605,8 +1715,9 @@ def edit_bet():
         data = request.json
         index = data.get('index')
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        # Загружаем из файла
+        file_data = load_data()
+        history = file_data.get('history', [])
         
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
@@ -1621,6 +1732,9 @@ def edit_bet():
         history[index]['ev'] = data.get('ev', history[index]['ev'])
         history[index]['result'] = data.get('result', history[index]['result'])
         
+        # Округляем сумму
+        history[index]['stake'] = round(history[index]['stake'], 2)
+        
         if history[index]['result'] == 'win':
             history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
         elif history[index]['result'] == 'loss':
@@ -1628,12 +1742,17 @@ def edit_bet():
         else:
             history[index]['profit'] = 0
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        # Сохраняем в файл
+        file_data['history'] = history
+        save_data(file_data)
         
-        if response.status_code == 200:
-            return jsonify({'success': True})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
+        # Отправляем в бота
+        try:
+            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
+        except:
+            pass
+        
+        return jsonify({'success': True})
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1644,20 +1763,26 @@ def delete_bet():
         data = request.json
         index = data.get('index')
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        # Загружаем из файла
+        file_data = load_data()
+        history = file_data.get('history', [])
         
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
         
         deleted = history.pop(index)
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        # Сохраняем в файл
+        file_data['history'] = history
+        save_data(file_data)
         
-        if response.status_code == 200:
-            return jsonify({'success': True, 'deleted': deleted})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
+        # Отправляем в бота
+        try:
+            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
+        except:
+            pass
+        
+        return jsonify({'success': True, 'deleted': deleted})
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1667,11 +1792,67 @@ def update_bank():
     try:
         data = request.json
         if 'bank' in data:
-            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
-            return jsonify(response.json())
+            bank = data['bank']
+            
+            # Сохраняем в файл
+            file_data = load_data()
+            file_data['bank'] = bank
+            save_data(file_data)
+            
+            # Отправляем в бота
+            try:
+                requests.post(f'{BOT_URL}/api/bank', json={'bank': bank}, timeout=5)
+            except:
+                pass
+            
+            return jsonify({'success': True, 'bank': bank})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'No bank value'}), 400
+
+@app.route('/api/stats')
+def api_stats():
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except:
+        pass
+    
+    # Если бот не отвечает - считаем из файла
+    file_data = load_data()
+    history = file_data.get('history', [])
+    
+    total_bets = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    total_profit = sum(float(b.get('profit', 0)) for b in history)
+    winrate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
+    total_stake = sum(float(b.get('stake', 0)) for b in history)
+    
+    return jsonify({
+        'bank': file_data.get('bank', 1000),
+        'total_bets': total_bets,
+        'wins': wins,
+        'losses': losses,
+        'profit': round(total_profit, 2),
+        'winrate': winrate,
+        'roi': round((total_profit / (total_stake or 1)) * 100, 2) if total_bets > 0 else 0,
+        'avg_stake': round(total_stake / total_bets, 2) if total_bets > 0 else 0
+    })
+
+@app.route('/api/history')
+def api_history():
+    try:
+        response = requests.get(f'{BOT_URL}/api/history', timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+    except:
+        pass
+    
+    # Если бот не отвечает - берём из файла
+    file_data = load_data()
+    return jsonify(file_data.get('history', []))
 
 @app.route('/export')
 def export_data():
@@ -1681,7 +1862,54 @@ def export_data():
             return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
     except:
         pass
-    return "Нет данных для экспорта", 404
+    
+    # Если бот не отвечает - создаём Excel из файла
+    try:
+        import io
+        import xlsxwriter
+        
+        file_data = load_data()
+        history = file_data.get('history', [])
+        
+        if not history:
+            return "Нет данных для экспорта", 404
+        
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet('История')
+        
+        # Заголовки
+        headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'Сумма', 'EV', 'Результат', 'Прибыль']
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header)
+        
+        # Данные
+        for row, bet in enumerate(history, 1):
+            score = f"{bet.get('home_goals', '')}-{bet.get('away_goals', '')}" if bet.get('home_goals') is not None else '-'
+            worksheet.write(row, 0, bet.get('date', ''))
+            worksheet.write(row, 1, f"{bet.get('home', '')} vs {bet.get('away', '')}")
+            worksheet.write(row, 2, score)
+            worksheet.write(row, 3, bet.get('bet', ''))
+            worksheet.write(row, 4, bet.get('odds', ''))
+            worksheet.write(row, 5, bet.get('stake', ''))
+            worksheet.write(row, 6, bet.get('ev', ''))
+            worksheet.write(row, 7, bet.get('result', ''))
+            worksheet.write(row, 8, bet.get('profit', ''))
+        
+        workbook.close()
+        output.seek(0)
+        
+        return output.getvalue(), 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+    except:
+        return "Нет данных для экспорта", 404
+
+# ============================================================
+# ЗАПУСК
+# ============================================================
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    # Создаём файл данных если его нет
+    if not os.path.exists(DATA_FILE):
+        save_data({'bank': 1000, 'history': []})
+    
+    app.run(host='0.0.0.0', port=5001, debug=False)
