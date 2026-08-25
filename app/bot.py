@@ -58,7 +58,7 @@ def export_to_excel():
     ws = wb.active
     ws.title = "Ставки"
     
-    headers = ["Дата", "Матч", "Лига", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
+    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
     ws.append(headers)
     
     header_font = Font(bold=True, color="FFFFFF")
@@ -74,7 +74,9 @@ def export_to_excel():
         date = bet.get('date', '')
         home = bet.get('home', '')
         away = bet.get('away', '')
-        league = bet.get('league', '')
+        home_goals = bet.get('home_goals', '')
+        away_goals = bet.get('away_goals', '')
+        score = f"{home_goals}-{away_goals}" if home_goals is not None and away_goals is not None else "-"
         bet_type = bet.get('bet', '')
         odds = bet.get('odds', 0)
         ev = bet.get('ev', 0)
@@ -91,7 +93,7 @@ def export_to_excel():
         else:
             profit = 0
         
-        ws.append([date, f"{home} vs {away}", league, bet_type, odds, ev, stake, result, profit])
+        ws.append([date, f"{home} vs {away}", score, bet_type, odds, ev, stake, result, profit])
     
     ws.append([])
     ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2)])
@@ -480,7 +482,9 @@ def webhook():
                                         'ev': best_bet.get('ev', 0),
                                         'result': result,
                                         'profit': profit,
-                                        'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+                                        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                                        'home_goals': None,
+                                        'away_goals': None
                                     }
                                     history.append(bet_record)
                                     storage.save_history(history)
@@ -813,7 +817,9 @@ def webhook():
                                 'ev': 0,
                                 'result': result,
                                 'profit': profit,
-                                'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+                                'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                                'home_goals': home_goals,
+                                'away_goals': away_goals
                             }
                             history.append(bet_record)
                             storage.save_history(history)
