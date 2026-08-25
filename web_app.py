@@ -1,3 +1,11 @@
+# ============================================================
+# Quantum Bet Bot v12 PRO
+# Полный код с документацией и комментариями
+# Версия: 1.0.0
+# Автор: Seva2288
+# Лицензия: MIT
+# ============================================================
+
 import os
 import json
 import logging
@@ -6,79 +14,302 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from datetime import datetime, timedelta
 import random
-import requests
+import sys
+import traceback
 
+# ============================================================
+# КОНФИГУРАЦИЯ ПРИЛОЖЕНИЯ
+# ============================================================
+
+# Инициализация Flask-приложения
 app = Flask(__name__)
 
-# ===== ПЕРЕМЕННЫЕ =====
+# Получение токена бота из переменных окружения
 TOKEN = os.environ.get('TELEGRAM_TO')
+
+# Имя файла для хранения данных
 DATA_FILE = 'data.json'
-BOT_URL = 'https://quantumbet-web-production.up.railway.app'
-FOOTBALL_API_KEY = os.environ.get('FOOTBALL_API')
 
-logging.basicConfig(level=logging.INFO)
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# ===== БОТ =====
-bot_app = Application.builder().token(TOKEN).build()
+# ============================================================
+# ПРОВЕРКА ТОКЕНА
+# ============================================================
 
-# ===== РАБОТА С ДАННЫМИ =====
+def validate_token(token):
+    """
+    Проверяет валидность токена Telegram бота
+    
+    Args:
+        token (str): Токен для проверки
+        
+    Returns:
+        bool: True если токен валидный, иначе False
+    """
+    if not token:
+        logger.error("❌ ТОКЕН НЕ НАЙДЕН! Добавь переменную TELEGRAM_TO в Railway.")
+        return False
+    
+    # Базовая проверка формата токена
+    if not token.startswith('') and ':' not in token:
+        logger.error("❌ Неверный формат токена. Ожидается: цифры:буквы")
+        return False
+    
+    if len(token) < 20:
+        logger.error("❌ Токен слишком короткий. Проверь правильность.")
+        return False
+    
+    logger.info("✅ Токен прошёл базовую проверку")
+    return True
+
+# Проверяем токен при старте
+TOKEN_VALID = validate_token(TOKEN)
+
+# ============================================================
+# ИНИЦИАЛИЗАЦИЯ БОТА
+# ============================================================
+
+def init_bot():
+    """
+    Инициализирует экземпляр Telegram бота
+    
+    Returns:
+        Application: Экземпляр бота или None при ошибке
+    """
+    try:
+        if not TOKEN_VALID:
+            logger.warning("⚠️ Токен невалидный, бот не будет инициализирован")
+            return None
+        
+        bot = Application.builder().token(TOKEN).build()
+        logger.info("✅ Бот успешно инициализирован")
+        return bot
+    except Exception as e:
+        logger.error(f"❌ Ошибка инициализации бота: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
+# Создаём экземпляр бота
+bot_app = init_bot()
+
+# ============================================================
+# РАБОТА С ДАННЫМИ
+# ============================================================
+
 def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {'bank': 1000, 'history': []}
+    """
+    Загружает данные из файла data.json
+    
+    Returns:
+        dict: Словарь с данными {'bank': int, 'history': list}
+    """
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                logger.info(f"✅ Данные загружены: {len(data.get('history', []))} ставок")
+                return data
+        else:
+            logger.warning("⚠️ Файл данных не найден, создаю новый")
+            default_data = {'bank': 1000, 'history': []}
+            save_data(default_data)
+            return default_data
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Ошибка парсинга JSON: {e}")
+        return {'bank': 1000, 'history': []}
+    except Exception as e:
+        logger.error(f"❌ Ошибка загрузки данных: {e}")
+        return {'bank': 1000, 'history': []}
 
 def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """
+    Сохраняет данные в файл data.json
+    
+    Args:
+        data (dict): Словарь с данными для сохранения
+    """
+    try:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        logger.info("✅ Данные успешно сохранены")
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения данных: {e}")
 
-# ===== КОМАНДЫ БОТА =====
+def add_bet_to_history(home, away, home_goals, away_goals, stake, bet_type='Ручная ставка', odds=1.85):
+    """
+    Добавляет новую ставку в историю
+    
+    Args:
+        home (str): Название домашней команды
+        away (str): Название гостевой команды
+        home_goals (int): Голы хозяев
+        away_goals (int): Голы гостей
+        stake (float): Сумма ставки
+        bet_type (str): Тип ставки
+        odds (float): Коэффициент
+        
+    Returns:
+        dict: Созданная запись о ставке
+    """
+    # Определяем результат
+    result = 'pending'
+    profit = 0
+    
+    if home_goals is not None and away_goals is not None:
+        if home_goals > away_goals:
+            result = 'win'
+            profit = round(stake * (odds - 1), 2)
+        elif home_goals < away_goals:
+            result = 'loss'
+            profit = -stake
+        else:
+            result = 'push'
+            profit = 0
+    
+    bet_record = {
+        'home': home,
+        'away': away,
+        'home_goals': home_goals,
+        'away_goals': away_goals,
+        'bet': bet_type,
+        'odds': odds,
+        'stake': round(stake, 2),
+        'ev': 0,
+        'result': result,
+        'profit': profit,
+        'date': datetime.now().strftime('%Y-%m-%d %H:%M')
+    }
+    
+    data = load_data()
+    data['history'].append(bet_record)
+    save_data(data)
+    
+    logger.info(f"✅ Добавлена ставка: {home} vs {away} → {home_goals}-{away_goals}")
+    return bet_record
+
+# ============================================================
+# КОМАНДЫ БОТА
+# ============================================================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🤖 Привет! Я бот для ставок.\n\n"
-        "📌 Команды:\n"
-        "/start — показать это меню\n"
-        "/help — список команд\n"
-        "/bank — показать банк\n"
-        "/stats — статистика\n"
-        "/result Команда1 Команда2 Счёт Сумма — добавить результат\n"
-        "Пример: /result Real Barca 2-1 50"
-    )
+    """
+    Обработчик команды /start
+    
+    Показывает приветственное сообщение и список команд
+    """
+    try:
+        await update.message.reply_text(
+            "🤖 Привет! Я бот для ставок.\n\n"
+            "📌 Команды:\n"
+            "/start — показать это меню\n"
+            "/help — список команд\n"
+            "/bank — показать банк\n"
+            "/stats — статистика\n"
+            "/result Команда1 Команда2 Счёт Сумма — добавить результат\n"
+            "Пример: /result Real Barca 2-1 50"
+        )
+        logger.info(f"✅ Команда /start от пользователя {update.effective_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /start: {e}")
+        await update.message.reply_text("❌ Произошла ошибка. Попробуй позже.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📋 Доступные команды:\n"
-        "/start — приветствие\n"
-        "/help — эта справка\n"
-        "/bank — текущий банк\n"
-        "/stats — статистика\n\n"
-        "➕ Добавление ставок:\n"
-        "/result Команда1 Команда2 Счёт Сумма\n"
-        "Пример: /result Real Barca 2-1 50"
-    )
+    """
+    Обработчик команды /help
+    
+    Показывает подробную справку по командам
+    """
+    try:
+        await update.message.reply_text(
+            "📋 Доступные команды:\n\n"
+            "🔹 Основные:\n"
+            "/start — приветствие\n"
+            "/help — эта справка\n"
+            "/bank — текущий банк\n"
+            "/stats — статистика\n\n"
+            "🔹 Добавление ставок:\n"
+            "/result Команда1 Команда2 Счёт Сумма\n"
+            "Пример: /result Real Barca 2-1 50\n\n"
+            "🔹 Управление:\n"
+            "/bank — посмотреть банк\n"
+            "/stats — посмотреть статистику"
+        )
+        logger.info(f"✅ Команда /help от пользователя {update.effective_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /help: {e}")
+        await update.message.reply_text("❌ Произошла ошибка. Попробуй позже.")
 
 async def bank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = load_data()
-    await update.message.reply_text(f"💰 Текущий банк: ${data.get('bank', 1000)}")
+    """
+    Обработчик команды /bank
+    
+    Показывает текущий банк пользователя
+    """
+    try:
+        data = load_data()
+        bank_value = data.get('bank', 1000)
+        await update.message.reply_text(f"💰 Текущий банк: ${bank_value:.2f}")
+        logger.info(f"✅ Команда /bank от пользователя {update.effective_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /bank: {e}")
+        await update.message.reply_text("❌ Произошла ошибка. Попробуй позже.")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = load_data()
-    history = data.get('history', [])
-    total = len(history)
-    wins = sum(1 for b in history if b.get('result') == 'win')
-    losses = sum(1 for b in history if b.get('result') == 'loss')
-    profit = sum(float(b.get('profit', 0)) for b in history)
-    await update.message.reply_text(
-        f"📊 Статистика:\n"
-        f"Всего ставок: {total}\n"
-        f"✅ Выигрыши: {wins}\n"
-        f"❌ Проигрыши: {losses}\n"
-        f"💰 Прибыль: ${round(profit, 2)}"
-    )
+    """
+    Обработчик команды /stats
+    
+    Показывает детальную статистику по ставкам
+    """
+    try:
+        data = load_data()
+        history = data.get('history', [])
+        
+        total = len(history)
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        losses = sum(1 for b in history if b.get('result') == 'loss')
+        pushes = sum(1 for b in history if b.get('result') == 'push')
+        profit = sum(float(b.get('profit', 0)) for b in history)
+        
+        # Дополнительные метрики
+        total_stake = sum(float(b.get('stake', 0)) for b in history)
+        avg_stake = round(total_stake / total, 2) if total > 0 else 0
+        winrate = round(wins / total * 100, 1) if total > 0 else 0
+        
+        message = (
+            f"📊 Статистика:\n\n"
+            f"📌 Всего ставок: {total}\n"
+            f"✅ Выигрыши: {wins}\n"
+            f"❌ Проигрыши: {losses}\n"
+            f"➖ Возвраты: {pushes}\n"
+            f"🎯 Проходимость: {winrate}%\n"
+            f"💰 Прибыль: ${profit:.2f}\n"
+            f"📊 Средняя ставка: ${avg_stake:.2f}"
+        )
+        
+        await update.message.reply_text(message)
+        logger.info(f"✅ Команда /stats от пользователя {update.effective_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /stats: {e}")
+        await update.message.reply_text("❌ Произошла ошибка. Попробуй позже.")
 
 async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик команды /result
+    
+    Добавляет результат матча в историю
+    
+    Формат: /result Команда1 Команда2 Счёт Сумма
+    Пример: /result Real Barca 2-1 50
+    """
     try:
         args = context.args
+        
+        # Проверка количества аргументов
         if len(args) < 4:
             await update.message.reply_text(
                 "❌ Неправильный формат.\n"
@@ -86,34 +317,54 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Пример: /result Real Barca 2-1 50"
             )
             return
-
+        
+        # Разбор аргументов
         home = args[0]
         away = args[1]
         score = args[2]
-        stake = float(args[3])
-
+        
+        # Проверка суммы ставки
+        try:
+            stake = float(args[3])
+        except ValueError:
+            await update.message.reply_text("❌ Сумма должна быть числом!")
+            return
+        
+        if stake <= 0:
+            await update.message.reply_text("❌ Сумма должна быть положительной!")
+            return
+        
+        # Парсинг счёта
         home_goals = None
         away_goals = None
+        
         if '-' in score:
             parts = score.split('-')
-            home_goals = int(parts[0])
-            away_goals = int(parts[1])
-
+            try:
+                home_goals = int(parts[0])
+                away_goals = int(parts[1])
+            except ValueError:
+                await update.message.reply_text("❌ Неправильный формат счёта. Используй: 2-1")
+                return
+        else:
+            await update.message.reply_text("❌ Неправильный формат счёта. Используй: 2-1")
+            return
+        
+        # Определение результата
         result = 'pending'
         profit = 0
-        if home_goals is not None and away_goals is not None:
-            if home_goals > away_goals:
-                result = 'win'
-                profit = round(stake * 0.85, 2)
-            elif home_goals < away_goals:
-                result = 'loss'
-                profit = -stake
-            else:
-                result = 'push'
-                profit = 0
-
-        data = load_data()
-        history = data.get('history', [])
+        
+        if home_goals > away_goals:
+            result = 'win'
+            profit = round(stake * 0.85, 2)
+        elif home_goals < away_goals:
+            result = 'loss'
+            profit = -stake
+        else:
+            result = 'push'
+            profit = 0
+        
+        # Добавление ставки в историю
         bet_record = {
             'home': home,
             'away': away,
@@ -127,40 +378,161 @@ async def result_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'profit': profit,
             'date': datetime.now().strftime('%Y-%m-%d %H:%M')
         }
-        history.append(bet_record)
-        data['history'] = history
+        
+        data = load_data()
+        data['history'].append(bet_record)
         save_data(data)
-
+        
+        # Отправка подтверждения
         await update.message.reply_text(
             f"✅ Результат сохранён!\n"
             f"{home} vs {away} → {score}\n"
             f"Результат: {result}\n"
-            f"💰 Прибыль: ${profit}"
+            f"💰 Прибыль: ${profit:.2f}"
         )
-
+        
+        logger.info(f"✅ Команда /result от {update.effective_user.id}: {home} vs {away} {score}")
+        
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка в /result: {e}")
+        logger.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ Ошибка: {str(e)}")
 
-# ===== РЕГИСТРАЦИЯ КОМАНД =====
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CommandHandler("help", help_command))
-bot_app.add_handler(CommandHandler("bank", bank))
-bot_app.add_handler(CommandHandler("stats", stats))
-bot_app.add_handler(CommandHandler("result", result_command))
+# ============================================================
+# РЕГИСТРАЦИЯ КОМАНД БОТА
+# ============================================================
 
-# ===== ВЕБХУК =====
+def register_handlers():
+    """
+    Регистрирует все обработчики команд бота
+    """
+    if not bot_app:
+        logger.warning("⚠️ Бот не инициализирован, команды не зарегистрированы")
+        return
+    
+    try:
+        bot_app.add_handler(CommandHandler("start", start))
+        bot_app.add_handler(CommandHandler("help", help_command))
+        bot_app.add_handler(CommandHandler("bank", bank))
+        bot_app.add_handler(CommandHandler("stats", stats))
+        bot_app.add_handler(CommandHandler("result", result_command))
+        logger.info("✅ Все обработчики команд зарегистрированы")
+    except Exception as e:
+        logger.error(f"❌ Ошибка регистрации обработчиков: {e}")
+
+# Регистрируем обработчики
+register_handlers()
+
+# ============================================================
+# ВЕБХУК
+# ============================================================
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    """
+    Эндпоинт для приёма вебхуков от Telegram
+    
+    Returns:
+        tuple: (status_message, http_code)
+    """
+    if not bot_app:
+        logger.error("❌ Бот не инициализирован")
+        return 'Bot not initialized', 500
+    
     try:
-        update = Update.de_json(request.get_json(), bot_app.bot)
+        # Получение данных от Telegram
+        update_data = request.get_json()
+        
+        if not update_data:
+            logger.warning("⚠️ Пустой запрос от Telegram")
+            return 'No data', 400
+        
+        # Обработка обновления
+        update = Update.de_json(update_data, bot_app.bot)
         bot_app.process_update(update)
+        
+        logger.info("✅ Вебхук успешно обработан")
         return 'ok', 200
+        
     except Exception as e:
-        logging.error(f"Webhook error: {e}")
+        logger.error(f"❌ Ошибка в вебхуке: {e}")
+        logger.error(traceback.format_exc())
         return 'error', 500
 
 # ============================================================
-# ВЕБ-ИНТЕРФЕЙС (HTML)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ВЕБ-ИНТЕРФЕЙСА
+# ============================================================
+
+def calculate_stats(history):
+    """
+    Рассчитывает статистику на основе истории ставок
+    
+    Args:
+        history (list): Список ставок
+        
+    Returns:
+        dict: Статистика в виде словаря
+    """
+    total = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    pushes = sum(1 for b in history if b.get('result') == 'push')
+    profit = sum(float(b.get('profit', 0)) for b in history)
+    total_stake = sum(float(b.get('stake', 0)) for b in history)
+    
+    return {
+        'bank': load_data().get('bank', 1000),
+        'total_bets': total,
+        'wins': wins,
+        'losses': losses,
+        'pushes': pushes,
+        'profit': round(profit, 2),
+        'winrate': round(wins / total * 100, 1) if total > 0 else 0,
+        'roi': round((profit / (total_stake or 1)) * 100, 2) if total > 0 else 0,
+        'avg_stake': round(total_stake / total, 2) if total > 0 else 0,
+        'max_profit': max([float(b.get('profit', 0)) for b in history]) if history else 0,
+        'min_profit': min([float(b.get('profit', 0)) for b in history]) if history else 0
+    }
+
+def get_profit_data(history, days=7):
+    """
+    Генерирует данные для графика прибыли
+    
+    Args:
+        history (list): Список ставок
+        days (int): Количество дней для отображения
+        
+    Returns:
+        dict: {'dates': list, 'profits': list}
+    """
+    profits = []
+    
+    for i in range(days - 1, -1, -1):
+        day_profit = 0
+        day = datetime.now() - timedelta(days=i)
+        
+        for bet in history:
+            try:
+                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
+                if bet_date.date() == day.date():
+                    stake = float(bet.get('stake', 0))
+                    odds = float(bet.get('odds', 1))
+                    
+                    if bet.get('result') == 'win':
+                        day_profit += stake * (odds - 1)
+                    elif bet.get('result') == 'loss':
+                        day_profit -= stake
+            except (ValueError, IndexError) as e:
+                logger.warning(f"⚠️ Ошибка парсинга даты: {e}")
+                continue
+        
+        profits.append(round(day_profit, 2))
+    
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
+    return {'dates': dates, 'profits': profits}
+
+# ============================================================
+# HTML ШАБЛОН
 # ============================================================
 
 DASHBOARD_HTML = """
@@ -272,7 +644,6 @@ DASHBOARD_HTML = """
             flex-wrap: wrap;
             margin-bottom: 20px;
         }
-        .nav a { text-decoration: none; }
         .btn {
             padding: 8px 16px;
             border-radius: 10px;
@@ -645,30 +1016,11 @@ DASHBOARD_HTML = """
             <button class="btn" onclick="location.reload()">🔄 Обновить</button>
         </div>
         
-        <!-- ===== ДАШБОРД ===== -->
-        <div id="page-dashboard" class="page">
-            <div id="dashboard-content">Загрузка...</div>
-        </div>
-        
-        <!-- ===== МАТЧИ ===== -->
-        <div id="page-matches" class="page" style="display:none;">
-            <div id="matches-content">Загрузка...</div>
-        </div>
-        
-        <!-- ===== СТАТИСТИКА ===== -->
-        <div id="page-stats" class="page" style="display:none;">
-            <div id="stats-content">Загрузка...</div>
-        </div>
-        
-        <!-- ===== СИМУЛЯТОР ===== -->
-        <div id="page-simulator" class="page" style="display:none;">
-            <div id="simulator-content">Загрузка...</div>
-        </div>
-        
-        <!-- ===== НАСТРОЙКИ ===== -->
-        <div id="page-settings" class="page" style="display:none;">
-            <div id="settings-content">Загрузка...</div>
-        </div>
+        <div id="page-dashboard" class="page"><div id="dashboard-content">Загрузка...</div></div>
+        <div id="page-matches" class="page" style="display:none;"><div id="matches-content">Загрузка...</div></div>
+        <div id="page-stats" class="page" style="display:none;"><div id="stats-content">Загрузка...</div></div>
+        <div id="page-simulator" class="page" style="display:none;"><div id="simulator-content">Загрузка...</div></div>
+        <div id="page-settings" class="page" style="display:none;"><div id="settings-content">Загрузка...</div></div>
         
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
@@ -682,7 +1034,6 @@ DASHBOARD_HTML = """
     </div>
     
     <script>
-        // ===== ТЕМА =====
         function toggleTheme() {
             const html = document.documentElement;
             const btn = document.getElementById('themeBtn');
@@ -700,41 +1051,31 @@ DASHBOARD_HTML = """
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        // ===== НАВИГАЦИЯ =====
         function showPage(page) {
             document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
             document.getElementById('page-' + page).style.display = 'block';
-            
             document.querySelectorAll('.nav .btn, .bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll(`.nav .btn[onclick*="${page}"], .bottom-nav .nav-item[onclick*="${page}"]`).forEach(b => b.classList.add('active'));
-            
+            document.querySelectorAll('.nav .btn[onclick*="' + page + '"], .bottom-nav .nav-item[onclick*="' + page + '"]').forEach(b => b.classList.add('active'));
             loadPage(page);
         }
         
-        // ===== ЗАГРУЗКА СТРАНИЦ =====
         function loadPage(page) {
-            const contentId = page + '-content';
-            const el = document.getElementById(contentId);
-            
+            const el = document.getElementById(page + '-content');
             fetch('/api/' + page + '_data')
                 .then(r => r.json())
                 .then(data => {
-                    switch(page) {
-                        case 'dashboard': renderDashboard(el, data); break;
-                        case 'matches': renderMatches(el, data); break;
-                        case 'stats': renderStats(el, data); break;
-                        case 'simulator': renderSimulator(el, data); break;
-                        case 'settings': renderSettings(el, data); break;
-                    }
+                    if (page === 'dashboard') renderDashboard(el, data);
+                    else if (page === 'matches') renderMatches(el, data);
+                    else if (page === 'stats') renderStats(el, data);
+                    else if (page === 'simulator') renderSimulator(el, data);
+                    else if (page === 'settings') renderSettings(el, data);
                 })
                 .catch(() => el.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>');
         }
         
-        // ===== РЕНДЕР ДАШБОРДА =====
         function renderDashboard(el, data) {
             const s = data.stats;
             const history = data.history || [];
-            
             let html = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Текущий банк</div></div>
@@ -755,10 +1096,8 @@ DASHBOARD_HTML = """
                 <div class="card">
                     <div class="card-header"><h2>📋 Все ставки</h2><span class="count">Всего: ${history.length}</span></div>
                     <div class="scrollable-table"><div class="table-wrapper"><table>
-                        <thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
-                        <tbody>
+                        <thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead><tbody>
             `;
-            
             if (history.length === 0) {
                 html += `<tr><td colspan="10" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
             } else {
@@ -778,11 +1117,8 @@ DASHBOARD_HTML = """
                     </tr>`;
                 });
             }
-            
             html += `</tbody></table></div></div></div>`;
             el.innerHTML = html;
-            
-            // График
             setTimeout(() => {
                 const ctx = document.getElementById('profitChart');
                 if (!ctx) return;
@@ -817,7 +1153,6 @@ DASHBOARD_HTML = """
             }, 50);
         }
         
-        // ===== РЕНДЕР МАТЧЕЙ =====
         function renderMatches(el, data) {
             const matches = data.matches || [];
             let html = `<h1 style="font-size:24px;color:var(--gradient-start);">⚽ Матчи на сегодня</h1><div style="color:var(--text-secondary);margin-bottom:15px;">Прогнозы и валуйные ставки</div>`;
@@ -836,7 +1171,6 @@ DASHBOARD_HTML = """
             el.innerHTML = html;
         }
         
-        // ===== РЕНДЕР СТАТИСТИКИ =====
         function renderStats(el, data) {
             const s = data.stats;
             const history = data.history || [];
@@ -860,7 +1194,6 @@ DASHBOARD_HTML = """
             el.innerHTML = html;
         }
         
-        // ===== РЕНДЕР СИМУЛЯТОРА =====
         function renderSimulator(el, data) {
             const history = data.history || [];
             let html = `<h1 style="font-size:24px;color:var(--gradient-start);">🎲 Симулятор ставок</h1><div style="color:var(--text-secondary);margin-bottom:15px;">Узнай, сколько ты мог бы заработать!</div>`;
@@ -899,7 +1232,6 @@ DASHBOARD_HTML = """
             el.innerHTML = html;
         }
         
-        // ===== РЕНДЕР НАСТРОЕК =====
         function renderSettings(el, data) {
             const bank = data.stats?.bank || 1000;
             let html = `<h1 style="font-size:24px;color:var(--gradient-start);">⚙️ Настройки</h1><div style="color:var(--text-secondary);margin-bottom:15px;">Управление ботом</div>
@@ -913,11 +1245,9 @@ DASHBOARD_HTML = """
             el.innerHTML = html;
         }
         
-        // ===== СИМУЛЯЦИЯ =====
         function runSimulation() {
             const count = parseInt(document.getElementById('simCount').value) || 1000;
             document.getElementById('simResults').style.display = 'block';
-            
             fetch('/api/simulate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -936,14 +1266,12 @@ DASHBOARD_HTML = """
                 document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
                 document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
                 document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-                
                 const rec = document.getElementById('simRecommendation');
                 if (data.profit > 0) {
                     rec.innerHTML = '✅ <b style="color:#38ef7d;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
                 } else {
                     rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
                 }
-                
                 const ctx = document.getElementById('simChart');
                 if (ctx) {
                     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -975,7 +1303,6 @@ DASHBOARD_HTML = """
             });
         }
         
-        // ===== БАНК =====
         function updateBank() {
             const value = document.getElementById('bankInput').value;
             fetch('/api/bank', {
@@ -989,7 +1316,6 @@ DASHBOARD_HTML = """
             });
         }
         
-        // ===== ИМПОРТ =====
         function importExcel(event) {
             const file = event.target.files[0];
             const statusDiv = document.getElementById('importStatus');
@@ -997,7 +1323,6 @@ DASHBOARD_HTML = """
             if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
             fileNameSpan.textContent = '📄 ' + file.name;
             statusDiv.textContent = '⏳ Загрузка...';
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -1034,7 +1359,6 @@ DASHBOARD_HTML = """
             }
         });
         
-        // ===== ЗАГРУЗКА ПРИ СТАРТЕ =====
         document.addEventListener('DOMContentLoaded', function() {
             loadPage('dashboard');
         });
@@ -1049,120 +1373,164 @@ DASHBOARD_HTML = """
 
 @app.route('/')
 def index():
+    """
+    Главная страница приложения
+    Возвращает HTML-интерфейс
+    """
+    logger.info("✅ Запрос главной страницы")
     return render_template_string(DASHBOARD_HTML)
 
 @app.route('/api/dashboard_data')
 def dashboard_data():
-    data = load_data()
-    history = data.get('history', [])
-    stats = get_stats(history)
-    profit_data = get_profit_data(history)
-    return jsonify({'stats': stats, 'history': history, 'profit_data': profit_data})
+    """
+    API для получения данных дашборда
+    
+    Returns:
+        json: Статистика, история ставок и данные для графика
+    """
+    try:
+        data = load_data()
+        history = data.get('history', [])
+        stats = calculate_stats(history)
+        profit_data = get_profit_data(history)
+        
+        response = {
+            'stats': stats,
+            'history': history,
+            'profit_data': profit_data
+        }
+        logger.info(f"✅ Дашборд загружен: {len(history)} ставок")
+        return jsonify(response)
+    except Exception as e:
+        logger.error(f"❌ Ошибка в dashboard_data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/matches_data')
 def matches_data():
-    # Здесь можно добавить API-Football
+    """
+    API для получения данных о матчах
+    
+    Returns:
+        json: Список матчей
+    """
+    # Здесь можно подключить API-Football
     return jsonify({'matches': []})
 
 @app.route('/api/stats_data')
 def stats_data():
-    data = load_data()
-    history = data.get('history', [])
-    stats = get_stats(history)
-    return jsonify({'stats': stats, 'history': history})
+    """
+    API для получения статистики
+    
+    Returns:
+        json: Статистика и история ставок
+    """
+    try:
+        data = load_data()
+        history = data.get('history', [])
+        stats = calculate_stats(history)
+        return jsonify({'stats': stats, 'history': history})
+    except Exception as e:
+        logger.error(f"❌ Ошибка в stats_data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/simulator_data')
 def simulator_data():
-    data = load_data()
-    history = data.get('history', [])
-    return jsonify({'history': history})
+    """
+    API для получения данных для симулятора
+    
+    Returns:
+        json: История ставок
+    """
+    try:
+        data = load_data()
+        history = data.get('history', [])
+        return jsonify({'history': history})
+    except Exception as e:
+        logger.error(f"❌ Ошибка в simulator_data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings_data')
 def settings_data():
-    data = load_data()
-    return jsonify({'stats': {'bank': data.get('bank', 1000)}})
-
-def get_stats(history):
-    total = len(history)
-    wins = sum(1 for b in history if b.get('result') == 'win')
-    losses = sum(1 for b in history if b.get('result') == 'loss')
-    profit = sum(float(b.get('profit', 0)) for b in history)
-    total_stake = sum(float(b.get('stake', 0)) for b in history)
-    return {
-        'bank': load_data().get('bank', 1000),
-        'total_bets': total,
-        'wins': wins,
-        'losses': losses,
-        'profit': round(profit, 2),
-        'winrate': round(wins / total * 100, 1) if total > 0 else 0,
-        'roi': round((profit / (total_stake or 1)) * 100, 2) if total > 0 else 0,
-        'avg_stake': round(total_stake / total, 2) if total > 0 else 0
-    }
-
-def get_profit_data(history):
-    profits = []
-    days = 7
-    for i in range(days - 1, -1, -1):
-        day_profit = 0
-        day = datetime.now() - timedelta(days=i)
-        for bet in history:
-            try:
-                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
-                if bet_date.date() == day.date():
-                    stake = float(bet.get('stake', 0))
-                    odds = float(bet.get('odds', 1))
-                    if bet.get('result') == 'win':
-                        day_profit += stake * (odds - 1)
-                    elif bet.get('result') == 'loss':
-                        day_profit -= stake
-            except:
-                pass
-        profits.append(round(day_profit, 2))
-    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    return {'dates': dates, 'profits': profits}
+    """
+    API для получения настроек
+    
+    Returns:
+        json: Текущий банк
+    """
+    try:
+        data = load_data()
+        return jsonify({'stats': {'bank': data.get('bank', 1000)}})
+    except Exception as e:
+        logger.error(f"❌ Ошибка в settings_data: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
-    data = request.json
-    count = data.get('count', 1000)
-    history = load_data().get('history', [])
+    """
+    API для запуска симуляции
     
-    if len(history) < 5:
-        return jsonify({'error': 'Нужно минимум 5 ставок'}), 400
-    
-    wins = sum(1 for b in history if b.get('result') == 'win')
-    winrate = wins / len(history) if len(history) > 0 else 0
-    avg_stake = sum(float(b.get('stake', 0)) for b in history) / len(history) if len(history) > 0 else 10
-    
-    profit_history = []
-    total_profit = 0
-    for _ in range(count):
-        if random.random() < winrate:
-            profit = avg_stake * random.uniform(0.5, 1.5)
-            total_profit += profit
-        else:
-            profit = -avg_stake
-            total_profit += profit
-        profit_history.append(round(total_profit, 2))
-    
-    wins_sim = int(winrate * count)
-    return jsonify({
-        'total': count,
-        'wins': wins_sim,
-        'losses': count - wins_sim,
-        'profit': round(total_profit, 2),
-        'winrate': round(winrate * 100, 1),
-        'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
-        'risk': 0.1,
-        'max_profit': round(max(profit_history), 2),
-        'min_profit': round(min(profit_history), 2),
-        'avg_stake': round(avg_stake, 2),
-        'history': profit_history[:100],
-        'labels': list(range(1, min(count, 100) + 1))
-    })
+    Returns:
+        json: Результаты симуляции
+    """
+    try:
+        data = request.json
+        count = data.get('count', 1000)
+        history = load_data().get('history', [])
+        
+        if len(history) < 5:
+            return jsonify({'error': 'Нужно минимум 5 ставок'}), 400
+        
+        # Расчёт параметров на основе истории
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        winrate = wins / len(history) if len(history) > 0 else 0
+        avg_stake = sum(float(b.get('stake', 0)) for b in history) / len(history) if len(history) > 0 else 10
+        
+        # Запуск симуляции
+        profit_history = []
+        total_profit = 0
+        
+        for _ in range(count):
+            if random.random() < winrate:
+                profit = avg_stake * random.uniform(0.5, 1.5)
+                total_profit += profit
+            else:
+                profit = -avg_stake
+                total_profit += profit
+            profit_history.append(round(total_profit, 2))
+        
+        wins_sim = int(winrate * count)
+        
+        response = {
+            'total': count,
+            'wins': wins_sim,
+            'losses': count - wins_sim,
+            'profit': round(total_profit, 2),
+            'winrate': round(winrate * 100, 1),
+            'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'risk': round((abs(min(profit_history)) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'max_profit': round(max(profit_history), 2),
+            'min_profit': round(min(profit_history), 2),
+            'avg_stake': round(avg_stake, 2),
+            'history': profit_history[:100],
+            'labels': list(range(1, min(count, 100) + 1))
+        }
+        
+        logger.info(f"✅ Симуляция завершена: {count} итераций")
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в simulate: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
+    """
+    API для импорта данных из Excel
+    
+    Returns:
+        json: Результат импорта
+    """
     try:
         excel_data = request.json.get('data', [])
         if not excel_data:
@@ -1173,38 +1541,74 @@ def import_excel():
         imported = 0
         
         for row in excel_data:
-            home = row.get('Матч', '').split(' vs ')[0] if ' vs ' in row.get('Матч', '') else 'Unknown'
-            away = row.get('Матч', '').split(' vs ')[1] if ' vs ' in row.get('Матч', '') else 'Unknown'
-            score = row.get('Счёт', '')
+            # Парсинг названия матча
+            match = row.get('Матч', '') or row.get('Match', '')
+            home = ''
+            away = ''
+            
+            if ' vs ' in match:
+                parts = match.split(' vs ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            elif ' - ' in match:
+                parts = match.split(' - ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            
+            # Парсинг счёта
+            score = row.get('Счёт', '') or row.get('Score', '')
             home_goals = None
             away_goals = None
+            
             if score and '-' in str(score):
                 parts = str(score).split('-')
                 try:
                     home_goals = int(parts[0].strip())
                     away_goals = int(parts[1].strip())
-                except:
+                except ValueError:
                     pass
             
-            bet = row.get('Ставка', 'Ручная ставка')
-            odds = float(row.get('Коэф', 1.85) or 1.85)
-            stake = round(float(row.get('Сумма', 0) or 0), 2)
-            ev = float(row.get('EV%', 0) or 0)
-            result = row.get('Результат', 'pending')
-            if result.lower() in ['win', 'выигрыш']:
+            # Парсинг остальных данных
+            bet = row.get('Ставка', '') or row.get('Bet', '') or 'Ручная ставка'
+            
+            try:
+                odds = float(row.get('Коэф', 1.85) or row.get('Odds', 1.85) or 1.85)
+            except ValueError:
+                odds = 1.85
+            
+            try:
+                stake = round(float(row.get('Сумма', 0) or row.get('Stake', 0) or 0), 2)
+            except ValueError:
+                stake = 0
+            
+            try:
+                ev = float(row.get('EV%', 0) or row.get('Ev', 0) or 0)
+            except ValueError:
+                ev = 0
+            
+            result = row.get('Результат', 'pending') or row.get('Result', 'pending')
+            result_lower = result.lower()
+            
+            if result_lower in ['win', 'выигрыш']:
                 result = 'win'
-            elif result.lower() in ['loss', 'проигрыш']:
+            elif result_lower in ['loss', 'проигрыш']:
                 result = 'loss'
-            elif result.lower() in ['push', 'возврат']:
+            elif result_lower in ['push', 'возврат']:
                 result = 'push'
             else:
                 result = 'pending'
-            profit = float(row.get('Прибыль', 0) or 0)
-            date = row.get('Дата', datetime.now().strftime('%Y-%m-%d %H:%M'))
             
+            try:
+                profit = float(row.get('Прибыль', 0) or row.get('Profit', 0) or 0)
+            except ValueError:
+                profit = 0
+            
+            date = row.get('Дата', '') or row.get('Date', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
+            
+            # Добавление ставки в историю
             history.append({
-                'home': home,
-                'away': away,
+                'home': home or 'Unknown',
+                'away': away or 'Unknown',
                 'home_goals': home_goals,
                 'away_goals': away_goals,
                 'bet': bet,
@@ -1219,28 +1623,57 @@ def import_excel():
         
         data['history'] = history
         save_data(data)
+        
+        logger.info(f"✅ Импортировано {imported} ставок из Excel")
         return jsonify({'success': True, 'count': imported})
+        
     except Exception as e:
+        logger.error(f"❌ Ошибка в import_excel: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
-    data = request.json
-    if 'bank' in data:
-        d = load_data()
-        d['bank'] = data['bank']
-        save_data(d)
-        return jsonify({'success': True, 'bank': data['bank']})
-    return jsonify({'error': 'No bank value'}), 400
+    """
+    API для обновления банка
+    
+    Returns:
+        json: Результат обновления
+    """
+    try:
+        data = request.json
+        if 'bank' in data:
+            bank_value = float(data['bank'])
+            if bank_value < 0:
+                return jsonify({'error': 'Банк не может быть отрицательным'}), 400
+            
+            d = load_data()
+            d['bank'] = bank_value
+            save_data(d)
+            
+            logger.info(f"✅ Банк обновлён: ${bank_value:.2f}")
+            return jsonify({'success': True, 'bank': bank_value})
+        return jsonify({'error': 'Нет значения банка'}), 400
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в update_bank: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/export')
 def export_data():
+    """
+    Экспорт данных в Excel
+    
+    Returns:
+        file: Excel-файл с историей ставок
+    """
     try:
         import io
         import xlsxwriter
         
         data = load_data()
         history = data.get('history', [])
+        
         if not history:
             return "Нет данных для экспорта", 404
         
@@ -1248,10 +1681,12 @@ def export_data():
         workbook = xlsxwriter.Workbook(output)
         worksheet = workbook.add_worksheet('История')
         
+        # Заголовки
         headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'Сумма', 'EV', 'Результат', 'Прибыль']
         for col, header in enumerate(headers):
             worksheet.write(0, col, header)
         
+        # Данные
         for row, bet in enumerate(history, 1):
             score = f"{bet.get('home_goals', '')}-{bet.get('away_goals', '')}" if bet.get('home_goals') is not None else '-'
             worksheet.write(row, 0, bet.get('date', ''))
@@ -1266,17 +1701,52 @@ def export_data():
         
         workbook.close()
         output.seek(0)
-        return output.getvalue(), 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+        
+        logger.info(f"✅ Экспортировано {len(history)} ставок в Excel")
+        return output.getvalue(), 200, {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename=history.xlsx'
+        }
+        
     except Exception as e:
+        logger.error(f"❌ Ошибка в export_data: {e}")
+        logger.error(traceback.format_exc())
         return f"Ошибка экспорта: {e}", 500
 
 # ============================================================
-# ЗАПУСК
+# ЗАПУСК ПРИЛОЖЕНИЯ
 # ============================================================
 
+def main():
+    """
+    Главная функция запуска приложения
+    """
+    try:
+        # Создание файла данных при отсутствии
+        if not os.path.exists(DATA_FILE):
+            save_data({'bank': 1000, 'history': []})
+            logger.info("✅ Создан новый файл данных")
+        
+        # Получение порта из переменных окружения
+        port = int(os.environ.get('PORT', 8080))
+        
+        logger.info(f"🚀 Запуск приложения на порту {port}")
+        logger.info(f"📊 Файл данных: {DATA_FILE}")
+        logger.info(f"🤖 Токен бота: {'✅ Установлен' if TOKEN_VALID else '❌ НЕ УСТАНОВЛЕН'}")
+        
+        # Запуск Flask-приложения
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            threaded=True
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при запуске приложения: {e}")
+        logger.error(traceback.format_exc())
+        sys.exit(1)
+
+# Запуск приложения
 if __name__ == '__main__':
-    if not os.path.exists(DATA_FILE):
-        save_data({'bank': 1000, 'history': []})
-    
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    main()
