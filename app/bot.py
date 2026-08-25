@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import time
 import os
 import json
@@ -850,6 +850,69 @@ def webhook():
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return "ok", 200
+
+# ============================================================
+# API ЭНДПОИНТЫ ДЛЯ ВЕБ-ПРИЛОЖЕНИЯ
+# ============================================================
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    """API для получения статистики"""
+    stats = storage.load_stats()
+    bank = storage.load_bank()
+    history = storage.load_history()
+    
+    total_bets = len(history)
+    wins = stats.get('wins', 0)
+    losses = stats.get('losses', 0)
+    pushes = stats.get('pushes', 0)
+    total_profit = stats.get('total_profit', 0)
+    
+    winrate = round(wins / (wins + losses) * 100, 1) if (wins + losses) > 0 else 0
+    total_stake = sum(bet.get('stake', 0) for bet in history)
+    roi = round((total_profit / total_stake) * 100, 1) if total_stake > 0 else 0
+    avg_stake = round(total_stake / total_bets, 2) if total_bets > 0 else 0
+    
+    return jsonify({
+        'bank': bank,
+        'total_bets': total_bets,
+        'wins': wins,
+        'losses': losses,
+        'pushes': pushes,
+        'profit': round(total_profit, 2),
+        'winrate': winrate,
+        'roi': roi,
+        'avg_stake': avg_stake
+    })
+
+@app.route('/api/history', methods=['GET'])
+def api_history():
+    """API для получения истории ставок"""
+    history = storage.load_history()
+    
+    for bet in history:
+        if bet.get('result') == 'win':
+            bet['profit'] = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+        elif bet.get('result') == 'loss':
+            bet['profit'] = -round(bet.get('stake', 0), 2)
+        else:
+            bet['profit'] = 0
+        bet['match'] = f"{bet.get('home', '')} vs {bet.get('away', '')}"
+    
+    return jsonify(history)
+
+@app.route('/api/bank', methods=['POST'])
+def api_update_bank():
+    """API для обновления банка"""
+    data = request.json
+    if 'bank' in data:
+        storage.save_bank(data['bank'])
+        return jsonify({'success': True, 'bank': data['bank']})
+    return jsonify({'error': 'No bank value'}), 400
+
+# ============================================================
+# ОСНОВНЫЕ МАРШРУТЫ
+# ============================================================
 
 @app.route('/', methods=['GET'])
 def index():
