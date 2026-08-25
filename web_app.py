@@ -31,6 +31,7 @@ def webhook():
         logging.error(f"Webhook error: {e}")
         return 'error', 500
 
+# ===== ГЛАВНАЯ СТРАНИЦА =====
 @app.route('/')
 def index():
     return "🤖 Бот работает!"
