@@ -3,14 +3,17 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template_string, jsonify, request
-from app.database.storage import storage
-from app.api.football import football_api
+import requests
 from datetime import datetime, timedelta
+import json
 
 app = Flask(__name__)
 
+# URL бота
+BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+
 # ============================================================
-# HTML ШАБЛОН С ПОЛНОЙ СТАТИСТИКОЙ
+# HTML ШАБЛОН
 # ============================================================
 
 DASHBOARD_HTML = """
@@ -310,7 +313,7 @@ DASHBOARD_HTML = """
         <!-- ===== ОБЩАЯ СТАТИСТИКА ===== -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="value">${{ bank }}</div>
+                <div class="value">${{ stats.bank }}</div>
                 <div class="label">💰 Текущий банк</div>
             </div>
             <div class="stat-card">
@@ -322,7 +325,7 @@ DASHBOARD_HTML = """
                 <div class="label">❌ Проигрыши</div>
             </div>
             <div class="stat-card">
-                <div class="value gold">${{ stats.total_profit }}</div>
+                <div class="value gold">${{ stats.profit }}</div>
                 <div class="label">💰 Прибыль</div>
             </div>
         </div>
@@ -489,58 +492,61 @@ DASHBOARD_HTML = """
 """
 
 # ============================================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С API
+# ============================================================
+
+def get_data_from_bot():
+    """Получение данных из бота через API"""
+    try:
+        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        stats_data = stats_response.json() if stats_response.status_code == 200 else {}
+        
+        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history = history_response.json() if history_response.status_code == 200 else []
+        
+        return stats_data, history
+    except Exception as e:
+        print(f"Ошибка получения данных: {e}")
+        return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
+
+# ============================================================
 # МАРШРУТЫ
 # ============================================================
 
 @app.route('/')
 def dashboard():
-    stats = storage.load_stats()
-    bank = storage.load_bank()
-    history = storage.load_history()
+    stats_data, history = get_data_from_bot()
     
-    total_bets = len(history)
-    wins = stats.get('wins', 0)
-    losses = stats.get('losses', 0)
-    pushes = stats.get('pushes', 0)
-    total_profit = stats.get('total_profit', 0)
+    bank = stats_data.get('bank', 1000)
+    total_bets = stats_data.get('total_bets', 0)
+    wins = stats_data.get('wins', 0)
+    losses = stats_data.get('losses', 0)
+    total_profit = stats_data.get('profit', 0)
+    winrate = stats_data.get('winrate', 0)
+    roi = stats_data.get('roi', 0)
+    avg_stake = stats_data.get('avg_stake', 0)
     
-    winrate = round(wins / (wins + losses) * 100, 1) if (wins + losses) > 0 else 0
-    
-    # Расчёт ROI
-    total_stake = sum(bet.get('stake', 0) for bet in history)
-    roi = round((total_profit / total_stake) * 100, 1) if total_stake > 0 else 0
-    
-    avg_stake = round(total_stake / total_bets, 2) if total_bets > 0 else 0
-    
-    for bet in history:
-        if bet.get('result') == 'win':
-            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-            bet['profit'] = profit
-        elif bet.get('result') == 'loss':
-            profit = -round(bet.get('stake', 0), 2)
-            bet['profit'] = profit
-        else:
-            bet['profit'] = 0
-    
-    stats_data = {
+    stats = {
+        'bank': bank,
         'total_bets': total_bets,
         'wins': wins,
         'losses': losses,
-        'pushes': pushes,
-        'total_profit': round(total_profit, 2),
+        'profit': round(total_profit, 2),
         'winrate': winrate,
         'roi': roi,
         'avg_stake': avg_stake
     }
     
-    return render_template_string(DASHBOARD_HTML, 
-                                   stats=stats_data, 
-                                   bank=bank, 
-                                   history=history)
+    return render_template_string(DASHBOARD_HTML, stats=stats, history=history)
 
 @app.route('/api/profit_data')
 def profit_data():
-    history = storage.load_history()
+    try:
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history = response.json() if response.status_code == 200 else []
+    except:
+        history = []
+    
     profits = []
     days = 7
     
@@ -566,86 +572,65 @@ def profit_data():
 @app.route('/matches')
 def matches_page():
     try:
-        from app.bot import get_matches_with_factors, find_top_matches
-        matches = get_matches_with_factors()
-        top_matches = find_top_matches(matches) if matches else []
-        return render_template_string(MATCHES_HTML, matches=top_matches)
-    except Exception as e:
+        # Пытаемся получить матчи через API бота
+        response = requests.get(f'{BOT_URL}/matches', timeout=10)
+        if response.status_code == 200:
+            matches = response.json()
+        else:
+            matches = []
+        return render_template_string(MATCHES_HTML, matches=matches)
+    except:
         return render_template_string(MATCHES_HTML, matches=[])
 
 @app.route('/stats')
 def stats_page():
-    stats = storage.load_stats()
-    history = storage.load_history()
-    
-    for bet in history:
-        if bet.get('result') == 'win':
-            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-            bet['profit'] = f"${profit}"
-        elif bet.get('result') == 'loss':
-            profit = -round(bet.get('stake', 0), 2)
-            bet['profit'] = f"${profit}"
-        else:
-            bet['profit'] = "$0.00"
-    
-    return render_template_string(STATS_HTML, stats=stats, history=history)
+    stats_data, history = get_data_from_bot()
+    return render_template_string(STATS_HTML, stats=stats_data, history=history)
 
 @app.route('/arbitrage')
 def arbitrage_page():
     try:
-        from app.bot import get_matches_with_factors
-        from app.api.football import football_api
-        from app.analytics.arbitrage import arbitrage_analyzer
-        
-        matches = get_matches_with_factors()
-        arbs = []
-        if matches:
-            for match in matches:
-                odds = football_api.get_match_odds(match['fixture']['id'])
-                if odds:
-                    arb_opps = arbitrage_analyzer.find_arbitrage(odds)
-                    if arb_opps:
-                        arbs.append({
-                            'home': match['teams']['home']['name'],
-                            'away': match['teams']['away']['name'],
-                            'league': match['league']['name'],
-                            'arbitrage': arb_opps
-                        })
+        response = requests.get(f'{BOT_URL}/api/arbitrage', timeout=10)
+        arbs = response.json() if response.status_code == 200 else []
         return render_template_string(ARBITRAGE_HTML, arbs=arbs)
-    except Exception as e:
+    except:
         return render_template_string(ARBITRAGE_HTML, arbs=[])
 
 @app.route('/settings')
 def settings_page():
-    bank = storage.load_bank()
+    stats_data, _ = get_data_from_bot()
+    bank = stats_data.get('bank', 1000)
     return render_template_string(SETTINGS_HTML, bank=bank)
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
-    data = request.json
-    if 'bank' in data:
-        storage.save_bank(data['bank'])
-        return jsonify({'success': True, 'bank': data['bank']})
+    try:
+        data = request.json
+        if 'bank' in data:
+            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
+            return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'No bank value'}), 400
 
 @app.route('/api/stats')
 def api_stats():
-    stats = storage.load_stats()
-    bank = storage.load_bank()
-    return jsonify({
-        'bank': bank,
-        'total_bets': stats.get('total', 0),
-        'wins': stats.get('wins', 0),
-        'losses': stats.get('losses', 0),
-        'profit': stats.get('total_profit', 0),
-    })
+    stats_data, _ = get_data_from_bot()
+    return jsonify(stats_data)
+
+@app.route('/api/history')
+def api_history():
+    _, history = get_data_from_bot()
+    return jsonify(history)
 
 @app.route('/export')
 def export_data():
-    from app.bot import export_to_excel
-    file, message = export_to_excel()
-    if file:
-        return file
+    try:
+        response = requests.get(f'{BOT_URL}/export', timeout=30)
+        if response.status_code == 200:
+            return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+    except:
+        pass
     return "Нет данных для экспорта", 404
 
 # ============================================================
@@ -676,7 +661,6 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
 .match-bets { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
 .bet-item { background: #0f0f1a; padding: 4px 10px; border-radius: 6px; font-size: 12px; border: 1px solid #2a2a4a; }
 .no-matches { text-align: center; color: #8888aa; padding: 30px 0; }
-@media (max-width: 600px) { .match-title { font-size: 14px; } .match-card { padding: 12px; } }
 </style>
 </head>
 <body>
@@ -744,7 +728,6 @@ th { color: #8888aa; font-weight: normal; font-size: 11px; text-transform: upper
 .badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
 .badge.push { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
 .no-data { text-align: center; color: #8888aa; padding: 20px 0; }
-@media (max-width: 600px) { .stat-item .value { font-size: 18px; } table { font-size: 12px; min-width: 400px; } }
 </style>
 </head>
 <body>
@@ -775,7 +758,7 @@ th { color: #8888aa; font-weight: normal; font-size: 11px; text-transform: upper
                 <div class="label">Проигрыши</div>
             </div>
             <div class="stat-item">
-                <div class="value" style="color:#ffd200;">{{ stats.total_profit or 0 }}$</div>
+                <div class="value" style="color:#ffd200;">{{ stats.profit or 0 }}$</div>
                 <div class="label">Прибыль</div>
             </div>
         </div>
@@ -899,7 +882,6 @@ h1 { color: #667eea; font-size: 24px; margin-bottom: 5px; }
 .toggle.active { background: #667eea; }
 .toggle .dot { width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.3s; }
 .toggle.active .dot { left: 23px; }
-@media (max-width: 600px) { .setting-item { flex-direction: column; align-items: stretch; } }
 </style>
 </head>
 <body>
