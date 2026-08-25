@@ -790,7 +790,8 @@ def webhook():
                                 profit = round(stake * 0.85, 2) if stake > 0 else 0
                             elif home_goals < away_goals:
                                 result = 'loss'
-                                profit = -stake if stake > 0 else 0                            else:
+                                profit = -stake if stake > 0 else 0
+                            else:
                                 result = 'push'
                                 profit = 0
                         except:
