@@ -14,10 +14,10 @@ app = Flask(__name__)
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
 
 # ============================================================
-# HTML ШАБЛОН ДАШБОРДА (С НИЖНЕЙ НАВИГАЦИЕЙ)
+# ЕДИНЫЙ HTML ШАБЛОН (SPA - ВСЕ СТРАНИЦЫ В ОДНОМ ФАЙЛЕ)
 # ============================================================
 
-DASHBOARD_HTML = """
+MAIN_HTML = """
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
@@ -63,25 +63,25 @@ DASHBOARD_HTML = """
             min-height: 100vh;
             transition: all 0.3s ease;
             overflow-x: hidden;
-            padding-bottom: 80px;
+            padding-bottom: 75px;
         }
-        .container { max-width: 1400px; margin: 0 auto; padding: 15px; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 12px; }
         
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 15px 20px;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 12px 16px;
             background: var(--bg-secondary);
-            border-radius: 16px;
+            border-radius: 14px;
             border: 1px solid var(--border-color);
-            box-shadow: 0 4px 30px var(--shadow);
+            box-shadow: 0 4px 20px var(--shadow);
         }
         .header h1 {
-            font-size: 20px;
+            font-size: 18px;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -90,19 +90,19 @@ DASHBOARD_HTML = """
         .header-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
         }
         .status {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             color: #38ef7d;
-            font-size: 11px;
+            font-size: 10px;
         }
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             background: #38ef7d;
             border-radius: 50%;
             animation: pulse 2s infinite;
@@ -115,33 +115,45 @@ DASHBOARD_HTML = """
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            font-size: 14px;
+            width: 30px;
+            height: 30px;
+            font-size: 13px;
             cursor: pointer;
             transition: all 0.3s;
             color: var(--text-primary);
         }
         .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
         
+        /* ===== СТРАНИЦЫ ===== */
+        .page {
+            display: none;
+            animation: fadeIn 0.15s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
         }
         .stat-card {
-            padding: 12px;
-            border-radius: 12px;
+            padding: 10px;
+            border-radius: 10px;
             border: 1px solid var(--border-color);
             background: var(--bg-secondary);
-            transition: all 0.3s;
             text-align: center;
-            box-shadow: 0 2px 10px var(--shadow);
+            box-shadow: 0 2px 8px var(--shadow);
         }
-        .stat-card:hover { transform: translateY(-2px); border-color: var(--gradient-start); }
         .stat-card .value {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
@@ -151,15 +163,15 @@ DASHBOARD_HTML = """
         .stat-card .value.green { background: linear-gradient(135deg, #11998e, #38ef7d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .value.red { background: linear-gradient(135deg, #cb2d3e, #ef473a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .stat-card .label { color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
+        .stat-card .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
         
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 14px;
-            box-shadow: 0 2px 10px var(--shadow);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px var(--shadow);
             overflow: hidden;
         }
         .card-header {
@@ -167,15 +179,15 @@ DASHBOARD_HTML = """
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 10px;
+            gap: 4px;
+            margin-bottom: 8px;
         }
-        .card-header h2 { color: var(--text-secondary); font-size: 14px; font-weight: normal; }
-        .card-header .count { color: var(--text-secondary); font-size: 12px; }
+        .card-header h2 { color: var(--text-secondary); font-size: 13px; font-weight: normal; }
+        .card-header .count { color: var(--text-secondary); font-size: 11px; }
         
         .chart-container {
             position: relative;
-            height: 160px;
+            height: 140px;
             width: 100%;
         }
         
@@ -186,20 +198,20 @@ DASHBOARD_HTML = """
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
-            min-width: 700px;
+            font-size: 11px;
+            min-width: 600px;
         }
         th, td {
-            padding: 6px 8px;
+            padding: 5px 6px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
         }
         th { 
             color: var(--text-secondary); 
             font-weight: 600; 
-            font-size: 10px; 
+            font-size: 9px; 
             text-transform: uppercase; 
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             background: var(--bg-card);
             position: sticky;
             top: 0;
@@ -208,9 +220,9 @@ DASHBOARD_HTML = """
         
         .badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 9px;
             font-weight: bold;
         }
         .badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
@@ -223,54 +235,54 @@ DASHBOARD_HTML = """
         
         .edit-row {
             background: var(--bg-card);
-            padding: 8px;
-            border-radius: 6px;
+            padding: 6px;
+            border-radius: 4px;
             display: none;
-            margin-top: 4px;
+            margin-top: 3px;
         }
         .edit-row.active { display: table-row; }
         .edit-row input, .edit-row select {
             background: var(--input-bg);
             border: 1px solid var(--input-border);
             color: var(--text-primary);
-            padding: 3px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            margin-right: 3px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-right: 2px;
         }
-        .edit-row .btn { padding: 3px 10px; font-size: 11px; }
-        .edit-btn { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
+        .edit-row .btn { padding: 2px 8px; font-size: 10px; }
+        .edit-btn { cursor: pointer; color: var(--text-secondary); font-size: 11px; }
         .edit-btn:hover { color: var(--gradient-start); }
         
-        .no-data { text-align: center; color: var(--text-secondary); padding: 20px 0; }
-        .no-data .emoji { font-size: 36px; margin-bottom: 6px; }
+        .no-data { text-align: center; color: var(--text-secondary); padding: 16px 0; }
+        .no-data .emoji { font-size: 30px; margin-bottom: 4px; }
         
         .summary-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
         }
         .summary-item {
             background: var(--bg-card);
-            padding: 10px;
-            border-radius: 8px;
+            padding: 8px;
+            border-radius: 6px;
             border: 1px solid var(--border-color);
         }
-        .summary-item .label { color: var(--text-secondary); font-size: 11px; }
-        .summary-item .value { font-size: 16px; font-weight: bold; }
+        .summary-item .label { color: var(--text-secondary); font-size: 10px; }
+        .summary-item .value { font-size: 14px; font-weight: bold; }
         
         .scrollable-table {
-            max-height: 400px;
+            max-height: 350px;
             overflow-y: auto;
         }
         
         .footer {
             text-align: center;
             color: #444466;
-            font-size: 10px;
-            margin-top: 16px;
-            padding: 12px 0;
+            font-size: 9px;
+            margin-top: 12px;
+            padding: 8px 0;
             border-top: 1px solid var(--border-color);
         }
         
@@ -285,10 +297,11 @@ DASHBOARD_HTML = """
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 8px 0;
+            padding: 6px 0;
             z-index: 1000;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         .bottom-nav .nav-item {
             display: flex;
@@ -297,31 +310,33 @@ DASHBOARD_HTML = """
             justify-content: center;
             text-decoration: none;
             color: var(--text-secondary);
-            font-size: 10px;
-            transition: all 0.3s;
-            padding: 4px 12px;
-            border-radius: 8px;
+            font-size: 9px;
+            transition: all 0.15s;
+            padding: 4px 10px;
+            border-radius: 6px;
             border: none;
             background: transparent;
             cursor: pointer;
-            min-width: 60px;
+            min-width: 50px;
             position: relative;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
         .bottom-nav .nav-item .icon {
-            font-size: 22px;
-            line-height: 1.2;
-            transition: all 0.3s;
+            font-size: 20px;
+            line-height: 1.1;
+            transition: all 0.15s;
         }
         .bottom-nav .nav-item .label {
-            font-size: 9px;
-            margin-top: 2px;
+            font-size: 8px;
+            margin-top: 1px;
             font-weight: 500;
         }
         .bottom-nav .nav-item.active {
             color: var(--nav-active);
         }
         .bottom-nav .nav-item.active .icon {
-            transform: scale(1.1);
+            transform: scale(1.05);
         }
         .bottom-nav .nav-item.active::after {
             content: '';
@@ -329,40 +344,255 @@ DASHBOARD_HTML = """
             top: -1px;
             left: 50%;
             transform: translateX(-50%);
-            width: 20px;
+            width: 16px;
             height: 2px;
             background: var(--nav-active);
             border-radius: 2px;
         }
-        .bottom-nav .nav-item:hover {
+        .bottom-nav .nav-item:active {
+            transform: scale(0.92);
+        }
+        
+        /* ===== МАТЧИ ===== */
+        .match-tabs {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .match-tab {
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        .match-tab.active {
+            background: var(--gradient-start);
+            color: #fff;
+            border-color: var(--gradient-start);
+        }
+        .match-tab:active { transform: scale(0.95); }
+        
+        .match-card {
+            background: var(--bg-secondary);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .match-title { font-size: 13px; font-weight: bold; }
+        .match-league { color: var(--text-secondary); font-size: 11px; }
+        .match-xg { color: var(--gradient-start); font-size: 11px; }
+        .match-bets { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 3px; }
+        .bet-item {
+            background: var(--bg-card);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* ===== НАСТРОЙКИ ===== */
+        .setting-group {
+            background: var(--bg-secondary);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 8px;
+        }
+        .setting-group h2 {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: normal;
+            margin-bottom: 6px;
+        }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--bg-primary);
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-item .label { font-size: 12px; }
+        .setting-item .desc { color: var(--text-secondary); font-size: 10px; }
+        .input-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+        .input-group input {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
             color: var(--text-primary);
+            padding: 4px 6px;
+            border-radius: 4px;
+            width: 80px;
+            font-size: 11px;
+        }
+        .input-group button {
+            background: var(--gradient-start);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .input-group button:active { transform: scale(0.95); }
+        .btn {
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.15s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn:hover { background: rgba(102,126,234,0.15); border-color: var(--gradient-start); color: var(--text-primary); }
+        .toggle {
+            width: 36px;
+            height: 20px;
+            background: var(--input-border);
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+        }
+        .toggle.active { background: var(--gradient-start); }
+        .toggle .dot {
+            width: 14px;
+            height: 14px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: 0.2s;
+        }
+        .toggle.active .dot { left: 19px; }
+        .file-input-label {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--gradient-start);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .file-input-label:active { transform: scale(0.95); }
+        .import-status { color: var(--text-secondary); font-size: 10px; margin-top: 3px; }
+        
+        /* ===== СИМУЛЯТОР ===== */
+        .sim-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .sim-stat {
+            background: var(--bg-card);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .sim-stat .value { font-size: 18px; font-weight: bold; }
+        .sim-stat .value.green { color: #38ef7d; }
+        .sim-stat .value.red { color: #ef473a; }
+        .sim-stat .value.gold { color: #ffd200; }
+        .sim-stat .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
+        
+        .slider-container { margin: 10px 0; }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: var(--input-border);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            cursor: pointer;
+        }
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            cursor: pointer;
+            border: none;
+        }
+        .btn-primary {
+            background: var(--gradient-start);
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-primary:active { transform: scale(0.95); }
+        
+        /* ===== LOADER ===== */
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+        .loader.active { display: block; }
+        .loader .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--gradient-start);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         @media (max-width: 768px) {
-            .header { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px; }
-            .header h1 { font-size: 18px; text-align: center; }
+            .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 14px; }
+            .header h1 { font-size: 16px; text-align: center; }
             .header-controls { justify-content: center; }
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
             .summary-row { grid-template-columns: 1fr; }
-            .card { padding: 10px; }
-            table { font-size: 10px; min-width: 500px; }
-            th, td { padding: 4px 5px; }
-            .chart-container { height: 120px; }
-            .bottom-nav .nav-item { padding: 2px 8px; min-width: 50px; }
-            .bottom-nav .nav-item .icon { font-size: 18px; }
-            .bottom-nav .nav-item .label { font-size: 8px; }
+            .card { padding: 8px; }
+            table { font-size: 9px; min-width: 450px; }
+            th, td { padding: 3px 4px; }
+            .chart-container { height: 100px; }
+            .bottom-nav .nav-item { padding: 2px 6px; min-width: 44px; }
+            .bottom-nav .nav-item .icon { font-size: 16px; }
+            .bottom-nav .nav-item .label { font-size: 7px; }
         }
         @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .stat-card { padding: 8px; }
-            .stat-card .value { font-size: 16px; }
-            .bottom-nav .nav-item { min-width: 44px; padding: 2px 6px; }
-            .bottom-nav .nav-item .icon { font-size: 16px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .stat-card { padding: 6px; }
+            .stat-card .value { font-size: 14px; }
+            .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
+            .bottom-nav .nav-item .icon { font-size: 14px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -373,139 +603,42 @@ DASHBOARD_HTML = """
                     <span style="color:var(--text-secondary);">v12 PRO</span>
                 </div>
                 <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+                <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
             </div>
         </div>
         
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="value">${{ stats.bank }}</div>
-                <div class="label">💰 Текущий банк</div>
-            </div>
-            <div class="stat-card">
-                <div class="value green">{{ stats.wins }}</div>
-                <div class="label">✅ Выигрыши</div>
-            </div>
-            <div class="stat-card">
-                <div class="value red">{{ stats.losses }}</div>
-                <div class="label">❌ Проигрыши</div>
-            </div>
-            <div class="stat-card">
-                <div class="value gold">${{ stats.profit }}</div>
-                <div class="label">💰 Прибыль</div>
+        <!-- ===== СТРАНИЦА: ДАШБОРД ===== -->
+        <div id="page-dashboard" class="page active">
+            <div id="dashboard-content">
+                <!-- Загружается через JS -->
             </div>
         </div>
         
-        <div class="summary-row">
-            <div class="summary-item">
-                <div class="label">📊 Всего ставок</div>
-                <div class="value">{{ stats.total_bets }}</div>
-            </div>
-            <div class="summary-item">
-                <div class="label">🎯 Проходимость</div>
-                <div class="value">{{ stats.winrate }}%</div>
-            </div>
-            <div class="summary-item">
-                <div class="label">📈 ROI</div>
-                <div class="value">{{ stats.roi }}%</div>
-            </div>
-            <div class="summary-item">
-                <div class="label">📅 Средняя ставка</div>
-                <div class="value">${{ stats.avg_stake }}</div>
+        <!-- ===== СТРАНИЦА: МАТЧИ ===== -->
+        <div id="page-matches" class="page">
+            <div id="matches-content">
+                <!-- Загружается через JS -->
             </div>
         </div>
         
-        <div class="card">
-            <div class="card-header">
-                <h2>📈 График прибыли</h2>
-                <span style="font-size:10px;color:var(--text-secondary);">За последние 7 дней</span>
-            </div>
-            <div class="chart-container">
-                <canvas id="profitChart"></canvas>
+        <!-- ===== СТРАНИЦА: СТАТИСТИКА ===== -->
+        <div id="page-stats" class="page">
+            <div id="stats-content">
+                <!-- Загружается через JS -->
             </div>
         </div>
         
-        <div class="card">
-            <div class="card-header">
-                <h2>📋 Все ставки</h2>
-                <span class="count">Всего: {{ history|length }}</span>
+        <!-- ===== СТРАНИЦА: СИМУЛЯТОР ===== -->
+        <div id="page-simulator" class="page">
+            <div id="simulator-content">
+                <!-- Загружается через JS -->
             </div>
-            <div class="scrollable-table">
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Дата</th>
-                                <th>Матч</th>
-                                <th>Счёт</th>
-                                <th>Ставка</th>
-                                <th>Кэф</th>
-                                <th>Сумма</th>
-                                <th>EV</th>
-                                <th>Результат</th>
-                                <th>Прибыль</th>
-                                <th>✏️</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for bet in history|reverse %}
-                            <tr>
-                                <td>{{ loop.index }}</td>
-                                <td style="font-size:10px;white-space:nowrap;">{{ bet.date }}</td>
-                                <td><strong>{{ bet.home }}</strong> vs <strong>{{ bet.away }}</strong></td>
-                                <td>
-                                    {% if bet.home_goals is not none and bet.away_goals is not none %}
-                                        {{ bet.home_goals }} - {{ bet.away_goals }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>{{ bet.bet }}</td>
-                                <td>{{ bet.odds }}</td>
-                                <td>${{ bet.stake }}</td>
-                                <td>{{ bet.ev }}%</td>
-                                <td><span class="badge {{ bet.result }}">{{ bet.result }}</span></td>
-                                <td class="{% if bet.profit > 0 %}profit-positive{% elif bet.profit < 0 %}profit-negative{% endif %}">
-                                    ${{ bet.profit }}
-                                </td>
-                                <td>
-                                    <span class="edit-btn" onclick="toggleEdit('{{ loop.index0 }}')">✏️</span>
-                                </td>
-                            </tr>
-                            <tr id="edit-row-{{ loop.index0 }}" class="edit-row">
-                                <td colspan="11">
-                                    <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-                                        <input type="text" id="edit_home_{{ loop.index0 }}" value="{{ bet.home }}" placeholder="Хозяева" style="width:80px;">
-                                        <input type="text" id="edit_away_{{ loop.index0 }}" value="{{ bet.away }}" placeholder="Гости" style="width:80px;">
-                                        <input type="text" id="edit_score_{{ loop.index0 }}" value="{% if bet.home_goals is not none and bet.away_goals is not none %}{{ bet.home_goals }}-{{ bet.away_goals }}{% endif %}" placeholder="Счёт" style="width:60px;">
-                                        <input type="text" id="edit_bet_{{ loop.index0 }}" value="{{ bet.bet }}" placeholder="Ставка" style="width:80px;">
-                                        <input type="number" id="edit_odds_{{ loop.index0 }}" value="{{ bet.odds }}" placeholder="Кэф" step="0.01" style="width:60px;">
-                                        <input type="number" id="edit_stake_{{ loop.index0 }}" value="{{ bet.stake }}" placeholder="Сумма" step="0.5" style="width:70px;">
-                                        <input type="number" id="edit_ev_{{ loop.index0 }}" value="{{ bet.ev }}" placeholder="EV" step="0.1" style="width:60px;">
-                                        <select id="edit_result_{{ loop.index0 }}" style="padding:3px 6px;border-radius:4px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);font-size:11px;">
-                                            <option value="win" {% if bet.result == 'win' %}selected{% endif %}>win</option>
-                                            <option value="loss" {% if bet.result == 'loss' %}selected{% endif %}>loss</option>
-                                            <option value="push" {% if bet.result == 'push' %}selected{% endif %}>push</option>
-                                            <option value="pending" {% if bet.result == 'pending' %}selected{% endif %}>pending</option>
-                                        </select>
-                                        <button class="btn btn-success" onclick="saveEdit('{{ loop.index0 }}')" style="padding:3px 8px;font-size:10px;">💾</button>
-                                        <button class="btn btn-danger" onclick="deleteBet('{{ loop.index0 }}')" style="padding:3px 8px;font-size:10px;">🗑️</button>
-                                        <button class="btn" onclick="toggleEdit('{{ loop.index0 }}')" style="padding:3px 8px;font-size:10px;">✖</button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="11" class="no-data">
-                                    <div class="emoji">📭</div>
-                                    <div>Нет данных</div>
-                                    <div style="font-size:11px;color:#444466;">Начните делать ставки!</div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        </div>
+        
+        <!-- ===== СТРАНИЦА: НАСТРОЙКИ ===== -->
+        <div id="page-settings" class="page">
+            <div id="settings-content">
+                <!-- Загружается через JS -->
             </div>
         </div>
         
@@ -514,38 +647,37 @@ DASHBOARD_HTML = """
     
     <!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
     <div class="bottom-nav">
-        <a href="/" class="nav-item active">
+        <button class="nav-item active" data-page="dashboard">
             <span class="icon">📊</span>
             <span class="label">Дашборд</span>
-        </a>
-        <a href="/matches" class="nav-item">
+        </button>
+        <button class="nav-item" data-page="matches">
             <span class="icon">⚽</span>
             <span class="label">Матчи</span>
-        </a>
-        <a href="/stats" class="nav-item">
+        </button>
+        <button class="nav-item" data-page="stats">
             <span class="icon">📈</span>
             <span class="label">Статистика</span>
-        </a>
-        <a href="/simulator" class="nav-item">
+        </button>
+        <button class="nav-item" data-page="simulator">
             <span class="icon">🎲</span>
             <span class="label">Симулятор</span>
-        </a>
-        <a href="/settings" class="nav-item">
+        </button>
+        <button class="nav-item" data-page="settings">
             <span class="icon">⚙️</span>
             <span class="label">Настройки</span>
-        </a>
+        </button>
     </div>
     
     <script>
-        // Подсветка активного пункта в нижней навигации
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
-            if (item.getAttribute('href') === window.location.pathname) {
-                item.classList.add('active');
-            } else {
-                item.classList.remove('active');
-            }
-        });
+        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+        let cachedData = null;
+        let chartInstance = null;
+        let simChartInstance = null;
+        let currentPage = 'dashboard';
+        let isLoading = false;
         
+        // ===== ТЕМА =====
         function toggleTheme() {
             const html = document.documentElement;
             const btn = document.getElementById('themeBtn');
@@ -563,16 +695,432 @@ DASHBOARD_HTML = """
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        function toggleEdit(index) {
-            const row = document.getElementById('edit-row-' + index);
-            row.classList.toggle('active');
+        // ===== НАВИГАЦИЯ =====
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const page = this.dataset.page;
+                switchPage(page);
+            });
+            // Для быстрого отклика на мобильных
+            btn.addEventListener('touchstart', function(e) {
+                // Просто чтобы было отзывчиво
+            }, { passive: true });
+        });
+        
+        function switchPage(page) {
+            if (page === currentPage && document.getElementById('page-' + page).classList.contains('active')) return;
+            
+            // Обновляем навигацию
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
+            
+            // Показываем страницу
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + page).classList.add('active');
+            
+            currentPage = page;
+            
+            // Загружаем данные если нужно
+            loadPageData(page);
         }
         
-        function saveEdit(index) {
-            const score = document.getElementById('edit_score_' + index).value;
-            let home_goals = null;
-            let away_goals = null;
+        // ===== ЗАГРУЗКА ДАННЫХ =====
+        async function loadPageData(page) {
+            if (isLoading) return;
             
+            const contentId = page + '-content';
+            const contentEl = document.getElementById(contentId);
+            
+            // Если уже есть данные и это не дашборд (он обновляется чаще)
+            if (page !== 'dashboard' && cachedData && contentEl.innerHTML) {
+                return;
+            }
+            
+            isLoading = true;
+            
+            try {
+                const response = await fetch('/api/all_data?t=' + Date.now());
+                const data = await response.json();
+                cachedData = data;
+                
+                switch(page) {
+                    case 'dashboard': renderDashboard(data); break;
+                    case 'matches': renderMatches(data); break;
+                    case 'stats': renderStats(data); break;
+                    case 'simulator': renderSimulator(data); break;
+                    case 'settings': renderSettings(data); break;
+                }
+            } catch (error) {
+                contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
+            }
+            
+            isLoading = false;
+        }
+        
+        // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
+        function refreshData() {
+            cachedData = null;
+            loadPageData(currentPage);
+        }
+        
+        // ===== РЕНДЕР ДАШБОРДА =====
+        function renderDashboard(data) {
+            const s = data.stats;
+            const history = data.history || [];
+            
+            let html = `
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Текущий банк</div></div>
+                    <div class="stat-card"><div class="value green">${s.wins}</div><div class="label">✅ Выигрыши</div></div>
+                    <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
+                    <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
+                </div>
+                
+                <div class="summary-row">
+                    <div class="summary-item"><div class="label">📊 Всего ставок</div><div class="value">${s.total_bets}</div></div>
+                    <div class="summary-item"><div class="label">🎯 Проходимость</div><div class="value">${s.winrate}%</div></div>
+                    <div class="summary-item"><div class="label">📈 ROI</div><div class="value">${s.roi}%</div></div>
+                    <div class="summary-item"><div class="label">📅 Средняя ставка</div><div class="value">$${s.avg_stake}</div></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📈 График прибыли</h2>
+                        <span style="font-size:9px;color:var(--text-secondary);">За последние 7 дней</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="profitChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📋 Все ставки</h2>
+                        <span class="count">Всего: ${history.length}</span>
+                    </div>
+                    <div class="scrollable-table">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr>
+                                    <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
+                                </tr></thead>
+                                <tbody>
+                    `;
+            
+            if (history.length === 0) {
+                html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
+            } else {
+                history.slice().reverse().forEach((bet, idx) => {
+                    const realIdx = history.length - 1 - idx;
+                    const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
+                    html += `
+                        <tr>
+                            <td>${idx + 1}</td>
+                            <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
+                            <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
+                            <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
+                            <td>${bet.bet}</td>
+                            <td>${bet.odds}</td>
+                            <td>$${bet.stake}</td>
+                            <td>${bet.ev}%</td>
+                            <td><span class="badge ${bet.result}">${bet.result}</span></td>
+                            <td class="${profitClass}">$${bet.profit}</td>
+                            <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
+                        </tr>
+                        <tr id="edit-row-${realIdx}" class="edit-row">
+                            <td colspan="11">
+                                <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
+                                    <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
+                                    <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
+                                    <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
+                                    <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
+                                    <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
+                                    <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
+                                    <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
+                                    <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text-primary);font-size:10px;">
+                                        <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
+                                        <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
+                                        <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
+                                        <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
+                                    </select>
+                                    <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;background:#38ef7d;color:#000;">💾</button>
+                                    <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:#ef473a;color:#fff;">🗑️</button>
+                                    <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            html += `</tbody></table></div></div></div>`;
+            
+            document.getElementById('dashboard-content').innerHTML = html;
+            
+            // Рендер графика
+            setTimeout(() => renderChart(data.profit_data), 50);
+        }
+        
+        // ===== ГРАФИК =====
+        function renderChart(profitData) {
+            const ctx = document.getElementById('profitChart');
+            if (!ctx) return;
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Прибыль ($)',
+                        data: data.profits,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102,126,234,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } }
+                    },
+                    scales: {
+                        x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
+                        y: {
+                            ticks: {
+                                color: isDark ? '#8888aa' : '#666688',
+                                callback: function(value) { return '$' + value; },
+                                font: { size: 8 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ===== РЕНДЕР МАТЧЕЙ =====
+        function renderMatches(data) {
+            const matches = data.matches || [];
+            let html = `
+                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚽ Матчи</h2>
+                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>
+                <div class="match-tabs">
+                    <span class="match-tab active">Все игры</span>
+                    <span class="match-tab">LIVE</span>
+                    <span class="match-tab">⭐ Избранное</span>
+                    <span class="match-tab">🏆 Турниры</span>
+                </div>
+            `;
+            
+            if (matches.length === 0) {
+                html += `<div class="no-data"><div class="emoji">📭</div>Матчей не найдено</div>`;
+            } else {
+                matches.forEach(m => {
+                    html += `
+                        <div class="match-card">
+                            <div class="match-title">${m.home} vs ${m.away}</div>
+                            <div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div>
+                            <div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div>
+                            <div class="match-bets">
+                                ${(m.bets || []).slice(0, 3).map(b => 
+                                    `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('matches-content').innerHTML = html;
+        }
+        
+        // ===== РЕНДЕР СТАТИСТИКИ =====
+        function renderStats(data) {
+            const s = data.stats;
+            const history = data.history || [];
+            
+            let html = `
+                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📈 Статистика</h2>
+                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Детальный анализ ваших ставок</div>
+                
+                <div class="card">
+                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Общая статистика</h2>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:var(--gradient-start);">${s.total_bets}</div><div style="color:var(--text-secondary);font-size:10px;">Всего ставок</div></div>
+                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#38ef7d;">${s.wins}</div><div style="color:var(--text-secondary);font-size:10px;">Выигрыши</div></div>
+                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ef473a;">${s.losses}</div><div style="color:var(--text-secondary);font-size:10px;">Проигрыши</div></div>
+                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ffd200;">$${s.profit}</div><div style="color:var(--text-secondary);font-size:10px;">Прибыль</div></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Все ставки</h2>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
+                            <tbody>
+                    `;
+            
+            if (history.length === 0) {
+                html += `<tr><td colspan="8" class="no-data">Нет данных</td></tr>`;
+            } else {
+                history.forEach(bet => {
+                    html += `
+                        <tr>
+                            <td style="font-size:9px;">${bet.date}</td>
+                            <td>${bet.home} vs ${bet.away}</td>
+                            <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
+                            <td>${bet.bet}</td>
+                            <td>${bet.odds}</td>
+                            <td>${bet.ev}%</td>
+                            <td><span class="badge ${bet.result}">${bet.result}</span></td>
+                            <td>$${bet.profit}</td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            html += `</tbody></table></div></div>`;
+            
+            document.getElementById('stats-content').innerHTML = html;
+        }
+        
+        // ===== РЕНДЕР СИМУЛЯТОРА =====
+        function renderSimulator(data) {
+            const history = data.history || [];
+            
+            let html = `
+                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">🎲 Симулятор</h2>
+                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
+            `;
+            
+            if (history.length < 5) {
+                html += `
+                    <div class="card">
+                        <div class="no-data">
+                            <div class="emoji">📭</div>
+                            <div>Нет данных для симуляции</div>
+                            <div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="card">
+                        <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Параметры симуляции</h2>
+                        <div class="slider-container">
+                            <label style="color:var(--text-secondary);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
+                            <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
+                        </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button>
+                            <button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
+                        </div>
+                    </div>
+                    
+                    <div id="simResults" style="display:none;">
+                        <div class="sim-stats" id="simStats">
+                            <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
+                            <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
+                            <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
+                            <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
+                        </div>
+                        <div class="card">
+                            <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📈 График симуляции</h2>
+                            <div class="chart-container"><canvas id="simChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Результаты</h2>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;" id="simDetails">
+                                <div style="color:var(--text-secondary);">Всего: <span id="simTotal" style="color:var(--text-primary);">0</span></div>
+                                <div style="color:var(--text-secondary);">Выигрышей: <span id="simWins" style="color:#38ef7d;">0</span></div>
+                                <div style="color:var(--text-secondary);">Проигрышей: <span id="simLosses" style="color:#ef473a;">0</span></div>
+                                <div style="color:var(--text-secondary);">Макс. прибыль: <span id="simMaxProfit" style="color:#ffd200;">$0</span></div>
+                                <div style="color:var(--text-secondary);">Мин. прибыль: <span id="simMinProfit" style="color:#ef473a;">$0</span></div>
+                                <div style="color:var(--text-secondary);">Средняя ставка: <span id="simAvgStake" style="color:var(--text-primary);">$0</span></div>
+                            </div>
+                        </div>
+                        <div class="card" style="background:rgba(102,126,234,0.05);border-color:#667eea;">
+                            <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">💡 Рекомендация</h2>
+                            <div id="simRecommendation" style="font-size:13px;line-height:1.5;">Запустите симуляцию, чтобы получить рекомендацию!</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('simulator-content').innerHTML = html;
+        }
+        
+        // ===== РЕНДЕР НАСТРОЕК =====
+        function renderSettings(data) {
+            const bank = data.stats ? data.stats.bank : 1000;
+            
+            let html = `
+                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚙️ Настройки</h2>
+                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Управление ботом</div>
+                
+                <div class="setting-group">
+                    <h2>💰 Банк</h2>
+                    <div class="setting-item">
+                        <div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div>
+                        <div class="input-group">
+                            <input type="number" id="bankInput" value="${bank}" step="10">
+                            <button onclick="updateBank()">Сохранить</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <h2>🤖 Автоматизация</h2>
+                    <div class="setting-item">
+                        <div><div class="label">Авто-ставки</div><div class="desc">Автоматическое размещение ставок</div></div>
+                        <div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <h2>📊 Экспорт / Импорт</h2>
+                    <div class="setting-item">
+                        <div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div>
+                        <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
+                    </div>
+                    <div class="setting-item" style="border-bottom:none;">
+                        <div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div>
+                        <div class="input-group">
+                            <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
+                            <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
+                            <span id="fileName" style="color:var(--text-secondary);font-size:10px;">Файл не выбран</span>
+                        </div>
+                    </div>
+                    <div id="importStatus" class="import-status"></div>
+                </div>
+            `;
+            
+            document.getElementById('settings-content').innerHTML = html;
+        }
+        
+        // ===== ФУНКЦИИ ДЛЯ СТАВОК =====
+        function toggleEdit(index) {
+            const row = document.getElementById('edit-row-' + index);
+            if (row) row.classList.toggle('active');
+        }
+        
+        async function saveEdit(index) {
+            const score = document.getElementById('edit_score_' + index).value;
+            let home_goals = null, away_goals = null;
             if (score && score.includes('-')) {
                 const parts = score.split('-');
                 home_goals = parseInt(parts[0]);
@@ -584,7 +1132,6 @@ DASHBOARD_HTML = """
                 away: document.getElementById('edit_away_' + index).value,
                 home_goals: home_goals,
                 away_goals: away_goals,
-                score: score,
                 bet: document.getElementById('edit_bet_' + index).value,
                 odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
                 stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
@@ -593,92 +1140,195 @@ DASHBOARD_HTML = """
                 index: index
             };
             
-            fetch('/api/edit_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
+            try {
+                const response = await fetch('/api/edit_bet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (result.success) {
                     alert('✅ Ставка обновлена!');
-                    location.reload();
+                    refreshData();
                 } else {
-                    alert('❌ Ошибка: ' + data.error);
+                    alert('❌ Ошибка: ' + result.error);
                 }
-            });
+            } catch (e) {
+                alert('❌ Ошибка: ' + e);
+            }
         }
         
-        function deleteBet(index) {
+        async function deleteBet(index) {
             if (!confirm('Удалить эту ставку?')) return;
             
-            fetch('/api/delete_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: index })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
+            try {
+                const response = await fetch('/api/delete_bet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index: index })
+                });
+                const result = await response.json();
+                if (result.success) {
                     alert('✅ Ставка удалена!');
-                    location.reload();
+                    refreshData();
                 } else {
-                    alert('❌ Ошибка: ' + data.error);
+                    alert('❌ Ошибка: ' + result.error);
                 }
-            });
+            } catch (e) {
+                alert('❌ Ошибка: ' + e);
+            }
         }
         
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('/api/profit_data')
-                .then(response => response.json())
-                .then(data => {
-                    const ctx = document.getElementById('profitChart').getContext('2d');
+        // ===== СИМУЛЯЦИЯ =====
+        async function runSimulation() {
+            const count = parseInt(document.getElementById('simCount').value) || 1000;
+            
+            document.getElementById('simResults').style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: count })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('❌ Ошибка: ' + data.error);
+                    return;
+                }
+                
+                document.getElementById('simProfit').textContent = '$' + data.profit;
+                document.getElementById('simWinrate').textContent = data.winrate + '%';
+                document.getElementById('simROI').textContent = data.roi + '%';
+                document.getElementById('simRisk').textContent = data.risk + '%';
+                document.getElementById('simTotal').textContent = data.total;
+                document.getElementById('simWins').textContent = data.wins;
+                document.getElementById('simLosses').textContent = data.losses;
+                document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
+                document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
+                document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
+                
+                const rec = document.getElementById('simRecommendation');
+                if (data.profit > 0) {
+                    rec.innerHTML = '✅ <b style="color:#38ef7d;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
+                } else {
+                    rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
+                }
+                
+                // График
+                const ctx = document.getElementById('simChart');
+                if (ctx) {
+                    if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
                     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-                    new Chart(ctx, {
+                    simChartInstance = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: data.dates || ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+                            labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1),
                             datasets: [{
                                 label: 'Прибыль ($)',
-                                data: data.profits || [0, 0, 0, 0, 0, 0, 0],
-                                borderColor: '#667eea',
-                                backgroundColor: 'rgba(102,126,234,0.1)',
+                                data: data.history || [],
+                                borderColor: data.profit > 0 ? '#38ef7d' : '#ef473a',
+                                backgroundColor: data.profit > 0 ? 'rgba(56,239,125,0.1)' : 'rgba(239,71,58,0.1)',
                                 fill: true,
                                 tension: 0.4,
-                                pointBackgroundColor: '#667eea',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                pointRadius: 3
+                                pointRadius: 2
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: {
-                                legend: {
-                                    labels: {
-                                        color: isDark ? '#e0e0e0' : '#1a1a2e',
-                                        font: { size: 9 }
-                                    }
-                                }
+                                legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } }
                             },
                             scales: {
-                                x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 9 } } },
-                                y: {
-                                    ticks: { 
-                                        color: isDark ? '#8888aa' : '#666688',
-                                        callback: function(value) { return '$' + value; },
-                                        font: { size: 9 }
-                                    }
-                                }
+                                x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
+                                y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: function(value) { return '$' + value; }, font: { size: 8 } } }
                             }
                         }
                     });
-                })
-                .catch(() => {
-                    document.getElementById('profitChart').parentElement.innerHTML = 
-                        '<div class="no-data"><div class="emoji">📊</div>Нет данных для графика</div>';
+                }
+            } catch (e) {
+                alert('❌ Ошибка: ' + e);
+            }
+        }
+        
+        // ===== БАНК =====
+        async function updateBank() {
+            const value = document.getElementById('bankInput').value;
+            try {
+                const response = await fetch('/api/bank', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bank: parseFloat(value) })
                 });
+                const data = await response.json();
+                if (data.success) {
+                    alert('✅ Банк обновлен: $' + data.bank);
+                    refreshData();
+                }
+            } catch (e) {
+                alert('❌ Ошибка: ' + e);
+            }
+        }
+        
+        // ===== ИМПОРТ EXCEL =====
+        function importExcel(event) {
+            const file = event.target.files[0];
+            const statusDiv = document.getElementById('importStatus');
+            const fileNameSpan = document.getElementById('fileName');
+            
+            if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
+            
+            fileNameSpan.textContent = '📄 ' + file.name;
+            statusDiv.textContent = '⏳ Загрузка файла...';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+                    
+                    if (json.length === 0) {
+                        statusDiv.textContent = '❌ Файл пуст или неправильный формат';
+                        return;
+                    }
+                    
+                    statusDiv.textContent = '⏳ Отправка данных на сервер...';
+                    
+                    fetch('/api/import_excel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: json })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок! Страница обновится...';
+                            setTimeout(() => refreshData(), 1500);
+                        } else {
+                            statusDiv.textContent = '❌ Ошибка: ' + data.error;
+                        }
+                    })
+                    .catch(error => { statusDiv.textContent = '❌ Ошибка: ' + error; });
+                } catch (error) {
+                    statusDiv.textContent = '❌ Ошибка чтения файла: ' + error;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        document.getElementById('importFileInput').addEventListener('change', function() {
+            if (this.files.length > 0) {
+                document.getElementById('fileName').textContent = '📄 ' + this.files[0].name;
+            }
+        });
+        
+        // ===== ЗАГРУЗКА ПРИ СТАРТЕ =====
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPageData('dashboard');
         });
     </script>
 </body>
@@ -686,788 +1336,7 @@ DASHBOARD_HTML = """
 """
 
 # ============================================================
-# ШАБЛОН МАТЧЕЙ (С НИЖНЕЙ НАВИГАЦИЕЙ)
-# ============================================================
-
-MATCHES_HTML = """
-<!DOCTYPE html>
-<html>
-<head><title>Матчи</title>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 15px; padding-bottom: 80px; }
-.container { max-width: 1200px; margin: 0 auto; }
-h1 { color: #667eea; font-size: 22px; margin-bottom: 4px; }
-.subtitle { color: #8888aa; margin-bottom: 12px; font-size: 13px; }
-.match-card { background: #1a1a2e; padding: 12px; border-radius: 10px; border: 1px solid #2a2a4a; margin-bottom: 10px; overflow: hidden; }
-.match-title { font-size: 15px; font-weight: bold; color: #e0e0e0; }
-.match-league { color: #8888aa; font-size: 12px; }
-.match-xg { color: #667eea; font-size: 12px; }
-.match-bets { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-.bet-item { background: #0f0f1a; padding: 3px 8px; border-radius: 5px; font-size: 11px; border: 1px solid #2a2a4a; }
-.no-matches { text-align: center; color: #8888aa; padding: 30px 0; }
-
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #1a1a2e;
-    border-top: 1px solid #2a2a4a;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 8px 0;
-    z-index: 1000;
-    backdrop-filter: blur(10px);
-}
-.bottom-nav .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    color: #8888aa;
-    font-size: 10px;
-    transition: all 0.3s;
-    padding: 4px 12px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    min-width: 60px;
-    position: relative;
-}
-.bottom-nav .nav-item .icon { font-size: 22px; line-height: 1.2; }
-.bottom-nav .nav-item .label { font-size: 9px; margin-top: 2px; font-weight: 500; }
-.bottom-nav .nav-item.active { color: #667eea; }
-.bottom-nav .nav-item.active::after {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 2px;
-    background: #667eea;
-    border-radius: 2px;
-}
-@media (max-width: 768px) {
-    .bottom-nav .nav-item { padding: 2px 8px; min-width: 50px; }
-    .bottom-nav .nav-item .icon { font-size: 18px; }
-    .bottom-nav .nav-item .label { font-size: 8px; }
-}
-</style>
-</head>
-<body>
-<div class="container">
-    <h1>⚽ Матчи</h1>
-    <div class="subtitle">Прогнозы и валуйные ставки</div>
-    
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-        <span style="padding:4px 12px;background:#667eea;border-radius:16px;font-size:12px;color:#fff;">Все игры</span>
-        <span style="padding:4px 12px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;font-size:12px;color:#8888aa;">LIVE</span>
-        <span style="padding:4px 12px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;font-size:12px;color:#8888aa;">⭐ Избранное</span>
-        <span style="padding:4px 12px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;font-size:12px;color:#8888aa;">🏆 Турниры</span>
-    </div>
-    
-    {% if matches %}
-        {% for match in matches %}
-        <div class="match-card">
-            <div class="match-title">{{ match.home }} vs {{ match.away }}</div>
-            <div class="match-league">🏆 {{ match.league }} | ⏰ {{ match.match_time }}</div>
-            <div class="match-xg">📊 xG: {{ match.home_xg }} : {{ match.away_xg }}</div>
-            <div class="match-bets">
-                {% for bet in match.bets[:3] %}
-                <span class="bet-item">{{ bet.label }} | КЭФ: {{ bet.odds }} | EV: {{ bet.ev }}%</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    {% else %}
-        <div class="no-matches">📭 Матчей не найдено</div>
-    {% endif %}
-</div>
-
-<div class="bottom-nav">
-    <a href="/" class="nav-item"><span class="icon">📊</span><span class="label">Дашборд</span></a>
-    <a href="/matches" class="nav-item active"><span class="icon">⚽</span><span class="label">Матчи</span></a>
-    <a href="/stats" class="nav-item"><span class="icon">📈</span><span class="label">Статистика</span></a>
-    <a href="/simulator" class="nav-item"><span class="icon">🎲</span><span class="label">Симулятор</span></a>
-    <a href="/settings" class="nav-item"><span class="icon">⚙️</span><span class="label">Настройки</span></a>
-</div>
-</body>
-</html>
-"""
-
-# ============================================================
-# ШАБЛОН СТАТИСТИКИ (С НИЖНЕЙ НАВИГАЦИЕЙ)
-# ============================================================
-
-STATS_HTML = """
-<!DOCTYPE html>
-<html>
-<head><title>Статистика</title>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 15px; padding-bottom: 80px; }
-.container { max-width: 1200px; margin: 0 auto; }
-h1 { color: #667eea; font-size: 22px; margin-bottom: 4px; }
-.subtitle { color: #8888aa; margin-bottom: 12px; font-size: 13px; }
-.card { background: #1a1a2e; padding: 12px; border-radius: 10px; border: 1px solid #2a2a4a; margin-bottom: 10px; overflow: hidden; }
-.card h2 { color: #8888aa; font-size: 13px; font-weight: normal; margin-bottom: 8px; }
-.stat-row { display: flex; gap: 12px; flex-wrap: wrap; }
-.stat-item { flex: 1; min-width: 80px; }
-.stat-item .value { font-size: 20px; font-weight: bold; color: #667eea; }
-.stat-item .label { color: #8888aa; font-size: 11px; }
-.table-wrapper { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 500px; }
-th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #2a2a4a; white-space: nowrap; }
-th { color: #8888aa; font-weight: normal; font-size: 10px; text-transform: uppercase; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
-.badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
-.badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
-.badge.push { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
-.no-data { text-align: center; color: #8888aa; padding: 20px 0; }
-
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #1a1a2e;
-    border-top: 1px solid #2a2a4a;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 8px 0;
-    z-index: 1000;
-    backdrop-filter: blur(10px);
-}
-.bottom-nav .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    color: #8888aa;
-    font-size: 10px;
-    transition: all 0.3s;
-    padding: 4px 12px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    min-width: 60px;
-    position: relative;
-}
-.bottom-nav .nav-item .icon { font-size: 22px; line-height: 1.2; }
-.bottom-nav .nav-item .label { font-size: 9px; margin-top: 2px; font-weight: 500; }
-.bottom-nav .nav-item.active { color: #667eea; }
-.bottom-nav .nav-item.active::after {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 2px;
-    background: #667eea;
-    border-radius: 2px;
-}
-@media (max-width: 768px) {
-    .bottom-nav .nav-item { padding: 2px 8px; min-width: 50px; }
-    .bottom-nav .nav-item .icon { font-size: 18px; }
-    .bottom-nav .nav-item .label { font-size: 8px; }
-}
-</style>
-</head>
-<body>
-<div class="container">
-    <h1>📈 Статистика</h1>
-    <div class="subtitle">Детальный анализ ваших ставок</div>
-    
-    <div class="card">
-        <h2>📊 Общая статистика</h2>
-        <div class="stat-row">
-            <div class="stat-item">
-                <div class="value">{{ stats.total_bets or 0 }}</div>
-                <div class="label">Всего ставок</div>
-            </div>
-            <div class="stat-item">
-                <div class="value" style="color:#38ef7d;">{{ stats.wins or 0 }}</div>
-                <div class="label">Выигрыши</div>
-            </div>
-            <div class="stat-item">
-                <div class="value" style="color:#ef473a;">{{ stats.losses or 0 }}</div>
-                <div class="label">Проигрыши</div>
-            </div>
-            <div class="stat-item">
-                <div class="value" style="color:#ffd200;">{{ stats.profit or 0 }}$</div>
-                <div class="label">Прибыль</div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="card">
-        <h2>📋 Все ставки</h2>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr>
-                </thead>
-                <tbody>
-                    {% for bet in history %}
-                    <tr>
-                        <td style="font-size:10px;">{{ bet.date }}</td>
-                        <td>{{ bet.home }} vs {{ bet.away }}</td>
-                        <td>
-                            {% if bet.home_goals is not none and bet.away_goals is not none %}
-                                {{ bet.home_goals }} - {{ bet.away_goals }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ bet.bet }}</td>
-                        <td>{{ bet.odds }}</td>
-                        <td>{{ bet.ev }}%</td>
-                        <td><span class="badge {{ bet.result }}">{{ bet.result }}</span></td>
-                        <td>${{ bet.profit }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="8" class="no-data">Нет данных</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<div class="bottom-nav">
-    <a href="/" class="nav-item"><span class="icon">📊</span><span class="label">Дашборд</span></a>
-    <a href="/matches" class="nav-item"><span class="icon">⚽</span><span class="label">Матчи</span></a>
-    <a href="/stats" class="nav-item active"><span class="icon">📈</span><span class="label">Статистика</span></a>
-    <a href="/simulator" class="nav-item"><span class="icon">🎲</span><span class="label">Симулятор</span></a>
-    <a href="/settings" class="nav-item"><span class="icon">⚙️</span><span class="label">Настройки</span></a>
-</div>
-</body>
-</html>
-"""
-
-# ============================================================
-# ШАБЛОН СИМУЛЯТОРА (С НИЖНЕЙ НАВИГАЦИЕЙ)
-# ============================================================
-
-SIMULATOR_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Симулятор - Quantum Bet Bot</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 15px; padding-bottom: 80px; min-height: 100vh; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #667eea; font-size: 22px; margin-bottom: 4px; }
-        .subtitle { color: #8888aa; margin-bottom: 12px; font-size: 13px; }
-        
-        .card { background: #1a1a2e; padding: 14px; border-radius: 10px; border: 1px solid #2a2a4a; margin-bottom: 12px; }
-        .card h2 { color: #8888aa; font-size: 13px; font-weight: normal; margin-bottom: 8px; }
-        
-        .sim-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
-        .sim-stat { background: #0f0f1a; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #2a2a4a; }
-        .sim-stat .value { font-size: 22px; font-weight: bold; }
-        .sim-stat .value.green { color: #38ef7d; }
-        .sim-stat .value.red { color: #ef473a; }
-        .sim-stat .value.gold { color: #ffd200; }
-        .sim-stat .label { color: #8888aa; font-size: 11px; margin-top: 4px; }
-        
-        .slider-container { margin: 14px 0; }
-        .slider-container input[type="range"] { width: 100%; height: 6px; background: #2a2a4a; border-radius: 4px; outline: none; }
-        .slider-container input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #667eea; cursor: pointer; }
-        .slider-labels { display: flex; justify-content: space-between; color: #8888aa; font-size: 11px; margin-top: 4px; }
-        
-        .chart-container { height: 160px; width: 100%; }
-        .no-data { text-align: center; color: #8888aa; padding: 30px 0; }
-        .no-data .emoji { font-size: 36px; margin-bottom: 6px; }
-        
-        .btn-primary { background: #667eea; color: white; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-        .btn-primary:hover { background: #764ba2; transform: scale(1.02); }
-        .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #2a2a4a; background: transparent; color: #8888aa; cursor: pointer; font-size: 12px; transition: all 0.3s; }
-        .btn:hover { background: rgba(102,126,234,0.2); border-color: #667eea; color: #fff; }
-        
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #1a1a2e;
-            border-top: 1px solid #2a2a4a;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 8px 0;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-        }
-        .bottom-nav .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            color: #8888aa;
-            font-size: 10px;
-            transition: all 0.3s;
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            min-width: 60px;
-            position: relative;
-        }
-        .bottom-nav .nav-item .icon { font-size: 22px; line-height: 1.2; }
-        .bottom-nav .nav-item .label { font-size: 9px; margin-top: 2px; font-weight: 500; }
-        .bottom-nav .nav-item.active { color: #667eea; }
-        .bottom-nav .nav-item.active::after {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 2px;
-            background: #667eea;
-            border-radius: 2px;
-        }
-        @media (max-width: 768px) {
-            .bottom-nav .nav-item { padding: 2px 8px; min-width: 50px; }
-            .bottom-nav .nav-item .icon { font-size: 18px; }
-            .bottom-nav .nav-item .label { font-size: 8px; }
-        }
-    </style>
-</head>
-<body>
-<div class="container">
-    <h1>🎲 Симулятор</h1>
-    <div class="subtitle">Узнай, сколько ты мог бы заработать!</div>
-    
-    {% if history %}
-    <div class="card">
-        <h2>📊 Параметры симуляции</h2>
-        
-        <div class="slider-container">
-            <label style="color:#8888aa;font-size:13px;">Количество симуляций: <span id="simCountLabel">{{ sim_count }}</span></label>
-            <input type="range" id="simCount" min="100" max="5000" step="100" value="{{ sim_count }}" oninput="document.getElementById('simCountLabel').textContent=this.value">
-        </div>
-        
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-            <button class="btn" onclick="location.reload()">🔄 Сбросить</button>
-        </div>
-    </div>
-    
-    <div id="simResults" style="display:none;">
-        <div class="sim-stats" id="simStats">
-            <div class="sim-stat">
-                <div class="value gold" id="simProfit">$0</div>
-                <div class="label">💰 Ожидаемая прибыль</div>
-            </div>
-            <div class="sim-stat">
-                <div class="value green" id="simWinrate">0%</div>
-                <div class="label">🎯 Проходимость</div>
-            </div>
-            <div class="sim-stat">
-                <div class="value" id="simROI">0%</div>
-                <div class="label">📈 ROI</div>
-            </div>
-            <div class="sim-stat">
-                <div class="value red" id="simRisk">0%</div>
-                <div class="label">⚠️ Риск</div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>📈 График симуляции</h2>
-            <div class="chart-container">
-                <canvas id="simChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>📋 Результаты</h2>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;" id="simDetails">
-                <div style="color:#8888aa;">Всего: <span id="simTotal" style="color:#e0e0e0;">0</span></div>
-                <div style="color:#8888aa;">Выигрышей: <span id="simWins" style="color:#38ef7d;">0</span></div>
-                <div style="color:#8888aa;">Проигрышей: <span id="simLosses" style="color:#ef473a;">0</span></div>
-                <div style="color:#8888aa;">Макс. прибыль: <span id="simMaxProfit" style="color:#ffd200;">$0</span></div>
-                <div style="color:#8888aa;">Мин. прибыль: <span id="simMinProfit" style="color:#ef473a;">$0</span></div>
-                <div style="color:#8888aa;">Средняя ставка: <span id="simAvgStake" style="color:#e0e0e0;">$0</span></div>
-            </div>
-        </div>
-        
-        <div class="card" style="background:rgba(102,126,234,0.05);border-color:#667eea;">
-            <h2>💡 Рекомендация</h2>
-            <div id="simRecommendation" style="font-size:14px;line-height:1.6;">
-                Запустите симуляцию, чтобы получить рекомендацию!
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="card">
-        <div class="no-data">
-            <div class="emoji">📭</div>
-            <div>Нет данных для симуляции</div>
-            <div style="font-size:12px;color:#444466;">Сначала сделайте хотя бы 5 ставок!</div>
-        </div>
-    </div>
-    {% endif %}
-    
-    <div style="text-align:center;color:#444466;font-size:10px;margin-top:16px;">
-        Quantum Bet Bot v12 PRO © 2026
-    </div>
-</div>
-
-<div class="bottom-nav">
-    <a href="/" class="nav-item"><span class="icon">📊</span><span class="label">Дашборд</span></a>
-    <a href="/matches" class="nav-item"><span class="icon">⚽</span><span class="label">Матчи</span></a>
-    <a href="/stats" class="nav-item"><span class="icon">📈</span><span class="label">Статистика</span></a>
-    <a href="/simulator" class="nav-item active"><span class="icon">🎲</span><span class="label">Симулятор</span></a>
-    <a href="/settings" class="nav-item"><span class="icon">⚙️</span><span class="label">Настройки</span></a>
-</div>
-
-<script>
-function runSimulation() {
-    const count = document.getElementById('simCount').value;
-    
-    fetch('/api/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: parseInt(count) })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('❌ Ошибка: ' + data.error);
-            return;
-        }
-        
-        document.getElementById('simResults').style.display = 'block';
-        
-        document.getElementById('simProfit').textContent = '$' + data.profit;
-        document.getElementById('simWinrate').textContent = data.winrate + '%';
-        document.getElementById('simROI').textContent = data.roi + '%';
-        document.getElementById('simRisk').textContent = data.risk + '%';
-        
-        document.getElementById('simTotal').textContent = data.total;
-        document.getElementById('simWins').textContent = data.wins;
-        document.getElementById('simLosses').textContent = data.losses;
-        document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
-        document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
-        document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-        
-        const rec = document.getElementById('simRecommendation');
-        if (data.profit > 0) {
-            rec.innerHTML = '✅ <b style="color:#38ef7d;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>' +
-                '💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>' +
-                '🔥 Лучший результат: +$' + data.max_profit;
-        } else {
-            rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>' +
-                '💡 Попробуйте снизить сумму ставок<br>' +
-                '📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
-        }
-        
-        const ctx = document.getElementById('simChart').getContext('2d');
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1),
-                datasets: [{
-                    label: 'Прибыль ($)',
-                    data: data.history || [],
-                    borderColor: data.profit > 0 ? '#38ef7d' : '#ef473a',
-                    backgroundColor: data.profit > 0 ? 'rgba(56,239,125,0.1)' : 'rgba(239,71,58,0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: isDark ? '#e0e0e0' : '#1a1a2e',
-                            font: { size: 9 }
-                        }
-                    }
-                },
-                scales: {
-                    x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
-                    y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: function(value) { return '$' + value; }, font: { size: 8 } } }
-                }
-            }
-        });
-        
-        document.getElementById('simResults').scrollIntoView({ behavior: 'smooth' });
-    })
-    .catch(error => alert('❌ Ошибка: ' + error));
-}
-</script>
-</body>
-</html>
-"""
-
-# ============================================================
-# ШАБЛОН НАСТРОЕК (С НИЖНЕЙ НАВИГАЦИЕЙ И ИМПОРТОМ)
-# ============================================================
-
-SETTINGS_HTML = """
-<!DOCTYPE html>
-<html>
-<head><title>Настройки</title>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: Arial, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 15px; padding-bottom: 80px; }
-.container { max-width: 1200px; margin: 0 auto; }
-h1 { color: #667eea; font-size: 22px; margin-bottom: 4px; }
-.subtitle { color: #8888aa; margin-bottom: 12px; font-size: 13px; }
-.setting-group { background: #1a1a2e; padding: 12px; border-radius: 10px; border: 1px solid #2a2a4a; margin-bottom: 10px; }
-.setting-group h2 { color: #8888aa; font-size: 13px; font-weight: normal; margin-bottom: 8px; }
-.setting-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #0f0f1a; flex-wrap: wrap; gap: 6px; }
-.setting-item:last-child { border-bottom: none; }
-.setting-item .label { color: #e0e0e0; font-size: 13px; }
-.setting-item .desc { color: #666688; font-size: 11px; }
-.input-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.input-group input { background: #0f0f1a; border: 1px solid #2a2a4a; color: #e0e0e0; padding: 5px 8px; border-radius: 4px; width: 100px; font-size: 12px; }
-.input-group button { background: #667eea; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.input-group button:hover { background: #764ba2; }
-.btn { padding: 5px 12px; border-radius: 4px; border: 1px solid #2a2a4a; background: transparent; color: #8888aa; cursor: pointer; font-size: 12px; transition: all 0.3s; }
-.btn:hover { background: rgba(102,126,234,0.2); border-color: #667eea; color: #fff; }
-.toggle { width: 40px; height: 22px; background: #2a2a4a; border-radius: 12px; cursor: pointer; position: relative; transition: 0.3s; }
-.toggle.active { background: #667eea; }
-.toggle .dot { width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.3s; }
-.toggle.active .dot { left: 21px; }
-.file-input-label { display: inline-block; padding: 5px 12px; background: #667eea; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.file-input-label:hover { background: #764ba2; }
-.import-status { color: #8888aa; font-size: 11px; margin-top: 4px; }
-
-.bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #1a1a2e;
-    border-top: 1px solid #2a2a4a;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 8px 0;
-    z-index: 1000;
-    backdrop-filter: blur(10px);
-}
-.bottom-nav .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    color: #8888aa;
-    font-size: 10px;
-    transition: all 0.3s;
-    padding: 4px 12px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    min-width: 60px;
-    position: relative;
-}
-.bottom-nav .nav-item .icon { font-size: 22px; line-height: 1.2; }
-.bottom-nav .nav-item .label { font-size: 9px; margin-top: 2px; font-weight: 500; }
-.bottom-nav .nav-item.active { color: #667eea; }
-.bottom-nav .nav-item.active::after {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 2px;
-    background: #667eea;
-    border-radius: 2px;
-}
-@media (max-width: 768px) {
-    .bottom-nav .nav-item { padding: 2px 8px; min-width: 50px; }
-    .bottom-nav .nav-item .icon { font-size: 18px; }
-    .bottom-nav .nav-item .label { font-size: 8px; }
-}
-</style>
-</head>
-<body>
-<div class="container">
-    <h1>⚙️ Настройки</h1>
-    <div class="subtitle">Управление ботом</div>
-    
-    <!-- Банк -->
-    <div class="setting-group">
-        <h2>💰 Банк</h2>
-        <div class="setting-item">
-            <div>
-                <div class="label">Текущий банк</div>
-                <div class="desc">Ваш игровой банк</div>
-            </div>
-            <div class="input-group">
-                <input type="number" id="bankInput" value="{{ bank }}" step="10">
-                <button onclick="updateBank()">Сохранить</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Автоматизация -->
-    <div class="setting-group">
-        <h2>🤖 Автоматизация</h2>
-        <div class="setting-item">
-            <div>
-                <div class="label">Авто-ставки</div>
-                <div class="desc">Автоматическое размещение ставок</div>
-            </div>
-            <div class="toggle active" onclick="this.classList.toggle('active')">
-                <div class="dot"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Экспорт / Импорт -->
-    <div class="setting-group">
-        <h2>📊 Экспорт / Импорт</h2>
-        
-        <!-- Экспорт -->
-        <div class="setting-item">
-            <div>
-                <div class="label">Экспорт данных</div>
-                <div class="desc">Скачать историю в Excel</div>
-            </div>
-            <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
-        </div>
-        
-        <!-- Импорт -->
-        <div class="setting-item" style="border-bottom: none;">
-            <div>
-                <div class="label">Импорт данных</div>
-                <div class="desc">Загрузить историю из Excel</div>
-            </div>
-            <div class="input-group">
-                <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
-                <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
-                <span id="fileName" style="color:#666688;font-size:11px;">Файл не выбран</span>
-            </div>
-        </div>
-        <div id="importStatus" class="import-status"></div>
-    </div>
-</div>
-
-<div class="bottom-nav">
-    <a href="/" class="nav-item"><span class="icon">📊</span><span class="label">Дашборд</span></a>
-    <a href="/matches" class="nav-item"><span class="icon">⚽</span><span class="label">Матчи</span></a>
-    <a href="/stats" class="nav-item"><span class="icon">📈</span><span class="label">Статистика</span></a>
-    <a href="/simulator" class="nav-item"><span class="icon">🎲</span><span class="label">Симулятор</span></a>
-    <a href="/settings" class="nav-item active"><span class="icon">⚙️</span><span class="label">Настройки</span></a>
-</div>
-
-<script>
-function updateBank() {
-    const value = document.getElementById('bankInput').value;
-    fetch('/api/bank', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bank: parseFloat(value) })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ Банк обновлен: $' + data.bank);
-            location.reload();
-        }
-    });
-}
-
-function importExcel(event) {
-    const file = event.target.files[0];
-    const statusDiv = document.getElementById('importStatus');
-    const fileNameSpan = document.getElementById('fileName');
-    
-    if (!file) {
-        statusDiv.textContent = '❌ Файл не выбран';
-        return;
-    }
-    
-    fileNameSpan.textContent = '📄 ' + file.name;
-    statusDiv.textContent = '⏳ Загрузка файла...';
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet);
-            
-            if (json.length === 0) {
-                statusDiv.textContent = '❌ Файл пуст или неправильный формат';
-                return;
-            }
-            
-            statusDiv.textContent = '⏳ Отправка данных на сервер...';
-            
-            fetch('/api/import_excel', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data: json })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок! Страница обновится...';
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    statusDiv.textContent = '❌ Ошибка: ' + data.error;
-                }
-            })
-            .catch(error => {
-                statusDiv.textContent = '❌ Ошибка: ' + error;
-            });
-        } catch (error) {
-            statusDiv.textContent = '❌ Ошибка чтения файла: ' + error;
-        }
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-document.getElementById('importFileInput').addEventListener('change', function() {
-    if (this.files.length > 0) {
-        document.getElementById('fileName').textContent = '📄 ' + this.files[0].name;
-    }
-});
-</script>
-</body>
-</html>
-"""
-
-# ============================================================
-# ОСТАЛЬНОЙ КОД (ФУНКЦИИ И МАРШРУТЫ) - БЕЗ ИЗМЕНЕНИЙ
+# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
 # ============================================================
 
 def get_data_from_bot():
@@ -1485,8 +1354,23 @@ def get_data_from_bot():
         return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
 
 @app.route('/')
-def dashboard():
+def index():
+    return render_template_string(MAIN_HTML)
+
+@app.route('/api/all_data')
+def all_data():
+    """Возвращает все данные за один запрос"""
     stats_data, history = get_data_from_bot()
+    
+    # Получаем данные для графика
+    profit_data = get_profit_data(history)
+    
+    # Получаем матчи
+    try:
+        response = requests.get(f'{BOT_URL}/matches', timeout=10)
+        matches = response.json() if response.status_code == 200 else []
+    except:
+        matches = []
     
     bank = stats_data.get('bank', 1000)
     total_bets = stats_data.get('total_bets', 0)
@@ -1497,24 +1381,61 @@ def dashboard():
     roi = stats_data.get('roi', 0)
     avg_stake = stats_data.get('avg_stake', 0)
     
-    stats = {
-        'bank': bank,
-        'total_bets': total_bets,
-        'wins': wins,
-        'losses': losses,
-        'profit': round(total_profit, 2),
-        'winrate': winrate,
-        'roi': roi,
-        'avg_stake': avg_stake
-    }
-    
-    return render_template_string(DASHBOARD_HTML, stats=stats, history=history)
+    return jsonify({
+        'stats': {
+            'bank': bank,
+            'total_bets': total_bets,
+            'wins': wins,
+            'losses': losses,
+            'profit': round(total_profit, 2),
+            'winrate': winrate,
+            'roi': roi,
+            'avg_stake': avg_stake
+        },
+        'history': history,
+        'profit_data': profit_data,
+        'matches': matches
+    })
 
-@app.route('/simulator')
-def simulator_page():
-    stats_data, history = get_data_from_bot()
-    sim_count = 1000
-    return render_template_string(SIMULATOR_HTML, history=history, sim_count=sim_count)
+def get_profit_data(history):
+    profits = []
+    days = 7
+    
+    for i in range(days - 1, -1, -1):
+        day_profit = 0
+        day = datetime.now() - timedelta(days=i)
+        for bet in history:
+            try:
+                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
+                if bet_date.date() == day.date():
+                    stake = bet.get('stake', 0)
+                    if isinstance(stake, str):
+                        try:
+                            stake = float(stake)
+                        except:
+                            stake = 0
+                    odds = bet.get('odds', 1)
+                    if isinstance(odds, str):
+                        try:
+                            odds = float(odds)
+                        except:
+                            odds = 1
+                    
+                    if bet.get('result') == 'win':
+                        day_profit += stake * (odds - 1)
+                    elif bet.get('result') == 'loss':
+                        day_profit -= stake
+            except:
+                pass
+        profits.append(round(day_profit, 2))
+    
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
+    
+    return {'dates': dates, 'profits': profits}
+
+# ============================================================
+# ОСТАЛЬНЫЕ API МАРШРУТЫ
+# ============================================================
 
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
@@ -1529,7 +1450,6 @@ def simulate():
             return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
         
         wins = sum(1 for b in history if b.get('result') == 'win')
-        losses = sum(1 for b in history if b.get('result') == 'loss')
         total = len(history)
         winrate = wins / total if total > 0 else 0
         
@@ -1573,49 +1493,6 @@ def simulate():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/profit_data')
-def profit_data():
-    try:
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
-    except:
-        history = []
-    
-    profits = []
-    days = 7
-    
-    for i in range(days - 1, -1, -1):
-        day_profit = 0
-        day = datetime.now() - timedelta(days=i)
-        for bet in history:
-            try:
-                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
-                if bet_date.date() == day.date():
-                    stake = bet.get('stake', 0)
-                    if isinstance(stake, str):
-                        try:
-                            stake = float(stake)
-                        except:
-                            stake = 0
-                    odds = bet.get('odds', 1)
-                    if isinstance(odds, str):
-                        try:
-                            odds = float(odds)
-                        except:
-                            odds = 1
-                    
-                    if bet.get('result') == 'win':
-                        day_profit += stake * (odds - 1)
-                    elif bet.get('result') == 'loss':
-                        day_profit -= stake
-            except:
-                pass
-        profits.append(round(day_profit, 2))
-    
-    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    
-    return jsonify({'dates': dates, 'profits': profits})
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
@@ -1785,26 +1662,6 @@ def delete_bet():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/matches')
-def matches_page():
-    try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        matches = response.json() if response.status_code == 200 else []
-        return render_template_string(MATCHES_HTML, matches=matches)
-    except:
-        return render_template_string(MATCHES_HTML, matches=[])
-
-@app.route('/stats')
-def stats_page():
-    stats_data, history = get_data_from_bot()
-    return render_template_string(STATS_HTML, stats=stats_data, history=history)
-
-@app.route('/settings')
-def settings_page():
-    stats_data, _ = get_data_from_bot()
-    bank = stats_data.get('bank', 1000)
-    return render_template_string(SETTINGS_HTML, bank=bank)
-
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
     try:
@@ -1815,16 +1672,6 @@ def update_bank():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'No bank value'}), 400
-
-@app.route('/api/stats')
-def api_stats():
-    stats_data, _ = get_data_from_bot()
-    return jsonify(stats_data)
-
-@app.route('/api/history')
-def api_history():
-    _, history = get_data_from_bot()
-    return jsonify(history)
 
 @app.route('/export')
 def export_data():
