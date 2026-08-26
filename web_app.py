@@ -3,7 +3,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template_string, jsonify, request, send_file
-import requests
 from datetime import datetime, timedelta
 import json
 import random
@@ -12,13 +11,25 @@ import xlsxwriter
 
 app = Flask(__name__)
 
-# URL бота
-BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+DATA_FILE = 'data.json'
 DIARY_FILE = 'diary.json'
 
 # ============================================================
-# РАБОТА С ДНЕВНИКОМ
+# РАБОТА С ДАННЫМИ
 # ============================================================
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {'bank': 1000, 'history': []}
+    return {'bank': 1000, 'history': []}
+
+def save_data(data):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 def load_diary():
     if os.path.exists(DIARY_FILE):
@@ -33,8 +44,53 @@ def save_diary(entries):
     with open(DIARY_FILE, 'w', encoding='utf-8') as f:
         json.dump(entries, f, indent=2, ensure_ascii=False)
 
+def get_stats(history):
+    total = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    profit = sum(float(b.get('profit', 0)) for b in history)
+    total_stake = sum(float(b.get('stake', 0)) for b in history)
+    return {
+        'bank': load_data().get('bank', 1000),
+        'total_bets': total,
+        'wins': wins,
+        'losses': losses,
+        'profit': round(profit, 2),
+        'winrate': round(wins / total * 100, 1) if total > 0 else 0,
+        'roi': round((profit / (total_stake or 1)) * 100, 2) if total > 0 else 0,
+        'avg_stake': round(total_stake / total, 2) if total > 0 else 0
+    }
+
+def get_profit_data(history):
+    profits = []
+    days = 7
+    for i in range(days - 1, -1, -1):
+        day_profit = 0
+        day = datetime.now() - timedelta(days=i)
+        for bet in history:
+            try:
+                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
+                if bet_date.date() == day.date():
+                    stake = bet.get('stake', 0)
+                    if isinstance(stake, str):
+                        try: stake = float(stake)
+                        except: stake = 0
+                    odds = bet.get('odds', 1)
+                    if isinstance(odds, str):
+                        try: odds = float(odds)
+                        except: odds = 1
+                    if bet.get('result') == 'win':
+                        day_profit += stake * (odds - 1)
+                    elif bet.get('result') == 'loss':
+                        day_profit -= stake
+            except:
+                pass
+        profits.append(round(day_profit, 2))
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
+    return {'dates': dates, 'profits': profits}
+
 # ============================================================
-# ЕДИНЫЙ HTML ШАБЛОН
+# HTML ШАБЛОН (ТЕМА КАК В GROK)
 # ============================================================
 
 MAIN_HTML = """
@@ -47,9 +103,7 @@ MAIN_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
-        /* ===== ТЕМЫ КАК В GROK ===== */
         :root {
-            /* Тёмная тема (по умолчанию) */
             --bg-primary: #0a0a0f;
             --bg-secondary: #14141e;
             --bg-card: rgba(255,255,255,0.04);
@@ -67,7 +121,6 @@ MAIN_HTML = """
             --input-border: rgba(255,255,255,0.08);
             --glow: rgba(168,85,247,0.2);
         }
-        
         [data-theme="light"] {
             --bg-primary: #f0edf5;
             --bg-secondary: #ffffff;
@@ -86,33 +139,17 @@ MAIN_HTML = """
             --input-border: rgba(0,0,0,0.1);
             --glow: rgba(124,58,237,0.15);
         }
-        
-        /* ===== ПЛАВНЫЙ ПЕРЕХОД ===== */
-        * {
-            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-                        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
+        * { transition: background-color 0.4s cubic-bezier(0.4,0,0.2,1), color 0.3s cubic-bezier(0.4,0,0.2,1), border-color 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.4s cubic-bezier(0.4,0,0.2,1); }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
             overflow-x: hidden;
             padding-bottom: 80px;
-            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .container { max-width: 1200px; margin: 0 auto; padding: 16px 20px; }
         
-        /* ===== СТИЛИ КАК В GROK ===== */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 16px 20px;
-        }
-        
-        /* ===== ШАПКА ===== */
         .header {
             display: flex;
             justify-content: space-between;
@@ -136,12 +173,7 @@ MAIN_HTML = """
             background-clip: text;
             letter-spacing: -0.5px;
         }
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
+        .header-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .status {
             display: flex;
             align-items: center;
@@ -151,85 +183,53 @@ MAIN_HTML = """
             font-weight: 500;
         }
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 8px; height: 8px;
             background: #22d3ee;
             border-radius: 50%;
             animation: pulse-dot 2s ease-in-out infinite;
             box-shadow: 0 0 12px rgba(34,211,238,0.3);
         }
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.85); }
-        }
+        @keyframes pulse-dot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.85); } }
         
-        /* ===== КНОПКА ТЕМЫ (как в Grok) ===== */
         .theme-toggle {
             position: relative;
-            width: 52px;
-            height: 28px;
+            width: 52px; height: 28px;
             border-radius: 14px;
             background: var(--input-bg);
             border: 1px solid var(--border-color);
             cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
             padding: 0;
             flex-shrink: 0;
         }
-        .theme-toggle:hover {
-            border-color: var(--gradient-end);
-            box-shadow: 0 0 20px var(--glow);
-        }
-        .theme-toggle .toggle-track {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            border-radius: 14px;
-            overflow: hidden;
-        }
+        .theme-toggle:hover { border-color: var(--gradient-end); box-shadow: 0 0 20px var(--glow); }
+        .theme-toggle .toggle-track { position: relative; width: 100%; height: 100%; border-radius: 14px; overflow: hidden; }
         .theme-toggle .toggle-thumb {
             position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 20px;
-            height: 20px;
+            top: 3px; left: 3px;
+            width: 20px; height: 20px;
             border-radius: 50%;
             background: var(--gradient-start);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         .theme-toggle .toggle-thumb .icon {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             font-size: 11px;
             line-height: 1;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
         }
-        .theme-toggle .toggle-thumb .icon-dark {
-            opacity: 1;
-        }
-        .theme-toggle .toggle-thumb .icon-light {
-            opacity: 0;
-        }
-        [data-theme="light"] .theme-toggle .toggle-thumb {
-            left: 27px;
-            background: #fbbf24;
-        }
-        [data-theme="light"] .theme-toggle .toggle-thumb .icon-dark {
-            opacity: 0;
-        }
-        [data-theme="light"] .theme-toggle .toggle-thumb .icon-light {
-            opacity: 1;
-        }
+        .theme-toggle .toggle-thumb .icon-dark { opacity: 1; }
+        .theme-toggle .toggle-thumb .icon-light { opacity: 0; }
+        [data-theme="light"] .theme-toggle .toggle-thumb { left: 27px; background: #fbbf24; }
+        [data-theme="light"] .theme-toggle .toggle-thumb .icon-dark { opacity: 0; }
+        [data-theme="light"] .theme-toggle .toggle-thumb .icon-light { opacity: 1; }
         
-        /* ===== НАВИГАЦИЯ ===== */
         .bottom-nav {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             background: var(--nav-bg);
             backdrop-filter: blur(20px) saturate(1.4);
             -webkit-backdrop-filter: blur(20px) saturate(1.4);
@@ -237,7 +237,7 @@ MAIN_HTML = """
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 6px 0 env(safe-area-inset-bottom, 6px);
+            padding: 6px 0 env(safe-area-inset-bottom,6px);
             z-index: 1000;
             box-shadow: 0 -4px 30px var(--shadow);
         }
@@ -246,10 +246,9 @@ MAIN_HTML = """
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-decoration: none;
             color: var(--text-secondary);
             font-size: 9px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
             padding: 4px 12px;
             border-radius: 12px;
             border: none;
@@ -261,48 +260,18 @@ MAIN_HTML = """
             user-select: none;
             gap: 2px;
         }
-        .bottom-nav .nav-item .icon {
-            font-size: 20px;
-            line-height: 1.2;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .bottom-nav .nav-item .label {
-            font-size: 8px;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-            opacity: 0.8;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .bottom-nav .nav-item.active {
-            color: var(--nav-active);
-        }
-        .bottom-nav .nav-item.active .icon {
-            transform: scale(1.1);
-        }
-        .bottom-nav .nav-item.active .label {
-            opacity: 1;
-        }
+        .bottom-nav .nav-item .icon { font-size: 20px; line-height: 1.2; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+        .bottom-nav .nav-item .label { font-size: 8px; font-weight: 500; letter-spacing: 0.3px; opacity: 0.8; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+        .bottom-nav .nav-item.active { color: var(--nav-active); }
+        .bottom-nav .nav-item.active .icon { transform: scale(1.1); }
+        .bottom-nav .nav-item.active .label { opacity: 1; }
         .bottom-nav .nav-item.active::after {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 2px;
-            background: var(--nav-active);
-            border-radius: 2px;
-            box-shadow: 0 0 16px var(--glow);
+            content: ''; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+            width: 20px; height: 2px; background: var(--nav-active); border-radius: 2px; box-shadow: 0 0 16px var(--glow);
         }
-        .bottom-nav .nav-item:hover {
-            color: var(--text-primary);
-            background: var(--bg-hover);
-        }
-        .bottom-nav .nav-item:active {
-            transform: scale(0.92);
-        }
+        .bottom-nav .nav-item:hover { color: var(--text-primary); background: var(--bg-hover); }
+        .bottom-nav .nav-item:active { transform: scale(0.92); }
         
-        /* ===== КАРТОЧКИ ===== */
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -310,31 +279,11 @@ MAIN_HTML = """
             padding: 16px;
             margin-bottom: 12px;
             box-shadow: 0 2px 20px var(--shadow);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .card:hover {
-            border-color: var(--bg-hover);
-        }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-        .card-header h2 {
-            color: var(--text-secondary);
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-        }
-        .card-header .count {
-            color: var(--text-muted);
-            font-size: 11px;
-        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .card-header h2 { color: var(--text-secondary); font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+        .card-header .count { color: var(--text-muted); font-size: 11px; }
         
-        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -348,47 +297,20 @@ MAIN_HTML = """
             background: var(--bg-secondary);
             text-align: center;
             box-shadow: 0 2px 12px var(--shadow);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            border-color: var(--gradient-end);
-            box-shadow: 0 8px 30px var(--shadow);
-        }
+        .stat-card:hover { transform: translateY(-2px); border-color: var(--gradient-end); box-shadow: 0 8px 30px var(--shadow); }
         .stat-card .value {
-            font-size: 22px;
-            font-weight: 700;
+            font-size: 22px; font-weight: 700;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .stat-card .value.green {
-            background: linear-gradient(135deg, #10b981, #34d399);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.red {
-            background: linear-gradient(135deg, #ef4444, #f87171);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.gold {
-            background: linear-gradient(135deg, #f59e0b, #fbbf24);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .label {
-            color: var(--text-secondary);
-            font-size: 11px;
-            margin-top: 4px;
-            font-weight: 500;
-        }
+        .stat-card .value.green { background: linear-gradient(135deg, #10b981, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .stat-card .value.red { background: linear-gradient(135deg, #ef4444, #f87171); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .stat-card .value.gold { background: linear-gradient(135deg, #f59e0b, #fbbf24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .stat-card .label { color: var(--text-secondary); font-size: 11px; margin-top: 4px; font-weight: 500; }
         
-        /* ===== МЕТРИКИ ===== */
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -404,68 +326,21 @@ MAIN_HTML = """
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 10px var(--shadow);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .metrics-grid .metric-item:hover {
-            border-color: var(--bg-hover);
-        }
-        .metrics-grid .metric-item .label {
-            color: var(--text-secondary);
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .metrics-grid .metric-item .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
+        .metrics-grid .metric-item .label { color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+        .metrics-grid .metric-item .value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
         .metrics-grid .metric-item .value.green { color: #34d399; }
         .metrics-grid .metric-item .value.gold { color: #fbbf24; }
         
-        /* ===== ГРАФИКИ ===== */
-        .charts-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-        .chart-container {
-            position: relative;
-            height: 160px;
-            width: 100%;
-        }
+        .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .chart-container { position: relative; height: 160px; width: 100%; }
         
-        /* ===== ТАБЛИЦА ===== */
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-            min-width: 600px;
-        }
-        th, td {
-            padding: 8px 10px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        th {
-            color: var(--text-secondary);
-            font-weight: 600;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: var(--bg-card);
-            position: sticky;
-            top: 0;
-        }
-        tr:hover td {
-            background: var(--bg-hover);
-        }
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { color: var(--text-secondary); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; background: var(--bg-card); position: sticky; top: 0; }
+        tr:hover td { background: var(--bg-hover); }
         
-        /* ===== БЭДЖИ ===== */
         .badge {
             display: inline-block;
             padding: 2px 10px;
@@ -475,31 +350,13 @@ MAIN_HTML = """
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
-        .badge.win {
-            background: rgba(16,185,129,0.15);
-            color: #34d399;
-            border: 1px solid rgba(16,185,129,0.2);
-        }
-        .badge.loss {
-            background: rgba(239,68,68,0.15);
-            color: #f87171;
-            border: 1px solid rgba(239,68,68,0.2);
-        }
-        .badge.push {
-            background: rgba(251,191,36,0.15);
-            color: #fbbf24;
-            border: 1px solid rgba(251,191,36,0.2);
-        }
-        .badge.pending {
-            background: rgba(255,255,255,0.05);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-        }
-        
+        .badge.win { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .badge.loss { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .badge.push { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+        .badge.pending { background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border-color); }
         .profit-positive { color: #34d399; font-weight: 700; }
         .profit-negative { color: #f87171; font-weight: 700; }
         
-        /* ===== КНОПКИ ===== */
         .btn {
             padding: 6px 14px;
             border-radius: 10px;
@@ -509,34 +366,15 @@ MAIN_HTML = """
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
         }
-        .btn:hover {
-            background: var(--bg-hover);
-            border-color: var(--gradient-end);
-            color: var(--text-primary);
-            box-shadow: 0 4px 16px var(--glow);
-        }
+        .btn:hover { background: var(--bg-hover); border-color: var(--gradient-end); color: var(--text-primary); box-shadow: 0 4px 16px var(--glow); }
         .btn-success {
             background: linear-gradient(135deg, #10b981, #059669);
             color: #fff;
             border-color: transparent;
         }
-        .btn-success:hover {
-            background: linear-gradient(135deg, #059669, #047857);
-            border-color: transparent;
-            box-shadow: 0 4px 20px rgba(16,185,129,0.3);
-        }
-        .btn-danger {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            color: #fff;
-            border-color: transparent;
-        }
-        .btn-danger:hover {
-            background: linear-gradient(135deg, #dc2626, #b91c1c);
-            border-color: transparent;
-            box-shadow: 0 4px 20px rgba(239,68,68,0.3);
-        }
+        .btn-success:hover { background: linear-gradient(135deg, #059669, #047857); border-color: transparent; box-shadow: 0 4px 20px rgba(16,185,129,0.3); }
         .btn-primary {
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             color: #fff;
@@ -546,12 +384,25 @@ MAIN_HTML = """
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
         }
-        .btn-primary:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 24px var(--glow);
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 4px 24px var(--glow); }
+        
+        .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
+        .no-data .emoji { font-size: 40px; margin-bottom: 8px; }
+        
+        .footer { text-align: center; color: var(--text-muted); font-size: 10px; margin-top: 20px; padding: 12px 0; border-top: 1px solid var(--border-color); }
+        .loader { display: none; text-align: center; padding: 30px 0; color: var(--text-secondary); }
+        .loader.active { display: block; }
+        .loader .spinner {
+            width: 32px; height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--gradient-start);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
         }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         /* ===== ДНЕВНИК ===== */
         .diary-textarea {
@@ -565,33 +416,18 @@ MAIN_HTML = """
             min-height: 80px;
             font-family: inherit;
             font-size: 13px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .diary-textarea:focus {
-            outline: none;
-            border-color: var(--gradient-end);
-            box-shadow: 0 0 24px var(--glow);
-        }
+        .diary-textarea:focus { outline: none; border-color: var(--gradient-end); box-shadow: 0 0 24px var(--glow); }
         .diary-entry {
             background: var(--bg-card);
             padding: 12px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
             margin-bottom: 8px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .diary-entry:hover {
-            border-color: var(--gradient-end);
-        }
-        .diary-entry .date {
-            color: var(--text-muted);
-            font-size: 10px;
-        }
-        .diary-entry .text {
-            font-size: 13px;
-            margin-top: 4px;
-            line-height: 1.5;
-        }
+        .diary-entry:hover { border-color: var(--gradient-end); }
+        .diary-entry .date { color: var(--text-muted); font-size: 10px; }
+        .diary-entry .text { font-size: 13px; margin-top: 4px; line-height: 1.5; }
         .diary-entry .delete-btn {
             float: right;
             background: none;
@@ -599,64 +435,35 @@ MAIN_HTML = """
             color: var(--text-muted);
             cursor: pointer;
             font-size: 14px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .diary-entry .delete-btn:hover {
-            color: #f87171;
-            transform: scale(1.1);
-        }
+        .diary-entry .delete-btn:hover { color: #f87171; transform: scale(1.1); }
         
-        /* ===== МАТЧИ ===== */
-        .match-tabs {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
+        .match-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
         .match-tab {
             padding: 5px 14px;
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border-color);
             background: transparent;
             color: var(--text-secondary);
             font-weight: 500;
         }
-        .match-tab.active {
-            background: var(--gradient-start);
-            color: #fff;
-            border-color: var(--gradient-start);
-            box-shadow: 0 4px 16px var(--glow);
-        }
-        .match-tab:hover {
-            border-color: var(--gradient-end);
-        }
+        .match-tab.active { background: var(--gradient-start); color: #fff; border-color: var(--gradient-start); box-shadow: 0 4px 16px var(--glow); }
         .match-card {
             background: var(--bg-secondary);
             padding: 14px;
             border-radius: 14px;
             border: 1px solid var(--border-color);
             margin-bottom: 10px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .match-card:hover {
-            border-color: var(--gradient-end);
-        }
+        .match-card:hover { border-color: var(--gradient-end); }
         .match-title { font-size: 14px; font-weight: 600; }
         .match-league { color: var(--text-secondary); font-size: 12px; }
         .match-xg { color: var(--gradient-start); font-size: 12px; }
         .match-bets { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
-        .bet-item {
-            background: var(--bg-card);
-            padding: 3px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            border: 1px solid var(--border-color);
-        }
+        .bet-item { background: var(--bg-card); padding: 3px 10px; border-radius: 6px; font-size: 11px; border: 1px solid var(--border-color); }
         
-        /* ===== НАСТРОЙКИ ===== */
         .setting-group {
             background: var(--bg-secondary);
             padding: 14px;
@@ -664,12 +471,7 @@ MAIN_HTML = """
             border: 1px solid var(--border-color);
             margin-bottom: 10px;
         }
-        .setting-group h2 {
-            color: var(--text-secondary);
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
+        .setting-group h2 { color: var(--text-secondary); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
         .setting-item {
             display: flex;
             justify-content: space-between;
@@ -680,8 +482,6 @@ MAIN_HTML = """
             gap: 6px;
         }
         .setting-item:last-child { border-bottom: none; }
-        .setting-item .label { font-size: 13px; }
-        .setting-item .desc { color: var(--text-secondary); font-size: 11px; }
         .input-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .input-group input {
             background: var(--input-bg);
@@ -691,13 +491,8 @@ MAIN_HTML = """
             border-radius: 8px;
             width: 90px;
             font-size: 13px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .input-group input:focus {
-            outline: none;
-            border-color: var(--gradient-end);
-            box-shadow: 0 0 20px var(--glow);
-        }
+        .input-group input:focus { outline: none; border-color: var(--gradient-end); box-shadow: 0 0 20px var(--glow); }
         .input-group button {
             background: var(--gradient-start);
             color: #fff;
@@ -707,39 +502,25 @@ MAIN_HTML = """
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .input-group button:hover {
-            background: var(--gradient-end);
-            box-shadow: 0 4px 16px var(--glow);
-        }
-        
+        .input-group button:hover { background: var(--gradient-end); box-shadow: 0 4px 16px var(--glow); }
         .toggle {
-            width: 44px;
-            height: 24px;
+            width: 44px; height: 24px;
             background: var(--input-border);
             border-radius: 12px;
             cursor: pointer;
             position: relative;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .toggle.active {
-            background: var(--gradient-start);
-            box-shadow: 0 0 20px var(--glow);
-        }
+        .toggle.active { background: var(--gradient-start); box-shadow: 0 0 20px var(--glow); }
         .toggle .dot {
-            width: 18px;
-            height: 18px;
+            width: 18px; height: 18px;
             background: #fff;
             border-radius: 50%;
             position: absolute;
-            top: 3px;
-            left: 3px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            top: 3px; left: 3px;
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
         }
         .toggle.active .dot { left: 23px; }
-        
         .file-input-label {
             display: inline-block;
             padding: 6px 14px;
@@ -749,15 +530,10 @@ MAIN_HTML = """
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .file-input-label:hover {
-            background: var(--gradient-end);
-            box-shadow: 0 4px 16px var(--glow);
-        }
+        .file-input-label:hover { background: var(--gradient-end); box-shadow: 0 4px 16px var(--glow); }
         .import-status { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
         
-        /* ===== СИМУЛЯТОР ===== */
         .sim-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -785,59 +561,17 @@ MAIN_HTML = """
             border-radius: 2px;
             outline: none;
             -webkit-appearance: none;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .slider-container input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 18px; height: 18px;
             border-radius: 50%;
             background: var(--gradient-start);
             cursor: pointer;
             box-shadow: 0 0 20px var(--glow);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-        }
-        .slider-container input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: var(--gradient-start);
-            cursor: pointer;
-            border: none;
         }
         
-        .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
-        .no-data .emoji { font-size: 40px; margin-bottom: 8px; }
-        
-        .footer {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 10px;
-            margin-top: 20px;
-            padding: 12px 0;
-            border-top: 1px solid var(--border-color);
-        }
-        .loader { display: none; text-align: center; padding: 30px 0; color: var(--text-secondary); }
-        .loader.active { display: block; }
-        .loader .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--gradient-start);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* ===== АДАПТИВ ===== */
         @media (max-width: 768px) {
             .container { padding: 12px; }
             .header { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px; }
@@ -845,16 +579,13 @@ MAIN_HTML = """
             .header-controls { justify-content: center; }
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
             .metrics-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid .metric-item { padding: 8px 12px; }
-            .metrics-grid .metric-item .value { font-size: 15px; }
             .charts-row { grid-template-columns: 1fr; gap: 10px; }
             .chart-container { height: 130px; }
-            .card { padding: 12px; }
-            table { font-size: 10px; min-width: 450px; }
-            th, td { padding: 5px 6px; }
             .bottom-nav .nav-item { padding: 2px 8px; min-width: 44px; }
             .bottom-nav .nav-item .icon { font-size: 17px; }
             .bottom-nav .nav-item .label { font-size: 7px; }
+            table { font-size: 10px; min-width: 450px; }
+            th, td { padding: 5px 6px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -868,60 +599,29 @@ MAIN_HTML = """
 </head>
 <body>
     <div class="container">
-        <!-- HEADER -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
-                <div class="status">
-                    <span class="status-dot"></span>
-                    <span>Система активна</span>
-                    <span style="color:var(--text-muted);">|</span>
-                    <span style="color:var(--text-muted);">v12 PRO</span>
-                </div>
+                <div class="status"><span class="status-dot"></span><span>Система активна</span><span style="color:var(--text-muted);">|</span><span style="color:var(--text-muted);">v12 PRO</span></div>
                 <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">
-                    <div class="toggle-track">
-                        <div class="toggle-thumb">
-                            <span class="icon icon-dark">🌙</span>
-                            <span class="icon icon-light">☀️</span>
-                        </div>
-                    </div>
+                    <div class="toggle-track"><div class="toggle-thumb"><span class="icon icon-dark">🌙</span><span class="icon icon-light">☀️</span></div></div>
                 </button>
                 <button class="btn" onclick="refreshData()" style="font-size:14px;padding:4px 10px;">🔄</button>
             </div>
         </div>
-        
-        <!-- ===== СТРАНИЦЫ ===== -->
         <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
         <div id="page-matches" class="page"><div id="matches-content"></div></div>
         <div id="page-diary" class="page"><div id="diary-content"></div></div>
         <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
         <div id="page-settings" class="page"><div id="settings-content"></div></div>
-        
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
-    
-    <!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
     <div class="bottom-nav">
-        <button class="nav-item active" data-page="dashboard">
-            <span class="icon">📊</span>
-            <span class="label">Дашборд</span>
-        </button>
-        <button class="nav-item" data-page="matches">
-            <span class="icon">⚽</span>
-            <span class="label">Матчи</span>
-        </button>
-        <button class="nav-item" data-page="diary">
-            <span class="icon">📖</span>
-            <span class="label">Дневник</span>
-        </button>
-        <button class="nav-item" data-page="simulator">
-            <span class="icon">🎲</span>
-            <span class="label">Симулятор</span>
-        </button>
-        <button class="nav-item" data-page="settings">
-            <span class="icon">⚙️</span>
-            <span class="label">Настройки</span>
-        </button>
+        <button class="nav-item active" data-page="dashboard"><span class="icon">📊</span><span class="label">Дашборд</span></button>
+        <button class="nav-item" data-page="matches"><span class="icon">⚽</span><span class="label">Матчи</span></button>
+        <button class="nav-item" data-page="diary"><span class="icon">📖</span><span class="label">Дневник</span></button>
+        <button class="nav-item" data-page="simulator"><span class="icon">🎲</span><span class="label">Симулятор</span></button>
+        <button class="nav-item" data-page="settings"><span class="icon">⚙️</span><span class="label">Настройки</span></button>
     </div>
     
     <script>
@@ -936,30 +636,21 @@ MAIN_HTML = """
         let isLoading = false;
         
         // ============================================================
-        // ТЕМА (как в Grok)
+        // ТЕМА
         // ============================================================
         function setTheme(theme) {
-            const html = document.documentElement;
-            html.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
         }
-        
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme');
-            const next = current === 'dark' ? 'light' : 'dark';
-            setTheme(next);
+            setTheme(current === 'dark' ? 'light' : 'dark');
         }
-        
-        // Загрузка сохранённой темы
         const savedTheme = localStorage.getItem('theme') || 'dark';
         setTheme(savedTheme);
-        
-        // Обработчик кнопки темы
         document.addEventListener('DOMContentLoaded', function() {
             const toggleBtn = document.getElementById('themeToggle');
-            if (toggleBtn) {
-                toggleBtn.addEventListener('click', toggleTheme);
-            }
+            if (toggleBtn) toggleBtn.addEventListener('click', toggleTheme);
         });
         
         // ============================================================
@@ -971,27 +662,15 @@ MAIN_HTML = """
                 if (page) switchPage(page);
             });
         });
-        
         function switchPage(page) {
             if (page === currentPage) return;
-            
-            // Обновляем навигацию
             document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
             document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
-            
-            // Показываем страницу
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             const target = document.getElementById('page-' + page);
             if (target) target.classList.add('active');
-            
             currentPage = page;
-            
-            // Загружаем данные
-            if (page === 'diary') {
-                loadDiary();
-            } else {
-                loadPageData(page);
-            }
+            if (page === 'diary') { loadDiary(); } else { loadPageData(page); }
         }
         
         // ============================================================
@@ -1018,11 +697,7 @@ MAIN_HTML = """
             }
             isLoading = false;
         }
-        
-        function refreshData() {
-            cachedData = null;
-            loadPageData(currentPage);
-        }
+        function refreshData() { cachedData = null; loadPageData(currentPage); }
         
         // ============================================================
         // ДНЕВНИК
@@ -1038,7 +713,6 @@ MAIN_HTML = """
                 el.innerHTML = '<div class="no-data"><div class="emoji">📭</div>Ошибка загрузки дневника</div>';
             }
         }
-        
         function renderDiary(entries) {
             const el = document.getElementById('diary-content');
             if (!el) return;
@@ -1070,37 +744,22 @@ MAIN_HTML = """
             html += `</div></div>`;
             el.innerHTML = html;
         }
-        
         async function saveDiaryEntry() {
             const text = document.getElementById('diaryInput').value.trim();
             if (!text) { alert('Напиши что-нибудь!'); return; }
             try {
-                const response = await fetch('/api/diary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
-                });
+                const response = await fetch('/api/diary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text }) });
                 const data = await response.json();
-                if (data.success) {
-                    document.getElementById('diaryInput').value = '';
-                    loadDiary();
-                }
-            } catch (e) {
-                alert('Ошибка сохранения');
-            }
+                if (data.success) { document.getElementById('diaryInput').value = ''; loadDiary(); }
+            } catch (e) { alert('Ошибка сохранения'); }
         }
-        
         async function deleteDiaryEntry(id) {
             if (!confirm('Удалить эту запись?')) return;
             try {
                 const response = await fetch('/api/diary/' + id, { method: 'DELETE' });
                 const data = await response.json();
-                if (data.success) {
-                    loadDiary();
-                }
-            } catch (e) {
-                alert('Ошибка удаления');
-            }
+                if (data.success) loadDiary();
+            } catch (e) { alert('Ошибка удаления'); }
         }
         
         // ============================================================
@@ -1112,7 +771,6 @@ MAIN_HTML = """
             const profitData = data.profit_data || { dates: [], profits: [] };
             const el = document.getElementById('dashboard-content');
             if (!el) return;
-            
             let html = `
                 <div class="stats-grid">
                     <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Текущий банк</div></div>
@@ -1120,34 +778,19 @@ MAIN_HTML = """
                     <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
                     <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
                 </div>
-                
                 <div class="metrics-grid">
                     <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
                     <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
                     <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi}%</span></div>
                     <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake}</span></div>
                 </div>
-                
                 <div class="charts-row">
-                    <div class="card">
-                        <div class="card-header"><h2>📈 График прибыли</h2><span style="font-size:9px;color:var(--text-muted);">За 7 дней</span></div>
-                        <div class="chart-container"><canvas id="profitChart"></canvas></div>
-                    </div>
-                    <div class="card">
-                        <div class="card-header"><h2>📊 По дням недели</h2><span style="font-size:9px;color:var(--text-muted);">Средняя прибыль</span></div>
-                        <div class="chart-container"><canvas id="weekdayChart"></canvas></div>
-                    </div>
+                    <div class="card"><div class="card-header"><h2>📈 График прибыли</h2><span style="font-size:9px;color:var(--text-muted);">За 7 дней</span></div><div class="chart-container"><canvas id="profitChart"></canvas></div></div>
+                    <div class="card"><div class="card-header"><h2>📊 По дням недели</h2><span style="font-size:9px;color:var(--text-muted);">Средняя прибыль</span></div><div class="chart-container"><canvas id="weekdayChart"></canvas></div></div>
                 </div>
-                
                 <div class="card">
-                    <div class="card-header">
-                        <h2>📋 Все ставки</h2>
-                        <span class="count">Всего: ${history.length}</span>
-                    </div>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
-                            <tbody>
+                    <div class="card-header"><h2>📋 Все ставки</h2><span class="count">Всего: ${history.length}</span></div>
+                    <div class="table-wrapper"><table><thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead><tbody>
             `;
             if (history.length === 0) {
                 html += `<tr><td colspan="10" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
@@ -1168,8 +811,7 @@ MAIN_HTML = """
                     </tr>`;
                 });
             }
-            html += `</tbody></table>
-                    </div>
+            html += `</tbody></table></div>
                     <div style="margin-top:12px;">
                         <button class="btn btn-success" onclick="exportToExcel()" style="padding:8px 20px;">📥 Сохранить в Excel</button>
                     </div>
@@ -1186,8 +828,6 @@ MAIN_HTML = """
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const textColor = isDark ? '#ececec' : '#1a1a2e';
             const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-            
-            // График прибыли
             const ctx1 = document.getElementById('profitChart');
             if (ctx1) {
                 if (chartInstance) chartInstance.destroy();
@@ -1214,9 +854,7 @@ MAIN_HTML = """
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: textColor, font: { size: 10 } } }
-                        },
+                        plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
                         scales: {
                             x: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', font: { size: 9 } } },
                             y: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', callback: v => '$' + v, font: { size: 9 } } }
@@ -1224,8 +862,6 @@ MAIN_HTML = """
                     }
                 });
             }
-            
-            // График по дням недели
             const ctx2 = document.getElementById('weekdayChart');
             if (ctx2) {
                 if (chartWeekday) chartWeekday.destroy();
@@ -1237,17 +873,15 @@ MAIN_HTML = """
                         datasets: [{
                             label: 'Средняя прибыль ($)',
                             data: weekdayData,
-                            backgroundColor: ['#a855f7', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95', '#a855f7', '#7c3aed'],
+                            backgroundColor: ['#a855f7','#7c3aed','#6d28d9','#5b21b6','#4c1d95','#a855f7','#7c3aed'],
                             borderRadius: 6,
-                            hoverBackgroundColor: ['#c084fc', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', '#c084fc', '#8b5cf6']
+                            hoverBackgroundColor: ['#c084fc','#8b5cf6','#7c3aed','#6d28d9','#5b21b6','#c084fc','#8b5cf6']
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: textColor, font: { size: 10 } } }
-                        },
+                        plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
                         scales: {
                             x: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', font: { size: 9 } } },
                             y: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', callback: v => '$' + v, font: { size: 9 } } }
@@ -1256,10 +890,8 @@ MAIN_HTML = """
                 });
             }
         }
-        
         function getWeekdayData(history) {
-            const days = [0,0,0,0,0,0,0];
-            const counts = [0,0,0,0,0,0,0];
+            const days = [0,0,0,0,0,0,0], counts = [0,0,0,0,0,0,0];
             history.forEach(bet => {
                 try {
                     const date = new Date(bet.date);
@@ -1271,10 +903,7 @@ MAIN_HTML = """
             });
             return days.map((sum, i) => counts[i] > 0 ? Math.round((sum / counts[i]) * 100) / 100 : 0);
         }
-        
-        function exportToExcel() {
-            window.location.href = '/api/export_excel';
-        }
+        function exportToExcel() { window.location.href = '/api/export_excel'; }
         
         // ============================================================
         // РЕНДЕР МАТЧЕЙ
@@ -1286,29 +915,13 @@ MAIN_HTML = """
             let html = `
                 <h2 style="font-size:20px;color:var(--gradient-start);margin-bottom:4px;font-weight:700;">⚽ Матчи</h2>
                 <div style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">Прогнозы и валуйные ставки</div>
-                <div class="match-tabs">
-                    <span class="match-tab active">Все игры</span>
-                    <span class="match-tab">LIVE</span>
-                    <span class="match-tab">⭐ Избранное</span>
-                    <span class="match-tab">🏆 Турниры</span>
-                </div>
+                <div class="match-tabs"><span class="match-tab active">Все игры</span><span class="match-tab">LIVE</span><span class="match-tab">⭐ Избранное</span><span class="match-tab">🏆 Турниры</span></div>
             `;
             if (matches.length === 0) {
                 html += `<div class="no-data"><div class="emoji">📭</div>Матчей не найдено</div>`;
             } else {
                 matches.forEach(m => {
-                    html += `
-                        <div class="match-card">
-                            <div class="match-title">${m.home} vs ${m.away}</div>
-                            <div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div>
-                            <div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div>
-                            <div class="match-bets">
-                                ${(m.bets || []).slice(0, 3).map(b => 
-                                    `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`
-                                ).join('')}
-                            </div>
-                        </div>
-                    `;
+                    html += `<div class="match-card"><div class="match-title">${m.home} vs ${m.away}</div><div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div><div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div><div class="match-bets">${(m.bets || []).slice(0,3).map(b => `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`).join('')}</div></div>`;
                 });
             }
             el.innerHTML = html;
@@ -1345,10 +958,7 @@ MAIN_HTML = """
                             <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
                             <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
                         </div>
-                        <div class="card">
-                            <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📈 График симуляции</h2>
-                            <div class="chart-container"><canvas id="simChart"></canvas></div>
-                        </div>
+                        <div class="card"><h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📈 График симуляции</h2><div class="chart-container"><canvas id="simChart"></canvas></div></div>
                         <div class="card">
                             <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📋 Результаты</h2>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">
@@ -1369,16 +979,11 @@ MAIN_HTML = """
             }
             el.innerHTML = html;
         }
-        
         async function runSimulation() {
             const count = parseInt(document.getElementById('simCount').value) || 1000;
             document.getElementById('simResults').style.display = 'block';
             try {
-                const response = await fetch('/api/simulate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ count: count })
-                });
+                const response = await fetch('/api/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: count }) });
                 const data = await response.json();
                 if (data.error) { alert('❌ ' + data.error); return; }
                 document.getElementById('simProfit').textContent = '$' + data.profit;
@@ -1414,7 +1019,6 @@ MAIN_HTML = """
                                 fill: true,
                                 tension: 0.4,
                                 pointRadius: 2,
-                                pointBackgroundColor: data.profit > 0 ? '#34d399' : '#f87171',
                             }]
                         },
                         options: {
@@ -1428,9 +1032,7 @@ MAIN_HTML = """
                         }
                     });
                 }
-            } catch (e) {
-                alert('❌ Ошибка: ' + e);
-            }
+            } catch (e) { alert('❌ Ошибка: ' + e); }
         }
         
         // ============================================================
@@ -1479,25 +1081,14 @@ MAIN_HTML = """
             `;
             el.innerHTML = html;
         }
-        
         async function updateBank() {
             const value = document.getElementById('bankInput').value;
             try {
-                const response = await fetch('/api/bank', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bank: parseFloat(value) })
-                });
+                const response = await fetch('/api/bank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bank: parseFloat(value) }) });
                 const data = await response.json();
-                if (data.success) {
-                    alert('✅ Банк обновлен: $' + data.bank);
-                    refreshData();
-                }
-            } catch (e) {
-                alert('❌ Ошибка: ' + e);
-            }
+                if (data.success) { alert('✅ Банк обновлен: $' + data.bank); refreshData(); }
+            } catch (e) { alert('❌ Ошибка: ' + e); }
         }
-        
         function importExcel(event) {
             const file = event.target.files[0];
             const statusDiv = document.getElementById('importStatus');
@@ -1514,11 +1105,7 @@ MAIN_HTML = """
                     const json = XLSX.utils.sheet_to_json(sheet);
                     if (json.length === 0) { statusDiv.textContent = '❌ Файл пуст'; return; }
                     statusDiv.textContent = '⏳ Отправка...';
-                    fetch('/api/import_excel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: json })
-                    })
+                    fetch('/api/import_excel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: json }) })
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
@@ -1528,16 +1115,11 @@ MAIN_HTML = """
                             statusDiv.textContent = '❌ Ошибка: ' + data.error;
                         }
                     });
-                } catch (error) {
-                    statusDiv.textContent = '❌ Ошибка: ' + error;
-                }
+                } catch (error) { statusDiv.textContent = '❌ Ошибка: ' + error; }
             };
             reader.readAsArrayBuffer(file);
         }
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            loadPageData('dashboard');
-        });
+        document.addEventListener('DOMContentLoaded', function() { loadPageData('dashboard'); });
     </script>
 </body>
 </html>
@@ -1547,74 +1129,17 @@ MAIN_HTML = """
 # API МАРШРУТЫ
 # ============================================================
 
-def get_data_from_bot():
-    try:
-        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
-        stats_data = stats_response.json() if stats_response.status_code == 200 else {}
-        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = history_response.json() if history_response.status_code == 200 else []
-        return stats_data, history
-    except Exception as e:
-        print(f"Ошибка получения данных: {e}")
-        return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
-
-def get_profit_data(history):
-    profits = []
-    days = 7
-    for i in range(days - 1, -1, -1):
-        day_profit = 0
-        day = datetime.now() - timedelta(days=i)
-        for bet in history:
-            try:
-                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
-                if bet_date.date() == day.date():
-                    stake = bet.get('stake', 0)
-                    if isinstance(stake, str):
-                        try: stake = float(stake)
-                        except: stake = 0
-                    odds = bet.get('odds', 1)
-                    if isinstance(odds, str):
-                        try: odds = float(odds)
-                        except: odds = 1
-                    if bet.get('result') == 'win':
-                        day_profit += stake * (odds - 1)
-                    elif bet.get('result') == 'loss':
-                        day_profit -= stake
-            except:
-                pass
-        profits.append(round(day_profit, 2))
-    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    return {'dates': dates, 'profits': profits}
-
 @app.route('/')
 def index():
     return render_template_string(MAIN_HTML)
 
 @app.route('/api/all_data')
 def all_data():
-    stats_data, history = get_data_from_bot()
+    data = load_data()
+    history = data.get('history', [])
+    stats = get_stats(history)
     profit_data = get_profit_data(history)
-    try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        matches = response.json() if response.status_code == 200 else []
-    except:
-        matches = []
-    bank = stats_data.get('bank', 1000)
-    return jsonify({
-        'stats': {
-            'bank': bank,
-            'total_bets': stats_data.get('total_bets', 0),
-            'wins': stats_data.get('wins', 0),
-            'losses': stats_data.get('losses', 0),
-            'profit': round(stats_data.get('profit', 0), 2),
-            'winrate': stats_data.get('winrate', 0),
-            'roi': stats_data.get('roi', 0),
-            'avg_stake': stats_data.get('avg_stake', 0)
-        },
-        'history': history,
-        'profit_data': profit_data,
-        'matches': matches
-    })
+    return jsonify({'stats': stats, 'history': history, 'profit_data': profit_data, 'matches': []})
 
 # ===== ДНЕВНИК API =====
 @app.route('/api/diary', methods=['GET'])
@@ -1629,11 +1154,7 @@ def add_diary():
         return jsonify({'error': 'Пустая запись'}), 400
     entries = load_diary()
     entry_id = max([e.get('id', 0) for e in entries] + [0]) + 1
-    entries.append({
-        'id': entry_id,
-        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-        'text': text
-    })
+    entries.append({'id': entry_id, 'date': datetime.now().strftime('%Y-%m-%d %H:%M'), 'text': text})
     save_diary(entries)
     return jsonify({'success': True, 'id': entry_id})
 
@@ -1647,7 +1168,8 @@ def delete_diary(entry_id):
 # ===== ЭКСПОРТ В EXCEL =====
 @app.route('/api/export_excel')
 def export_excel():
-    _, history = get_data_from_bot()
+    data = load_data()
+    history = data.get('history', [])
     if not history:
         return "Нет данных", 404
     output = io.BytesIO()
@@ -1671,13 +1193,12 @@ def export_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='history.xlsx')
 
-# ===== ОСТАЛЬНЫЕ API =====
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
     try:
         data = request.json
         count = data.get('count', 1000)
-        _, history = get_data_from_bot()
+        history = load_data().get('history', [])
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок'}), 400
         wins = sum(1 for b in history if b.get('result') == 'win')
@@ -1716,7 +1237,8 @@ def import_excel():
         excel_data = request.json.get('data', [])
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
-        _, history = get_data_from_bot()
+        data = load_data()
+        history = data.get('history', [])
         imported = 0
         for row in excel_data:
             match = row.get('Матч', '') or row.get('Match', '')
@@ -1758,10 +1280,8 @@ def import_excel():
                 'date': date
             })
             imported += 1
-        try:
-            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
-        except:
-            pass
+        data['history'] = history
+        save_data(data)
         return jsonify({'success': True, 'count': imported})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1770,10 +1290,9 @@ def import_excel():
 def update_bank():
     data = request.json
     if 'bank' in data:
-        try:
-            requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=5)
-        except:
-            pass
+        d = load_data()
+        d['bank'] = data['bank']
+        save_data(d)
         return jsonify({'success': True, 'bank': data['bank']})
     return jsonify({'error': 'No bank value'}), 400
 
