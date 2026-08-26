@@ -3,7 +3,6 @@ import logging
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-import asyncio
 
 # ===== ТОКЕН =====
 TOKEN = "8884017743:AAHkCNM9BTFHaGo5P9dd3aExq9iHL4Jy8LA"
@@ -15,14 +14,13 @@ logging.basicConfig(level=logging.INFO)
 # ===== БОТ =====
 bot_app = Application.builder().token(TOKEN).build()
 
-# ===== КОМАНДА /start С ЛОГАМИ =====
+# ===== КОМАНДА /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.info("✅ КОМАНДА /start ПОЛУЧЕНА!")  # ← ЛОГ
     await update.message.reply_text("🤖 Бот работает!")
 
 bot_app.add_handler(CommandHandler("start", start))
 
-# ===== ВЕБХУК =====
+# ===== ВЕБХУК (СИНХРОННЫЙ ВЫЗОВ) =====
 @web_app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -30,9 +28,9 @@ def webhook():
         if not data:
             return 'No data', 400
         
-        logging.info("📨 ЗАПРОС ОТ TELEGRAM ПОЛУЧЕН!")
         update = Update.de_json(data, bot_app.bot)
-        asyncio.create_task(bot_app.process_update(update))
+        # СИНХРОННЫЙ ВЫЗОВ (без asyncio)
+        bot_app.process_update(update)
         return 'ok', 200
     except Exception as e:
         logging.error(f"Webhook error: {e}")
