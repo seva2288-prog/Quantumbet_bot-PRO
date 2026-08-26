@@ -2,19 +2,39 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, render_template_string, jsonify, request
+from flask import Flask, render_template_string, jsonify, request, send_file
 import requests
 from datetime import datetime, timedelta
 import json
 import random
+import io
+import xlsxwriter
 
 app = Flask(__name__)
 
 # URL бота
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+DIARY_FILE = 'diary.json'
 
 # ============================================================
-# ЕДИНЫЙ HTML ШАБЛОН (SPA - ВСЕ СТРАНИЦЫ В ОДНОМ ФАЙЛЕ)
+# РАБОТА С ДНЕВНИКОМ
+# ============================================================
+
+def load_diary():
+    if os.path.exists(DIARY_FILE):
+        try:
+            with open(DIARY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_diary(entries):
+    with open(DIARY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(entries, f, indent=2, ensure_ascii=False)
+
+# ============================================================
+# ЕДИНЫЙ HTML ШАБЛОН (С УЛУЧШЕНИЯМИ)
 # ============================================================
 
 MAIN_HTML = """
@@ -165,6 +185,35 @@ MAIN_HTML = """
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
         
+        /* ===== НОВАЯ СЕТКА МЕТРИК (2 строки × 2 колонки) ===== */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .metrics-grid .metric-item {
+            background: var(--bg-secondary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+        .metrics-grid .metric-item .label {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        .metrics-grid .metric-item .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        .metrics-grid .metric-item .value.green { color: #38ef7d; }
+        .metrics-grid .metric-item .value.gold { color: #ffd200; }
+        
         .card {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
@@ -257,21 +306,6 @@ MAIN_HTML = """
         .no-data { text-align: center; color: var(--text-secondary); padding: 16px 0; }
         .no-data .emoji { font-size: 30px; margin-bottom: 4px; }
         
-        .summary-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .summary-item {
-            background: var(--bg-card);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-        .summary-item .label { color: var(--text-secondary); font-size: 10px; }
-        .summary-item .value { font-size: 14px; font-weight: bold; }
-        
         .scrollable-table {
             max-height: 350px;
             overflow-y: auto;
@@ -286,7 +320,7 @@ MAIN_HTML = """
             border-top: 1px solid var(--border-color);
         }
         
-        /* ===== НИЖНЯЯ НАВИГАЦИЯ ===== */
+        /* ===== НИЖНЯЯ НАВИГАЦИЯ (ОБНОВЛЕНА) ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -455,6 +489,16 @@ MAIN_HTML = """
         }
         .btn:active { transform: scale(0.95); }
         .btn:hover { background: rgba(102,126,234,0.15); border-color: var(--gradient-start); color: var(--text-primary); }
+        .btn-success {
+            background: #38ef7d;
+            color: #000;
+            border-color: #38ef7d;
+        }
+        .btn-success:hover {
+            background: #11998e;
+            border-color: #11998e;
+            color: #fff;
+        }
         .toggle {
             width: 36px;
             height: 20px;
@@ -545,6 +589,48 @@ MAIN_HTML = """
         }
         .btn-primary:active { transform: scale(0.95); }
         
+        /* ===== ДНЕВНИК ===== */
+        .diary-textarea {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+        .diary-textarea:focus {
+            outline: none;
+            border-color: var(--gradient-start);
+        }
+        .diary-entry {
+            background: var(--bg-card);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 6px;
+        }
+        .diary-entry .date {
+            color: var(--text-secondary);
+            font-size: 10px;
+        }
+        .diary-entry .text {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+        .diary-entry .delete-btn {
+            float: right;
+            background: none;
+            border: none;
+            color: #ef473a;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .diary-entry .delete-btn:hover { color: #cb2d3e; }
+        
         /* ===== LOADER ===== */
         .loader {
             display: none;
@@ -572,7 +658,9 @@ MAIN_HTML = """
             .header h1 { font-size: 16px; text-align: center; }
             .header-controls { justify-content: center; }
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .summary-row { grid-template-columns: 1fr; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .metrics-grid .metric-item { padding: 6px 10px; }
+            .metrics-grid .metric-item .value { font-size: 14px; }
             .card { padding: 8px; }
             table { font-size: 9px; min-width: 450px; }
             th, td { padding: 3px 4px; }
@@ -585,6 +673,7 @@ MAIN_HTML = """
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
             .stat-card { padding: 6px; }
             .stat-card .value { font-size: 14px; }
+            .metrics-grid { grid-template-columns: 1fr; }
             .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
             .bottom-nav .nav-item .icon { font-size: 14px; }
         }
@@ -607,40 +696,12 @@ MAIN_HTML = """
             </div>
         </div>
         
-        <!-- ===== СТРАНИЦА: ДАШБОРД ===== -->
-        <div id="page-dashboard" class="page active">
-            <div id="dashboard-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: МАТЧИ ===== -->
-        <div id="page-matches" class="page">
-            <div id="matches-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: СТАТИСТИКА ===== -->
-        <div id="page-stats" class="page">
-            <div id="stats-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: СИМУЛЯТОР ===== -->
-        <div id="page-simulator" class="page">
-            <div id="simulator-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
-        
-        <!-- ===== СТРАНИЦА: НАСТРОЙКИ ===== -->
-        <div id="page-settings" class="page">
-            <div id="settings-content">
-                <!-- Загружается через JS -->
-            </div>
-        </div>
+        <!-- ===== СТРАНИЦЫ ===== -->
+        <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
+        <div id="page-matches" class="page"><div id="matches-content"></div></div>
+        <div id="page-diary" class="page"><div id="diary-content"></div></div>
+        <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
+        <div id="page-settings" class="page"><div id="settings-content"></div></div>
         
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
@@ -655,9 +716,9 @@ MAIN_HTML = """
             <span class="icon">⚽</span>
             <span class="label">Матчи</span>
         </button>
-        <button class="nav-item" data-page="stats">
-            <span class="icon">📈</span>
-            <span class="label">Статистика</span>
+        <button class="nav-item" data-page="diary">
+            <span class="icon">📖</span>
+            <span class="label">Дневник</span>
         </button>
         <button class="nav-item" data-page="simulator">
             <span class="icon">🎲</span>
@@ -701,27 +762,25 @@ MAIN_HTML = """
                 const page = this.dataset.page;
                 switchPage(page);
             });
-            // Для быстрого отклика на мобильных
-            btn.addEventListener('touchstart', function(e) {
-                // Просто чтобы было отзывчиво
-            }, { passive: true });
+            btn.addEventListener('touchstart', function(e) {}, { passive: true });
         });
         
         function switchPage(page) {
             if (page === currentPage && document.getElementById('page-' + page).classList.contains('active')) return;
             
-            // Обновляем навигацию
             document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
             document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
             
-            // Показываем страницу
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('page-' + page).classList.add('active');
             
             currentPage = page;
             
-            // Загружаем данные если нужно
-            loadPageData(page);
+            if (page === 'diary') {
+                loadDiary();
+            } else {
+                loadPageData(page);
+            }
         }
         
         // ===== ЗАГРУЗКА ДАННЫХ =====
@@ -731,12 +790,12 @@ MAIN_HTML = """
             const contentId = page + '-content';
             const contentEl = document.getElementById(contentId);
             
-            // Если уже есть данные и это не дашборд (он обновляется чаще)
             if (page !== 'dashboard' && cachedData && contentEl.innerHTML) {
                 return;
             }
             
             isLoading = true;
+            contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
             
             try {
                 const response = await fetch('/api/all_data?t=' + Date.now());
@@ -746,7 +805,6 @@ MAIN_HTML = """
                 switch(page) {
                     case 'dashboard': renderDashboard(data); break;
                     case 'matches': renderMatches(data); break;
-                    case 'stats': renderStats(data); break;
                     case 'simulator': renderSimulator(data); break;
                     case 'settings': renderSettings(data); break;
                 }
@@ -757,10 +815,87 @@ MAIN_HTML = """
             isLoading = false;
         }
         
-        // ===== ОБНОВЛЕНИЕ ДАННЫХ =====
         function refreshData() {
             cachedData = null;
             loadPageData(currentPage);
+        }
+        
+        // ===== ДНЕВНИК =====
+        async function loadDiary() {
+            const el = document.getElementById('diary-content');
+            try {
+                const response = await fetch('/api/diary');
+                const entries = await response.json();
+                renderDiary(entries);
+            } catch (e) {
+                el.innerHTML = '<div class="no-data"><div class="emoji">📭</div>Ошибка загрузки дневника</div>';
+            }
+        }
+        
+        function renderDiary(entries) {
+            const el = document.getElementById('diary-content');
+            let html = `
+                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📖 Дневник</h2>
+                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Записывай свои мысли, идеи и заметки по ставкам</div>
+                <div class="card">
+                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">✏️ Новая запись</h2>
+                    <textarea id="diaryInput" class="diary-textarea" placeholder="Напиши свою заметку..."></textarea>
+                    <button class="btn btn-success" onclick="saveDiaryEntry()" style="margin-top:6px;padding:6px 16px;">💾 Сохранить</button>
+                </div>
+                <div class="card">
+                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📚 Все записи (${entries.length})</h2>
+                    <div id="diaryEntries">
+            `;
+            
+            if (entries.length === 0) {
+                html += `<div class="no-data"><div class="emoji">📭</div>Нет записей</div>`;
+            } else {
+                entries.slice().reverse().forEach(entry => {
+                    html += `
+                        <div class="diary-entry">
+                            <span class="date">${entry.date}</span>
+                            <button class="delete-btn" onclick="deleteDiaryEntry(${entry.id})">🗑️</button>
+                            <div class="text">${entry.text.replace(/\n/g, '<br>')}</div>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `</div></div>`;
+            el.innerHTML = html;
+        }
+        
+        async function saveDiaryEntry() {
+            const text = document.getElementById('diaryInput').value.trim();
+            if (!text) { alert('Напиши что-нибудь!'); return; }
+            
+            try {
+                const response = await fetch('/api/diary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('diaryInput').value = '';
+                    loadDiary();
+                }
+            } catch (e) {
+                alert('Ошибка сохранения');
+            }
+        }
+        
+        async function deleteDiaryEntry(id) {
+            if (!confirm('Удалить эту запись?')) return;
+            try {
+                const response = await fetch('/api/diary/' + id, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    loadDiary();
+                }
+            } catch (e) {
+                alert('Ошибка удаления');
+            }
         }
         
         // ===== РЕНДЕР ДАШБОРДА =====
@@ -776,11 +911,12 @@ MAIN_HTML = """
                     <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
                 </div>
                 
-                <div class="summary-row">
-                    <div class="summary-item"><div class="label">📊 Всего ставок</div><div class="value">${s.total_bets}</div></div>
-                    <div class="summary-item"><div class="label">🎯 Проходимость</div><div class="value">${s.winrate}%</div></div>
-                    <div class="summary-item"><div class="label">📈 ROI</div><div class="value">${s.roi}%</div></div>
-                    <div class="summary-item"><div class="label">📅 Средняя ставка</div><div class="value">$${s.avg_stake}</div></div>
+                <!-- НОВЫЙ БЛОК: 2 СТРОКИ × 2 КОЛОНКИ -->
+                <div class="metrics-grid">
+                    <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
+                    <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
+                    <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi}%</span></div>
+                    <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake}</span></div>
                 </div>
                 
                 <div class="card">
@@ -853,12 +989,23 @@ MAIN_HTML = """
                 });
             }
             
-            html += `</tbody></table></div></div></div>`;
+            html += `</tbody></table>
+                    </div>
+                    <!-- ===== КНОПКА СОХРАНИТЬ В EXCEL ===== -->
+                    <div style="margin-top:10px;">
+                        <button class="btn btn-success" onclick="exportToExcel()" style="padding:6px 16px;">📥 Сохранить в Excel</button>
+                    </div>
+                </div>
+            `;
             
             document.getElementById('dashboard-content').innerHTML = html;
             
-            // Рендер графика
             setTimeout(() => renderChart(data.profit_data), 50);
+        }
+        
+        // ===== ЭКСПОРТ В EXCEL =====
+        function exportToExcel() {
+            window.location.href = '/api/export_excel';
         }
         
         // ===== ГРАФИК =====
@@ -945,57 +1092,6 @@ MAIN_HTML = """
             }
             
             document.getElementById('matches-content').innerHTML = html;
-        }
-        
-        // ===== РЕНДЕР СТАТИСТИКИ =====
-        function renderStats(data) {
-            const s = data.stats;
-            const history = data.history || [];
-            
-            let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📈 Статистика</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Детальный анализ ваших ставок</div>
-                
-                <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Общая статистика</h2>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:var(--gradient-start);">${s.total_bets}</div><div style="color:var(--text-secondary);font-size:10px;">Всего ставок</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#38ef7d;">${s.wins}</div><div style="color:var(--text-secondary);font-size:10px;">Выигрыши</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ef473a;">${s.losses}</div><div style="color:var(--text-secondary);font-size:10px;">Проигрыши</div></div>
-                        <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:bold;color:#ffd200;">$${s.profit}</div><div style="color:var(--text-secondary);font-size:10px;">Прибыль</div></div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📋 Все ставки</h2>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead><tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
-                            <tbody>
-                    `;
-            
-            if (history.length === 0) {
-                html += `<tr><td colspan="8" class="no-data">Нет данных</td></tr>`;
-            } else {
-                history.forEach(bet => {
-                    html += `
-                        <tr>
-                            <td style="font-size:9px;">${bet.date}</td>
-                            <td>${bet.home} vs ${bet.away}</td>
-                            <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                            <td>${bet.bet}</td>
-                            <td>${bet.odds}</td>
-                            <td>${bet.ev}%</td>
-                            <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                            <td>$${bet.profit}</td>
-                        </tr>
-                    `;
-                });
-            }
-            
-            html += `</tbody></table></div></div>`;
-            
-            document.getElementById('stats-content').innerHTML = html;
         }
         
         // ===== РЕНДЕР СИМУЛЯТОРА =====
@@ -1112,7 +1208,7 @@ MAIN_HTML = """
             document.getElementById('settings-content').innerHTML = html;
         }
         
-        // ===== ФУНКЦИИ ДЛЯ СТАВОК =====
+        // ===== ОСТАЛЬНЫЕ ФУНКЦИИ =====
         function toggleEdit(index) {
             const row = document.getElementById('edit-row-' + index);
             if (row) row.classList.toggle('active');
@@ -1179,10 +1275,8 @@ MAIN_HTML = """
             }
         }
         
-        // ===== СИМУЛЯЦИЯ =====
         async function runSimulation() {
             const count = parseInt(document.getElementById('simCount').value) || 1000;
-            
             document.getElementById('simResults').style.display = 'block';
             
             try {
@@ -1216,7 +1310,6 @@ MAIN_HTML = """
                     rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
                 }
                 
-                // График
                 const ctx = document.getElementById('simChart');
                 if (ctx) {
                     if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
@@ -1253,7 +1346,6 @@ MAIN_HTML = """
             }
         }
         
-        // ===== БАНК =====
         async function updateBank() {
             const value = document.getElementById('bankInput').value;
             try {
@@ -1272,7 +1364,6 @@ MAIN_HTML = """
             }
         }
         
-        // ===== ИМПОРТ EXCEL =====
         function importExcel(event) {
             const file = event.target.files[0];
             const statusDiv = document.getElementById('importStatus');
@@ -1326,7 +1417,6 @@ MAIN_HTML = """
             }
         });
         
-        // ===== ЗАГРУЗКА ПРИ СТАРТЕ =====
         document.addEventListener('DOMContentLoaded', function() {
             loadPageData('dashboard');
         });
@@ -1336,71 +1426,23 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
+# API МАРШРУТЫ
 # ============================================================
 
 def get_data_from_bot():
-    """Получение данных из бота через API"""
     try:
         stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
         stats_data = stats_response.json() if stats_response.status_code == 200 else {}
-        
         history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
         history = history_response.json() if history_response.status_code == 200 else []
-        
         return stats_data, history
     except Exception as e:
         print(f"Ошибка получения данных: {e}")
         return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
 
-@app.route('/')
-def index():
-    return render_template_string(MAIN_HTML)
-
-@app.route('/api/all_data')
-def all_data():
-    """Возвращает все данные за один запрос"""
-    stats_data, history = get_data_from_bot()
-    
-    # Получаем данные для графика
-    profit_data = get_profit_data(history)
-    
-    # Получаем матчи
-    try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        matches = response.json() if response.status_code == 200 else []
-    except:
-        matches = []
-    
-    bank = stats_data.get('bank', 1000)
-    total_bets = stats_data.get('total_bets', 0)
-    wins = stats_data.get('wins', 0)
-    losses = stats_data.get('losses', 0)
-    total_profit = stats_data.get('profit', 0)
-    winrate = stats_data.get('winrate', 0)
-    roi = stats_data.get('roi', 0)
-    avg_stake = stats_data.get('avg_stake', 0)
-    
-    return jsonify({
-        'stats': {
-            'bank': bank,
-            'total_bets': total_bets,
-            'wins': wins,
-            'losses': losses,
-            'profit': round(total_profit, 2),
-            'winrate': winrate,
-            'roi': roi,
-            'avg_stake': avg_stake
-        },
-        'history': history,
-        'profit_data': profit_data,
-        'matches': matches
-    })
-
 def get_profit_data(history):
     profits = []
     days = 7
-    
     for i in range(days - 1, -1, -1):
         day_profit = 0
         day = datetime.now() - timedelta(days=i)
@@ -1410,17 +1452,12 @@ def get_profit_data(history):
                 if bet_date.date() == day.date():
                     stake = bet.get('stake', 0)
                     if isinstance(stake, str):
-                        try:
-                            stake = float(stake)
-                        except:
-                            stake = 0
+                        try: stake = float(stake)
+                        except: stake = 0
                     odds = bet.get('odds', 1)
                     if isinstance(odds, str):
-                        try:
-                            odds = float(odds)
-                        except:
-                            odds = 1
-                    
+                        try: odds = float(odds)
+                        except: odds = 1
                     if bet.get('result') == 'win':
                         day_profit += stake * (odds - 1)
                     elif bet.get('result') == 'loss':
@@ -1428,69 +1465,131 @@ def get_profit_data(history):
             except:
                 pass
         profits.append(round(day_profit, 2))
-    
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    
     return {'dates': dates, 'profits': profits}
 
-# ============================================================
-# ОСТАЛЬНЫЕ API МАРШРУТЫ
-# ============================================================
+@app.route('/')
+def index():
+    return render_template_string(MAIN_HTML)
 
+@app.route('/api/all_data')
+def all_data():
+    stats_data, history = get_data_from_bot()
+    profit_data = get_profit_data(history)
+    try:
+        response = requests.get(f'{BOT_URL}/matches', timeout=10)
+        matches = response.json() if response.status_code == 200 else []
+    except:
+        matches = []
+    bank = stats_data.get('bank', 1000)
+    return jsonify({
+        'stats': {
+            'bank': bank,
+            'total_bets': stats_data.get('total_bets', 0),
+            'wins': stats_data.get('wins', 0),
+            'losses': stats_data.get('losses', 0),
+            'profit': round(stats_data.get('profit', 0), 2),
+            'winrate': stats_data.get('winrate', 0),
+            'roi': stats_data.get('roi', 0),
+            'avg_stake': stats_data.get('avg_stake', 0)
+        },
+        'history': history,
+        'profit_data': profit_data,
+        'matches': matches
+    })
+
+# ===== ДНЕВНИК API =====
+@app.route('/api/diary', methods=['GET'])
+def get_diary():
+    return jsonify(load_diary())
+
+@app.route('/api/diary', methods=['POST'])
+def add_diary():
+    data = request.json
+    text = data.get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'Пустая запись'}), 400
+    entries = load_diary()
+    entry_id = max([e.get('id', 0) for e in entries] + [0]) + 1
+    entries.append({
+        'id': entry_id,
+        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'text': text
+    })
+    save_diary(entries)
+    return jsonify({'success': True, 'id': entry_id})
+
+@app.route('/api/diary/<int:entry_id>', methods=['DELETE'])
+def delete_diary(entry_id):
+    entries = load_diary()
+    entries = [e for e in entries if e.get('id') != entry_id]
+    save_diary(entries)
+    return jsonify({'success': True})
+
+# ===== ЭКСПОРТ В EXCEL =====
+@app.route('/api/export_excel')
+def export_excel():
+    _, history = get_data_from_bot()
+    if not history:
+        return "Нет данных", 404
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Ставки')
+    headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'Сумма', 'EV', 'Результат', 'Прибыль']
+    for col, h in enumerate(headers):
+        worksheet.write(0, col, h)
+    for row, bet in enumerate(history, 1):
+        score = f"{bet.get('home_goals', '')}-{bet.get('away_goals', '')}" if bet.get('home_goals') is not None else '-'
+        worksheet.write(row, 0, bet.get('date', ''))
+        worksheet.write(row, 1, f"{bet.get('home', '')} vs {bet.get('away', '')}")
+        worksheet.write(row, 2, score)
+        worksheet.write(row, 3, bet.get('bet', ''))
+        worksheet.write(row, 4, bet.get('odds', ''))
+        worksheet.write(row, 5, bet.get('stake', ''))
+        worksheet.write(row, 6, bet.get('ev', ''))
+        worksheet.write(row, 7, bet.get('result', ''))
+        worksheet.write(row, 8, bet.get('profit', ''))
+    workbook.close()
+    output.seek(0)
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='history.xlsx')
+
+# ===== ОСТАЛЬНЫЕ API =====
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
     try:
         data = request.json
         count = data.get('count', 1000)
-        
         response = requests.get(f'{BOT_URL}/api/history', timeout=10)
         history = response.json() if response.status_code == 200 else []
-        
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
-        
         wins = sum(1 for b in history if b.get('result') == 'win')
-        total = len(history)
-        winrate = wins / total if total > 0 else 0
-        
-        avg_stake = sum(float(b.get('stake', 0)) for b in history) / total if total > 0 else 10
-        
-        results = []
+        winrate = wins / len(history) if len(history) > 0 else 0
+        avg_stake = sum(float(b.get('stake', 0)) for b in history) / len(history) if len(history) > 0 else 10
         profit_history = []
         total_profit = 0
-        
-        for i in range(count):
+        for _ in range(count):
             if random.random() < winrate:
                 profit = avg_stake * random.uniform(0.5, 1.5)
                 total_profit += profit
-                results.append('win')
             else:
                 profit = -avg_stake
                 total_profit += profit
-                results.append('loss')
-            
             profit_history.append(round(total_profit, 2))
-        
-        wins_sim = results.count('win')
-        losses_sim = results.count('loss')
-        max_profit = max(profit_history) if profit_history else 0
-        min_profit = min(profit_history) if profit_history else 0
-        
         return jsonify({
             'total': count,
-            'wins': wins_sim,
-            'losses': losses_sim,
+            'wins': int(winrate * count),
+            'losses': count - int(winrate * count),
             'profit': round(total_profit, 2),
-            'winrate': round(wins_sim / count * 100, 1),
+            'winrate': round(winrate * 100, 1),
             'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
-            'risk': round((abs(min_profit) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
-            'max_profit': round(max_profit, 2),
-            'min_profit': round(min_profit, 2),
+            'risk': round((abs(min(profit_history)) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'max_profit': round(max(profit_history), 2),
+            'min_profit': round(min(profit_history), 2),
             'avg_stake': round(avg_stake, 2),
             'history': profit_history[:100],
             'labels': list(range(1, min(count, 100) + 1))
         })
-        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1499,103 +1598,56 @@ def import_excel():
     try:
         data = request.json
         excel_data = data.get('data', [])
-        
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
-        
         response = requests.get(f'{BOT_URL}/api/history', timeout=10)
         history = response.json() if response.status_code == 200 else []
-        
         imported = 0
         for row in excel_data:
             match = row.get('Матч', '') or row.get('Match', '')
-            home = ''
-            away = ''
-            
+            home = away = ''
             if ' vs ' in match:
                 parts = match.split(' vs ')
                 home = parts[0].strip()
                 away = parts[1].strip()
-            elif ' - ' in match:
-                parts = match.split(' - ')
-                home = parts[0].strip()
-                away = parts[1].strip()
-            
-            score = row.get('Счёт', '') or row.get('Scht', '') or row.get('Score', '')
-            home_goals = None
-            away_goals = None
+            score = row.get('Счёт', '') or row.get('Score', '')
+            home_goals = away_goals = None
             if score and '-' in str(score):
                 parts = str(score).split('-')
                 try:
                     home_goals = int(parts[0].strip())
                     away_goals = int(parts[1].strip())
-                except:
-                    pass
-            
-            bet = row.get('Ставка', '') or row.get('Stanka', '') or 'Ручная ставка'
-            
-            odds = 1.85
-            try:
-                odds = float(row.get('Коэф', 1.85) or row.get('Kofy', 1.85) or 1.85)
-            except:
-                odds = 1.85
-            
-            stake = 0
-            try:
-                stake = float(row.get('Сумма', 0) or row.get('Stake', 0) or 0)
-            except:
-                stake = 0
-            
-            ev = 0
-            try:
-                ev = float(row.get('EV%', 0) or row.get('Ev', 0) or 0)
-            except:
-                ev = 0
-            
-            result = row.get('Результат', 'pending') or row.get('Result', 'pending')
-            if result.lower() in ['win', 'выигрыш']:
-                result = 'win'
-            elif result.lower() in ['loss', 'проигрыш']:
-                result = 'loss'
-            elif result.lower() in ['push', 'возврат']:
-                result = 'push'
-            else:
-                result = 'pending'
-            
-            profit = 0
-            try:
-                profit = float(row.get('Прибыль', 0) or row.get('Profit', 0) or 0)
-            except:
-                profit = 0
-            
-            date = row.get('Дата', '') or row.get('Data', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
-            if not date or date == '':
-                date = datetime.now().strftime('%Y-%m-%d %H:%M')
-            
-            bet_record = {
+                except: pass
+            bet = row.get('Ставка', '') or 'Ручная ставка'
+            odds = float(row.get('Коэф', 1.85) or 1.85)
+            stake = round(float(row.get('Сумма', 0) or 0), 2)
+            ev = float(row.get('EV%', 0) or 0)
+            result = row.get('Результат', 'pending')
+            if result.lower() in ['win', 'выигрыш']: result = 'win'
+            elif result.lower() in ['loss', 'проигрыш']: result = 'loss'
+            elif result.lower() in ['push', 'возврат']: result = 'push'
+            else: result = 'pending'
+            profit = float(row.get('Прибыль', 0) or 0)
+            date = row.get('Дата', datetime.now().strftime('%Y-%m-%d %H:%M'))
+            history.append({
                 'home': home or 'Unknown',
                 'away': away or 'Unknown',
-                'league': 'Импорт из Excel',
+                'home_goals': home_goals,
+                'away_goals': away_goals,
                 'bet': bet,
                 'odds': odds,
                 'stake': stake,
                 'ev': ev,
                 'result': result,
                 'profit': profit,
-                'date': date,
-                'home_goals': home_goals,
-                'away_goals': away_goals
-            }
-            history.append(bet_record)
+                'date': date
+            })
             imported += 1
-        
         response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
-        
         if response.status_code == 200:
             return jsonify({'success': True, 'count': imported})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
-            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1604,13 +1656,10 @@ def edit_bet():
     try:
         data = request.json
         index = data.get('index')
-        
         response = requests.get(f'{BOT_URL}/api/history', timeout=10)
         history = response.json() if response.status_code == 200 else []
-        
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
-        
         history[index]['home'] = data.get('home', history[index]['home'])
         history[index]['away'] = data.get('away', history[index]['away'])
         history[index]['home_goals'] = data.get('home_goals')
@@ -1620,21 +1669,17 @@ def edit_bet():
         history[index]['stake'] = data.get('stake', history[index]['stake'])
         history[index]['ev'] = data.get('ev', history[index]['ev'])
         history[index]['result'] = data.get('result', history[index]['result'])
-        
         if history[index]['result'] == 'win':
             history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
         elif history[index]['result'] == 'loss':
             history[index]['profit'] = -history[index]['stake']
         else:
             history[index]['profit'] = 0
-        
         response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
-        
         if response.status_code == 200:
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
-            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1643,22 +1688,16 @@ def delete_bet():
     try:
         data = request.json
         index = data.get('index')
-        
         response = requests.get(f'{BOT_URL}/api/history', timeout=10)
         history = response.json() if response.status_code == 200 else []
-        
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
-        
         deleted = history.pop(index)
-        
         response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
-        
         if response.status_code == 200:
             return jsonify({'success': True, 'deleted': deleted})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
-            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1675,13 +1714,7 @@ def update_bank():
 
 @app.route('/export')
 def export_data():
-    try:
-        response = requests.get(f'{BOT_URL}/export', timeout=30)
-        if response.status_code == 200:
-            return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
-    except:
-        pass
-    return "Нет данных для экспорта", 404
+    return export_excel()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
