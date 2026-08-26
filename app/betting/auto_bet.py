@@ -11,11 +11,11 @@ logger = get_logger(__name__)
 class AutoBet:
     def __init__(self):
         self.enabled = True
-        self.max_bets_per_day = Config.MAX_BETS_PER_DAY
-        self.max_bets_per_run = Config.MAX_BETS_PER_RUN
-        self.min_ev = Config.MIN_EV
-        self.min_odds = Config.MIN_ODDS
-        self.marker_threshold = Config.MARKER_THRESHOLD
+        self.max_bets_per_day = getattr(Config, 'MAX_BETS_PER_DAY', 20)
+        self.max_bets_per_run = getattr(Config, 'MAX_BETS_PER_RUN', 20)
+        self.min_ev = getattr(Config, 'MIN_EV', 5)
+        self.min_odds = getattr(Config, 'MIN_ODDS', 1.5)
+        self.marker_threshold = getattr(Config, 'MARKER_THRESHOLD', 80)
         self.bets_today = 0
         self.last_bet_date = None
 
@@ -183,3 +183,7 @@ class AutoBet:
 
         # Если не нашли точное совпадение, берем лучший маркер
         return markers[0] if markers else None
+
+
+# ===== ВАЖНО: СОЗДАЕМ ЭКЗЕМПЛЯР ДЛЯ ИМПОРТА =====
+auto_bet = AutoBet()
