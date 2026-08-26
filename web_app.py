@@ -945,7 +945,6 @@ MAIN_HTML = """
             margin-top: 10px;
         }
         
-        /* ===== СТИЛИ ДЛЯ ТАБЛИЦЫ ПАТТЕРНОВ ===== */
         .patterns-table {
             width: 100%;
             border-collapse: collapse;
@@ -968,7 +967,6 @@ MAIN_HTML = """
             background: rgba(255, 255, 255, 0.02);
         }
         
-        /* ===== ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ В ПАТТЕРНЕ ===== */
         .pattern-metrics {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -990,6 +988,35 @@ MAIN_HTML = """
             font-size: 12px;
             font-weight: 600;
             margin-top: 1px;
+        }
+        
+        /* Стиль для уведомлений */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: rgba(20, 20, 35, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 10px;
+            color: #e8e8f0;
+            font-size: 13px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            max-width: 400px;
+        }
+        .notification.success { border-color: rgba(52, 211, 153, 0.3); }
+        .notification.error { border-color: rgba(248, 113, 113, 0.3); }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100px); }
         }
         
         @media (max-width: 768px) {
@@ -1015,6 +1042,7 @@ MAIN_HTML = """
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
             .patterns-table { font-size: 9px; }
             .patterns-table th, .patterns-table td { padding: 4px 6px; }
+            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1108,6 +1136,25 @@ MAIN_HTML = """
     let currentPage = 'dashboard';
     let isLoading = false;
     let chartData = null;
+
+    // ============================================================
+    // УВЕДОМЛЕНИЯ
+    // ============================================================
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = 'notification' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 300);
+        }, 3000);
+    }
 
     // ============================================================
     // ТЕМА
@@ -1307,7 +1354,6 @@ MAIN_HTML = """
                 const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
                 const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
                 
-                // Дополнительные метрики
                 const profits = group.bets.map(b => b.profit || 0);
                 const avgProfit = profits.reduce((a, b) => a + b, 0) / profits.length || 0;
                 const maxProfit = Math.max(...profits) || 0;
@@ -1540,7 +1586,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ (С ДЕТЕКТОРОМ ДРОБНЫХ СУММ)
+    // РЕНДЕР АНАЛИТИКИ
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
@@ -1586,7 +1632,6 @@ MAIN_HTML = """
             </div>
         `;
 
-        // Детектор дробных сумм с улучшениями
         if (settings.anomaly_detection) {
             html += `
             <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
@@ -1600,7 +1645,6 @@ MAIN_HTML = """
                 </div>
                 
                 ${hasPatterns ? `
-                <!-- Сравнительная таблица паттернов -->
                 <div style="overflow-x:auto;margin-bottom:12px;">
                     <table class="patterns-table">
                         <thead>
@@ -1634,7 +1678,6 @@ MAIN_HTML = """
                     </table>
                 </div>
                 
-                <!-- Детальные карточки паттернов -->
                 <div style="display:flex;flex-direction:column;gap:8px;">
                     ${patterns.map((pattern, idx) => renderPatternCard(pattern, idx)).join('')}
                 </div>
@@ -1672,7 +1715,6 @@ MAIN_HTML = """
             `;
         }
 
-        // Быстрая статистика
         html += `
             <div class="card">
                 <div class="card-header">
@@ -1700,12 +1742,37 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С ДОПОЛНИТЕЛЬНЫМИ МЕТРИКАМИ)
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
     // ============================================================
     function renderPatternCard(pattern, idx) {
-        const statusColor = pattern.winrate >= 60 ? '#34d399' : (pattern.winrate >= 40 ? '#fbbf24' : '#f87171');
+        let statusColor;
+        let statusIcon;
+        let glowEffect = '';
+        
+        if (pattern.winrate === 100) {
+            statusColor = '#34d399';
+            statusIcon = '🌟';
+            glowEffect = 'box-shadow: 0 0 30px rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.2);';
+        } else if (pattern.winrate >= 60) {
+            statusColor = '#34d399';
+            statusIcon = '🟢';
+        } else if (pattern.winrate >= 40) {
+            statusColor = '#fbbf24';
+            statusIcon = '🟡';
+        } else {
+            statusColor = '#f87171';
+            statusIcon = '🔴';
+        }
+        
         const formattedStake = pattern.stake.toString();
         const recommendation = getRecommendation(pattern.stake);
+        
+        const isPerfect = pattern.winrate === 100;
+        const perfectBadge = isPerfect ? `
+            <span style="background:rgba(52,211,153,0.15);color:#34d399;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;border:1px solid rgba(52,211,153,0.2);">
+                🏆 100% ПРОХОДИМОСТЬ
+            </span>
+        ` : '';
         
         const betsHtml = pattern.bets.map(b => {
             const resultColor = b.result === 'win' ? '#34d399' : (b.result === 'loss' ? '#f87171' : '#fbbf24');
@@ -1724,24 +1791,25 @@ MAIN_HTML = """
         }).join('');
         
         return `
-            <div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};">
+            <div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};${glowEffect}">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="font-size:16px;">${pattern.status}</span>
+                        <span style="font-size:16px;">${statusIcon}</span>
                         <span style="font-size:14px;font-weight:700;color:${statusColor};">$${formattedStake}</span>
                         <span style="font-size:10px;color:rgba(255,255,255,0.3);">${pattern.count} ставки</span>
+                        ${perfectBadge}
                     </div>
                     <div style="text-align:right;">
                         <div style="font-size:12px;font-weight:600;color:${pattern.totalProfit >= 0 ? '#34d399' : '#f87171'};">
                             ${pattern.totalProfit >= 0 ? '+' : ''}$${pattern.totalProfit.toFixed(2)}
                         </div>
-                        <div style="font-size:9px;color:rgba(255,255,255,0.3);">
+                        <div style="font-size:9px;color:${statusColor};font-weight:600;">
                             ${pattern.winrate.toFixed(1)}% (${pattern.wins}/${pattern.count})
+                            ${pattern.winrate === 100 ? ' 🏆' : ''}
                         </div>
                     </div>
                 </div>
                 
-                <!-- Дополнительные метрики -->
                 <div class="pattern-metrics">
                     <div class="metric">
                         <div class="label">Средняя прибыль</div>
@@ -1761,15 +1829,15 @@ MAIN_HTML = """
                     </div>
                 </div>
                 
-                <!-- Рекомендация -->
-                <div style="background:rgba(167,139,250,0.08);border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid rgba(167,139,250,0.15);">
+                <div style="background:${pattern.winrate === 100 ? 'rgba(52,211,153,0.08)' : 'rgba(167,139,250,0.08)'};border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid ${pattern.winrate === 100 ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.15)'};">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
                         <div>
                             <span style="font-size:10px;color:rgba(255,255,255,0.3);">🎯 Рекомендация:</span>
                             <span style="font-size:14px;font-weight:700;color:#a78bfa;">${recommendation.icon} ${recommendation.bet}</span>
                         </div>
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">
+                        <div style="font-size:10px;color:${pattern.winrate === 100 ? '#34d399' : 'rgba(255,255,255,0.3)'};font-weight:${pattern.winrate === 100 ? '700' : '400'};">
                             🎯 ${pattern.winrate.toFixed(1)}% сыгранных матчей
+                            ${pattern.winrate === 100 ? ' ✅ ИДЕАЛЬНО!' : ''}
                         </div>
                     </div>
                     <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">
@@ -1777,14 +1845,13 @@ MAIN_HTML = """
                     </div>
                 </div>
                 
-                <!-- Ставки -->
                 <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">
                     ${betsHtml}
                 </div>
                 
-                <!-- Итоговая рекомендация -->
                 <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
                     💡 ${pattern.recommendation}
+                    ${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}
                 </div>
             </div>
         `;
@@ -2109,7 +2176,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР НАСТРОЕК
+    // РЕНДЕР НАСТРОЕК (С СОХРАНЕНИЕМ ПРОЕКТА)
     // ============================================================
     function renderSettings(data) {
         const bank = data.stats ? data.stats.bank : 1000;
@@ -2150,6 +2217,31 @@ MAIN_HTML = """
             </div>
             
             <div class="setting-group">
+                <h2>💾 Проект</h2>
+                <div class="setting-item">
+                    <div>
+                        <div class="label">Сохранить проект</div>
+                        <div class="desc">Скачать все данные и настройки в JSON</div>
+                    </div>
+                    <button class="btn" onclick="exportProject()" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:#34d399;">
+                        💾 Сохранить
+                    </button>
+                </div>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Загрузить проект</div>
+                        <div class="desc">Восстановить данные из сохраненного файла</div>
+                    </div>
+                    <div class="input-group">
+                        <label class="file-input-label" for="projectFileInput" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.2);">
+                            📂 Загрузить
+                        </label>
+                        <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="setting-group">
                 <h2>🤖 Автоматизация</h2>
                 <div class="setting-item">
                     <div><div class="label">Авто-ставки</div><div class="desc">Автоматическое размещение ставок</div></div>
@@ -2175,6 +2267,124 @@ MAIN_HTML = """
             </div>
         `;
         document.getElementById('settings-content').innerHTML = html;
+    }
+
+    // ============================================================
+    // СОХРАНЕНИЕ И ЗАГРУЗКА ПРОЕКТА
+    // ============================================================
+    function exportProject() {
+        const projectData = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            exportedAt: new Date().toLocaleString(),
+            settings: JSON.parse(localStorage.getItem('bot_settings')) || {},
+            theme: localStorage.getItem('theme') || 'dark',
+            data: cachedData || null
+        };
+        
+        if (!projectData.data) {
+            showNotification('⏳ Загрузка данных...', '');
+            fetch('/api/all_data')
+                .then(response => response.json())
+                .then(data => {
+                    projectData.data = data;
+                    downloadProjectFile(projectData);
+                })
+                .catch(error => {
+                    showNotification('❌ Ошибка загрузки данных: ' + error, 'error');
+                });
+            return;
+        }
+        
+        downloadProjectFile(projectData);
+    }
+
+    function downloadProjectFile(projectData) {
+        const json = JSON.stringify(projectData, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `quantum_bet_project_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showNotification('✅ Проект успешно сохранен!', 'success');
+    }
+
+    function importProject(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        showNotification('⏳ Загрузка файла...', '');
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const projectData = JSON.parse(e.target.result);
+                
+                if (!projectData.version) {
+                    showNotification('❌ Неверный формат файла!', 'error');
+                    return;
+                }
+                
+                // Загружаем настройки
+                if (projectData.settings) {
+                    localStorage.setItem('bot_settings', JSON.stringify(projectData.settings));
+                }
+                
+                // Загружаем тему
+                if (projectData.theme) {
+                    localStorage.setItem('theme', projectData.theme);
+                    if (projectData.theme === 'light') {
+                        document.body.classList.add('light-theme');
+                        document.getElementById('themeBtn').textContent = '☀️';
+                    } else {
+                        document.body.classList.remove('light-theme');
+                        document.getElementById('themeBtn').textContent = '🌙';
+                    }
+                }
+                
+                // Загружаем данные на сервер
+                if (projectData.data && projectData.data.history) {
+                    showNotification('⏳ Отправка данных на сервер...', '');
+                    
+                    fetch('/api/import_project', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            history: projectData.data.history,
+                            stats: projectData.data.stats
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            showNotification(`✅ Проект загружен! Импортировано ${result.count || 0} ставок.`, 'success');
+                            refreshData();
+                        } else {
+                            showNotification('❌ Ошибка загрузки: ' + result.error, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showNotification('❌ Ошибка: ' + error, 'error');
+                    });
+                } else {
+                    showNotification('✅ Настройки загружены! Данные не найдены.', 'success');
+                    refreshData();
+                }
+                
+            } catch (error) {
+                showNotification('❌ Ошибка чтения файла: ' + error, 'error');
+            }
+        };
+        reader.readAsText(file);
+        
+        // Сбрасываем input
+        event.target.value = '';
     }
 
     // ============================================================
@@ -2213,13 +2423,13 @@ MAIN_HTML = """
             });
             const result = await response.json();
             if (result.success) {
-                alert('✅ Ставка обновлена!');
+                showNotification('✅ Ставка обновлена!', 'success');
                 refreshData();
             } else {
-                alert('❌ Ошибка: ' + result.error);
+                showNotification('❌ Ошибка: ' + result.error, 'error');
             }
         } catch (e) {
-            alert('❌ Ошибка: ' + e);
+            showNotification('❌ Ошибка: ' + e, 'error');
         }
     }
 
@@ -2233,13 +2443,13 @@ MAIN_HTML = """
             });
             const result = await response.json();
             if (result.success) {
-                alert('✅ Ставка удалена!');
+                showNotification('✅ Ставка удалена!', 'success');
                 refreshData();
             } else {
-                alert('❌ Ошибка: ' + result.error);
+                showNotification('❌ Ошибка: ' + result.error, 'error');
             }
         } catch (e) {
-            alert('❌ Ошибка: ' + e);
+            showNotification('❌ Ошибка: ' + e, 'error');
         }
     }
 
@@ -2254,7 +2464,7 @@ MAIN_HTML = """
             });
             const data = await response.json();
             if (data.error) {
-                alert('❌ Ошибка: ' + data.error);
+                showNotification('❌ Ошибка: ' + data.error, 'error');
                 return;
             }
             document.getElementById('simProfit').textContent = '$' + data.profit;
@@ -2305,7 +2515,7 @@ MAIN_HTML = """
                 });
             }
         } catch (e) {
-            alert('❌ Ошибка: ' + e);
+            showNotification('❌ Ошибка: ' + e, 'error');
         }
     }
 
@@ -2319,11 +2529,11 @@ MAIN_HTML = """
             });
             const data = await response.json();
             if (data.success) {
-                alert('✅ Банк обновлен: $' + data.bank);
+                showNotification('✅ Банк обновлен: $' + data.bank, 'success');
                 refreshData();
             }
         } catch (e) {
-            alert('❌ Ошибка: ' + e);
+            showNotification('❌ Ошибка: ' + e, 'error');
         }
     }
 
@@ -2485,6 +2695,53 @@ def get_profit_data(history):
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     
     return {'dates': dates, 'profits': profits}
+
+# ============================================================
+# API ДЛЯ ИМПОРТА ПРОЕКТА
+# ============================================================
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    try:
+        data = request.json
+        history = data.get('history', [])
+        stats = data.get('stats', {})
+        
+        if not history:
+            return jsonify({'error': 'Нет данных для импорта'}), 400
+        
+        # Получаем текущую историю
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        current_history = response.json() if response.status_code == 200 else []
+        
+        # Обновляем банк если есть
+        if stats and 'bank' in stats:
+            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=10)
+        
+        # Добавляем новые ставки (избегаем дубликатов по дате и матчу)
+        existing_keys = set()
+        for bet in current_history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            existing_keys.add(key)
+        
+        imported = 0
+        for bet in history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            if key not in existing_keys:
+                current_history.append(bet)
+                imported += 1
+                existing_keys.add(key)
+        
+        # Сохраняем обновленную историю
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': imported})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ============================================================
 # ОСТАЛЬНЫЕ API МАРШРУТЫ
