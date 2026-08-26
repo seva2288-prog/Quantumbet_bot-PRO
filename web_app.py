@@ -34,7 +34,7 @@ def save_diary(entries):
         json.dump(entries, f, indent=2, ensure_ascii=False)
 
 # ============================================================
-# ЕДИНЫЙ HTML ШАБЛОН (С УЛУЧШЕНИЯМИ)
+# HTML ШАБЛОН
 # ============================================================
 
 MAIN_HTML = """
@@ -144,20 +144,13 @@ MAIN_HTML = """
         }
         .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
         
-        /* ===== СТРАНИЦЫ ===== */
-        .page {
-            display: none;
-            animation: fadeIn 0.15s ease;
-        }
-        .page.active {
-            display: block;
-        }
+        .page { display: none; animation: fadeIn 0.15s ease; }
+        .page.active { display: block; }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -185,7 +178,6 @@ MAIN_HTML = """
         .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
         .stat-card .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
         
-        /* ===== НОВАЯ СЕТКА МЕТРИК (2 строки × 2 колонки) ===== */
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -234,16 +226,9 @@ MAIN_HTML = """
         .card-header h2 { color: var(--text-secondary); font-size: 13px; font-weight: normal; }
         .card-header .count { color: var(--text-secondary); font-size: 11px; }
         
-        .chart-container {
-            position: relative;
-            height: 140px;
-            width: 100%;
-        }
+        .chart-container { position: relative; height: 140px; width: 100%; }
         
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -306,10 +291,7 @@ MAIN_HTML = """
         .no-data { text-align: center; color: var(--text-secondary); padding: 16px 0; }
         .no-data .emoji { font-size: 30px; margin-bottom: 4px; }
         
-        .scrollable-table {
-            max-height: 350px;
-            overflow-y: auto;
-        }
+        .scrollable-table { max-height: 350px; overflow-y: auto; }
         
         .footer {
             text-align: center;
@@ -320,7 +302,6 @@ MAIN_HTML = """
             border-top: 1px solid var(--border-color);
         }
         
-        /* ===== НИЖНЯЯ НАВИГАЦИЯ (ОБНОВЛЕНА) ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -356,22 +337,10 @@ MAIN_HTML = """
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
-        .bottom-nav .nav-item .icon {
-            font-size: 20px;
-            line-height: 1.1;
-            transition: all 0.15s;
-        }
-        .bottom-nav .nav-item .label {
-            font-size: 8px;
-            margin-top: 1px;
-            font-weight: 500;
-        }
-        .bottom-nav .nav-item.active {
-            color: var(--nav-active);
-        }
-        .bottom-nav .nav-item.active .icon {
-            transform: scale(1.05);
-        }
+        .bottom-nav .nav-item .icon { font-size: 20px; line-height: 1.1; }
+        .bottom-nav .nav-item .label { font-size: 8px; margin-top: 1px; font-weight: 500; }
+        .bottom-nav .nav-item.active { color: var(--nav-active); }
+        .bottom-nav .nav-item.active .icon { transform: scale(1.05); }
         .bottom-nav .nav-item.active::after {
             content: '';
             position: absolute;
@@ -383,11 +352,8 @@ MAIN_HTML = """
             background: var(--nav-active);
             border-radius: 2px;
         }
-        .bottom-nav .nav-item:active {
-            transform: scale(0.92);
-        }
+        .bottom-nav .nav-item:active { transform: scale(0.92); }
         
-        /* ===== МАТЧИ ===== */
         .match-tabs {
             display: flex;
             gap: 4px;
@@ -431,7 +397,6 @@ MAIN_HTML = """
             border: 1px solid var(--border-color);
         }
         
-        /* ===== НАСТРОЙКИ ===== */
         .setting-group {
             background: var(--bg-secondary);
             padding: 10px;
@@ -532,7 +497,6 @@ MAIN_HTML = """
         .file-input-label:active { transform: scale(0.95); }
         .import-status { color: var(--text-secondary); font-size: 10px; margin-top: 3px; }
         
-        /* ===== СИМУЛЯТОР ===== */
         .sim-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -589,7 +553,6 @@ MAIN_HTML = """
         }
         .btn-primary:active { transform: scale(0.95); }
         
-        /* ===== ДНЕВНИК ===== */
         .diary-textarea {
             width: 100%;
             padding: 8px;
@@ -631,7 +594,6 @@ MAIN_HTML = """
         }
         .diary-entry .delete-btn:hover { color: #cb2d3e; }
         
-        /* ===== LOADER ===== */
         .loader {
             display: none;
             text-align: center;
@@ -681,7 +643,6 @@ MAIN_HTML = """
 </head>
 <body>
     <div class="container">
-        <!-- HEADER -->
         <div class="header">
             <h1>🤖 Quantum Bet Bot</h1>
             <div class="header-controls">
@@ -696,7 +657,6 @@ MAIN_HTML = """
             </div>
         </div>
         
-        <!-- ===== СТРАНИЦЫ ===== -->
         <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
         <div id="page-matches" class="page"><div id="matches-content"></div></div>
         <div id="page-diary" class="page"><div id="diary-content"></div></div>
@@ -706,7 +666,6 @@ MAIN_HTML = """
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
     
-    <!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
     <div class="bottom-nav">
         <button class="nav-item active" data-page="dashboard">
             <span class="icon">📊</span>
@@ -756,43 +715,58 @@ MAIN_HTML = """
         document.documentElement.setAttribute('data-theme', savedTheme);
         document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        // ===== НАВИГАЦИЯ =====
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                const page = this.dataset.page;
-                switchPage(page);
+        // ============================================================
+        // === НАВИГАЦИЯ (РАБОТАЕТ 100%!) ===
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            function switchPage(page) {
+                if (page === currentPage) return;
+                
+                document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+                const activeBtn = document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`);
+                if (activeBtn) activeBtn.classList.add('active');
+                
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                const targetPage = document.getElementById('page-' + page);
+                if (targetPage) targetPage.classList.add('active');
+                
+                currentPage = page;
+                
+                if (page === 'diary') {
+                    loadDiary();
+                } else {
+                    loadPageData(page);
+                }
+            }
+            
+            // === ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ===
+            document.addEventListener('click', function(e) {
+                const navItem = e.target.closest('.bottom-nav .nav-item');
+                if (navItem) {
+                    const page = navItem.dataset.page;
+                    if (page) {
+                        e.preventDefault();
+                        switchPage(page);
+                    }
+                }
             });
-            btn.addEventListener('touchstart', function(e) {}, { passive: true });
+            
+            // === ЗАГРУЗКА НАЧАЛЬНОЙ СТРАНИЦЫ ===
+            loadPageData('dashboard');
+            
         });
         
-        function switchPage(page) {
-            if (page === currentPage && document.getElementById('page-' + page).classList.contains('active')) return;
-            
-            document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-            document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
-            
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-' + page).classList.add('active');
-            
-            currentPage = page;
-            
-            if (page === 'diary') {
-                loadDiary();
-            } else {
-                loadPageData(page);
-            }
-        }
+        // ============================================================
+        // ОСТАЛЬНЫЕ ФУНКЦИИ
+        // ============================================================
         
-        // ===== ЗАГРУЗКА ДАННЫХ =====
         async function loadPageData(page) {
             if (isLoading) return;
-            
             const contentId = page + '-content';
             const contentEl = document.getElementById(contentId);
-            
-            if (page !== 'dashboard' && cachedData && contentEl.innerHTML) {
-                return;
-            }
+            if (!contentEl) return;
+            if (page !== 'dashboard' && cachedData && contentEl.innerHTML) return;
             
             isLoading = true;
             contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
@@ -811,7 +785,6 @@ MAIN_HTML = """
             } catch (error) {
                 contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
             }
-            
             isLoading = false;
         }
         
@@ -846,7 +819,6 @@ MAIN_HTML = """
                     <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📚 Все записи (${entries.length})</h2>
                     <div id="diaryEntries">
             `;
-            
             if (entries.length === 0) {
                 html += `<div class="no-data"><div class="emoji">📭</div>Нет записей</div>`;
             } else {
@@ -860,7 +832,6 @@ MAIN_HTML = """
                     `;
                 });
             }
-            
             html += `</div></div>`;
             el.innerHTML = html;
         }
@@ -868,7 +839,6 @@ MAIN_HTML = """
         async function saveDiaryEntry() {
             const text = document.getElementById('diaryInput').value.trim();
             if (!text) { alert('Напиши что-нибудь!'); return; }
-            
             try {
                 const response = await fetch('/api/diary', {
                     method: 'POST',
@@ -910,25 +880,19 @@ MAIN_HTML = """
                     <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
                     <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
                 </div>
-                
-                <!-- НОВЫЙ БЛОК: 2 СТРОКИ × 2 КОЛОНКИ -->
                 <div class="metrics-grid">
                     <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
                     <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
                     <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi}%</span></div>
                     <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake}</span></div>
                 </div>
-                
                 <div class="card">
                     <div class="card-header">
                         <h2>📈 График прибыли</h2>
                         <span style="font-size:9px;color:var(--text-secondary);">За последние 7 дней</span>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="profitChart"></canvas>
-                    </div>
+                    <div class="chart-container"><canvas id="profitChart"></canvas></div>
                 </div>
-                
                 <div class="card">
                     <div class="card-header">
                         <h2>📋 Все ставки</h2>
@@ -937,12 +901,9 @@ MAIN_HTML = """
                     <div class="scrollable-table">
                         <div class="table-wrapper">
                             <table>
-                                <thead><tr>
-                                    <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
-                                </tr></thead>
+                                <thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th></tr></thead>
                                 <tbody>
-                    `;
-            
+            `;
             if (history.length === 0) {
                 html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
             } else {
@@ -988,39 +949,27 @@ MAIN_HTML = """
                     `;
                 });
             }
-            
             html += `</tbody></table>
                     </div>
-                    <!-- ===== КНОПКА СОХРАНИТЬ В EXCEL ===== -->
                     <div style="margin-top:10px;">
                         <button class="btn btn-success" onclick="exportToExcel()" style="padding:6px 16px;">📥 Сохранить в Excel</button>
                     </div>
                 </div>
             `;
-            
             document.getElementById('dashboard-content').innerHTML = html;
-            
             setTimeout(() => renderChart(data.profit_data), 50);
         }
         
-        // ===== ЭКСПОРТ В EXCEL =====
         function exportToExcel() {
             window.location.href = '/api/export_excel';
         }
         
-        // ===== ГРАФИК =====
         function renderChart(profitData) {
             const ctx = document.getElementById('profitChart');
             if (!ctx) return;
-            
-            if (chartInstance) {
-                chartInstance.destroy();
-                chartInstance = null;
-            }
-            
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-            
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1041,78 +990,40 @@ MAIN_HTML = """
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } }
-                    },
+                    plugins: { legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } } },
                     scales: {
                         x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
-                        y: {
-                            ticks: {
-                                color: isDark ? '#8888aa' : '#666688',
-                                callback: function(value) { return '$' + value; },
-                                font: { size: 8 }
-                            }
-                        }
+                        y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: function(value) { return '$' + value; }, font: { size: 8 } } }
                     }
                 }
             });
         }
         
-        // ===== РЕНДЕР МАТЧЕЙ =====
         function renderMatches(data) {
             const matches = data.matches || [];
             let html = `
                 <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚽ Матчи</h2>
                 <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>
-                <div class="match-tabs">
-                    <span class="match-tab active">Все игры</span>
-                    <span class="match-tab">LIVE</span>
-                    <span class="match-tab">⭐ Избранное</span>
-                    <span class="match-tab">🏆 Турниры</span>
-                </div>
+                <div class="match-tabs"><span class="match-tab active">Все игры</span><span class="match-tab">LIVE</span><span class="match-tab">⭐ Избранное</span><span class="match-tab">🏆 Турниры</span></div>
             `;
-            
             if (matches.length === 0) {
                 html += `<div class="no-data"><div class="emoji">📭</div>Матчей не найдено</div>`;
             } else {
                 matches.forEach(m => {
-                    html += `
-                        <div class="match-card">
-                            <div class="match-title">${m.home} vs ${m.away}</div>
-                            <div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div>
-                            <div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div>
-                            <div class="match-bets">
-                                ${(m.bets || []).slice(0, 3).map(b => 
-                                    `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`
-                                ).join('')}
-                            </div>
-                        </div>
-                    `;
+                    html += `<div class="match-card"><div class="match-title">${m.home} vs ${m.away}</div><div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div><div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div><div class="match-bets">${(m.bets || []).slice(0,3).map(b => `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`).join('')}</div></div>`;
                 });
             }
-            
             document.getElementById('matches-content').innerHTML = html;
         }
         
-        // ===== РЕНДЕР СИМУЛЯТОРА =====
         function renderSimulator(data) {
             const history = data.history || [];
-            
             let html = `
                 <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">🎲 Симулятор</h2>
                 <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
             `;
-            
             if (history.length < 5) {
-                html += `
-                    <div class="card">
-                        <div class="no-data">
-                            <div class="emoji">📭</div>
-                            <div>Нет данных для симуляции</div>
-                            <div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div>
-                        </div>
-                    </div>
-                `;
+                html += `<div class="card"><div class="no-data"><div class="emoji">📭</div><div>Нет данных для симуляции</div><div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div></div></div>`;
             } else {
                 html += `
                     <div class="card">
@@ -1126,7 +1037,6 @@ MAIN_HTML = """
                             <button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
                         </div>
                     </div>
-                    
                     <div id="simResults" style="display:none;">
                         <div class="sim-stats" id="simStats">
                             <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
@@ -1156,18 +1066,14 @@ MAIN_HTML = """
                     </div>
                 `;
             }
-            
             document.getElementById('simulator-content').innerHTML = html;
         }
         
-        // ===== РЕНДЕР НАСТРОЕК =====
         function renderSettings(data) {
             const bank = data.stats ? data.stats.bank : 1000;
-            
             let html = `
                 <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚙️ Настройки</h2>
                 <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Управление ботом</div>
-                
                 <div class="setting-group">
                     <h2>💰 Банк</h2>
                     <div class="setting-item">
@@ -1178,7 +1084,6 @@ MAIN_HTML = """
                         </div>
                     </div>
                 </div>
-                
                 <div class="setting-group">
                     <h2>🤖 Автоматизация</h2>
                     <div class="setting-item">
@@ -1186,7 +1091,6 @@ MAIN_HTML = """
                         <div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div>
                     </div>
                 </div>
-                
                 <div class="setting-group">
                     <h2>📊 Экспорт / Импорт</h2>
                     <div class="setting-item">
@@ -1204,11 +1108,9 @@ MAIN_HTML = """
                     <div id="importStatus" class="import-status"></div>
                 </div>
             `;
-            
             document.getElementById('settings-content').innerHTML = html;
         }
         
-        // ===== ОСТАЛЬНЫЕ ФУНКЦИИ =====
         function toggleEdit(index) {
             const row = document.getElementById('edit-row-' + index);
             if (row) row.classList.toggle('active');
@@ -1222,7 +1124,6 @@ MAIN_HTML = """
                 home_goals = parseInt(parts[0]);
                 away_goals = parseInt(parts[1]);
             }
-            
             const data = {
                 home: document.getElementById('edit_home_' + index).value,
                 away: document.getElementById('edit_away_' + index).value,
@@ -1235,7 +1136,6 @@ MAIN_HTML = """
                 result: document.getElementById('edit_result_' + index).value,
                 index: index
             };
-            
             try {
                 const response = await fetch('/api/edit_bet', {
                     method: 'POST',
@@ -1256,7 +1156,6 @@ MAIN_HTML = """
         
         async function deleteBet(index) {
             if (!confirm('Удалить эту ставку?')) return;
-            
             try {
                 const response = await fetch('/api/delete_bet', {
                     method: 'POST',
@@ -1278,7 +1177,6 @@ MAIN_HTML = """
         async function runSimulation() {
             const count = parseInt(document.getElementById('simCount').value) || 1000;
             document.getElementById('simResults').style.display = 'block';
-            
             try {
                 const response = await fetch('/api/simulate', {
                     method: 'POST',
@@ -1286,12 +1184,10 @@ MAIN_HTML = """
                     body: JSON.stringify({ count: count })
                 });
                 const data = await response.json();
-                
                 if (data.error) {
                     alert('❌ Ошибка: ' + data.error);
                     return;
                 }
-                
                 document.getElementById('simProfit').textContent = '$' + data.profit;
                 document.getElementById('simWinrate').textContent = data.winrate + '%';
                 document.getElementById('simROI').textContent = data.roi + '%';
@@ -1302,14 +1198,12 @@ MAIN_HTML = """
                 document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
                 document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
                 document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-                
                 const rec = document.getElementById('simRecommendation');
                 if (data.profit > 0) {
                     rec.innerHTML = '✅ <b style="color:#38ef7d;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
                 } else {
                     rec.innerHTML = '⚠️ <b style="color:#ef473a;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
                 }
-                
                 const ctx = document.getElementById('simChart');
                 if (ctx) {
                     if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
@@ -1331,9 +1225,7 @@ MAIN_HTML = """
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            plugins: {
-                                legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } }
-                            },
+                            plugins: { legend: { labels: { color: isDark ? '#e0e0e0' : '#1a1a2e', font: { size: 9 } } } },
                             scales: {
                                 x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
                                 y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: function(value) { return '$' + value; }, font: { size: 8 } } }
@@ -1368,12 +1260,9 @@ MAIN_HTML = """
             const file = event.target.files[0];
             const statusDiv = document.getElementById('importStatus');
             const fileNameSpan = document.getElementById('fileName');
-            
             if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
-            
             fileNameSpan.textContent = '📄 ' + file.name;
             statusDiv.textContent = '⏳ Загрузка файла...';
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -1381,14 +1270,11 @@ MAIN_HTML = """
                     const workbook = XLSX.read(data, {type: 'array'});
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const json = XLSX.utils.sheet_to_json(sheet);
-                    
                     if (json.length === 0) {
                         statusDiv.textContent = '❌ Файл пуст или неправильный формат';
                         return;
                     }
-                    
                     statusDiv.textContent = '⏳ Отправка данных на сервер...';
-                    
                     fetch('/api/import_excel', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1415,10 +1301,6 @@ MAIN_HTML = """
             if (this.files.length > 0) {
                 document.getElementById('fileName').textContent = '📄 ' + this.files[0].name;
             }
-        });
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            loadPageData('dashboard');
         });
     </script>
 </body>
@@ -1498,7 +1380,6 @@ def all_data():
         'matches': matches
     })
 
-# ===== ДНЕВНИК API =====
 @app.route('/api/diary', methods=['GET'])
 def get_diary():
     return jsonify(load_diary())
@@ -1511,11 +1392,7 @@ def add_diary():
         return jsonify({'error': 'Пустая запись'}), 400
     entries = load_diary()
     entry_id = max([e.get('id', 0) for e in entries] + [0]) + 1
-    entries.append({
-        'id': entry_id,
-        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-        'text': text
-    })
+    entries.append({'id': entry_id, 'date': datetime.now().strftime('%Y-%m-%d %H:%M'), 'text': text})
     save_diary(entries)
     return jsonify({'success': True, 'id': entry_id})
 
@@ -1526,7 +1403,6 @@ def delete_diary(entry_id):
     save_diary(entries)
     return jsonify({'success': True})
 
-# ===== ЭКСПОРТ В EXCEL =====
 @app.route('/api/export_excel')
 def export_excel():
     _, history = get_data_from_bot()
@@ -1553,7 +1429,6 @@ def export_excel():
     output.seek(0)
     return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='history.xlsx')
 
-# ===== ОСТАЛЬНЫЕ API =====
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
     try:
