@@ -1166,6 +1166,45 @@ MAIN_HTML = """
     }
 
     // ============================================================
+    // ФИКСИРОВАННЫЕ РЕКОМЕНДАЦИИ ДЛЯ ПАТТЕРНОВ
+    // ============================================================
+    function getRecommendation(stake) {
+        const stakeStr = stake.toString();
+        
+        const recommendations = {
+            '45.125': {
+                bet: '1X',
+                icon: '🏠',
+                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
+            },
+            '40.7253125': {
+                bet: 'ОБЗ',
+                icon: '⚽',
+                description: 'Обе команды забьют'
+            },
+            '42.86875000000006': {
+                bet: 'ТМ 2.5',
+                icon: '🔽',
+                description: 'Тотал меньше 2.5 голов'
+            }
+        };
+        
+        // Ищем точное совпадение суммы
+        for (const [key, value] of Object.entries(recommendations)) {
+            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
+                return value;
+            }
+        }
+        
+        // Если нет рекомендации
+        return {
+            bet: '—',
+            icon: '📌',
+            description: 'Нет рекомендации для этой суммы'
+        };
+    }
+
+    // ============================================================
     // ДЕТЕКТОР ДРОБНЫХ СУММ (3+ ЗНАКОВ ПОСЛЕ ЗАПЯТОЙ)
     // ============================================================
     function getDecimalPlaces(num) {
@@ -1570,15 +1609,15 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С ФИКСИРОВАННОЙ РЕКОМЕНДАЦИЕЙ)
     // ============================================================
     function renderPatternCard(pattern, idx) {
         const statusColor = pattern.winrate >= 60 ? '#34d399' : (pattern.winrate >= 40 ? '#fbbf24' : '#f87171');
-        
-        // Форматируем сумму со всеми знаками
         const formattedStake = pattern.stake.toString();
         
-        // Список матчей
+        // Получаем фиксированную рекомендацию
+        const recommendation = getRecommendation(pattern.stake);
+        
         const betsHtml = pattern.bets.map(b => {
             const resultColor = b.result === 'win' ? '#34d399' : (b.result === 'loss' ? '#f87171' : '#fbbf24');
             return `
@@ -1608,6 +1647,20 @@ MAIN_HTML = """
                         <div style="font-size:9px;color:rgba(255,255,255,0.3);">${pattern.winrate.toFixed(1)}%</div>
                     </div>
                 </div>
+                
+                <!-- ФИКСИРОВАННАЯ РЕКОМЕНДАЦИЯ -->
+                <div style="background:rgba(167,139,250,0.08);border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid rgba(167,139,250,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
+                        <div>
+                            <span style="font-size:10px;color:rgba(255,255,255,0.3);">🎯 Рекомендация:</span>
+                            <span style="font-size:14px;font-weight:700;color:#a78bfa;">${recommendation.icon} ${recommendation.bet}</span>
+                        </div>
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">
+                        ${recommendation.description}
+                    </div>
+                </div>
+                
                 <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">
                     ${betsHtml}
                 </div>
