@@ -106,123 +106,6 @@ def export_to_excel():
     
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
-# ============ ОТПРАВКА МАТЧА С КНОПКАМИ ============
-def send_match_with_buttons(match, index):
-    if not match:
-        return
-    
-    league = match.get('league', 'Неизвестная лига')
-    is_weak = any(weak in league for weak in Config.WEAK_LEAGUES)
-    weak_tag = " ⚠️ СЛАБАЯ!" if is_weak else ""
-    
-    msg = f"🏟️ <b>{index}. {match['home']} vs {match['away']}</b>\n"
-    msg += f"   🏆 {league}{weak_tag}\n"
-    msg += f"   ⏰ {match.get('match_time', '⏰ Время не указано')}\n"
-    msg += f"   📊 xG: {match['home_xg']} : {match['away_xg']}\n"
-    msg += f"   🌤️ {match.get('weather_reason', '☀️ Без погоды')}\n\n"
-    
-    bets = match.get('bets', [])
-    if bets:
-        for j, bet in enumerate(bets[:3], 1):
-            emoji = ["🥇", "🥈", "🥉"][j-1]
-            ev_emoji = "✅" if bet['ev'] > 5 else "⚠️" if bet['ev'] > 0 else "❌"
-            msg += f"   {emoji} {bet['label']} | КЭФ: {bet['odds']} | EV: {bet['ev']}% {ev_emoji}\n"
-    
-    half_goals = predict_half_goals(match['home_xg'], match['away_xg'])
-    msg += f"\n📊 <b>По таймам:</b>\n"
-    msg += f"   1-й тайм: {half_goals['first_half']['home_xg']}:{half_goals['first_half']['away_xg']} (гол {half_goals['first_half']['goal_probability']}%)\n"
-    msg += f"   2-й тайм: {half_goals['second_half']['home_xg']}:{half_goals['second_half']['away_xg']} (гол {half_goals['second_half']['goal_probability']}%)\n"
-    
-    exact_scores = predict_exact_score(match['home_xg'], match['away_xg'])
-    msg += f"\n🎯 <b>Точный счет (топ-5):</b>\n"
-    for score, prob in exact_scores.items():
-        msg += f"   {score} — {prob}%\n"
-    
-    corners = predict_corners(match['home_xg'], match['away_xg'])
-    msg += f"\n📐 <b>Угловые:</b>\n"
-    msg += f"   Тотал: {corners['total']}\n"
-    msg += f"   Тотал > 8.5: {corners['over_8_5']}%\n"
-    msg += f"   Тотал > 10.5: {corners['over_10_5']}%\n"
-    
-    try:
-        home_id = match.get('factors', {}).get('home_id')
-        away_id = match.get('factors', {}).get('away_id')
-        
-        if home_id and away_id:
-            home_cards = football_api.get_team_cards_stats(home_id)
-            away_cards = football_api.get_team_cards_stats(away_id)
-            
-            referee = match.get('factors', {}).get('referee')
-            referee_stats = None
-            if referee:
-                referee_stats = football_api.get_referee_stats(referee)
-            
-            cards = predict_yellow_cards(home_cards, away_cards, referee_stats)
-            
-            msg += f"\n🟨 <b>Желтые карточки:</b>\n"
-            msg += f"   Тотал: {cards['total']}\n"
-            msg += f"   Тотал > 3.5: {cards['over_3_5']}%\n"
-            msg += f"   Тотал > 4.5: {cards['over_4_5']}%\n"
-            msg += f"   Тотал > 5.5: {cards['over_5_5']}%\n"
-            msg += f"   Хозяева: {cards['home_avg']} | Гости: {cards['away_avg']}"
-            
-            if referee:
-                msg += f"\n   🧑‍⚖️ Судья: {referee}"
-    except Exception as e:
-        logger.warning(f"Ошибка прогноза карточек: {e}")
-    
-    intuition = match.get('intuition', [])
-    if intuition:
-        msg += "\n🧠 <b>Чутьё:</b>\n"
-        for reason in intuition[:5]:
-            msg += f"   {reason}\n"
-    
-    if is_weak:
-        msg += "\n⚠️ <b>СЛАБАЯ ЛИГА!</b> Бот может ошибаться на ОЗ - ДА."
-    
-    msg += "\n\n📌 <b>Выбери результат матча (для обучения):</b>"
-    
-    match_id = f"{match['fixture_id']}_{int(time.time())}"
-    
-    try:
-        cache = storage.load_cache()
-        if not cache:
-            cache = {}
-        cache[f"match_{match_id}"] = match
-        storage.save_cache(cache)
-        logger.info(f"💾 Сохранён матч в кэш: {match_id}")
-        
-        try:
-            with open(f"data/match_{match_id}.json", 'w') as f:
-                json.dump(match, f)
-            logger.info(f"💾 Сохранён матч в файл: match_{match_id}.json")
-        except Exception as e:
-            logger.error(f"❌ Ошибка сохранения в файл: {e}")
-            
-    except Exception as e:
-        logger.error(f"❌ Ошибка сохранения в кэш: {e}")
-    
-    keyboard = [
-        [{"text": "🏠 Победа хозяев", "callback_data": f"result_home_{match_id}"}],
-        [{"text": "✈️ Победа гостей", "callback_data": f"result_away_{match_id}"}],
-        [{"text": "🤝 Ничья", "callback_data": f"result_draw_{match_id}"}],
-        [{"text": "❌ Пропустить", "callback_data": f"result_skip_{match_id}"}]
-    ]
-    
-    try:
-        import requests
-        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
-        data = {
-            "chat_id": Config.ADMIN_CHAT_ID,
-            "text": msg,
-            "parse_mode": "HTML",
-            "reply_markup": {"inline_keyboard": keyboard}
-        }
-        requests.post(url, json=data, timeout=10)
-        logger.info(f"✅ ОТПРАВЛЕН МАТЧ {index}")
-    except Exception as e:
-        logger.error(f"Send error: {e}")
-
 # ============================================================
 # ПОИСК МАТЧЕЙ (СЕГОДНЯ + ЗАВТРА, ПОГОДА ОТКЛЮЧЕНА)
 # ============================================================
@@ -230,7 +113,7 @@ def send_match_with_buttons(match, index):
 def get_matches_with_factors():
     all_matches = []
     
-    # ===== ИЩЕМ НА СЕГОДНЯ И ЗАВТРА (2 ДНЯ) =====
+    # Ищем на сегодня и завтра (2 дня)
     dates_to_search = []
     for i in range(2):
         date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
@@ -262,7 +145,7 @@ def get_matches_with_factors():
                                     "referee": match.get("fixture", {}).get("referee")
                                 }
                                 
-                                # ===== ПОГОДА ОТКЛЮЧЕНА =====
+                                # Погода отключена
                                 match["weather"] = None
                                 match["weather_reason"] = "🌤️ Погода отключена"
                                 
@@ -537,16 +420,17 @@ def webhook():
 
                         top_matches = find_top_matches(matches)
                         if top_matches:
-                            # ===== ПОКАЗЫВАЕМ ТОП-20 =====
-                            for i, match in enumerate(top_matches[:20], 1):
-                                send_match_with_buttons(match, i)
-                                time.sleep(0.5)
+                            # ============================================================
+                            # КАРТОЧКИ МАТЧЕЙ ОТКЛЮЧЕНЫ — ПОКАЗЫВАЕМ ТОЛЬКО АВТО-СТАВКИ
+                            # ============================================================
+                            # for i, match in enumerate(top_matches[:20], 1):
+                            #     send_match_with_buttons(match, i)
+                            #     time.sleep(0.5)
 
                             elapsed = (datetime.now() - start_time).seconds
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🎯 Топ-20 матчей отправлено\n"
                                 f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
