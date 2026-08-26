@@ -223,8 +223,8 @@ class Config:
     # ============================================================
     # НАСТРОЙКИ СТАВОК
     # ============================================================
-    MAX_BETS_PER_DAY = 20
-    MAX_BETS_PER_RUN = 20
+    MAX_BETS_PER_DAY = 30
+    MAX_BETS_PER_RUN = 30
     MIN_EV = 5
     MIN_ODDS = 1.5
     MARKER_THRESHOLD = 80
