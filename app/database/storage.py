@@ -169,3 +169,23 @@ class Storage:
 
 # Глобальный экземпляр
 storage = Storage()
+
+# ===== В КОНЕЦ ФАЙЛА app/database/storage.py ДОБАВЬТЕ =====
+
+    def load_bank(self):
+        """Загружает текущий банк"""
+        try:
+            stats = self.load_stats()
+            return stats.get('bank', 1000)
+        except:
+            return 1000
+
+    def save_bank(self, bank):
+        """Сохраняет банк"""
+        try:
+            stats = self.load_stats()
+            stats['bank'] = bank
+            self.save_stats(stats)
+            return True
+        except:
+            return False
