@@ -7,11 +7,12 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class AutoBet:
     def __init__(self):
         self.enabled = True
-        self.max_bets_per_day = Config.MAX_BETS_PER_DAY  # 🔥 20
-        self.max_bets_per_run = Config.MAX_BETS_PER_RUN  # 🔥 20
+        self.max_bets_per_day = Config.MAX_BETS_PER_DAY
+        self.max_bets_per_run = Config.MAX_BETS_PER_RUN
         self.min_ev = Config.MIN_EV
         self.min_odds = Config.MIN_ODDS
         self.marker_threshold = Config.MARKER_THRESHOLD
@@ -86,7 +87,7 @@ class AutoBet:
             'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
             'home_goals': None,
             'away_goals': None,
-            'auto': True  # Отметка об авто-ставке
+            'auto': True
         }
 
         # Сохраняем в историю
