@@ -17,13 +17,14 @@ bot_app = Application.builder().token(TOKEN).build()
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-# ===== КОМАНДА /start =====
+# ===== КОМАНДА /start (ОБЯЗАТЕЛЬНО!) =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Бот работает!")
 
+# ===== РЕГИСТРАЦИЯ КОМАНДЫ =====
 bot_app.add_handler(CommandHandler("start", start))
 
-# ===== ВЕБХУК (ИСПРАВЛЕН!) =====
+# ===== ВЕБХУК =====
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -32,7 +33,6 @@ def webhook():
             return 'No data', 400
         
         update = Update.de_json(data, bot_app.bot)
-        # ПРАВИЛЬНЫЙ ВЫЗОВ С СОБСТВЕННЫМ ЦИКЛОМ
         asyncio.run_coroutine_threadsafe(
             bot_app.process_update(update),
             loop
