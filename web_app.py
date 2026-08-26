@@ -990,7 +990,6 @@ MAIN_HTML = """
             margin-top: 1px;
         }
         
-        /* Стиль для уведомлений */
         .notification {
             position: fixed;
             top: 20px;
@@ -1586,7 +1585,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ
+    // РЕНДЕР АНАЛИТИКИ (С ДЕТЕКТОРОМ ДРОБНЫХ СУММ)
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
@@ -1742,7 +1741,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С КНОПКОЙ "ДОБАВИТЬ МАТЧ")
     // ============================================================
     function renderPatternCard(pattern, idx) {
         let statusColor;
@@ -1793,7 +1792,7 @@ MAIN_HTML = """
         return `
             <div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};${glowEffect}">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         <span style="font-size:16px;">${statusIcon}</span>
                         <span style="font-size:14px;font-weight:700;color:${statusColor};">$${formattedStake}</span>
                         <span style="font-size:10px;color:rgba(255,255,255,0.3);">${pattern.count} ставки</span>
@@ -1849,12 +1848,131 @@ MAIN_HTML = """
                     ${betsHtml}
                 </div>
                 
+                <!-- ===== КНОПКА ДОБАВЛЕНИЯ МАТЧА ===== -->
+                <button onclick="addMatchManually('${pattern.stake}', '${recommendation.bet}')" 
+                        style="width:100%;margin-top:6px;padding:6px;background:rgba(52,211,153,0.08);border:1px dashed rgba(52,211,153,0.2);border-radius:6px;color:#34d399;cursor:pointer;font-size:10px;transition:all 0.3s ease;"
+                        onmouseover="this.style.background='rgba(52,211,153,0.15)'" 
+                        onmouseout="this.style.background='rgba(52,211,153,0.08)'">
+                    ➕ Добавить матч
+                </button>
+                
                 <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
                     💡 ${pattern.recommendation}
                     ${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}
                 </div>
             </div>
         `;
+    }
+
+    // ============================================================
+    // ФУНКЦИЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
+    // ============================================================
+    function addMatchManually(stake, betType) {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background:rgba(20,20,35,0.95);border-radius:16px;border:1px solid rgba(167,139,250,0.15);padding:24px;max-width:450px;width:100%;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3 style="color:#a78bfa;margin:0;">➕ Добавить матч</h3>
+                    <button onclick="this.closest('div[style]').remove()" style="background:rgba(255,255,255,0.05);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;color:rgba(255,255,255,0.5);cursor:pointer;">✖</button>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                    <div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:2px;">💰 Сумма маркера</div>
+                        <div style="font-size:14px;font-weight:700;color:#a78bfa;">$${stake}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:2px;">🎯 Тип ставки</div>
+                        <div style="font-size:14px;font-weight:600;color:#34d399;">${betType}</div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">🏟️ Название матча</label>
+                    <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                    <div>
+                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">⚽ Счёт</label>
+                        <input type="text" id="scoreInput" placeholder="2-1" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">📊 Результат</label>
+                        <select id="resultSelect" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
+                            <option value="win">✅ WIN</option>
+                            <option value="loss">❌ LOSS</option>
+                            <option value="push">🔄 PUSH</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display:flex;gap:8px;">
+                    <button onclick="saveManualMatch('${stake}', '${betType}')" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;border-radius:8px;color:white;font-size:14px;font-weight:600;cursor:pointer;">
+                        💾 Сохранить
+                    </button>
+                    <button onclick="this.closest('div[style]').remove()" style="padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px;">
+                        Отмена
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    // ============================================================
+    // ФУНКЦИЯ СОХРАНЕНИЯ РУЧНОГО МАТЧА
+    // ============================================================
+    function saveManualMatch(stake, betType) {
+        const matchName = document.getElementById('matchNameInput').value;
+        const score = document.getElementById('scoreInput').value;
+        const result = document.getElementById('resultSelect').value;
+        
+        if (!matchName) {
+            alert('❌ Введите название матча!');
+            return;
+        }
+        
+        fetch('/api/add_manual_match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                match: matchName,
+                score: score || '-',
+                result: result,
+                stake: parseFloat(stake),
+                bet: betType,
+                odds: 1.85
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Матч добавлен!');
+                location.reload();
+            } else {
+                alert('❌ Ошибка: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Ошибка: ' + error);
+        });
     }
 
     // ============================================================
@@ -2176,7 +2294,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР НАСТРОЕК (С СОХРАНЕНИЕМ ПРОЕКТА)
+    // РЕНДЕР НАСТРОЕК
     // ============================================================
     function renderSettings(data) {
         const bank = data.stats ? data.stats.bank : 1000;
@@ -2331,12 +2449,10 @@ MAIN_HTML = """
                     return;
                 }
                 
-                // Загружаем настройки
                 if (projectData.settings) {
                     localStorage.setItem('bot_settings', JSON.stringify(projectData.settings));
                 }
                 
-                // Загружаем тему
                 if (projectData.theme) {
                     localStorage.setItem('theme', projectData.theme);
                     if (projectData.theme === 'light') {
@@ -2348,7 +2464,6 @@ MAIN_HTML = """
                     }
                 }
                 
-                // Загружаем данные на сервер
                 if (projectData.data && projectData.data.history) {
                     showNotification('⏳ Отправка данных на сервер...', '');
                     
@@ -2382,8 +2497,6 @@ MAIN_HTML = """
             }
         };
         reader.readAsText(file);
-        
-        // Сбрасываем input
         event.target.value = '';
     }
 
@@ -2697,6 +2810,87 @@ def get_profit_data(history):
     return {'dates': dates, 'profits': profits}
 
 # ============================================================
+# API ДЛЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
+# ============================================================
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    try:
+        data = request.json
+        match_name = data.get('match', '')
+        score = data.get('score', '-')
+        result = data.get('result', 'win')
+        stake = data.get('stake', 0)
+        bet_type = data.get('bet', '')
+        odds = data.get('odds', 1.85)
+        
+        if not match_name:
+            return jsonify({'error': 'Название матча обязательно'}), 400
+        
+        # Парсим счёт
+        home_goals = None
+        away_goals = None
+        if score and '-' in score:
+            parts = score.split('-')
+            try:
+                home_goals = int(parts[0].strip())
+                away_goals = int(parts[1].strip())
+            except:
+                pass
+        
+        # Парсим команды
+        home = 'Unknown'
+        away = 'Unknown'
+        if ' vs ' in match_name:
+            parts = match_name.split(' vs ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        elif ' - ' in match_name:
+            parts = match_name.split(' - ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        
+        # Считаем прибыль
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+        elif result == 'loss':
+            profit = -stake
+        else:
+            profit = 0
+        
+        # Получаем текущую историю
+        stats_data, history = get_data_from_bot()
+        
+        # Сохраняем в историю
+        bet_record = {
+            'home': home,
+            'away': away,
+            'league': 'Ручное добавление',
+            'bet': bet_type,
+            'odds': odds,
+            'stake': stake,
+            'ev': 0,
+            'result': result,
+            'profit': profit,
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'home_goals': home_goals,
+            'away_goals': away_goals,
+            'manual': True
+        }
+        history.append(bet_record)
+        
+        # Сохраняем через API бота
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': 1})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================
 # API ДЛЯ ИМПОРТА ПРОЕКТА
 # ============================================================
 
@@ -2711,14 +2905,13 @@ def import_project():
             return jsonify({'error': 'Нет данных для импорта'}), 400
         
         # Получаем текущую историю
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        current_history = response.json() if response.status_code == 200 else []
+        _, current_history = get_data_from_bot()
         
         # Обновляем банк если есть
         if stats and 'bank' in stats:
             requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=10)
         
-        # Добавляем новые ставки (избегаем дубликатов по дате и матчу)
+        # Добавляем новые ставки
         existing_keys = set()
         for bet in current_history:
             key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
@@ -2753,8 +2946,7 @@ def simulate():
         data = request.json
         count = data.get('count', 1000)
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        _, history = get_data_from_bot()
         
         if len(history) < 5:
             return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
@@ -2813,8 +3005,7 @@ def import_excel():
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        _, history = get_data_from_bot()
         
         imported = 0
         for row in excel_data:
@@ -2915,8 +3106,7 @@ def edit_bet():
         data = request.json
         index = data.get('index')
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        _, history = get_data_from_bot()
         
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
@@ -2954,8 +3144,7 @@ def delete_bet():
         data = request.json
         index = data.get('index')
         
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        _, history = get_data_from_bot()
         
         if index >= len(history):
             return jsonify({'error': 'Ставка не найдена'}), 404
