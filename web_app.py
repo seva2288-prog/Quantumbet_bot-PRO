@@ -16,22 +16,27 @@ bot_app = Application.builder().token(TOKEN).build()
 
 # ===== КОМАНДА /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Бот работает! Вебхук настроен.")
+    await update.message.reply_text("🤖 Бот работает!")
 
 bot_app.add_handler(CommandHandler("start", start))
 
-# ===== ЭТОТ БЛОК ОБЯЗАТЕЛЕН ДЛЯ ВЕБХУКА! =====
+# ===== ВЕБХУК (ИСПРАВЛЕН!) =====
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        update = Update.de_json(request.get_json(), bot_app.bot)
-        bot_app.process_update(update)
+        data = request.get_json()
+        if not data:
+            return 'No data', 400
+        
+        update = Update.de_json(data, bot_app.bot)
+        # ПРАВИЛЬНЫЙ ВЫЗОВ с await
+        import asyncio
+        asyncio.create_task(bot_app.process_update(update))
         return 'ok', 200
     except Exception as e:
         logging.error(f"Webhook error: {e}")
         return 'error', 500
 
-# ===== ГЛАВНАЯ =====
 @app.route('/')
 def index():
     return "🤖 Бот работает!"
