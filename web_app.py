@@ -945,6 +945,53 @@ MAIN_HTML = """
             margin-top: 10px;
         }
         
+        /* ===== СТИЛИ ДЛЯ ТАБЛИЦЫ ПАТТЕРНОВ ===== */
+        .patterns-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .patterns-table th {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .patterns-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .patterns-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        /* ===== ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ В ПАТТЕРНЕ ===== */
+        .pattern-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin: 6px 0;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+        }
+        .pattern-metrics .metric {
+            text-align: center;
+        }
+        .pattern-metrics .metric .label {
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+        }
+        .pattern-metrics .metric .value {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 1px;
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 10px; }
             .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
@@ -965,6 +1012,9 @@ MAIN_HTML = """
             .chart-details-grid { grid-template-columns: 1fr; }
             .chart-controls { gap: 4px; }
             .chart-controls select { font-size: 10px; padding: 3px 6px; }
+            .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            .patterns-table { font-size: 9px; }
+            .patterns-table th, .patterns-table td { padding: 4px 6px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -973,6 +1023,7 @@ MAIN_HTML = """
             .metrics-grid { grid-template-columns: 1fr; }
             .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
             .bottom-nav .nav-item .icon { font-size: 14px; }
+            .pattern-metrics { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -1189,14 +1240,12 @@ MAIN_HTML = """
             }
         };
         
-        // Ищем точное совпадение суммы
         for (const [key, value] of Object.entries(recommendations)) {
             if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
                 return value;
             }
         }
         
-        // Если нет рекомендации
         return {
             bet: '—',
             icon: '📌',
@@ -1226,7 +1275,6 @@ MAIN_HTML = """
         const patterns = [];
         const stakeGroups = {};
         
-        // Группируем только дробные суммы с 3+ знаками
         history.forEach((bet, index) => {
             const stake = parseFloat(bet.stake) || 0;
             if (stake > 0 && shouldAnalyzeStake(stake)) {
@@ -1251,7 +1299,6 @@ MAIN_HTML = """
             }
         });
         
-        // Анализируем группы с 2+ повторениями
         Object.values(stakeGroups).forEach(group => {
             if (group.bets.length >= 2) {
                 const wins = group.bets.filter(b => b.result === 'win').length;
@@ -1259,6 +1306,14 @@ MAIN_HTML = """
                 const pushes = group.bets.filter(b => b.result === 'push').length;
                 const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
                 const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
+                
+                // Дополнительные метрики
+                const profits = group.bets.map(b => b.profit || 0);
+                const avgProfit = profits.reduce((a, b) => a + b, 0) / profits.length || 0;
+                const maxProfit = Math.max(...profits) || 0;
+                const minProfit = Math.min(...profits) || 0;
+                const totalStakes = group.bets.reduce((sum, b) => sum + (b.bet.stake || 0), 0);
+                const roi = totalStakes > 0 ? (totalProfit / totalStakes * 100) : 0;
                 
                 let status = '📌';
                 let recommendation = '';
@@ -1287,6 +1342,10 @@ MAIN_HTML = """
                     pushes: pushes,
                     winrate: winrate,
                     totalProfit: totalProfit,
+                    avgProfit: avgProfit,
+                    maxProfit: maxProfit,
+                    minProfit: minProfit,
+                    roi: roi,
                     status: status,
                     recommendation: recommendation,
                     bets: group.bets
@@ -1487,11 +1546,8 @@ MAIN_HTML = """
         const history = data.history || [];
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
         
-        // Детектируем паттерны дробных сумм
         const patterns = detectDecimalPatterns(history);
         const hasPatterns = patterns.length > 0;
-        
-        // Считаем пропущенные суммы
         const skippedSums = getSkippedSums(history);
         
         let html = `
@@ -1530,7 +1586,7 @@ MAIN_HTML = """
             </div>
         `;
 
-        // Детектор дробных сумм
+        // Детектор дробных сумм с улучшениями
         if (settings.anomaly_detection) {
             html += `
             <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
@@ -1544,7 +1600,42 @@ MAIN_HTML = """
                 </div>
                 
                 ${hasPatterns ? `
-                <div style="display:flex;flex-direction:column;gap:6px;">
+                <!-- Сравнительная таблица паттернов -->
+                <div style="overflow-x:auto;margin-bottom:12px;">
+                    <table class="patterns-table">
+                        <thead>
+                            <tr>
+                                <th>Сумма</th>
+                                <th>Ставок</th>
+                                <th>WIN</th>
+                                <th>LOSS</th>
+                                <th>PUSH</th>
+                                <th>Проход</th>
+                                <th>Прибыль</th>
+                                <th>ROI</th>
+                                <th>Рекомендация</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${patterns.map(p => `
+                                <tr>
+                                    <td><strong>$${p.stake.toString()}</strong></td>
+                                    <td>${p.count}</td>
+                                    <td style="color:#34d399;">${p.wins}</td>
+                                    <td style="color:#f87171;">${p.losses}</td>
+                                    <td style="color:#fbbf24;">${p.pushes}</td>
+                                    <td style="color:${p.winrate >= 60 ? '#34d399' : (p.winrate >= 40 ? '#fbbf24' : '#f87171')};font-weight:600;">${p.winrate.toFixed(1)}%</td>
+                                    <td style="color:${p.totalProfit >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${p.totalProfit >= 0 ? '+' : ''}$${p.totalProfit.toFixed(2)}</td>
+                                    <td style="color:${p.roi >= 0 ? '#34d399' : '#f87171'};">${p.roi.toFixed(1)}%</td>
+                                    <td>${getRecommendation(p.stake).icon} ${getRecommendation(p.stake).bet}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Детальные карточки паттернов -->
+                <div style="display:flex;flex-direction:column;gap:8px;">
                     ${patterns.map((pattern, idx) => renderPatternCard(pattern, idx)).join('')}
                 </div>
                 
@@ -1609,13 +1700,11 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С ФИКСИРОВАННОЙ РЕКОМЕНДАЦИЕЙ)
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С ДОПОЛНИТЕЛЬНЫМИ МЕТРИКАМИ)
     // ============================================================
     function renderPatternCard(pattern, idx) {
         const statusColor = pattern.winrate >= 60 ? '#34d399' : (pattern.winrate >= 40 ? '#fbbf24' : '#f87171');
         const formattedStake = pattern.stake.toString();
-        
-        // Получаем фиксированную рекомендацию
         const recommendation = getRecommendation(pattern.stake);
         
         const betsHtml = pattern.bets.map(b => {
@@ -1626,7 +1715,9 @@ MAIN_HTML = """
                     <div style="display:flex;gap:6px;align-items:center;">
                         <span style="color:rgba(255,255,255,0.3);">${b.score}</span>
                         <span style="color:${resultColor};font-weight:600;">${b.result.toUpperCase()}</span>
-                        <span style="color:${b.profit > 0 ? '#34d399' : '#f87171'};font-weight:600;">${b.profit > 0 ? '+' : ''}$${b.profit.toFixed(2)}</span>
+                        <span style="color:${b.profit > 0 ? '#34d399' : '#f87171'};font-weight:600;">
+                            ${b.profit > 0 ? '+' : ''}$${b.profit.toFixed(2)}
+                        </span>
                     </div>
                 </div>
             `;
@@ -1644,16 +1735,41 @@ MAIN_HTML = """
                         <div style="font-size:12px;font-weight:600;color:${pattern.totalProfit >= 0 ? '#34d399' : '#f87171'};">
                             ${pattern.totalProfit >= 0 ? '+' : ''}$${pattern.totalProfit.toFixed(2)}
                         </div>
-                        <div style="font-size:9px;color:rgba(255,255,255,0.3);">${pattern.winrate.toFixed(1)}%</div>
+                        <div style="font-size:9px;color:rgba(255,255,255,0.3);">
+                            ${pattern.winrate.toFixed(1)}% (${pattern.wins}/${pattern.count})
+                        </div>
                     </div>
                 </div>
                 
-                <!-- ФИКСИРОВАННАЯ РЕКОМЕНДАЦИЯ -->
+                <!-- Дополнительные метрики -->
+                <div class="pattern-metrics">
+                    <div class="metric">
+                        <div class="label">Средняя прибыль</div>
+                        <div class="value" style="color:${pattern.avgProfit >= 0 ? '#34d399' : '#f87171'};">${pattern.avgProfit >= 0 ? '+' : ''}$${pattern.avgProfit.toFixed(2)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Макс. прибыль</div>
+                        <div class="value" style="color:#34d399;">+$${pattern.maxProfit.toFixed(2)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">Мин. прибыль</div>
+                        <div class="value" style="color:#f87171;">$${pattern.minProfit.toFixed(2)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">ROI</div>
+                        <div class="value" style="color:${pattern.roi >= 0 ? '#34d399' : '#f87171'};">${pattern.roi.toFixed(1)}%</div>
+                    </div>
+                </div>
+                
+                <!-- Рекомендация -->
                 <div style="background:rgba(167,139,250,0.08);border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid rgba(167,139,250,0.15);">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
                         <div>
                             <span style="font-size:10px;color:rgba(255,255,255,0.3);">🎯 Рекомендация:</span>
                             <span style="font-size:14px;font-weight:700;color:#a78bfa;">${recommendation.icon} ${recommendation.bet}</span>
+                        </div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">
+                            🎯 ${pattern.winrate.toFixed(1)}% сыгранных матчей
                         </div>
                     </div>
                     <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">
@@ -1661,9 +1777,12 @@ MAIN_HTML = """
                     </div>
                 </div>
                 
+                <!-- Ставки -->
                 <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">
                     ${betsHtml}
                 </div>
+                
+                <!-- Итоговая рекомендация -->
                 <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
                     💡 ${pattern.recommendation}
                 </div>
