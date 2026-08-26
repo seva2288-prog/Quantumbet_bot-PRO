@@ -1,13 +1,3 @@
 flask
 requests
 python-telegram-bot
-openpyxl
-numpy
-scikit-learn
-joblib
-schedule
-python-dotenv
-gunicorn
-pandas
-matplotlib
-seaborn
