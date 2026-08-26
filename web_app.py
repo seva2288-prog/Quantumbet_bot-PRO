@@ -25,6 +25,7 @@ MAIN_HTML = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         /* ============================================================
@@ -70,6 +71,10 @@ MAIN_HTML = """
         body.light-theme .stat-card {
             background: rgba(255, 255, 255, 0.6);
             border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .stat-card .label {
+            color: rgba(0, 0, 0, 0.5);
         }
         
         body.light-theme .metrics-grid .metric-item {
@@ -124,6 +129,10 @@ MAIN_HTML = """
         
         body.light-theme .bottom-nav .nav-item.active {
             color: #7c3aed;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active::after {
+            background: linear-gradient(90deg, #7c3aed, #a78bfa);
         }
         
         body.light-theme .setting-group {
@@ -234,6 +243,21 @@ MAIN_HTML = """
             background: rgba(0, 0, 0, 0.04);
             color: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme .chart-controls select {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .chart-details {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        
+        body.light-theme .sim-stat {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
         }
         
         /* ===== ЗВЁЗДНЫЙ ФОН ===== */
@@ -456,7 +480,7 @@ MAIN_HTML = """
             letter-spacing: 0.3px;
         }
         
-        /* ===== НОВАЯ СЕТКА МЕТРИК (2 строки × 2 колонки) ===== */
+        /* ===== МЕТРИКИ ===== */
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -654,6 +678,12 @@ MAIN_HTML = """
             width: 100%;
         }
         
+        .chart-container-large {
+            position: relative;
+            height: 350px;
+            width: 100%;
+        }
+        
         .btn {
             padding: 4px 10px;
             border-radius: 6px;
@@ -748,44 +778,6 @@ MAIN_HTML = """
         .edit-row .btn { padding: 2px 8px; font-size: 10px; }
         .edit-btn { cursor: pointer; color: rgba(255, 255, 255, 0.3); font-size: 11px; }
         .edit-btn:hover { color: #a78bfa; }
-        
-        /* ===== МАТЧИ (СКРЫТЫ) ===== */
-        .match-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
-        .match-tab {
-            padding: 4px 12px;
-            border-radius: 14px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: transparent;
-            color: rgba(255, 255, 255, 0.4);
-        }
-        .match-tab.active {
-            background: rgba(124, 58, 237, 0.2);
-            color: #a78bfa;
-            border-color: rgba(124, 58, 237, 0.15);
-        }
-        .match-card {
-            background: rgba(20, 20, 35, 0.5);
-            backdrop-filter: blur(12px);
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            margin-bottom: 8px;
-        }
-        .match-title { font-size: 13px; font-weight: 600; color: #e8e8f0; }
-        .match-league { color: rgba(255, 255, 255, 0.35); font-size: 11px; }
-        .match-xg { color: #a78bfa; font-size: 11px; }
-        .match-bets { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 3px; }
-        .bet-item {
-            background: rgba(255, 255, 255, 0.03);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            color: rgba(255, 255, 255, 0.6);
-        }
         
         /* ===== НАСТРОЙКИ ===== */
         .setting-group {
@@ -929,6 +921,71 @@ MAIN_HTML = """
         }
         .btn-primary:active { transform: scale(0.95); }
         
+        /* ===== ИНТЕРАКТИВНЫЙ ГРАФИК ===== */
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .chart-controls select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: #e8e8f0;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .chart-controls select:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .chart-controls select option {
+            background: #1a1a2e;
+            color: #e8e8f0;
+        }
+        
+        .chart-details {
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: none;
+        }
+        .chart-details.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .chart-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .chart-details-item {
+            padding: 6px;
+        }
+        .chart-details-item .label {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .chart-details-item .value {
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        
+        .chart-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 10px; }
             .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
@@ -942,9 +999,13 @@ MAIN_HTML = """
             table { font-size: 9px; min-width: 450px; }
             th, td { padding: 3px 4px; }
             .chart-container { height: 100px; }
+            .chart-container-large { height: 250px; }
             .bottom-nav .nav-item { padding: 2px 6px; min-width: 44px; }
             .bottom-nav .nav-item .icon { font-size: 16px; }
             .bottom-nav .nav-item .label { font-size: 7px; }
+            .chart-details-grid { grid-template-columns: 1fr; }
+            .chart-controls { gap: 4px; }
+            .chart-controls select { font-size: 10px; padding: 3px 6px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -962,7 +1023,6 @@ MAIN_HTML = """
 <div class="stars-container" id="starsContainer">
     <div class="milky-way"></div>
     <div class="milky-way-2"></div>
-    <!-- Звёзды генерируются JS -->
 </div>
 
 <div class="container">
@@ -983,6 +1043,7 @@ MAIN_HTML = """
 
     <!-- ===== СТРАНИЦЫ ===== -->
     <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
+    <div id="page-analytics" class="page"><div id="analytics-content"></div></div>
     <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
     <div id="page-settings" class="page"><div id="settings-content"></div></div>
 
@@ -994,6 +1055,10 @@ MAIN_HTML = """
     <button class="nav-item active" data-page="dashboard">
         <span class="icon">📊</span>
         <span class="label">Дашборд</span>
+    </button>
+    <button class="nav-item" data-page="analytics">
+        <span class="icon">📈</span>
+        <span class="label">Аналитика</span>
     </button>
     <button class="nav-item" data-page="simulator">
         <span class="icon">🎲</span>
@@ -1032,12 +1097,14 @@ MAIN_HTML = """
     // ============================================================
     let cachedData = null;
     let chartInstance = null;
+    let interactiveChartInstance = null;
     let simChartInstance = null;
     let currentPage = 'dashboard';
     let isLoading = false;
+    let chartData = null;
 
     // ============================================================
-    // ТЕМА (ИСПРАВЛЕНА)
+    // ТЕМА
     // ============================================================
     function toggleTheme() {
         const body = document.body;
@@ -1047,40 +1114,31 @@ MAIN_HTML = """
             body.classList.remove('light-theme');
             btn.textContent = '🌙';
             localStorage.setItem('theme', 'dark');
-            // Обновляем график
-            if (chartInstance) {
-                updateChartColors(chartInstance, false);
-            }
-            if (simChartInstance) {
-                updateChartColors(simChartInstance, false);
-            }
+            updateAllCharts(false);
         } else {
             body.classList.add('light-theme');
             btn.textContent = '☀️';
             localStorage.setItem('theme', 'light');
-            // Обновляем график
-            if (chartInstance) {
-                updateChartColors(chartInstance, true);
-            }
-            if (simChartInstance) {
-                updateChartColors(simChartInstance, true);
-            }
+            updateAllCharts(true);
         }
     }
 
-    function updateChartColors(chart, isLight) {
+    function updateAllCharts(isLight) {
         const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
         const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
         
-        chart.options.plugins.legend.labels.color = color;
-        chart.options.scales.x.ticks.color = color;
-        chart.options.scales.y.ticks.color = color;
-        chart.options.scales.x.grid.color = gridColor;
-        chart.options.scales.y.grid.color = gridColor;
-        chart.update();
+        [chartInstance, interactiveChartInstance, simChartInstance].forEach(chart => {
+            if (chart) {
+                chart.options.plugins.legend.labels.color = color;
+                chart.options.scales.x.ticks.color = color;
+                chart.options.scales.y.ticks.color = color;
+                chart.options.scales.x.grid.color = gridColor;
+                chart.options.scales.y.grid.color = gridColor;
+                chart.update();
+            }
+        });
     }
 
-    // Загрузка сохраненной темы
     const savedTheme = localStorage.getItem('theme') || 'dark';
     if (savedTheme === 'light') {
         document.body.classList.add('light-theme');
@@ -1098,7 +1156,6 @@ MAIN_HTML = """
             const page = this.dataset.page;
             switchPage(page);
         });
-        btn.addEventListener('touchstart', function(e) {}, { passive: true });
     });
 
     function switchPage(page) {
@@ -1123,7 +1180,7 @@ MAIN_HTML = """
         const contentId = page + '-content';
         const contentEl = document.getElementById(contentId);
 
-        if (page !== 'dashboard' && cachedData && contentEl.innerHTML) {
+        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'analytics') {
             return;
         }
 
@@ -1137,6 +1194,7 @@ MAIN_HTML = """
 
             switch(page) {
                 case 'dashboard': renderDashboard(data); break;
+                case 'analytics': renderAnalytics(data); break;
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
@@ -1161,13 +1219,12 @@ MAIN_HTML = """
 
         let html = `
             <div class="stats-grid">
-                <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Текущий банк</div></div>
+                <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Банк</div></div>
                 <div class="stat-card"><div class="value green">${s.wins}</div><div class="label">✅ Выигрыши</div></div>
                 <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
-                <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">💰 Прибыль</div></div>
+                <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">📈 Прибыль</div></div>
             </div>
 
-            <!-- ===== НОВЫЙ БЛОК: 2 СТРОКИ × 2 КОЛОНКИ ===== -->
             <div class="metrics-grid">
                 <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
                 <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
@@ -1190,13 +1247,12 @@ MAIN_HTML = """
                     <h2>📋 Все ставки</h2>
                     <span class="count">Всего: ${history.length}</span>
                 </div>
-                <div class="scrollable-table">
-                    <div class="table-wrapper">
-                        <table>
-                            <thead><tr>
-                                <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
-                            </tr></thead>
-                            <tbody>
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr>
+                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
+                        </tr></thead>
+                        <tbody>
         `;
 
         if (history.length === 0) {
@@ -1246,9 +1302,8 @@ MAIN_HTML = """
         }
 
         html += `
-                            </tbody>
-                        </table>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         `;
@@ -1320,6 +1375,327 @@ MAIN_HTML = """
                 }
             }
         });
+    }
+
+    // ============================================================
+    // ИНТЕРАКТИВНЫЙ ГРАФИК (АНАЛИТИКА)
+    // ============================================================
+    function renderAnalytics(data) {
+        const history = data.history || [];
+        
+        let html = `
+            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">📈 Интерактивная аналитика</h2>
+            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Исследуйте свои ставки в деталях</div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Интерактивный график</h2>
+                    <div class="chart-controls">
+                        <select id="chartPeriod" onchange="updateInteractiveChart()">
+                            <option value="7">7 дней</option>
+                            <option value="14">14 дней</option>
+                            <option value="30" selected>30 дней</option>
+                            <option value="90">90 дней</option>
+                            <option value="all">Всё время</option>
+                        </select>
+                        <select id="chartType" onchange="updateInteractiveChart()">
+                            <option value="profit">Прибыль</option>
+                            <option value="bank">Банк</option>
+                            <option value="winrate">Проходимость</option>
+                        </select>
+                        <button class="btn" onclick="resetInteractiveChart()">🔄 Сбросить</button>
+                        <button class="btn" onclick="exportChart()">💾 PNG</button>
+                    </div>
+                </div>
+                <div class="chart-container-large">
+                    <canvas id="interactiveChart"></canvas>
+                </div>
+                <div class="chart-details" id="chartDetails">
+                    <div class="chart-details-grid" id="chartDetailsContent"></div>
+                    <div class="chart-actions">
+                        <button class="btn" onclick="document.getElementById('chartDetails').classList.remove('active')">✖ Закрыть</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Быстрая статистика</h2>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
+                    <div>
+                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">📊 Всего ставок</div>
+                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats.total_bets}</div>
+                    </div>
+                    <div>
+                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">🎯 Проходимость</div>
+                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats.winrate}%</div>
+                    </div>
+                    <div>
+                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">📈 ROI</div>
+                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats.roi}%</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('analytics-content').innerHTML = html;
+        setTimeout(() => initInteractiveChart(history), 100);
+    }
+
+    function initInteractiveChart(history) {
+        const ctx = document.getElementById('interactiveChart');
+        if (!ctx) return;
+
+        if (interactiveChartInstance) {
+            interactiveChartInstance.destroy();
+            interactiveChartInstance = null;
+        }
+
+        // Сохраняем историю для фильтрации
+        window._historyData = history;
+        
+        const isLight = document.body.classList.contains('light-theme');
+        const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
+        const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
+
+        interactiveChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Прибыль ($)',
+                    data: [],
+                    borderColor: '#a78bfa',
+                    backgroundColor: 'rgba(167,139,250,0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: '#a78bfa',
+                    pointBorderColor: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(20,20,35,0.8)',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: color,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
+                        titleColor: isLight ? '#1a1a2e' : '#fff',
+                        bodyColor: isLight ? '#1a1a2e' : '#fff',
+                        borderColor: 'rgba(167,139,250,0.3)',
+                        borderWidth: 1,
+                        padding: 12,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = context.parsed.y;
+                                return label + ': $' + value.toFixed(2);
+                            },
+                            afterBody: function(tooltipItems) {
+                                if (chartData && chartData[tooltipItems[0].dataIndex]) {
+                                    const bet = chartData[tooltipItems[0].dataIndex];
+                                    return [
+                                        'Матч: ' + bet.home + ' vs ' + bet.away,
+                                        'Ставка: ' + bet.bet,
+                                        'Кэф: ' + bet.odds,
+                                        'Результат: ' + bet.result
+                                    ];
+                                }
+                                return [];
+                            }
+                        }
+                    },
+                    zoom: {
+                        limits: {
+                            x: { min: 'original', max: 'original' }
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'x'
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'x'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: color,
+                            font: { size: 9 },
+                            maxTicksLimit: 20
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: color,
+                            font: { size: 9 },
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        showChartDetails(index);
+                    }
+                }
+            }
+        });
+
+        // Загружаем начальные данные
+        updateInteractiveChart();
+    }
+
+    function updateInteractiveChart() {
+        if (!interactiveChartInstance) return;
+
+        const period = document.getElementById('chartPeriod').value;
+        const type = document.getElementById('chartType').value;
+        const history = window._historyData || [];
+
+        // Фильтруем по периоду
+        let filtered = [...history];
+        if (period !== 'all') {
+            const days = parseInt(period);
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - days);
+            filtered = filtered.filter(bet => {
+                try {
+                    const betDate = new Date(bet.date.split(' ')[0]);
+                    return betDate >= cutoff;
+                } catch {
+                    return false;
+                }
+            });
+        }
+
+        // Сортируем по дате
+        filtered.sort((a, b) => {
+            try {
+                return new Date(a.date) - new Date(b.date);
+            } catch {
+                return 0;
+            }
+        });
+
+        const labels = [];
+        const values = [];
+        let cumulative = 0;
+        let bank = 1000;
+
+        filtered.forEach((bet, index) => {
+            labels.push(bet.date);
+            
+            if (type === 'profit') {
+                cumulative += bet.profit || 0;
+                values.push(Math.round(cumulative * 100) / 100);
+            } else if (type === 'bank') {
+                bank += bet.profit || 0;
+                values.push(Math.round(bank * 100) / 100);
+            } else { // winrate
+                const wins = filtered.slice(0, index + 1).filter(b => b.result === 'win').length;
+                const total = index + 1;
+                values.push(Math.round((wins / total) * 1000) / 10);
+            }
+        });
+
+        chartData = filtered;
+
+        const labelsMap = {
+            'profit': 'Прибыль ($)',
+            'bank': 'Банк ($)',
+            'winrate': 'Проходимость (%)'
+        };
+
+        interactiveChartInstance.data.labels = labels;
+        interactiveChartInstance.data.datasets[0].data = values;
+        interactiveChartInstance.data.datasets[0].label = labelsMap[type] || 'Прибыль ($)';
+        interactiveChartInstance.update();
+    }
+
+    function showChartDetails(index) {
+        const details = document.getElementById('chartDetails');
+        const content = document.getElementById('chartDetailsContent');
+        const bet = chartData[index];
+        
+        if (bet) {
+            details.classList.add('active');
+            const isLight = document.body.classList.contains('light-theme');
+            const color = isLight ? '#1a1a2e' : '#e8e8f0';
+            
+            content.innerHTML = `
+                <div class="chart-details-item">
+                    <div class="label">Матч</div>
+                    <div class="value" style="color:${color};">${bet.home} vs ${bet.away}</div>
+                </div>
+                <div class="chart-details-item">
+                    <div class="label">Дата</div>
+                    <div class="value" style="color:${color};">${bet.date}</div>
+                </div>
+                <div class="chart-details-item">
+                    <div class="label">Ставка</div>
+                    <div class="value" style="color:${color};">${bet.bet} (Кэф: ${bet.odds})</div>
+                </div>
+                <div class="chart-details-item">
+                    <div class="label">Результат</div>
+                    <div class="value"><span class="badge ${bet.result}">${bet.result}</span></div>
+                </div>
+                <div class="chart-details-item">
+                    <div class="label">Сумма</div>
+                    <div class="value" style="color:${color};">$${bet.stake}</div>
+                </div>
+                <div class="chart-details-item">
+                    <div class="label">Прибыль</div>
+                    <div class="value" style="color:${bet.profit > 0 ? '#34d399' : '#f87171'};font-weight:700;">
+                        ${bet.profit > 0 ? '+' : ''}$${bet.profit}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function resetInteractiveChart() {
+        document.getElementById('chartPeriod').value = '30';
+        document.getElementById('chartType').value = 'profit';
+        document.getElementById('chartDetails').classList.remove('active');
+        updateInteractiveChart();
+    }
+
+    function exportChart() {
+        const canvas = document.getElementById('interactiveChart');
+        const link = document.createElement('a');
+        link.download = 'chart_' + new Date().toISOString().slice(0,10) + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
     }
 
     // ============================================================
@@ -1663,10 +2039,8 @@ def all_data():
     """Возвращает все данные за один запрос"""
     stats_data, history = get_data_from_bot()
     
-    # Получаем данные для графика
     profit_data = get_profit_data(history)
     
-    # Получаем матчи (оставляем для совместимости, но не показываем)
     try:
         response = requests.get(f'{BOT_URL}/matches', timeout=10)
         matches = response.json() if response.status_code == 200 else []
