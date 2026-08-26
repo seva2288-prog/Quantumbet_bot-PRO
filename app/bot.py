@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 import time
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.config import Config
 from app.database.storage import storage
@@ -233,9 +233,15 @@ def send_match_with_buttons(match, index):
     except Exception as e:
         logger.error(f"Send error: {e}")
 
+# ============================================================
+# ИСПРАВЛЕННАЯ ФУНКЦИЯ: ПОИСК МАТЧЕЙ НА 3 ДНЯ ВПЕРЕД
+# ============================================================
+
 def get_matches_with_factors():
     all_matches = []
-    today = datetime.now().strftime('%Y-%m-%d')
+    # ===== ИЩЕМ НА 3 ДНЯ ВПЕРЕД =====
+    today = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
+    logger.info(f"🔍 Поиск матчей до: {today}")
     
     for league_id in Config.LEAGUES:
         try:
@@ -274,26 +280,41 @@ def get_matches_with_factors():
                             match["league"]["name"] = league_name
                             all_matches.append(match)
             else:
-                logger.info(f"⚠️ Нет матчей в {league_name}")
+                logger.info(f"🔥 Нет матчей в {league_name}")
         except Exception as e:
             logger.error(f"❌ Ошибка {league_name}: {e}")
         
         time.sleep(0.3)
     
+    logger.info(f"📊 Найдено матчей: {len(all_matches)}")
     return all_matches
+
+# ============================================================
+# КОНЕЦ ИСПРАВЛЕННОЙ ФУНКЦИИ
+# ============================================================
+
+# ============================================================
+# ФУНКЦИЯ find_top_matches (20 СТАВОК)
+# ============================================================
 
 def find_top_matches(matches):
     bank = storage.load_bank()
     all_matches_data = []
-    
+    bets_placed = 0
+    max_bets = Config.MAX_BETS_PER_RUN
+
     for match in matches:
+        if bets_placed >= max_bets:
+            logger.info(f"⚠️ Достигнут лимит ставок за запуск ({max_bets})")
+            break
+
         try:
             home = match["teams"]["home"]["name"]
             away = match["teams"]["away"]["name"]
             league = match["league"]["name"]
             fixture_id = match["fixture"]["id"]
             factors = match.get("factors", {})
-            
+
             match_time = match.get("fixture", {}).get("date", "")
             if match_time:
                 try:
@@ -301,27 +322,25 @@ def find_top_matches(matches):
                     match_time = dt.strftime("%d.%m.%Y %H:%M")
                 except:
                     match_time = "Время не указано"
-            
+
             home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-            
-            # Используем ML
+
             try:
                 home_xg, away_xg = ml_predictor.predict_xg(factors)
                 logger.info("📊 Используем ML для прогноза")
             except Exception as e:
                 logger.warning(f"Ошибка ML: {e}")
-            
+
             probs = calculate_probabilities(home_xg, away_xg)
-            
-            # ===== ПОЛУЧАЕМ РЕАЛЬНЫЕ КОЭФЫ =====
+
             odds_data = football_api.get_match_odds(fixture_id)
             if odds_data:
                 logger.info(f"📊 Реальные коэфы: {odds_data}")
             else:
                 logger.info("⚠️ Коэфы не получены, используем средние")
-            
+
             bet_types = get_bet_types(odds_data)
-            
+
             match_data = {
                 "home": home,
                 "away": away,
@@ -335,12 +354,12 @@ def find_top_matches(matches):
                 "intuition": reasons,
                 "bets": []
             }
-            
+
             for bet_type, odds, label in bet_types:
                 prob = probs.get(bet_type, 0)
                 if prob < 0.05 or prob > 0.99:
                     continue
-                
+
                 ev = calculate_ev(prob, odds)
                 if ev > 5:
                     stake = min(bank * (ev/100) * 0.3, bank * 0.05)
@@ -352,30 +371,38 @@ def find_top_matches(matches):
                         "ev": round(ev, 1),
                         "stake": round(stake, 2),
                     })
-            
+
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
-                
-                # Авто-ставка
+
                 try:
                     bet_result = auto_bet.check_and_bet(match_data)
                     if bet_result:
-                        msg = f"🤖 <b>АВТО-СТАВКА СДЕЛАНА!</b>\n"
+                        bets_placed += 1
+                        msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
                         msg += f"🏟️ {bet_result['match']}\n"
                         msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
                         msg += f"💰 Сумма: ${bet_result['stake']}\n"
                         msg += f"📈 EV: {bet_result['ev']}%"
+                        if bet_result.get('marker_stake'):
+                            msg += f"\n🎯 Маркер: ${bet_result['marker_stake']} ({bet_result.get('marker_type', 'unknown')})"
                         send_telegram(msg)
+                        logger.info(f"✅ АВТО-СТАВКА #{bets_placed}: {bet_result['bet']} на {bet_result['match']}")
                 except Exception as e:
                     logger.error(f"Ошибка авто-ставки: {e}")
-                    
+
         except Exception as e:
             logger.error(f"Ошибка: {e}")
             continue
-    
+
     all_matches_data.sort(key=lambda x: x['bets'][0]['ev'] if x['bets'] else 0, reverse=True)
-    return all_matches_data[:5]
+    logger.info(f"📊 Найдено {len(all_matches_data)} матчей, сделано {bets_placed} ставок")
+    return all_matches_data[:20]
+
+# ============================================================
+# КОНЕЦ ФУНКЦИИ find_top_matches
+# ============================================================
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -386,14 +413,12 @@ def webhook():
         if not data:
             return "ok", 200
         
-        # ===== ОБРАБОТКА КНОПОК (callback_query) =====
         if 'callback_query' in data:
             callback = data['callback_query']
             callback_data = callback.get('data', '')
             
             logger.info(f"📨 Нажата кнопка: {callback_data}")
             
-            # Отвечаем Telegram
             import requests
             answer_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/answerCallbackQuery"
             try:
@@ -404,7 +429,6 @@ def webhook():
             except Exception as e:
                 logger.error(f"Ошибка ответа: {e}")
             
-            # ===== ОБРАБОТКА РЕЗУЛЬТАТА =====
             if callback_data.startswith('result_'):
                 logger.info(f"🔍 Обработка результата: {callback_data}")
                 
@@ -415,14 +439,11 @@ def webhook():
                     
                     logger.info(f"🔍 Тип: {result_type}, ID: {match_id}")
                     
-                    # ===== ПЫТАЕМСЯ НАЙТИ МАТЧ =====
                     match = None
                     
-                    # 1. Ищем в кэше
                     cache = storage.load_cache()
                     match = cache.get(f"match_{match_id}")
                     
-                    # 2. Если не нашли — ищем в файле
                     if not match:
                         try:
                             with open(f"data/match_{match_id}.json", 'r') as f:
@@ -442,7 +463,6 @@ def webhook():
                                 best_bet = bets[0]
                                 logger.info(f"📊 Ставка: {best_bet.get('label')}")
                                 
-                                # Определяем результат
                                 if result_type == 'home':
                                     result = 'win' if 'Победа хозяев' in best_bet['label'] else 'loss'
                                 elif result_type == 'away':
@@ -457,7 +477,6 @@ def webhook():
                                 
                                 logger.info(f"📊 Результат: {result}")
                                 
-                                # ===== СОХРАНЯЕМ В ИСТОРИЮ =====
                                 try:
                                     history = storage.load_history()
                                     logger.info(f"📋 История до сохранения: {len(history)} записей")
@@ -490,11 +509,9 @@ def webhook():
                                     storage.save_history(history)
                                     logger.info(f"✅ СОХРАНЕНО В ИСТОРИЮ: {bet_record}")
                                     
-                                    # Проверяем, что сохранилось
                                     check = storage.load_history()
                                     logger.info(f"📋 История после сохранения: {len(check)} записей")
                                     
-                                    # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
                                     stats = storage.load_stats()
                                     stats['total'] = stats.get('total', 0) + 1
                                     if result == 'win':
@@ -508,7 +525,6 @@ def webhook():
                                     storage.save_stats(stats)
                                     logger.info(f"✅ СТАТИСТИКА: {stats}")
                                     
-                                    # Удаляем матч из кэша и файла
                                     cache.pop(f"match_{match_id}", None)
                                     storage.save_cache(cache)
                                     try:
@@ -516,7 +532,6 @@ def webhook():
                                     except:
                                         pass
                                     
-                                    # Отправляем подтверждение
                                     msg = f"✅ Результат сохранён!\n{match.get('home')} vs {match.get('away')} → {result}"
                                     if result == 'win':
                                         msg += f"\n💰 Прибыль: +${profit}"
@@ -541,7 +556,6 @@ def webhook():
             
             return "ok", 200
         
-        # ===== ОБРАБОТКА СООБЩЕНИЙ =====
         if 'message' in data:
             message = data['message']
             text = message.get('text', '')
@@ -551,10 +565,6 @@ def webhook():
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
             
-            # ============================================================
-            # ОБРАБОТКА ВСЕХ КОМАНД
-            # ============================================================
-            
             if text == '/start':
                 send_telegram(handlers.handle_start())
             
@@ -563,21 +573,32 @@ def webhook():
                     send_telegram("⚠️ Поиск уже запущен!")
                 else:
                     search_running = True
-                    send_telegram("🔄 Поиск матчей...")
-                    
+                    start_time = datetime.now()
+                    send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах...")
+
                     matches = get_matches_with_factors()
                     if matches:
+                        send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
+
                         top_matches = find_top_matches(matches)
                         if top_matches:
-                            for i, match in enumerate(top_matches, 1):
+                            for i, match in enumerate(top_matches[:5], 1):
                                 send_match_with_buttons(match, i)
                                 time.sleep(0.5)
-                            send_telegram(f"✅ Найдено {len(top_matches)} матчей!")
+
+                            elapsed = (datetime.now() - start_time).seconds
+                            send_telegram(
+                                f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
+                                f"📊 Найдено матчей: {len(matches)}\n"
+                                f"🎯 Топ-5 матчей отправлено\n"
+                                f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
+                                f"⏱️ Время: {elapsed} сек."
+                            )
                         else:
                             send_telegram("❌ Ставок не найдено")
                     else:
                         send_telegram("❌ Матчей не найдено")
-                    
+
                     search_running = False
             
             elif text == '/stop':
@@ -652,7 +673,6 @@ def webhook():
                     send_telegram(f"⚠️ Недостаточно данных. Нужно 50+ матчей (есть {len(history)})")
                 else:
                     send_telegram("🧠 Начинаю обучение нейросети...")
-                    # result = neural_net.train(history)  # Временно отключено
                     if False:
                         send_telegram(f"✅ Нейросеть обучена на {len(history)} матчах!")
                     else:
@@ -762,20 +782,15 @@ def webhook():
                     logger.error(f"Ошибка /unblock: {e}")
                     send_telegram("❌ Ошибка разблокировки")
             
-            # ============================================================
-            # КОМАНДА: /result (ручной ввод результата с суммой)
-            # ============================================================
             elif text.startswith('/result'):
                 try:
                     parts = text.split()
                     
-                    # Проверяем формат: /result <команда1> <команда2> <счёт> [сумма]
                     if len(parts) >= 4:
                         home = parts[1]
                         away = parts[2]
                         score = parts[3]
                         
-                        # Сумма ставки (опционально)
                         stake = 0
                         if len(parts) >= 5:
                             try:
@@ -783,7 +798,6 @@ def webhook():
                             except:
                                 stake = 0
                         
-                        # Определяем результат
                         try:
                             home_goals, away_goals = score.split('-')
                             home_goals = int(home_goals)
@@ -802,7 +816,6 @@ def webhook():
                             send_telegram("❌ Неправильный формат счёта. Используйте: 2-1")
                             return "ok", 200
                         
-                        # ===== СОХРАНЯЕМ В ИСТОРИЮ С ПРОВЕРКОЙ =====
                         try:
                             history = storage.load_history()
                             logger.info(f"📋 История до сохранения: {len(history)} записей")
@@ -825,11 +838,9 @@ def webhook():
                             storage.save_history(history)
                             logger.info(f"✅ СОХРАНЕНО В ИСТОРИЮ: {bet_record}")
                             
-                            # Проверяем, что сохранилось
                             check = storage.load_history()
                             logger.info(f"📋 История после сохранения: {len(check)} записей")
                             
-                            # ===== ОБНОВЛЯЕМ СТАТИСТИКУ =====
                             stats = storage.load_stats()
                             stats['total'] = stats.get('total', 0) + 1
                             if result == 'win':
@@ -843,7 +854,6 @@ def webhook():
                             storage.save_stats(stats)
                             logger.info(f"✅ СТАТИСТИКА: {stats}")
                             
-                            # Отправляем подтверждение
                             msg = f"✅ Результат сохранён!\n{home} vs {away} → {score}\n📊 Результат: {result}"
                             if stake > 0:
                                 if result == 'win':
@@ -879,7 +889,6 @@ def webhook():
 
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
-    """API для получения статистики"""
     stats = storage.load_stats()
     bank = storage.load_bank()
     history = storage.load_history()
@@ -909,7 +918,6 @@ def api_stats():
 
 @app.route('/api/history', methods=['GET'])
 def api_history():
-    """API для получения истории ставок"""
     history = storage.load_history()
     
     for bet in history:
@@ -925,20 +933,14 @@ def api_history():
 
 @app.route('/api/bank', methods=['POST'])
 def api_update_bank():
-    """API для обновления банка"""
     data = request.json
     if 'bank' in data:
         storage.save_bank(data['bank'])
         return jsonify({'success': True, 'bank': data['bank']})
     return jsonify({'error': 'No bank value'}), 400
 
-# ============================================================
-# НОВЫЙ ЭНДПОИНТ: ОБНОВЛЕНИЕ ИСТОРИИ ИЗ ВЕБ-ПРИЛОЖЕНИЯ
-# ============================================================
-
 @app.route('/api/update_history', methods=['POST'])
 def update_history():
-    """Обновление истории из веб-приложения (редактирование/удаление)"""
     try:
         data = request.json
         history = data.get('history', [])
@@ -946,11 +948,9 @@ def update_history():
         if not history:
             return jsonify({'error': 'Нет данных'}), 400
         
-        # Сохраняем историю
         storage.save_history(history)
         logger.info(f"✅ История обновлена из веб-приложения: {len(history)} записей")
         
-        # Пересчитываем статистику
         total = len(history)
         wins = sum(1 for b in history if b.get('result') == 'win')
         losses = sum(1 for b in history if b.get('result') == 'loss')
@@ -980,9 +980,356 @@ def update_history():
         logger.error(f"❌ Ошибка обновления истории: {e}")
         return jsonify({'error': str(e)}), 500
 
-# ============================================================
-# ОСНОВНЫЕ МАРШРУТЫ
-# ============================================================
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    try:
+        data = request.json
+        match_name = data.get('match', '')
+        score = data.get('score', '-')
+        result = data.get('result', 'win')
+        stake = data.get('stake', 0)
+        bet_type = data.get('bet', '')
+        odds = data.get('odds', 1.85)
+        
+        if not match_name:
+            return jsonify({'error': 'Название матча обязательно'}), 400
+        
+        home_goals = None
+        away_goals = None
+        if score and '-' in score:
+            parts = score.split('-')
+            try:
+                home_goals = int(parts[0].strip())
+                away_goals = int(parts[1].strip())
+            except:
+                pass
+        
+        home = 'Unknown'
+        away = 'Unknown'
+        if ' vs ' in match_name:
+            parts = match_name.split(' vs ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        elif ' - ' in match_name:
+            parts = match_name.split(' - ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+        elif result == 'loss':
+            profit = -stake
+        else:
+            profit = 0
+        
+        _, history = get_data_from_bot()
+        
+        bet_record = {
+            'home': home,
+            'away': away,
+            'league': 'Ручное добавление',
+            'bet': bet_type,
+            'odds': odds,
+            'stake': stake,
+            'ev': 0,
+            'result': result,
+            'profit': profit,
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'home_goals': home_goals,
+            'away_goals': away_goals,
+            'manual': True
+        }
+        history.append(bet_record)
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': 1})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    try:
+        data = request.json
+        history = data.get('history', [])
+        stats = data.get('stats', {})
+        
+        if not history:
+            return jsonify({'error': 'Нет данных для импорта'}), 400
+        
+        _, current_history = get_data_from_bot()
+        
+        if stats and 'bank' in stats:
+            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=10)
+        
+        existing_keys = set()
+        for bet in current_history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            existing_keys.add(key)
+        
+        imported = 0
+        for bet in history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            if key not in existing_keys:
+                current_history.append(bet)
+                imported += 1
+                existing_keys.add(key)
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': imported})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/simulate', methods=['POST'])
+def simulate():
+    try:
+        data = request.json
+        count = data.get('count', 1000)
+        
+        _, history = get_data_from_bot()
+        
+        if len(history) < 5:
+            return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
+        
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        total = len(history)
+        winrate = wins / total if total > 0 else 0
+        
+        avg_stake = sum(float(b.get('stake', 0)) for b in history) / total if total > 0 else 10
+        
+        results = []
+        profit_history = []
+        total_profit = 0
+        
+        for i in range(count):
+            if random.random() < winrate:
+                profit = avg_stake * random.uniform(0.5, 1.5)
+                total_profit += profit
+                results.append('win')
+            else:
+                profit = -avg_stake
+                total_profit += profit
+                results.append('loss')
+            
+            profit_history.append(round(total_profit, 2))
+        
+        wins_sim = results.count('win')
+        losses_sim = results.count('loss')
+        max_profit = max(profit_history) if profit_history else 0
+        min_profit = min(profit_history) if profit_history else 0
+        
+        return jsonify({
+            'total': count,
+            'wins': wins_sim,
+            'losses': losses_sim,
+            'profit': round(total_profit, 2),
+            'winrate': round(wins_sim / count * 100, 1),
+            'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'risk': round((abs(min_profit) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'max_profit': round(max_profit, 2),
+            'min_profit': round(min_profit, 2),
+            'avg_stake': round(avg_stake, 2),
+            'history': profit_history[:100],
+            'labels': list(range(1, min(count, 100) + 1))
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_excel', methods=['POST'])
+def import_excel():
+    try:
+        data = request.json
+        excel_data = data.get('data', [])
+        
+        if not excel_data:
+            return jsonify({'error': 'Нет данных'}), 400
+        
+        _, history = get_data_from_bot()
+        
+        imported = 0
+        for row in excel_data:
+            match = row.get('Матч', '') or row.get('Match', '')
+            home = ''
+            away = ''
+            
+            if ' vs ' in match:
+                parts = match.split(' vs ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            elif ' - ' in match:
+                parts = match.split(' - ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            
+            score = row.get('Счёт', '') or row.get('Scht', '') or row.get('Score', '')
+            home_goals = None
+            away_goals = None
+            if score and '-' in str(score):
+                parts = str(score).split('-')
+                try:
+                    home_goals = int(parts[0].strip())
+                    away_goals = int(parts[1].strip())
+                except:
+                    pass
+            
+            bet = row.get('Ставка', '') or row.get('Stanka', '') or 'Ручная ставка'
+            
+            odds = 1.85
+            try:
+                odds = float(row.get('Коэф', 1.85) or row.get('Kofy', 1.85) or 1.85)
+            except:
+                odds = 1.85
+            
+            stake = 0
+            try:
+                stake = float(row.get('Сумма', 0) or row.get('Stake', 0) or 0)
+            except:
+                stake = 0
+            
+            ev = 0
+            try:
+                ev = float(row.get('EV%', 0) or row.get('Ev', 0) or 0)
+            except:
+                ev = 0
+            
+            result = row.get('Результат', 'pending') or row.get('Result', 'pending')
+            if result.lower() in ['win', 'выигрыш']:
+                result = 'win'
+            elif result.lower() in ['loss', 'проигрыш']:
+                result = 'loss'
+            elif result.lower() in ['push', 'возврат']:
+                result = 'push'
+            else:
+                result = 'pending'
+            
+            profit = 0
+            try:
+                profit = float(row.get('Прибыль', 0) or row.get('Profit', 0) or 0)
+            except:
+                profit = 0
+            
+            date = row.get('Дата', '') or row.get('Data', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
+            if not date or date == '':
+                date = datetime.now().strftime('%Y-%m-%d %H:%M')
+            
+            bet_record = {
+                'home': home or 'Unknown',
+                'away': away or 'Unknown',
+                'league': 'Импорт из Excel',
+                'bet': bet,
+                'odds': odds,
+                'stake': stake,
+                'ev': ev,
+                'result': result,
+                'profit': profit,
+                'date': date,
+                'home_goals': home_goals,
+                'away_goals': away_goals
+            }
+            history.append(bet_record)
+            imported += 1
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'count': imported})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/edit_bet', methods=['POST'])
+def edit_bet():
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        _, history = get_data_from_bot()
+        
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        
+        history[index]['home'] = data.get('home', history[index]['home'])
+        history[index]['away'] = data.get('away', history[index]['away'])
+        history[index]['home_goals'] = data.get('home_goals')
+        history[index]['away_goals'] = data.get('away_goals')
+        history[index]['bet'] = data.get('bet', history[index]['bet'])
+        history[index]['odds'] = data.get('odds', history[index]['odds'])
+        history[index]['stake'] = data.get('stake', history[index]['stake'])
+        history[index]['ev'] = data.get('ev', history[index]['ev'])
+        history[index]['result'] = data.get('result', history[index]['result'])
+        
+        if history[index]['result'] == 'win':
+            history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
+        elif history[index]['result'] == 'loss':
+            history[index]['profit'] = -history[index]['stake']
+        else:
+            history[index]['profit'] = 0
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete_bet', methods=['POST'])
+def delete_bet():
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        _, history = get_data_from_bot()
+        
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        
+        deleted = history.pop(index)
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'deleted': deleted})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bank', methods=['POST'])
+def update_bank():
+    try:
+        data = request.json
+        if 'bank' in data:
+            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
+            return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'error': 'No bank value'}), 400
+
+@app.route('/export')
+def export_data():
+    try:
+        response = requests.get(f'{BOT_URL}/export', timeout=30)
+        if response.status_code == 200:
+            return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
+    except:
+        pass
+    return "Нет данных для экспорта", 404
 
 @app.route('/', methods=['GET'])
 def index():
@@ -997,4 +1344,6 @@ if __name__ == "__main__":
     start_scheduler()
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН С ВСЕМИ УЛУЧШЕНИЯМИ!")
+    logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
+    logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     app.run(host='0.0.0.0', port=port)
