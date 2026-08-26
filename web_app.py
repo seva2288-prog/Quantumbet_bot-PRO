@@ -16,11 +16,11 @@ bot_app = Application.builder().token(TOKEN).build()
 
 # ===== КОМАНДА /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Бот на Railway работает!")
+    await update.message.reply_text("🤖 Бот на Railway работает! Вебхук настроен.")
 
 bot_app.add_handler(CommandHandler("start", start))
 
-# ===== ВЕБХУК =====
+# ===== ВЕБХУК (ОБЯЗАТЕЛЬНО ДОЛЖЕН БЫТЬ!) =====
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -31,9 +31,10 @@ def webhook():
         logging.error(f"Webhook error: {e}")
         return 'error', 500
 
+# ===== ГЛАВНАЯ СТРАНИЦА =====
 @app.route('/')
 def index():
-    return "🤖 Бот работает!"
+    return "🤖 Бот работает! Вебхук: /webhook"
 
 # ===== ЗАПУСК =====
 if __name__ == '__main__':
