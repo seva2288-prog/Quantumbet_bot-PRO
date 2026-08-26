@@ -28,9 +28,6 @@ MAIN_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
-        /* ============================================================
-           МЛЕЧНЫЙ ПУТЬ — ЗВЁЗДНОЕ НЕБО
-           ============================================================ */
         * {
             margin: 0;
             padding: 0;
@@ -48,7 +45,6 @@ MAIN_HTML = """
             transition: background 0.3s ease, color 0.3s ease;
         }
         
-        /* ===== СВЕТЛАЯ ТЕМА ===== */
         body.light-theme {
             background: #f0f0f5;
             color: #1a1a2e;
@@ -92,29 +88,6 @@ MAIN_HTML = """
         
         body.light-theme .card-header h2 {
             color: rgba(0, 0, 0, 0.5);
-        }
-        
-        body.light-theme .match-card {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .match-title {
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .match-league {
-            color: rgba(0, 0, 0, 0.4);
-        }
-        
-        body.light-theme .match-xg {
-            color: #7c3aed;
-        }
-        
-        body.light-theme .bet-item {
-            background: rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-            color: rgba(0, 0, 0, 0.7);
         }
         
         body.light-theme .bottom-nav {
@@ -260,7 +233,6 @@ MAIN_HTML = """
             border: 1px solid rgba(0, 0, 0, 0.06);
         }
         
-        /* ===== ЗВЁЗДНЫЙ ФОН ===== */
         .stars-container {
             position: fixed;
             top: 0;
@@ -274,7 +246,6 @@ MAIN_HTML = """
             transition: background 0.3s ease;
         }
         
-        /* ===== МЛЕЧНЫЙ ПУТЬ ===== */
         .milky-way {
             position: absolute;
             top: -20%;
@@ -315,7 +286,6 @@ MAIN_HTML = """
             100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); }
         }
         
-        /* ===== ЗВЁЗДЫ ===== */
         .star {
             position: absolute;
             border-radius: 50%;
@@ -329,7 +299,6 @@ MAIN_HTML = """
             100% { opacity: 1; transform: scale(1.2); }
         }
         
-        /* ===== ОСНОВНОЙ КОНТЕНТ (ПОВЕРХ ЗВЁЗД) ===== */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -338,7 +307,6 @@ MAIN_HTML = """
             z-index: 1;
         }
         
-        /* ===== ТЕМНЫЕ КАРТОЧКИ (С ЛЁГКИМ СВЕЧЕНИЕМ) ===== */
         .header {
             display: flex;
             justify-content: space-between;
@@ -408,7 +376,6 @@ MAIN_HTML = """
             box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
         }
         
-        /* ===== КАРТОЧКИ ===== */
         .card {
             background: rgba(20, 20, 35, 0.6);
             backdrop-filter: blur(16px);
@@ -425,7 +392,6 @@ MAIN_HTML = """
             box-shadow: 0 4px 40px rgba(124, 58, 237, 0.05);
         }
         
-        /* ===== СТАТИСТИКА ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -480,7 +446,6 @@ MAIN_HTML = """
             letter-spacing: 0.3px;
         }
         
-        /* ===== МЕТРИКИ ===== */
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -515,7 +480,6 @@ MAIN_HTML = """
         .metrics-grid .metric-item .value.green { color: #34d399; }
         .metrics-grid .metric-item .value.gold { color: #fbbf24; }
         
-        /* ===== ТАБЛИЦА ===== */
         .table-wrapper {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -578,7 +542,6 @@ MAIN_HTML = """
         .profit-positive { color: #34d399; font-weight: 600; }
         .profit-negative { color: #f87171; font-weight: 600; }
         
-        /* ===== НАВИГАЦИЯ ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -652,7 +615,6 @@ MAIN_HTML = """
             transform: scale(0.92);
         }
         
-        /* ===== ПРОЧЕЕ ===== */
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -779,7 +741,6 @@ MAIN_HTML = """
         .edit-btn { cursor: pointer; color: rgba(255, 255, 255, 0.3); font-size: 11px; }
         .edit-btn:hover { color: #a78bfa; }
         
-        /* ===== НАСТРОЙКИ ===== */
         .setting-group {
             background: rgba(20, 20, 35, 0.5);
             backdrop-filter: blur(12px);
@@ -867,7 +828,6 @@ MAIN_HTML = """
         }
         .import-status { color: rgba(255, 255, 255, 0.3); font-size: 10px; margin-top: 4px; }
         
-        /* ===== СИМУЛЯТОР ===== */
         .sim-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -921,7 +881,6 @@ MAIN_HTML = """
         }
         .btn-primary:active { transform: scale(0.95); }
         
-        /* ===== ИНТЕРАКТИВНЫЙ ГРАФИК ===== */
         .chart-controls {
             display: flex;
             gap: 8px;
@@ -1019,14 +978,12 @@ MAIN_HTML = """
 </head>
 <body>
 
-<!-- ===== ЗВЁЗДНОЕ НЕБО ===== -->
 <div class="stars-container" id="starsContainer">
     <div class="milky-way"></div>
     <div class="milky-way-2"></div>
 </div>
 
 <div class="container">
-    <!-- HEADER -->
     <div class="header">
         <h1>🤖 Quantum Bet Bot</h1>
         <div class="header-controls">
@@ -1041,7 +998,6 @@ MAIN_HTML = """
         </div>
     </div>
 
-    <!-- ===== СТРАНИЦЫ ===== -->
     <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
     <div id="page-analytics" class="page"><div id="analytics-content"></div></div>
     <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
@@ -1050,7 +1006,6 @@ MAIN_HTML = """
     <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
 </div>
 
-<!-- ===== НИЖНЯЯ НАВИГАЦИЯ ===== -->
 <div class="bottom-nav">
     <button class="nav-item active" data-page="dashboard">
         <span class="icon">📊</span>
@@ -1093,7 +1048,7 @@ MAIN_HTML = """
     })();
 
     // ============================================================
-    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+    // ПЕРЕМЕННЫЕ
     // ============================================================
     let cachedData = null;
     let chartInstance = null;
@@ -1208,6 +1163,115 @@ MAIN_HTML = """
     function refreshData() {
         cachedData = null;
         loadPageData(currentPage);
+    }
+
+    // ============================================================
+    // ДЕТЕКТОР ДРОБНЫХ СУММ (3+ ЗНАКОВ ПОСЛЕ ЗАПЯТОЙ)
+    // ============================================================
+    function getDecimalPlaces(num) {
+        const str = num.toString();
+        const decimalIndex = str.indexOf('.');
+        if (decimalIndex === -1) return 0;
+        return str.length - decimalIndex - 1;
+    }
+
+    function shouldAnalyzeStake(stake) {
+        const decimalPlaces = getDecimalPlaces(stake);
+        return decimalPlaces >= 3;
+    }
+
+    function detectDecimalPatterns(history) {
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        if (!settings.anomaly_detection) return [];
+        
+        const patterns = [];
+        const stakeGroups = {};
+        
+        // Группируем только дробные суммы с 3+ знаками
+        history.forEach((bet, index) => {
+            const stake = parseFloat(bet.stake) || 0;
+            if (stake > 0 && shouldAnalyzeStake(stake)) {
+                const key = stake.toString();
+                if (!stakeGroups[key]) {
+                    stakeGroups[key] = {
+                        stake: stake,
+                        bets: []
+                    };
+                }
+                stakeGroups[key].bets.push({
+                    index: index,
+                    bet: bet,
+                    match: `${bet.home} vs ${bet.away}`,
+                    score: bet.home_goals !== null && bet.away_goals !== null ? `${bet.home_goals}-${bet.away_goals}` : '-',
+                    result: bet.result,
+                    profit: bet.profit,
+                    date: bet.date,
+                    odds: bet.odds,
+                    ev: bet.ev
+                });
+            }
+        });
+        
+        // Анализируем группы с 2+ повторениями
+        Object.values(stakeGroups).forEach(group => {
+            if (group.bets.length >= 2) {
+                const wins = group.bets.filter(b => b.result === 'win').length;
+                const losses = group.bets.filter(b => b.result === 'loss').length;
+                const pushes = group.bets.filter(b => b.result === 'push').length;
+                const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
+                const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
+                
+                let status = '📌';
+                let recommendation = '';
+                if (winrate >= 70 && group.bets.length >= 3) {
+                    status = '🟢';
+                    recommendation = '🔥 Отличная рабочая сумма! Продолжайте использовать.';
+                } else if (winrate >= 50 && group.bets.length >= 3) {
+                    status = '🟢';
+                    recommendation = '👍 Хорошая сумма, стабильный результат.';
+                } else if (winrate < 40 && group.bets.length >= 3) {
+                    status = '🔴';
+                    recommendation = '⚠️ Неудачная сумма! Рекомендуем изменить размер.';
+                } else if (group.bets.length >= 4) {
+                    status = '🟡';
+                    recommendation = 'Часто используемая сумма. Анализируйте результаты.';
+                } else {
+                    status = '🟡';
+                    recommendation = 'Повторяющаяся сумма. Следите за статистикой.';
+                }
+                
+                patterns.push({
+                    stake: group.stake,
+                    count: group.bets.length,
+                    wins: wins,
+                    losses: losses,
+                    pushes: pushes,
+                    winrate: winrate,
+                    totalProfit: totalProfit,
+                    status: status,
+                    recommendation: recommendation,
+                    bets: group.bets
+                });
+            }
+        });
+        
+        patterns.sort((a, b) => b.count - a.count);
+        return patterns;
+    }
+
+    function getSkippedSums(history) {
+        const skipped = {};
+        history.forEach(bet => {
+            const stake = parseFloat(bet.stake) || 0;
+            if (stake > 0 && !shouldAnalyzeStake(stake)) {
+                const key = stake.toFixed(2);
+                if (!skipped[key]) {
+                    skipped[key] = { stake: stake, count: 0 };
+                }
+                skipped[key].count++;
+            }
+        });
+        return Object.values(skipped).filter(s => s.count >= 2);
     }
 
     // ============================================================
@@ -1378,10 +1442,18 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // ИНТЕРАКТИВНЫЙ ГРАФИК (АНАЛИТИКА)
+    // РЕНДЕР АНАЛИТИКИ (С ДЕТЕКТОРОМ ДРОБНЫХ СУММ)
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        
+        // Детектируем паттерны дробных сумм
+        const patterns = detectDecimalPatterns(history);
+        const hasPatterns = patterns.length > 0;
+        
+        // Считаем пропущенные суммы
+        const skippedSums = getSkippedSums(history);
         
         let html = `
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">📈 Интерактивная аналитика</h2>
@@ -1417,7 +1489,61 @@ MAIN_HTML = """
                     </div>
                 </div>
             </div>
+        `;
 
+        // Детектор дробных сумм
+        if (settings.anomaly_detection) {
+            html += `
+            <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
+                <div class="card-header">
+                    <h2 style="color:#a78bfa;">🕵️ Детектор дробных сумм (3+ знаков)</h2>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">${patterns.length} паттернов</span>
+                </div>
+                
+                <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:8px;">
+                    ⚡ Анализируются только суммы с 3+ знаками после запятой
+                </div>
+                
+                ${hasPatterns ? `
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    ${patterns.map((pattern, idx) => renderPatternCard(pattern, idx)).join('')}
+                </div>
+                
+                ${skippedSums.length > 0 ? `
+                <div style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid rgba(255,255,255,0.05);">
+                    <div style="font-size:10px;color:rgba(255,255,255,0.3);">
+                        ⏭️ Пропущенные суммы (1-2 знака): 
+                        ${skippedSums.map(s => `$${s.stake.toFixed(2)} (${s.count} ставки)`).join(' • ')}
+                    </div>
+                </div>
+                ` : ''}
+                ` : `
+                <div class="no-data" style="padding:20px 0;">
+                    <div class="emoji">📭</div>
+                    <div>Нет повторяющихся дробных сумм (3+ знаков)</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">
+                        Сделайте ставки с одинаковыми дробными суммами
+                    </div>
+                </div>
+                `}
+            </div>
+            `;
+        } else {
+            html += `
+            <div class="card" style="border:1px solid rgba(255,255,255,0.05);">
+                <div class="card-header">
+                    <h2 style="color:rgba(255,255,255,0.3);">🕵️ Детектор дробных сумм</h2>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.2);">🔒 Отключен</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.3);text-align:center;padding:20px 0;">
+                    Включите детектор в <a href="#" onclick="switchPage('settings')" style="color:#a78bfa;text-decoration:none;">Настройках</a>
+                </div>
+            </div>
+            `;
+        }
+
+        // Быстрая статистика
+        html += `
             <div class="card">
                 <div class="card-header">
                     <h2>📊 Быстрая статистика</h2>
@@ -1443,6 +1569,58 @@ MAIN_HTML = """
         setTimeout(() => initInteractiveChart(history), 100);
     }
 
+    // ============================================================
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
+    // ============================================================
+    function renderPatternCard(pattern, idx) {
+        const statusColor = pattern.winrate >= 60 ? '#34d399' : (pattern.winrate >= 40 ? '#fbbf24' : '#f87171');
+        
+        // Форматируем сумму со всеми знаками
+        const formattedStake = pattern.stake.toString();
+        
+        // Список матчей
+        const betsHtml = pattern.bets.map(b => {
+            const resultColor = b.result === 'win' ? '#34d399' : (b.result === 'loss' ? '#f87171' : '#fbbf24');
+            return `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.02);">
+                    <span style="color:rgba(255,255,255,0.6);">${b.match}</span>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <span style="color:rgba(255,255,255,0.3);">${b.score}</span>
+                        <span style="color:${resultColor};font-weight:600;">${b.result.toUpperCase()}</span>
+                        <span style="color:${b.profit > 0 ? '#34d399' : '#f87171'};font-weight:600;">${b.profit > 0 ? '+' : ''}$${b.profit.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        return `
+            <div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:16px;">${pattern.status}</span>
+                        <span style="font-size:14px;font-weight:700;color:${statusColor};">$${formattedStake}</span>
+                        <span style="font-size:10px;color:rgba(255,255,255,0.3);">${pattern.count} ставки</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:12px;font-weight:600;color:${pattern.totalProfit >= 0 ? '#34d399' : '#f87171'};">
+                            ${pattern.totalProfit >= 0 ? '+' : ''}$${pattern.totalProfit.toFixed(2)}
+                        </div>
+                        <div style="font-size:9px;color:rgba(255,255,255,0.3);">${pattern.winrate.toFixed(1)}%</div>
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">
+                    ${betsHtml}
+                </div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
+                    💡 ${pattern.recommendation}
+                </div>
+            </div>
+        `;
+    }
+
+    // ============================================================
+    // ИНТЕРАКТИВНЫЙ ГРАФИК
+    // ============================================================
     function initInteractiveChart(history) {
         const ctx = document.getElementById('interactiveChart');
         if (!ctx) return;
@@ -1452,7 +1630,6 @@ MAIN_HTML = """
             interactiveChartInstance = null;
         }
 
-        // Сохраняем историю для фильтрации
         window._historyData = history;
         
         const isLight = document.body.classList.contains('light-theme');
@@ -1571,7 +1748,6 @@ MAIN_HTML = """
             }
         });
 
-        // Загружаем начальные данные
         updateInteractiveChart();
     }
 
@@ -1582,7 +1758,6 @@ MAIN_HTML = """
         const type = document.getElementById('chartType').value;
         const history = window._historyData || [];
 
-        // Фильтруем по периоду
         let filtered = [...history];
         if (period !== 'all') {
             const days = parseInt(period);
@@ -1598,7 +1773,6 @@ MAIN_HTML = """
             });
         }
 
-        // Сортируем по дате
         filtered.sort((a, b) => {
             try {
                 return new Date(a.date) - new Date(b.date);
@@ -1621,7 +1795,7 @@ MAIN_HTML = """
             } else if (type === 'bank') {
                 bank += bet.profit || 0;
                 values.push(Math.round(bank * 100) / 100);
-            } else { // winrate
+            } else {
                 const wins = filtered.slice(0, index + 1).filter(b => b.result === 'win').length;
                 const total = index + 1;
                 values.push(Math.round((wins / total) * 1000) / 10);
@@ -1767,9 +1941,14 @@ MAIN_HTML = """
     // ============================================================
     function renderSettings(data) {
         const bank = data.stats ? data.stats.bank : 1000;
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {
+            anomaly_detection: false
+        };
+        
         let html = `
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Настройки</h2>
             <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Управление ботом</div>
+            
             <div class="setting-group">
                 <h2>💰 Банк</h2>
                 <div class="setting-item">
@@ -1780,6 +1959,24 @@ MAIN_HTML = """
                     </div>
                 </div>
             </div>
+            
+            <div class="setting-group" style="border:1px solid rgba(167,139,250,0.15);">
+                <h2>🕵️ Детектор дробных сумм</h2>
+                <div class="setting-item">
+                    <div>
+                        <div class="label" style="font-size:13px;font-weight:600;">Включить детектор</div>
+                        <div class="desc">Анализирует суммы с 3+ знаками после запятой</div>
+                    </div>
+                    <div class="toggle ${settings.anomaly_detection ? 'active' : ''}" onclick="toggleSetting('anomaly_detection', this)">
+                        <div class="dot"></div>
+                    </div>
+                </div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);padding:6px 0;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px;">
+                    📌 Анализируются: 45.125, 40.7253125, 42.86875<br>
+                    ⏭️ Пропускаются: 50, 47.5, 45.12
+                </div>
+            </div>
+            
             <div class="setting-group">
                 <h2>🤖 Автоматизация</h2>
                 <div class="setting-item">
@@ -1787,6 +1984,7 @@ MAIN_HTML = """
                     <div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div>
                 </div>
             </div>
+            
             <div class="setting-group">
                 <h2>📊 Экспорт / Импорт</h2>
                 <div class="setting-item">
@@ -1955,6 +2153,14 @@ MAIN_HTML = """
         } catch (e) {
             alert('❌ Ошибка: ' + e);
         }
+    }
+
+    function toggleSetting(key, element) {
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        element.classList.toggle('active');
+        settings[key] = element.classList.contains('active');
+        localStorage.setItem('bot_settings', JSON.stringify(settings));
+        refreshData();
     }
 
     function importExcel(event) {
