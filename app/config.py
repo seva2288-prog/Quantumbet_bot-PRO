@@ -3,7 +3,7 @@ import os
 
 class Config:
     # ===== ТЕЛЕГРАМ =====
-    TELEGRAM_TOKEN = "8884017743:AAHkCNM9BTFHaGo5P9dd3aExq9iHL4Jy8LA"
+    TELEGRAM_TOKEN = "8884017743:AAHE5WikM-ywDQ50nv-_nQajYkLSLQB2g3I"
     ADMIN_CHAT_ID = "228801334"
 
     # ===== API =====
