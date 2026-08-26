@@ -44,6 +44,196 @@ MAIN_HTML = """
             overflow-x: hidden;
             padding-bottom: 75px;
             position: relative;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        
+        /* ===== СВЕТЛАЯ ТЕМА ===== */
+        body.light-theme {
+            background: #f0f0f5;
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+        }
+        
+        body.light-theme .header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+        }
+        
+        body.light-theme .stat-card {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .metrics-grid .metric-item {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .metrics-grid .metric-item .label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .metrics-grid .metric-item .value {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .card-header h2 {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .match-card {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .match-title {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .match-league {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .match-xg {
+            color: #7c3aed;
+        }
+        
+        body.light-theme .bet-item {
+            background: rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            color: rgba(0, 0, 0, 0.7);
+        }
+        
+        body.light-theme .bottom-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .bottom-nav .nav-item {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active {
+            color: #7c3aed;
+        }
+        
+        body.light-theme .setting-group {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .setting-group h2 {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .setting-item .label {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .setting-item .desc {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .input-group input {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .no-data {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .footer {
+            color: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme table {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme th {
+            color: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        body.light-theme td {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme tr:hover td {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        body.light-theme .edit-row {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        
+        body.light-theme .edit-row input, 
+        body.light-theme .edit-row select {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .edit-btn {
+            color: rgba(0, 0, 0, 0.3);
+        }
+        
+        body.light-theme .edit-btn:hover {
+            color: #7c3aed;
+        }
+        
+        body.light-theme .stars-container {
+            background: radial-gradient(ellipse at 30% 50%, #e8e8f0 0%, #d0d0dd 100%);
+            opacity: 0.3;
+        }
+        
+        body.light-theme .milky-way {
+            background: radial-gradient(ellipse at 40% 50%, 
+                rgba(100, 80, 180, 0.1) 0%, 
+                rgba(60, 40, 120, 0.06) 20%, 
+                rgba(30, 20, 80, 0.03) 50%,
+                transparent 80%);
+        }
+        
+        body.light-theme .star {
+            background: #7c3aed;
+            opacity: 0.2 !important;
+        }
+        
+        body.light-theme .badge.win {
+            background: rgba(52, 211, 153, 0.15);
+            color: #059669;
+            border: 1px solid rgba(52, 211, 153, 0.15);
+        }
+        
+        body.light-theme .badge.loss {
+            background: rgba(248, 113, 113, 0.15);
+            color: #dc2626;
+            border: 1px solid rgba(248, 113, 113, 0.15);
+        }
+        
+        body.light-theme .badge.push {
+            background: rgba(251, 191, 36, 0.15);
+            color: #d97706;
+            border: 1px solid rgba(251, 191, 36, 0.15);
+        }
+        
+        body.light-theme .badge.pending {
+            background: rgba(0, 0, 0, 0.04);
+            color: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
         
         /* ===== ЗВЁЗДНЫЙ ФОН ===== */
@@ -57,6 +247,7 @@ MAIN_HTML = """
             pointer-events: none;
             overflow: hidden;
             background: radial-gradient(ellipse at 30% 50%, #0a0a20 0%, #04040e 100%);
+            transition: background 0.3s ease;
         }
         
         /* ===== МЛЕЧНЫЙ ПУТЬ ===== */
@@ -106,6 +297,7 @@ MAIN_HTML = """
             border-radius: 50%;
             background: white;
             animation: twinkle var(--duration) ease-in-out infinite alternate;
+            transition: background 0.3s ease;
         }
         
         @keyframes twinkle {
@@ -137,6 +329,7 @@ MAIN_HTML = """
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.06);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
         }
         .header h1 {
             font-size: 18px;
@@ -377,6 +570,7 @@ MAIN_HTML = """
             padding: 6px 0;
             z-index: 1000;
             box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
         }
         .bottom-nav .nav-item {
             display: flex;
@@ -555,7 +749,7 @@ MAIN_HTML = """
         .edit-btn { cursor: pointer; color: rgba(255, 255, 255, 0.3); font-size: 11px; }
         .edit-btn:hover { color: #a78bfa; }
         
-        /* ===== МАТЧИ ===== */
+        /* ===== МАТЧИ (СКРЫТЫ) ===== */
         .match-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
         .match-tab {
             padding: 4px 12px;
@@ -789,8 +983,6 @@ MAIN_HTML = """
 
     <!-- ===== СТРАНИЦЫ ===== -->
     <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
-    <div id="page-matches" class="page"><div id="matches-content"></div></div>
-    <div id="page-stats" class="page"><div id="stats-content"></div></div>
     <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
     <div id="page-settings" class="page"><div id="settings-content"></div></div>
 
@@ -802,14 +994,6 @@ MAIN_HTML = """
     <button class="nav-item active" data-page="dashboard">
         <span class="icon">📊</span>
         <span class="label">Дашборд</span>
-    </button>
-    <button class="nav-item" data-page="matches">
-        <span class="icon">⚽</span>
-        <span class="label">Матчи</span>
-    </button>
-    <button class="nav-item" data-page="stats">
-        <span class="icon">📈</span>
-        <span class="label">Статистика</span>
     </button>
     <button class="nav-item" data-page="simulator">
         <span class="icon">🎲</span>
@@ -853,24 +1037,58 @@ MAIN_HTML = """
     let isLoading = false;
 
     // ============================================================
-    // ТЕМА
+    // ТЕМА (ИСПРАВЛЕНА)
     // ============================================================
     function toggleTheme() {
-        const html = document.documentElement;
+        const body = document.body;
         const btn = document.getElementById('themeBtn');
-        if (html.getAttribute('data-theme') === 'dark') {
-            html.setAttribute('data-theme', 'light');
-            btn.textContent = '☀️';
-            localStorage.setItem('theme', 'light');
-        } else {
-            html.setAttribute('data-theme', 'dark');
+        
+        if (body.classList.contains('light-theme')) {
+            body.classList.remove('light-theme');
             btn.textContent = '🌙';
             localStorage.setItem('theme', 'dark');
+            // Обновляем график
+            if (chartInstance) {
+                updateChartColors(chartInstance, false);
+            }
+            if (simChartInstance) {
+                updateChartColors(simChartInstance, false);
+            }
+        } else {
+            body.classList.add('light-theme');
+            btn.textContent = '☀️';
+            localStorage.setItem('theme', 'light');
+            // Обновляем график
+            if (chartInstance) {
+                updateChartColors(chartInstance, true);
+            }
+            if (simChartInstance) {
+                updateChartColors(simChartInstance, true);
+            }
         }
     }
+
+    function updateChartColors(chart, isLight) {
+        const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
+        const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
+        
+        chart.options.plugins.legend.labels.color = color;
+        chart.options.scales.x.ticks.color = color;
+        chart.options.scales.y.ticks.color = color;
+        chart.options.scales.x.grid.color = gridColor;
+        chart.options.scales.y.grid.color = gridColor;
+        chart.update();
+    }
+
+    // Загрузка сохраненной темы
     const savedTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        document.getElementById('themeBtn').textContent = '☀️';
+    } else {
+        document.body.classList.remove('light-theme');
+        document.getElementById('themeBtn').textContent = '🌙';
+    }
 
     // ============================================================
     // НАВИГАЦИЯ
@@ -919,8 +1137,6 @@ MAIN_HTML = """
 
             switch(page) {
                 case 'dashboard': renderDashboard(data); break;
-                case 'matches': renderMatches(data); break;
-                case 'stats': renderStats(data); break;
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
@@ -1053,7 +1269,7 @@ MAIN_HTML = """
             chartInstance = null;
         }
 
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const isLight = document.body.classList.contains('light-theme');
         const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
 
         chartInstance = new Chart(ctx, {
@@ -1068,7 +1284,7 @@ MAIN_HTML = """
                     fill: true,
                     tension: 0.4,
                     pointBackgroundColor: '#a78bfa',
-                    pointBorderColor: 'rgba(20,20,35,0.8)',
+                    pointBorderColor: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(20,20,35,0.8)',
                     pointBorderWidth: 2,
                     pointRadius: 4,
                     pointHoverRadius: 6
@@ -1080,7 +1296,7 @@ MAIN_HTML = """
                 plugins: {
                     legend: {
                         labels: {
-                            color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
+                            color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
                             font: { size: 9 }
                         }
                     }
@@ -1088,105 +1304,22 @@ MAIN_HTML = """
                 scales: {
                     x: {
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+                            color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
                             font: { size: 8 }
                         },
-                        grid: { color: 'rgba(255,255,255,0.03)' }
+                        grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' }
                     },
                     y: {
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+                            color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
                             callback: function(value) { return '$' + value; },
                             font: { size: 8 }
                         },
-                        grid: { color: 'rgba(255,255,255,0.03)' }
+                        grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' }
                     }
                 }
             }
         });
-    }
-
-    // ============================================================
-    // РЕНДЕР МАТЧЕЙ
-    // ============================================================
-    function renderMatches(data) {
-        const matches = data.matches || [];
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚽ Матчи</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>
-            <div class="match-tabs">
-                <span class="match-tab active">Все игры</span>
-                <span class="match-tab">LIVE</span>
-                <span class="match-tab">⭐ Избранное</span>
-                <span class="match-tab">🏆 Турниры</span>
-            </div>
-        `;
-        if (matches.length === 0) {
-            html += `<div class="no-data"><div class="emoji">📭</div>Матчей не найдено</div>`;
-        } else {
-            matches.forEach(m => {
-                html += `
-                    <div class="match-card">
-                        <div class="match-title">${m.home} vs ${m.away}</div>
-                        <div class="match-league">🏆 ${m.league} | ⏰ ${m.match_time}</div>
-                        <div class="match-xg">📊 xG: ${m.home_xg} : ${m.away_xg}</div>
-                        <div class="match-bets">
-                            ${(m.bets || []).slice(0, 3).map(b => 
-                                `<span class="bet-item">${b.label} | КЭФ: ${b.odds} | EV: ${b.ev}%</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        document.getElementById('matches-content').innerHTML = html;
-    }
-
-    // ============================================================
-    // РЕНДЕР СТАТИСТИКИ
-    // ============================================================
-    function renderStats(data) {
-        const s = data.stats;
-        const history = data.history || [];
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">📈 Статистика</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Детальный анализ ваших ставок</div>
-            <div class="card">
-                <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📊 Общая статистика</h2>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:700;color:#a78bfa;">${s.total_bets}</div><div style="color:rgba(255,255,255,0.3);font-size:10px;">Всего ставок</div></div>
-                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:700;color:#34d399;">${s.wins}</div><div style="color:rgba(255,255,255,0.3);font-size:10px;">Выигрыши</div></div>
-                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:700;color:#f87171;">${s.losses}</div><div style="color:rgba(255,255,255,0.3);font-size:10px;">Проигрыши</div></div>
-                    <div style="flex:1;min-width:60px;"><div style="font-size:18px;font-weight:700;color:#fbbf24;">$${s.profit}</div><div style="color:rgba(255,255,255,0.3);font-size:10px;">Прибыль</div></div>
-                </div>
-            </div>
-            <div class="card">
-                <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📋 Все ставки</h2>
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
-                        <tbody>
-        `;
-        if (history.length === 0) {
-            html += `<tr><td colspan="8" class="no-data">Нет данных</td></tr>`;
-        } else {
-            history.forEach(bet => {
-                html += `
-                    <tr>
-                        <td style="font-size:9px;">${bet.date}</td>
-                        <td>${bet.home} vs ${bet.away}</td>
-                        <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                        <td>${bet.bet}</td>
-                        <td>${bet.odds}</td>
-                        <td>${bet.ev}%</td>
-                        <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                        <td>$${bet.profit}</td>
-                    </tr>
-                `;
-            });
-        }
-        html += `</tbody></table></div></div>`;
-        document.getElementById('stats-content').innerHTML = html;
     }
 
     // ============================================================
@@ -1397,7 +1530,7 @@ MAIN_HTML = """
             const ctx = document.getElementById('simChart');
             if (ctx) {
                 if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
-                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const isLight = document.body.classList.contains('light-theme');
                 simChartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -1416,11 +1549,11 @@ MAIN_HTML = """
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { labels: { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', font: { size: 9 } } }
+                            legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
                         },
                         scales: {
-                            x: { ticks: { color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', font: { size: 8 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
-                            y: { ticks: { color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: 'rgba(255,255,255,0.03)' } }
+                            x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
+                            y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
                         }
                     }
                 });
@@ -1533,7 +1666,7 @@ def all_data():
     # Получаем данные для графика
     profit_data = get_profit_data(history)
     
-    # Получаем матчи
+    # Получаем матчи (оставляем для совместимости, но не показываем)
     try:
         response = requests.get(f'{BOT_URL}/matches', timeout=10)
         matches = response.json() if response.status_code == 200 else []
