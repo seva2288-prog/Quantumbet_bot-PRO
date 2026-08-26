@@ -47,294 +47,199 @@ MAIN_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
+        /* ===== ТЕМЫ КАК В GROK ===== */
         :root {
-            --bg-primary: #0f0f1a;
-            --bg-secondary: #1a1a2e;
-            --bg-card: rgba(255,255,255,0.03);
-            --text-primary: #e0e0e0;
-            --text-secondary: #8888aa;
-            --border-color: rgba(255,255,255,0.08);
-            --input-bg: #0f0f1a;
-            --input-border: #2a2a4a;
-            --gradient-start: #667eea;
-            --gradient-end: #764ba2;
-            --shadow: rgba(102,126,234,0.3);
-            --nav-bg: #1a1a2e;
-            --nav-active: #667eea;
+            /* Тёмная тема (по умолчанию) */
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #14141e;
+            --bg-card: rgba(255,255,255,0.04);
+            --bg-hover: rgba(255,255,255,0.06);
+            --text-primary: #ececec;
+            --text-secondary: #8a8aa0;
+            --text-muted: #5a5a7a;
+            --border-color: rgba(255,255,255,0.06);
+            --shadow: rgba(0,0,0,0.6);
+            --gradient-start: #6c5ce7;
+            --gradient-end: #a855f7;
+            --nav-bg: rgba(20,20,30,0.92);
+            --nav-active: #a855f7;
+            --input-bg: rgba(255,255,255,0.05);
+            --input-border: rgba(255,255,255,0.08);
+            --glow: rgba(168,85,247,0.2);
         }
+        
         [data-theme="light"] {
-            --bg-primary: #f0f2f5;
+            --bg-primary: #f0edf5;
             --bg-secondary: #ffffff;
-            --bg-card: rgba(0,0,0,0.02);
+            --bg-card: rgba(0,0,0,0.03);
+            --bg-hover: rgba(0,0,0,0.04);
             --text-primary: #1a1a2e;
-            --text-secondary: #666688;
-            --border-color: rgba(0,0,0,0.08);
-            --input-bg: #f8f9fa;
-            --input-border: #ddd;
-            --shadow: rgba(0,0,0,0.1);
-            --nav-bg: #ffffff;
-            --nav-active: #667eea;
+            --text-secondary: #6a6a8a;
+            --text-muted: #aaaac0;
+            --border-color: rgba(0,0,0,0.06);
+            --shadow: rgba(0,0,0,0.08);
+            --gradient-start: #6c5ce7;
+            --gradient-end: #a855f7;
+            --nav-bg: rgba(255,255,255,0.92);
+            --nav-active: #7c3aed;
+            --input-bg: rgba(0,0,0,0.04);
+            --input-border: rgba(0,0,0,0.1);
+            --glow: rgba(124,58,237,0.15);
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* ===== ПЛАВНЫЙ ПЕРЕХОД ===== */
+        * {
+            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            transition: all 0.3s ease;
             overflow-x: hidden;
-            padding-bottom: 75px;
+            padding-bottom: 80px;
+            transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .container { max-width: 1400px; margin: 0 auto; padding: 12px; }
         
+        /* ===== СТИЛИ КАК В GROK ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px 20px;
+        }
+        
+        /* ===== ШАПКА ===== */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 14px;
-            padding: 12px 16px;
+            gap: 12px;
+            padding: 14px 20px;
             background: var(--bg-secondary);
-            border-radius: 14px;
+            border-radius: 16px;
             border: 1px solid var(--border-color);
-            box-shadow: 0 4px 20px var(--shadow);
+            box-shadow: 0 4px 30px var(--shadow);
+            margin-bottom: 20px;
+            backdrop-filter: blur(20px);
         }
         .header h1 {
-            font-size: 18px;
+            font-size: 20px;
+            font-weight: 700;
             background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            letter-spacing: -0.5px;
         }
         .header-controls {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 12px;
             flex-wrap: wrap;
         }
         .status {
             display: flex;
             align-items: center;
-            gap: 5px;
-            color: #38ef7d;
-            font-size: 10px;
+            gap: 8px;
+            color: #22d3ee;
+            font-size: 12px;
+            font-weight: 500;
         }
         .status-dot {
-            width: 7px;
-            height: 7px;
-            background: #38ef7d;
+            width: 8px;
+            height: 8px;
+            background: #22d3ee;
             border-radius: 50%;
-            animation: pulse 2s infinite;
+            animation: pulse-dot 2s ease-in-out infinite;
+            box-shadow: 0 0 12px rgba(34,211,238,0.3);
         }
-        @keyframes pulse {
+        @keyframes pulse-dot {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
+            50% { opacity: 0.5; transform: scale(0.85); }
         }
+        
+        /* ===== КНОПКА ТЕМЫ (как в Grok) ===== */
         .theme-toggle {
-            background: var(--bg-card);
+            position: relative;
+            width: 52px;
+            height: 28px;
+            border-radius: 14px;
+            background: var(--input-bg);
             border: 1px solid var(--border-color);
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            font-size: 13px;
             cursor: pointer;
-            transition: all 0.3s;
-            color: var(--text-primary);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 0;
+            flex-shrink: 0;
         }
-        .theme-toggle:hover { transform: scale(1.1); border-color: var(--gradient-start); }
-        
-        /* ===== СТРАНИЦЫ ===== */
-        .page {
-            display: none;
-            animation: fadeIn 0.15s ease;
+        .theme-toggle:hover {
+            border-color: var(--gradient-end);
+            box-shadow: 0 0 20px var(--glow);
         }
-        .page.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* ===== СТАТИСТИКА ===== */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .stat-card {
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-secondary);
-            text-align: center;
-            box-shadow: 0 2px 8px var(--shadow);
-        }
-        .stat-card .value {
-            font-size: 18px;
-            font-weight: bold;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.green { background: linear-gradient(135deg, #11998e, #38ef7d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .stat-card .value.red { background: linear-gradient(135deg, #cb2d3e, #ef473a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .stat-card .value.gold { background: linear-gradient(135deg, #f7971e, #ffd200); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .stat-card .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
-        
-        /* НОВЫЙ БЛОК МЕТРИК — 2 СТРОКИ ПО 2 */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .metrics-grid .metric-item {
-            background: var(--bg-secondary);
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 8px var(--shadow);
-        }
-        .metrics-grid .metric-item .label {
-            color: var(--text-secondary);
-            font-size: 12px;
-        }
-        .metrics-grid .metric-item .value {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--text-primary);
-        }
-        .metrics-grid .metric-item .value.green { color: #38ef7d; }
-        .metrics-grid .metric-item .value.gold { color: #ffd200; }
-        
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 10px;
-            box-shadow: 0 2px 8px var(--shadow);
+        .theme-toggle .toggle-track {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 14px;
             overflow: hidden;
         }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-bottom: 8px;
+        .theme-toggle .toggle-thumb {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
-        .card-header h2 { color: var(--text-secondary); font-size: 13px; font-weight: normal; }
-        .card-header .count { color: var(--text-secondary); font-size: 11px; }
-        
-        .chart-container {
-            position: relative;
-            height: 140px;
-            width: 100%;
-        }
-        .chart-container-half {
-            position: relative;
-            height: 140px;
-            width: 100%;
-        }
-        
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        .theme-toggle .toggle-thumb .icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             font-size: 11px;
-            min-width: 600px;
+            line-height: 1;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        th, td {
-            padding: 5px 6px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
+        .theme-toggle .toggle-thumb .icon-dark {
+            opacity: 1;
         }
-        th { 
-            color: var(--text-secondary); 
-            font-weight: 600; 
-            font-size: 9px; 
-            text-transform: uppercase; 
-            letter-spacing: 0.3px;
-            background: var(--bg-card);
-            position: sticky;
-            top: 0;
+        .theme-toggle .toggle-thumb .icon-light {
+            opacity: 0;
         }
-        tr:hover td { background: var(--bg-card); }
-        
-        .badge {
-            display: inline-block;
-            padding: 1px 6px;
-            border-radius: 8px;
-            font-size: 9px;
-            font-weight: bold;
+        [data-theme="light"] .theme-toggle .toggle-thumb {
+            left: 27px;
+            background: #fbbf24;
         }
-        .badge.win { background: rgba(56,239,125,0.15); color: #38ef7d; border: 1px solid rgba(56,239,125,0.2); }
-        .badge.loss { background: rgba(239,71,58,0.15); color: #ef473a; border: 1px solid rgba(239,71,58,0.2); }
-        .badge.push { background: rgba(255,210,0,0.15); color: #ffd200; border: 1px solid rgba(255,210,0,0.2); }
-        .badge.pending { background: rgba(255,255,255,0.05); color: #8888aa; border: 1px solid var(--border-color); }
-        
-        .profit-positive { color: #38ef7d; font-weight: bold; }
-        .profit-negative { color: #ef473a; font-weight: bold; }
-        
-        .no-data { text-align: center; color: var(--text-secondary); padding: 16px 0; }
-        .no-data .emoji { font-size: 30px; margin-bottom: 4px; }
-        
-        .summary-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 8px;
-            margin-bottom: 10px;
+        [data-theme="light"] .theme-toggle .toggle-thumb .icon-dark {
+            opacity: 0;
         }
-        .summary-item {
-            background: var(--bg-card);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-        .summary-item .label { color: var(--text-secondary); font-size: 10px; }
-        .summary-item .value { font-size: 14px; font-weight: bold; }
-        
-        .scrollable-table {
-            max-height: 350px;
-            overflow-y: auto;
+        [data-theme="light"] .theme-toggle .toggle-thumb .icon-light {
+            opacity: 1;
         }
         
-        .footer {
-            text-align: center;
-            color: #444466;
-            font-size: 9px;
-            margin-top: 12px;
-            padding: 8px 0;
-            border-top: 1px solid var(--border-color);
-        }
-        
-        /* ===== НИЖНЯЯ НАВИГАЦИЯ ===== */
+        /* ===== НАВИГАЦИЯ ===== */
         .bottom-nav {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             background: var(--nav-bg);
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
             border-top: 1px solid var(--border-color);
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 6px 0;
+            padding: 6px 0 env(safe-area-inset-bottom, 6px);
             z-index: 1000;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 -4px 30px var(--shadow);
         }
         .bottom-nav .nav-item {
             display: flex;
@@ -344,32 +249,38 @@ MAIN_HTML = """
             text-decoration: none;
             color: var(--text-secondary);
             font-size: 9px;
-            transition: all 0.15s;
-            padding: 4px 10px;
-            border-radius: 6px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 4px 12px;
+            border-radius: 12px;
             border: none;
             background: transparent;
             cursor: pointer;
-            min-width: 50px;
+            min-width: 52px;
             position: relative;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            gap: 2px;
         }
         .bottom-nav .nav-item .icon {
             font-size: 20px;
-            line-height: 1.1;
-            transition: all 0.15s;
+            line-height: 1.2;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .bottom-nav .nav-item .label {
             font-size: 8px;
-            margin-top: 1px;
             font-weight: 500;
+            letter-spacing: 0.3px;
+            opacity: 0.8;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .bottom-nav .nav-item.active {
             color: var(--nav-active);
         }
         .bottom-nav .nav-item.active .icon {
-            transform: scale(1.05);
+            transform: scale(1.1);
+        }
+        .bottom-nav .nav-item.active .label {
+            opacity: 1;
         }
         .bottom-nav .nav-item.active::after {
             content: '';
@@ -377,255 +288,276 @@ MAIN_HTML = """
             top: -1px;
             left: 50%;
             transform: translateX(-50%);
-            width: 16px;
+            width: 20px;
             height: 2px;
             background: var(--nav-active);
             border-radius: 2px;
+            box-shadow: 0 0 16px var(--glow);
+        }
+        .bottom-nav .nav-item:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
         }
         .bottom-nav .nav-item:active {
             transform: scale(0.92);
         }
         
-        /* ===== МАТЧИ ===== */
-        .match-tabs {
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-        }
-        .match-tab {
-            padding: 4px 12px;
-            border-radius: 14px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.15s;
-            border: 1px solid var(--border-color);
-            background: transparent;
-            color: var(--text-secondary);
-        }
-        .match-tab.active {
-            background: var(--gradient-start);
-            color: #fff;
-            border-color: var(--gradient-start);
-        }
-        .match-tab:active { transform: scale(0.95); }
-        
-        .match-card {
+        /* ===== КАРТОЧКИ ===== */
+        .card {
             background: var(--bg-secondary);
-            padding: 10px;
-            border-radius: 8px;
             border: 1px solid var(--border-color);
-            margin-bottom: 8px;
-            overflow: hidden;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 20px var(--shadow);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .match-title { font-size: 13px; font-weight: bold; }
-        .match-league { color: var(--text-secondary); font-size: 11px; }
-        .match-xg { color: var(--gradient-start); font-size: 11px; }
-        .match-bets { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 3px; }
-        .bet-item {
-            background: var(--bg-card);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            border: 1px solid var(--border-color);
+        .card:hover {
+            border-color: var(--bg-hover);
         }
-        
-        /* ===== НАСТРОЙКИ ===== */
-        .setting-group {
-            background: var(--bg-secondary);
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 8px;
-        }
-        .setting-group h2 {
-            color: var(--text-secondary);
-            font-size: 12px;
-            font-weight: normal;
-            margin-bottom: 6px;
-        }
-        .setting-item {
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 5px 0;
-            border-bottom: 1px solid var(--bg-primary);
             flex-wrap: wrap;
-            gap: 4px;
-        }
-        .setting-item:last-child { border-bottom: none; }
-        .setting-item .label { font-size: 12px; }
-        .setting-item .desc { color: var(--text-secondary); font-size: 10px; }
-        .input-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-        .input-group input {
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            color: var(--text-primary);
-            padding: 4px 6px;
-            border-radius: 4px;
-            width: 80px;
-            font-size: 11px;
-        }
-        .input-group button {
-            background: var(--gradient-start);
-            color: white;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .input-group button:active { transform: scale(0.95); }
-        .btn {
-            padding: 4px 10px;
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-            background: transparent;
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.15s;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn:hover { background: rgba(102,126,234,0.15); border-color: var(--gradient-start); color: var(--text-primary); }
-        .btn-success {
-            background: #38ef7d;
-            color: #000;
-            border-color: #38ef7d;
-        }
-        .btn-success:hover {
-            background: #11998e;
-            border-color: #11998e;
-            color: #fff;
-        }
-        .btn-danger {
-            background: #ef473a;
-            color: #fff;
-            border-color: #ef473a;
-        }
-        .btn-danger:hover {
-            background: #cb2d3e;
-            border-color: #cb2d3e;
-        }
-        .toggle {
-            width: 36px;
-            height: 20px;
-            background: var(--input-border);
-            border-radius: 10px;
-            cursor: pointer;
-            position: relative;
-            transition: 0.2s;
-        }
-        .toggle.active { background: var(--gradient-start); }
-        .toggle .dot {
-            width: 14px;
-            height: 14px;
-            background: white;
-            border-radius: 50%;
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            transition: 0.2s;
-        }
-        .toggle.active .dot { left: 19px; }
-        .file-input-label {
-            display: inline-block;
-            padding: 4px 10px;
-            background: var(--gradient-start);
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-        }
-        .file-input-label:active { transform: scale(0.95); }
-        .import-status { color: var(--text-secondary); font-size: 10px; margin-top: 3px; }
-        
-        /* ===== СИМУЛЯТОР ===== */
-        .sim-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 8px;
+            gap: 6px;
             margin-bottom: 10px;
         }
-        .sim-stat {
-            background: var(--bg-card);
-            padding: 10px;
-            border-radius: 6px;
+        .card-header h2 {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .card-header .count {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        
+        /* ===== СТАТИСТИКА ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .stat-card {
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
             text-align: center;
+            box-shadow: 0 2px 12px var(--shadow);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--gradient-end);
+            box-shadow: 0 8px 30px var(--shadow);
+        }
+        .stat-card .value {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .value.green {
+            background: linear-gradient(135deg, #10b981, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .value.red {
+            background: linear-gradient(135deg, #ef4444, #f87171);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .value.gold {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .label {
+            color: var(--text-secondary);
+            font-size: 11px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        
+        /* ===== МЕТРИКИ ===== */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .metrics-grid .metric-item {
+            background: var(--bg-secondary);
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px var(--shadow);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .metrics-grid .metric-item:hover {
+            border-color: var(--bg-hover);
+        }
+        .metrics-grid .metric-item .label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .metrics-grid .metric-item .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .metrics-grid .metric-item .value.green { color: #34d399; }
+        .metrics-grid .metric-item .value.gold { color: #fbbf24; }
+        
+        /* ===== ГРАФИКИ ===== */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .chart-container {
+            position: relative;
+            height: 160px;
+            width: 100%;
+        }
+        
+        /* ===== ТАБЛИЦА ===== */
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 600px;
+        }
+        th, td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--bg-card);
+            position: sticky;
+            top: 0;
+        }
+        tr:hover td {
+            background: var(--bg-hover);
+        }
+        
+        /* ===== БЭДЖИ ===== */
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .badge.win {
+            background: rgba(16,185,129,0.15);
+            color: #34d399;
+            border: 1px solid rgba(16,185,129,0.2);
+        }
+        .badge.loss {
+            background: rgba(239,68,68,0.15);
+            color: #f87171;
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .badge.push {
+            background: rgba(251,191,36,0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(251,191,36,0.2);
+        }
+        .badge.pending {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-secondary);
             border: 1px solid var(--border-color);
         }
-        .sim-stat .value { font-size: 18px; font-weight: bold; }
-        .sim-stat .value.green { color: #38ef7d; }
-        .sim-stat .value.red { color: #ef473a; }
-        .sim-stat .value.gold { color: #ffd200; }
-        .sim-stat .label { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
         
-        .slider-container { margin: 10px 0; }
-        .slider-container input[type="range"] {
-            width: 100%;
-            height: 4px;
-            background: var(--input-border);
-            border-radius: 2px;
-            outline: none;
-            -webkit-appearance: none;
-        }
-        .slider-container input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--gradient-start);
-            cursor: pointer;
-        }
-        .slider-container input[type="range"]::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--gradient-start);
-            cursor: pointer;
-            border: none;
-        }
-        .btn-primary {
-            background: var(--gradient-start);
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 4px;
+        .profit-positive { color: #34d399; font-weight: 700; }
+        .profit-negative { color: #f87171; font-weight: 700; }
+        
+        /* ===== КНОПКИ ===== */
+        .btn {
+            padding: 6px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-secondary);
             cursor: pointer;
             font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .btn-primary:active { transform: scale(0.95); }
+        .btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--gradient-end);
+            color: var(--text-primary);
+            box-shadow: 0 4px 16px var(--glow);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            border-color: transparent;
+        }
+        .btn-success:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            border-color: transparent;
+            box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+            border-color: transparent;
+        }
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            border-color: transparent;
+            box-shadow: 0 4px 20px rgba(239,68,68,0.3);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 24px var(--glow);
+        }
         
         /* ===== ДНЕВНИК ===== */
-        .diary-entry {
-            background: var(--bg-card);
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 6px;
-        }
-        .diary-entry .date {
-            color: var(--text-secondary);
-            font-size: 10px;
-        }
-        .diary-entry .text {
-            font-size: 13px;
-            margin-top: 4px;
-        }
-        .diary-entry .delete-btn {
-            float: right;
-            background: none;
-            border: none;
-            color: #ef473a;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .diary-entry .delete-btn:hover { color: #cb2d3e; }
         .diary-textarea {
             width: 100%;
-            padding: 8px;
-            border-radius: 6px;
+            padding: 12px;
+            border-radius: 12px;
             border: 1px solid var(--border-color);
             background: var(--input-bg);
             color: var(--text-primary);
@@ -633,65 +565,304 @@ MAIN_HTML = """
             min-height: 80px;
             font-family: inherit;
             font-size: 13px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .diary-textarea:focus {
             outline: none;
-            border-color: var(--gradient-start);
+            border-color: var(--gradient-end);
+            box-shadow: 0 0 24px var(--glow);
+        }
+        .diary-entry {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .diary-entry:hover {
+            border-color: var(--gradient-end);
+        }
+        .diary-entry .date {
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+        .diary-entry .text {
+            font-size: 13px;
+            margin-top: 4px;
+            line-height: 1.5;
+        }
+        .diary-entry .delete-btn {
+            float: right;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .diary-entry .delete-btn:hover {
+            color: #f87171;
+            transform: scale(1.1);
         }
         
-        /* ===== LOADER ===== */
-        .loader {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            color: var(--text-secondary);
+        /* ===== МАТЧИ ===== */
+        .match-tabs {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
         }
+        .match-tab {
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .match-tab.active {
+            background: var(--gradient-start);
+            color: #fff;
+            border-color: var(--gradient-start);
+            box-shadow: 0 4px 16px var(--glow);
+        }
+        .match-tab:hover {
+            border-color: var(--gradient-end);
+        }
+        .match-card {
+            background: var(--bg-secondary);
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .match-card:hover {
+            border-color: var(--gradient-end);
+        }
+        .match-title { font-size: 14px; font-weight: 600; }
+        .match-league { color: var(--text-secondary); font-size: 12px; }
+        .match-xg { color: var(--gradient-start); font-size: 12px; }
+        .match-bets { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+        .bet-item {
+            background: var(--bg-card);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* ===== НАСТРОЙКИ ===== */
+        .setting-group {
+            background: var(--bg-secondary);
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+        .setting-group h2 {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-item .label { font-size: 13px; }
+        .setting-item .desc { color: var(--text-secondary); font-size: 11px; }
+        .input-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .input-group input {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 8px;
+            width: 90px;
+            font-size: 13px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--gradient-end);
+            box-shadow: 0 0 20px var(--glow);
+        }
+        .input-group button {
+            background: var(--gradient-start);
+            color: #fff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-group button:hover {
+            background: var(--gradient-end);
+            box-shadow: 0 4px 16px var(--glow);
+        }
+        
+        .toggle {
+            width: 44px;
+            height: 24px;
+            background: var(--input-border);
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .toggle.active {
+            background: var(--gradient-start);
+            box-shadow: 0 0 20px var(--glow);
+        }
+        .toggle .dot {
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .toggle.active .dot { left: 23px; }
+        
+        .file-input-label {
+            display: inline-block;
+            padding: 6px 14px;
+            background: var(--gradient-start);
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .file-input-label:hover {
+            background: var(--gradient-end);
+            box-shadow: 0 4px 16px var(--glow);
+        }
+        .import-status { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+        
+        /* ===== СИМУЛЯТОР ===== */
+        .sim-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .sim-stat {
+            background: var(--bg-card);
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .sim-stat .value { font-size: 22px; font-weight: 700; }
+        .sim-stat .value.green { color: #34d399; }
+        .sim-stat .value.red { color: #f87171; }
+        .sim-stat .value.gold { color: #fbbf24; }
+        .sim-stat .label { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+        
+        .slider-container { margin: 12px 0; }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: var(--input-border);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            cursor: pointer;
+            box-shadow: 0 0 20px var(--glow);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--gradient-start);
+            cursor: pointer;
+            border: none;
+        }
+        
+        .no-data { text-align: center; color: var(--text-secondary); padding: 30px 0; }
+        .no-data .emoji { font-size: 40px; margin-bottom: 8px; }
+        
+        .footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 10px;
+            margin-top: 20px;
+            padding: 12px 0;
+            border-top: 1px solid var(--border-color);
+        }
+        .loader { display: none; text-align: center; padding: 30px 0; color: var(--text-secondary); }
         .loader.active { display: block; }
         .loader .spinner {
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border: 3px solid var(--border-color);
-            border-top: 3px solid var(--gradient-start);
+            border-top-color: var(--gradient-start);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            margin: 0 auto 8px;
+            margin: 0 auto 10px;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
         
-        .charts-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        
+        /* ===== АДАПТИВ ===== */
         @media (max-width: 768px) {
-            .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 14px; }
-            .header h1 { font-size: 16px; text-align: center; }
+            .container { padding: 12px; }
+            .header { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 16px; }
+            .header h1 { font-size: 18px; text-align: center; }
             .header-controls { justify-content: center; }
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
-            .metrics-grid .metric-item { padding: 6px 10px; }
-            .metrics-grid .metric-item .value { font-size: 14px; }
-            .summary-row { grid-template-columns: 1fr; }
-            .card { padding: 8px; }
-            table { font-size: 9px; min-width: 450px; }
-            th, td { padding: 3px 4px; }
-            .chart-container { height: 100px; }
-            .bottom-nav .nav-item { padding: 2px 6px; min-width: 44px; }
-            .bottom-nav .nav-item .icon { font-size: 16px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .metrics-grid .metric-item { padding: 8px 12px; }
+            .metrics-grid .metric-item .value { font-size: 15px; }
+            .charts-row { grid-template-columns: 1fr; gap: 10px; }
+            .chart-container { height: 130px; }
+            .card { padding: 12px; }
+            table { font-size: 10px; min-width: 450px; }
+            th, td { padding: 5px 6px; }
+            .bottom-nav .nav-item { padding: 2px 8px; min-width: 44px; }
+            .bottom-nav .nav-item .icon { font-size: 17px; }
             .bottom-nav .nav-item .label { font-size: 7px; }
-            .charts-row { grid-template-columns: 1fr; }
         }
         @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
-            .stat-card { padding: 6px; }
-            .stat-card .value { font-size: 14px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-card { padding: 10px; }
+            .stat-card .value { font-size: 18px; }
             .metrics-grid { grid-template-columns: 1fr; }
-            .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
-            .bottom-nav .nav-item .icon { font-size: 14px; }
+            .bottom-nav .nav-item { min-width: 38px; padding: 2px 4px; }
+            .bottom-nav .nav-item .icon { font-size: 15px; }
         }
     </style>
 </head>
@@ -704,34 +875,27 @@ MAIN_HTML = """
                 <div class="status">
                     <span class="status-dot"></span>
                     <span>Система активна</span>
-                    <span style="color:var(--text-secondary);">|</span>
-                    <span style="color:var(--text-secondary);">v12 PRO</span>
+                    <span style="color:var(--text-muted);">|</span>
+                    <span style="color:var(--text-muted);">v12 PRO</span>
                 </div>
-                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
-                <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
+                <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">
+                    <div class="toggle-track">
+                        <div class="toggle-thumb">
+                            <span class="icon icon-dark">🌙</span>
+                            <span class="icon icon-light">☀️</span>
+                        </div>
+                    </div>
+                </button>
+                <button class="btn" onclick="refreshData()" style="font-size:14px;padding:4px 10px;">🔄</button>
             </div>
         </div>
         
         <!-- ===== СТРАНИЦЫ ===== -->
-        <div id="page-dashboard" class="page active">
-            <div id="dashboard-content"></div>
-        </div>
-        
-        <div id="page-matches" class="page">
-            <div id="matches-content"></div>
-        </div>
-        
-        <div id="page-diary" class="page">
-            <div id="diary-content"></div>
-        </div>
-        
-        <div id="page-simulator" class="page">
-            <div id="simulator-content"></div>
-        </div>
-        
-        <div id="page-settings" class="page">
-            <div id="settings-content"></div>
-        </div>
+        <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
+        <div id="page-matches" class="page"><div id="matches-content"></div></div>
+        <div id="page-diary" class="page"><div id="diary-content"></div></div>
+        <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
+        <div id="page-settings" class="page"><div id="settings-content"></div></div>
         
         <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
     </div>
@@ -761,7 +925,9 @@ MAIN_HTML = """
     </div>
     
     <script>
-        // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+        // ============================================================
+        // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+        // ============================================================
         let cachedData = null;
         let chartInstance = null;
         let chartWeekday = null;
@@ -769,40 +935,58 @@ MAIN_HTML = """
         let currentPage = 'dashboard';
         let isLoading = false;
         
-        // ===== ТЕМА =====
-        function toggleTheme() {
+        // ============================================================
+        // ТЕМА (как в Grok)
+        // ============================================================
+        function setTheme(theme) {
             const html = document.documentElement;
-            const btn = document.getElementById('themeBtn');
-            if (html.getAttribute('data-theme') === 'dark') {
-                html.setAttribute('data-theme', 'light');
-                btn.textContent = '☀️';
-                localStorage.setItem('theme', 'light');
-            } else {
-                html.setAttribute('data-theme', 'dark');
-                btn.textContent = '🌙';
-                localStorage.setItem('theme', 'dark');
-            }
+            html.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
         }
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '🌙' : '☀️';
         
-        // ===== НАВИГАЦИЯ =====
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            setTheme(next);
+        }
+        
+        // Загрузка сохранённой темы
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        setTheme(savedTheme);
+        
+        // Обработчик кнопки темы
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('themeToggle');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', toggleTheme);
+            }
+        });
+        
+        // ============================================================
+        // НАВИГАЦИЯ
+        // ============================================================
         document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 const page = this.dataset.page;
-                switchPage(page);
+                if (page) switchPage(page);
             });
         });
         
         function switchPage(page) {
             if (page === currentPage) return;
+            
+            // Обновляем навигацию
             document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
             document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
+            
+            // Показываем страницу
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-' + page).classList.add('active');
+            const target = document.getElementById('page-' + page);
+            if (target) target.classList.add('active');
+            
             currentPage = page;
             
+            // Загружаем данные
             if (page === 'diary') {
                 loadDiary();
             } else {
@@ -810,12 +994,14 @@ MAIN_HTML = """
             }
         }
         
-        // ===== ЗАГРУЗКА ДАННЫХ =====
+        // ============================================================
+        // ЗАГРУЗКА ДАННЫХ
+        // ============================================================
         async function loadPageData(page) {
             if (isLoading) return;
-            const contentId = page + '-content';
-            const contentEl = document.getElementById(contentId);
-            contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
+            const contentEl = document.getElementById(page + '-content');
+            if (!contentEl) return;
+            contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:var(--text-secondary);font-size:12px;margin-top:8px;">Загрузка...</div></div>';
             isLoading = true;
             try {
                 const response = await fetch('/api/all_data?t=' + Date.now());
@@ -838,9 +1024,12 @@ MAIN_HTML = """
             loadPageData(currentPage);
         }
         
-        // ===== ДНЕВНИК =====
+        // ============================================================
+        // ДНЕВНИК
+        // ============================================================
         async function loadDiary() {
             const el = document.getElementById('diary-content');
+            if (!el) return;
             try {
                 const response = await fetch('/api/diary');
                 const entries = await response.json();
@@ -852,21 +1041,19 @@ MAIN_HTML = """
         
         function renderDiary(entries) {
             const el = document.getElementById('diary-content');
+            if (!el) return;
             let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">📖 Дневник</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Записывай свои мысли, идеи и заметки по ставкам</div>
-                
+                <h2 style="font-size:20px;color:var(--gradient-start);margin-bottom:4px;font-weight:700;">📖 Дневник</h2>
+                <div style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">Записывай свои мысли, идеи и заметки по ставкам</div>
                 <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">✏️ Новая запись</h2>
+                    <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">✏️ Новая запись</h2>
                     <textarea id="diaryInput" class="diary-textarea" placeholder="Напиши свою заметку..."></textarea>
-                    <button class="btn btn-success" onclick="saveDiaryEntry()" style="margin-top:6px;padding:6px 16px;">💾 Сохранить</button>
+                    <button class="btn btn-success" onclick="saveDiaryEntry()" style="margin-top:8px;padding:8px 20px;">💾 Сохранить</button>
                 </div>
-                
                 <div class="card">
-                    <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📚 Все записи (${entries.length})</h2>
+                    <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📚 Все записи (${entries.length})</h2>
                     <div id="diaryEntries">
             `;
-            
             if (entries.length === 0) {
                 html += `<div class="no-data"><div class="emoji">📭</div>Нет записей</div>`;
             } else {
@@ -880,7 +1067,6 @@ MAIN_HTML = """
                     `;
                 });
             }
-            
             html += `</div></div>`;
             el.innerHTML = html;
         }
@@ -888,7 +1074,6 @@ MAIN_HTML = """
         async function saveDiaryEntry() {
             const text = document.getElementById('diaryInput').value.trim();
             if (!text) { alert('Напиши что-нибудь!'); return; }
-            
             try {
                 const response = await fetch('/api/diary', {
                     method: 'POST',
@@ -918,11 +1103,15 @@ MAIN_HTML = """
             }
         }
         
-        // ===== РЕНДЕР ДАШБОРДА =====
+        // ============================================================
+        // РЕНДЕР ДАШБОРДА
+        // ============================================================
         function renderDashboard(data) {
             const s = data.stats;
             const history = data.history || [];
             const profitData = data.profit_data || { dates: [], profits: [] };
+            const el = document.getElementById('dashboard-content');
+            if (!el) return;
             
             let html = `
                 <div class="stats-grid">
@@ -941,11 +1130,11 @@ MAIN_HTML = """
                 
                 <div class="charts-row">
                     <div class="card">
-                        <div class="card-header"><h2>📈 График прибыли</h2><span style="font-size:9px;color:var(--text-secondary);">За 7 дней</span></div>
+                        <div class="card-header"><h2>📈 График прибыли</h2><span style="font-size:9px;color:var(--text-muted);">За 7 дней</span></div>
                         <div class="chart-container"><canvas id="profitChart"></canvas></div>
                     </div>
                     <div class="card">
-                        <div class="card-header"><h2>📊 По дням недели</h2><span style="font-size:9px;color:var(--text-secondary);">Средняя прибыль</span></div>
+                        <div class="card-header"><h2>📊 По дням недели</h2><span style="font-size:9px;color:var(--text-muted);">Средняя прибыль</span></div>
                         <div class="chart-container"><canvas id="weekdayChart"></canvas></div>
                     </div>
                 </div>
@@ -960,7 +1149,6 @@ MAIN_HTML = """
                             <thead><tr><th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th></tr></thead>
                             <tbody>
             `;
-            
             if (history.length === 0) {
                 html += `<tr><td colspan="10" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
             } else {
@@ -980,31 +1168,29 @@ MAIN_HTML = """
                     </tr>`;
                 });
             }
-            
             html += `</tbody></table>
                     </div>
-                    <div style="margin-top:10px;">
-                        <button class="btn btn-success" onclick="exportToExcel()" style="padding:6px 16px;">📥 Сохранить в Excel</button>
+                    <div style="margin-top:12px;">
+                        <button class="btn btn-success" onclick="exportToExcel()" style="padding:8px 20px;">📥 Сохранить в Excel</button>
                     </div>
                 </div>
             `;
-            
-            document.getElementById('dashboard-content').innerHTML = html;
-            
-            setTimeout(() => {
-                renderCharts(profitData, history);
-            }, 100);
+            el.innerHTML = html;
+            setTimeout(() => renderCharts(profitData, history), 150);
         }
         
-        // ===== ГРАФИКИ =====
+        // ============================================================
+        // ГРАФИКИ
+        // ============================================================
         function renderCharts(profitData, history) {
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const textColor = isDark ? '#e0e0e0' : '#1a1a2e';
+            const textColor = isDark ? '#ececec' : '#1a1a2e';
+            const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
             
             // График прибыли
             const ctx1 = document.getElementById('profitChart');
             if (ctx1) {
-                if (chartInstance) { chartInstance.destroy(); }
+                if (chartInstance) chartInstance.destroy();
                 const labels = profitData.dates || ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
                 const profits = profitData.profits || [0,0,0,0,0,0,0];
                 chartInstance = new Chart(ctx1, {
@@ -1014,23 +1200,26 @@ MAIN_HTML = """
                         datasets: [{
                             label: 'Прибыль ($)',
                             data: profits,
-                            borderColor: '#667eea',
-                            backgroundColor: 'rgba(102,126,234,0.1)',
+                            borderColor: '#a855f7',
+                            backgroundColor: 'rgba(168,85,247,0.1)',
                             fill: true,
                             tension: 0.4,
-                            pointBackgroundColor: '#667eea',
-                            pointBorderColor: '#fff',
+                            pointBackgroundColor: '#a855f7',
+                            pointBorderColor: isDark ? '#1a1a2e' : '#ffffff',
                             pointBorderWidth: 2,
-                            pointRadius: 3
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: textColor, font: { size: 9 } } } },
+                        plugins: {
+                            legend: { labels: { color: textColor, font: { size: 10 } } }
+                        },
                         scales: {
-                            x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
-                            y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: v => '$' + v, font: { size: 8 } } }
+                            x: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', font: { size: 9 } } },
+                            y: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', callback: v => '$' + v, font: { size: 9 } } }
                         }
                     }
                 });
@@ -1039,7 +1228,7 @@ MAIN_HTML = """
             // График по дням недели
             const ctx2 = document.getElementById('weekdayChart');
             if (ctx2) {
-                if (chartWeekday) { chartWeekday.destroy(); }
+                if (chartWeekday) chartWeekday.destroy();
                 const weekdayData = getWeekdayData(history);
                 chartWeekday = new Chart(ctx2, {
                     type: 'bar',
@@ -1048,17 +1237,20 @@ MAIN_HTML = """
                         datasets: [{
                             label: 'Средняя прибыль ($)',
                             data: weekdayData,
-                            backgroundColor: ['#667eea', '#764ba2', '#38ef7d', '#ffd200', '#ef473a', '#667eea', '#764ba2'],
-                            borderRadius: 4
+                            backgroundColor: ['#a855f7', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95', '#a855f7', '#7c3aed'],
+                            borderRadius: 6,
+                            hoverBackgroundColor: ['#c084fc', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', '#c084fc', '#8b5cf6']
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: textColor, font: { size: 9 } } } },
+                        plugins: {
+                            legend: { labels: { color: textColor, font: { size: 10 } } }
+                        },
                         scales: {
-                            x: { ticks: { color: isDark ? '#8888aa' : '#666688', font: { size: 8 } } },
-                            y: { ticks: { color: isDark ? '#8888aa' : '#666688', callback: v => '$' + v, font: { size: 8 } } }
+                            x: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', font: { size: 9 } } },
+                            y: { grid: { color: gridColor }, ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', callback: v => '$' + v, font: { size: 9 } } }
                         }
                     }
                 });
@@ -1080,17 +1272,20 @@ MAIN_HTML = """
             return days.map((sum, i) => counts[i] > 0 ? Math.round((sum / counts[i]) * 100) / 100 : 0);
         }
         
-        // ===== ЭКСПОРТ В EXCEL =====
         function exportToExcel() {
             window.location.href = '/api/export_excel';
         }
         
-        // ===== РЕНДЕР ОСТАЛЬНЫХ СТРАНИЦ =====
+        // ============================================================
+        // РЕНДЕР МАТЧЕЙ
+        // ============================================================
         function renderMatches(data) {
             const matches = data.matches || [];
+            const el = document.getElementById('matches-content');
+            if (!el) return;
             let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚽ Матчи</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Прогнозы и валуйные ставки</div>
+                <h2 style="font-size:20px;color:var(--gradient-start);margin-bottom:4px;font-weight:700;">⚽ Матчи</h2>
+                <div style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">Прогнозы и валуйные ставки</div>
                 <div class="match-tabs">
                     <span class="match-tab active">Все игры</span>
                     <span class="match-tab">LIVE</span>
@@ -1116,39 +1311,138 @@ MAIN_HTML = """
                     `;
                 });
             }
-            document.getElementById('matches-content').innerHTML = html;
+            el.innerHTML = html;
         }
         
+        // ============================================================
+        // РЕНДЕР СИМУЛЯТОРА
+        // ============================================================
         function renderSimulator(data) {
             const history = data.history || [];
+            const el = document.getElementById('simulator-content');
+            if (!el) return;
             let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">🎲 Симулятор</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
+                <h2 style="font-size:20px;color:var(--gradient-start);margin-bottom:4px;font-weight:700;">🎲 Симулятор</h2>
+                <div style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">Узнай, сколько ты мог бы заработать!</div>
             `;
             if (history.length < 5) {
-                html += `<div class="card"><div class="no-data"><div class="emoji">📭</div><div>Нет данных для симуляции</div><div style="font-size:11px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div></div></div>`;
+                html += `<div class="card"><div class="no-data"><div class="emoji">📭</div><div>Нет данных для симуляции</div><div style="font-size:12px;color:var(--text-secondary);">Сначала сделайте хотя бы 5 ставок!</div></div></div>`;
             } else {
                 html += `
                     <div class="card">
-                        <h2 style="color:var(--text-secondary);font-size:12px;font-weight:normal;margin-bottom:6px;">📊 Параметры симуляции</h2>
+                        <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📊 Параметры симуляции</h2>
                         <div class="slider-container">
                             <label style="color:var(--text-secondary);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
                             <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
                         </div>
                         <button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-                        <button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
+                        <button class="btn" onclick="document.getElementById('simResults').style.display='none'" style="margin-left:8px;">🔄 Сбросить</button>
                     </div>
-                    <div id="simResults" style="display:none;">...</div>
+                    <div id="simResults" style="display:none;">
+                        <div class="sim-stats">
+                            <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
+                            <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
+                            <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
+                            <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
+                        </div>
+                        <div class="card">
+                            <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📈 График симуляции</h2>
+                            <div class="chart-container"><canvas id="simChart"></canvas></div>
+                        </div>
+                        <div class="card">
+                            <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">📋 Результаты</h2>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">
+                                <div style="color:var(--text-secondary);">Всего: <span id="simTotal" style="color:var(--text-primary);">0</span></div>
+                                <div style="color:var(--text-secondary);">Выигрышей: <span id="simWins" style="color:#34d399;">0</span></div>
+                                <div style="color:var(--text-secondary);">Проигрышей: <span id="simLosses" style="color:#f87171;">0</span></div>
+                                <div style="color:var(--text-secondary);">Макс. прибыль: <span id="simMaxProfit" style="color:#fbbf24;">$0</span></div>
+                                <div style="color:var(--text-secondary);">Мин. прибыль: <span id="simMinProfit" style="color:#f87171;">$0</span></div>
+                                <div style="color:var(--text-secondary);">Средняя ставка: <span id="simAvgStake" style="color:var(--text-primary);">$0</span></div>
+                            </div>
+                        </div>
+                        <div class="card" style="background:rgba(168,85,247,0.05);border-color:rgba(168,85,247,0.2);">
+                            <h2 style="color:var(--text-secondary);font-size:13px;font-weight:600;margin-bottom:8px;">💡 Рекомендация</h2>
+                            <div id="simRecommendation" style="font-size:14px;line-height:1.6;">Запустите симуляцию, чтобы получить рекомендацию!</div>
+                        </div>
+                    </div>
                 `;
             }
-            document.getElementById('simulator-content').innerHTML = html;
+            el.innerHTML = html;
         }
         
+        async function runSimulation() {
+            const count = parseInt(document.getElementById('simCount').value) || 1000;
+            document.getElementById('simResults').style.display = 'block';
+            try {
+                const response = await fetch('/api/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count: count })
+                });
+                const data = await response.json();
+                if (data.error) { alert('❌ ' + data.error); return; }
+                document.getElementById('simProfit').textContent = '$' + data.profit;
+                document.getElementById('simWinrate').textContent = data.winrate + '%';
+                document.getElementById('simROI').textContent = data.roi + '%';
+                document.getElementById('simRisk').textContent = data.risk + '%';
+                document.getElementById('simTotal').textContent = data.total;
+                document.getElementById('simWins').textContent = data.wins;
+                document.getElementById('simLosses').textContent = data.losses;
+                document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
+                document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
+                document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
+                const rec = document.getElementById('simRecommendation');
+                if (data.profit > 0) {
+                    rec.innerHTML = '✅ <b style="color:#34d399;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
+                } else {
+                    rec.innerHTML = '⚠️ <b style="color:#f87171;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
+                }
+                const ctx = document.getElementById('simChart');
+                if (ctx) {
+                    if (simChartInstance) simChartInstance.destroy();
+                    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                    const textColor = isDark ? '#ececec' : '#1a1a2e';
+                    simChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels || Array.from({length: data.history?.length || 10}, (_, i) => i + 1),
+                            datasets: [{
+                                label: 'Прибыль ($)',
+                                data: data.history || [],
+                                borderColor: data.profit > 0 ? '#34d399' : '#f87171',
+                                backgroundColor: data.profit > 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 2,
+                                pointBackgroundColor: data.profit > 0 ? '#34d399' : '#f87171',
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
+                            scales: {
+                                x: { ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', font: { size: 8 } } },
+                                y: { ticks: { color: isDark ? '#8a8aa0' : '#6a6a8a', callback: v => '$' + v, font: { size: 8 } } }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                alert('❌ Ошибка: ' + e);
+            }
+        }
+        
+        // ============================================================
+        // РЕНДЕР НАСТРОЕК
+        // ============================================================
         function renderSettings(data) {
             const bank = data.stats ? data.stats.bank : 1000;
+            const el = document.getElementById('settings-content');
+            if (!el) return;
             let html = `
-                <h2 style="font-size:18px;color:var(--gradient-start);margin-bottom:4px;">⚙️ Настройки</h2>
-                <div style="color:var(--text-secondary);font-size:12px;margin-bottom:10px;">Управление ботом</div>
+                <h2 style="font-size:20px;color:var(--gradient-start);margin-bottom:4px;font-weight:700;">⚙️ Настройки</h2>
+                <div style="color:var(--text-secondary);font-size:13px;margin-bottom:14px;">Управление ботом</div>
                 <div class="setting-group">
                     <h2>💰 Банк</h2>
                     <div class="setting-item">
@@ -1177,19 +1471,13 @@ MAIN_HTML = """
                         <div class="input-group">
                             <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
                             <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
-                            <span id="fileName" style="color:var(--text-secondary);font-size:10px;">Файл не выбран</span>
+                            <span id="fileName" style="color:var(--text-secondary);font-size:11px;">Файл не выбран</span>
                         </div>
                     </div>
                     <div id="importStatus" class="import-status"></div>
                 </div>
             `;
-            document.getElementById('settings-content').innerHTML = html;
-        }
-        
-        // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
-        function runSimulation() {
-            // Заглушка для симулятора
-            alert('Симулятор скоро будет добавлен!');
+            el.innerHTML = html;
         }
         
         async function updateBank() {
@@ -1386,7 +1674,41 @@ def export_excel():
 # ===== ОСТАЛЬНЫЕ API =====
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
-    return jsonify({'error': 'В разработке'}), 400
+    try:
+        data = request.json
+        count = data.get('count', 1000)
+        _, history = get_data_from_bot()
+        if len(history) < 5:
+            return jsonify({'error': 'Нужно минимум 5 ставок'}), 400
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        winrate = wins / len(history) if len(history) > 0 else 0
+        avg_stake = sum(float(b.get('stake', 0)) for b in history) / len(history) if len(history) > 0 else 10
+        profit_history = []
+        total_profit = 0
+        for _ in range(count):
+            if random.random() < winrate:
+                profit = avg_stake * random.uniform(0.5, 1.5)
+                total_profit += profit
+            else:
+                profit = -avg_stake
+                total_profit += profit
+            profit_history.append(round(total_profit, 2))
+        return jsonify({
+            'total': count,
+            'wins': int(winrate * count),
+            'losses': count - int(winrate * count),
+            'profit': round(total_profit, 2),
+            'winrate': round(winrate * 100, 1),
+            'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'risk': round((abs(min(profit_history)) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'max_profit': round(max(profit_history), 2),
+            'min_profit': round(min(profit_history), 2),
+            'avg_stake': round(avg_stake, 2),
+            'history': profit_history[:100],
+            'labels': list(range(1, min(count, 100) + 1))
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
@@ -1394,8 +1716,7 @@ def import_excel():
         excel_data = request.json.get('data', [])
         if not excel_data:
             return jsonify({'error': 'Нет данных'}), 400
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        history = response.json() if response.status_code == 200 else []
+        _, history = get_data_from_bot()
         imported = 0
         for row in excel_data:
             match = row.get('Матч', '') or row.get('Match', '')
@@ -1437,7 +1758,10 @@ def import_excel():
                 'date': date
             })
             imported += 1
-        requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        try:
+            requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=5)
+        except:
+            pass
         return jsonify({'success': True, 'count': imported})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1447,10 +1771,10 @@ def update_bank():
     data = request.json
     if 'bank' in data:
         try:
-            requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
-            return jsonify({'success': True, 'bank': data['bank']})
+            requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=5)
         except:
-            return jsonify({'success': True, 'bank': data['bank']})
+            pass
+        return jsonify({'success': True, 'bank': data['bank']})
     return jsonify({'error': 'No bank value'}), 400
 
 @app.route('/export')
