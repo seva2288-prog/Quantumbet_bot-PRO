@@ -21,7 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 bot_app.add_handler(CommandHandler("start", start))
 
 # ===== ВЕБХУК =====
-@web_app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         data = request.get_json()
@@ -29,7 +29,9 @@ def webhook():
             return 'No data', 400
         
         update = Update.de_json(data, bot_app.bot)
-        bot_app.process_update(update)  # ← ТЕПЕРЬ ПРАВИЛЬНО
+        # ПРАВИЛЬНЫЙ АСИНХРОННЫЙ ВЫЗОВ
+        import asyncio
+        asyncio.create_task(bot_app.process_update(update))
         return 'ok', 200
     except Exception as e:
         logging.error(f"Webhook error: {e}")
