@@ -223,7 +223,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (ПОЛНОСТЬЮ ПЕРЕПИСАНА)
+# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (ПОЛНОСТЬЮ ПЕРЕПИСАНА + ЗАЩИТА)
 # ============================================================
 
 def find_top_matches(matches):
@@ -232,9 +232,7 @@ def find_top_matches(matches):
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
 
-    # ===== ПРОВЕРЯЕМ КАЖДЫЙ МАТЧ =====
     for match in matches:
-        # ===== ПРОПУСКАЕМ НЕ-СЛОВАРИ =====
         if not match or not isinstance(match, dict):
             continue
         
@@ -243,7 +241,6 @@ def find_top_matches(matches):
             break
 
         try:
-            # ===== БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ =====
             fixture = match.get("fixture")
             if not fixture or not isinstance(fixture, dict):
                 continue
@@ -281,17 +278,36 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
+            # ===== xG =====
+            try:
+                home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
+            except Exception as e:
+                logger.warning(f"Ошибка xG {home} vs {away}: {e}")
+                home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
 
             try:
                 home_xg, away_xg = ml_predictor.predict_xg(factors)
             except Exception as e:
-                logger.warning(f"Ошибка ML: {e}")
+                logger.warning(f"Ошибка ML {home} vs {away}: {e}")
 
             probs = calculate_probabilities(home_xg, away_xg)
+            if not isinstance(probs, dict):
+                logger.warning(f"probs не словарь для {home} vs {away}: {type(probs)}")
+                continue
 
+            # ===== КЛЮЧЕВАЯ ЗАЩИТА ОТ ОШИБКИ =====
             odds_data = football_api.get_match_odds(fixture_id)
+
+            if not odds_data or not isinstance(odds_data, dict):
+                logger.warning(
+                    f"Пропуск {home} vs {away} (fixture {fixture_id}) — "
+                    f"odds_data = {type(odds_data)} | {str(odds_data)[:120]}"
+                )
+                continue
+
             bet_types = get_bet_types(odds_data)
+            if not bet_types:
+                continue
 
             match_data = {
                 "home": home,
@@ -314,7 +330,7 @@ def find_top_matches(matches):
 
                 ev = calculate_ev(prob, odds)
                 if ev > 5:
-                    stake = min(bank * (ev/100) * 0.3, bank * 0.05)
+                    stake = min(bank * (ev / 100) * 0.3, bank * 0.05)
                     match_data["bets"].append({
                         "bet_type": bet_type,
                         "label": label,
