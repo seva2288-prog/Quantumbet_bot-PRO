@@ -28,6 +28,9 @@ app = Flask(__name__)
 
 search_running = False
 
+# ===== КОНСТАНТА ЧАСОВОГО ПОЯСА =====
+TIMEZONE_OFFSET = 3  # UTC+3
+
 def send_telegram(text: str, parse_mode: str = 'HTML'):
     import requests
     url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
@@ -162,7 +165,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (С ДАТОЙ И ВРЕМЕНЕМ)
+# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (С ДАТОЙ, ВРЕМЕНЕМ И ЧАСОВЫМ ПОЯСОМ)
 # ============================================================
 
 def find_top_matches(matches):
@@ -187,6 +190,8 @@ def find_top_matches(matches):
             if match_time:
                 try:
                     dt = datetime.fromisoformat(match_time.replace("Z", "+00:00"))
+                    # ===== ДОБАВЛЯЕМ СМЕЩЕНИЕ ЧАСОВОГО ПОЯСА =====
+                    dt = dt + timedelta(hours=TIMEZONE_OFFSET)
                     match_time = dt.strftime("%d.%m.%Y %H:%M")
                 except:
                     match_time = "Время не указано"
