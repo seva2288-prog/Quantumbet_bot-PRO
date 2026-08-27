@@ -145,7 +145,7 @@ def get_matches_with_factors():
                                     "referee": match.get("fixture", {}).get("referee")
                                 }
                                 
-                                # Погода отключена
+                                # ===== ПОГОДА ОТКЛЮЧЕНА =====
                                 match["weather"] = None
                                 match["weather_reason"] = "🌤️ Погода отключена"
                                 
@@ -162,7 +162,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ
+# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (С ДАТОЙ И ВРЕМЕНЕМ)
 # ============================================================
 
 def find_top_matches(matches):
@@ -238,13 +238,16 @@ def find_top_matches(matches):
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
 
-                # ===== АВТО-СТАВКА =====
+                # ===== АВТО-СТАВКА С ДАТОЙ И ВРЕМЕНЕМ =====
                 try:
                     bet_result = auto_bet.check_and_bet(match_data)
                     if bet_result:
                         bets_placed += 1
                         msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
                         msg += f"🏟️ {bet_result['match']}\n"
+                        # ===== ДОБАВЛЯЕМ ДАТУ И ВРЕМЯ =====
+                        if bet_result.get('match_time'):
+                            msg += f"📅 {bet_result['match_time']}\n"
                         msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
                         msg += f"💰 Сумма: ${bet_result['stake']}\n"
                         msg += f"📈 EV: {bet_result['ev']}%"
@@ -420,9 +423,7 @@ def webhook():
 
                         top_matches = find_top_matches(matches)
                         if top_matches:
-                            # ============================================================
-                            # КАРТОЧКИ МАТЧЕЙ ОТКЛЮЧЕНЫ — ПОКАЗЫВАЕМ ТОЛЬКО АВТО-СТАВКИ
-                            # ============================================================
+                            # ===== КАРТОЧКИ МАТЧЕЙ ОТКЛЮЧЕНЫ =====
                             # for i, match in enumerate(top_matches[:20], 1):
                             #     send_match_with_buttons(match, i)
                             #     time.sleep(0.5)
