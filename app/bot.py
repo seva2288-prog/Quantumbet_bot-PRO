@@ -110,19 +110,17 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ (СЕГОДНЯ + ЗАВТРА, ПОГОДА ОТКЛЮЧЕНА)
+# ПОИСК МАТЧЕЙ (ТОЛЬКО НА СЕГОДНЯ, ПОГОДА ОТКЛЮЧЕНА)
 # ============================================================
 
 def get_matches_with_factors():
     all_matches = []
     
-    # Ищем на сегодня и завтра (2 дня)
-    dates_to_search = []
-    for i in range(2):
-        date = (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d')
-        dates_to_search.append(date)
+    # ===== ИЩЕМ ТОЛЬКО НА СЕГОДНЯ =====
+    today = datetime.now().strftime('%Y-%m-%d')
+    dates_to_search = [today]
     
-    logger.info(f"🔍 Поиск матчей на: {', '.join(dates_to_search)}")
+    logger.info(f"🔍 Поиск матчей на: {today}")
     
     for league_id in Config.LEAGUES:
         for search_date in dates_to_search:
@@ -165,7 +163,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (С ДАТОЙ, ВРЕМЕНЕМ И ЧАСОВЫМ ПОЯСОМ)
+# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ
 # ============================================================
 
 def find_top_matches(matches):
