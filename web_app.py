@@ -7,6 +7,7 @@ import requests
 from datetime import datetime, timedelta
 import json
 import random
+import time
 
 app = Flask(__name__)
 
@@ -606,15 +607,24 @@ MAIN_HTML = """
         .metrics-grid .metric-item .value.green { color: #34d399; }
         .metrics-grid .metric-item .value.gold { color: #fbbf24; }
         
+        /* ===== УЛУЧШЕНИЕ 2: ВИРТУАЛЬНЫЙ СКРОЛЛИНГ + ПАГИНАЦИЯ ===== */
         .table-wrapper {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            position: relative;
+            max-height: 500px;
+            overflow-y: auto;
         }
-        table {
+        .table-wrapper table {
             width: 100%;
             border-collapse: collapse;
             font-size: 11px;
             min-width: 600px;
+        }
+        .table-wrapper thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
         th, td {
             padding: 6px 8px;
@@ -627,12 +637,52 @@ MAIN_HTML = """
             font-size: 9px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            background: rgba(255, 255, 255, 0.02);
+            background: rgba(20, 20, 35, 0.95);
             position: sticky;
             top: 0;
+            z-index: 10;
         }
         tr:hover td {
             background: rgba(255, 255, 255, 0.02);
+        }
+        
+        /* Пагинация */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 0;
+            flex-wrap: wrap;
+        }
+        .pagination button {
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.3s ease;
+        }
+        .pagination button:hover {
+            background: rgba(124, 58, 237, 0.1);
+            border-color: rgba(124, 58, 237, 0.2);
+            color: #e8e8f0;
+        }
+        .pagination button.active {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            border-color: transparent;
+        }
+        .pagination button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .pagination .info {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 10px;
+            padding: 0 8px;
         }
         
         .badge {
@@ -1116,32 +1166,142 @@ MAIN_HTML = """
             margin-top: 1px;
         }
         
+        /* ===== УЛУЧШЕНИЕ 1: УЛУЧШЕННЫЕ УВЕДОМЛЕНИЯ ===== */
         .notification {
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 12px 20px;
+            padding: 14px 24px;
             background: rgba(20, 20, 35, 0.95);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px);
             border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 10px;
+            border-radius: 12px;
             color: #e8e8f0;
             font-size: 13px;
             z-index: 9999;
             animation: slideIn 0.3s ease;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-            max-width: 400px;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            max-width: 450px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 280px;
         }
-        .notification.success { border-color: rgba(52, 211, 153, 0.3); }
-        .notification.error { border-color: rgba(248, 113, 113, 0.3); }
+        .notification .icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .notification .content {
+            flex: 1;
+        }
+        .notification .title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        .notification .message {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+        }
+        .notification .close-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 4px;
+            transition: color 0.3s ease;
+        }
+        .notification .close-btn:hover {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        .notification.success {
+            border-color: rgba(52, 211, 153, 0.3);
+        }
+        .notification.success .title {
+            color: #34d399;
+        }
+        .notification.error {
+            border-color: rgba(248, 113, 113, 0.3);
+        }
+        .notification.error .title {
+            color: #f87171;
+        }
+        .notification.warning {
+            border-color: rgba(251, 191, 36, 0.3);
+        }
+        .notification.warning .title {
+            color: #fbbf24;
+        }
+        .notification.info {
+            border-color: rgba(167, 139, 250, 0.3);
+        }
+        .notification.info .title {
+            color: #a78bfa;
+        }
         
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(100px); }
-            to { opacity: 1; transform: translateX(0); }
+            from { opacity: 0; transform: translateX(100px) scale(0.95); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
         }
         @keyframes slideOut {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100px); }
+            from { opacity: 1; transform: translateX(0) scale(1); }
+            to { opacity: 0; transform: translateX(100px) scale(0.95); }
+        }
+        
+        /* ===== УЛУЧШЕНИЕ 3: ДИНАМИКА ПАТТЕРНОВ ===== */
+        .trend-up { color: #34d399; }
+        .trend-down { color: #f87171; }
+        .trend-stable { color: #fbbf24; }
+        .trend-arrow-up::before { content: '↑ '; }
+        .trend-arrow-down::before { content: '↓ '; }
+        .trend-arrow-stable::before { content: '→ '; }
+        
+        .pattern-trend {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+        }
+        .pattern-trend .arrow {
+            font-size: 14px;
+        }
+        
+        /* ===== УЛУЧШЕНИЕ 4: КНОПКА "ПОВТОРИТЬ ПОПЫТКУ" ===== */
+        .error-container {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .error-container .emoji {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .error-container .title {
+            font-size: 18px;
+            color: #f87171;
+            margin-bottom: 8px;
+        }
+        .error-container .message {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .error-container .retry-btn {
+            padding: 10px 30px;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .error-container .retry-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.3);
+        }
+        .error-container .retry-btn:active {
+            transform: scale(0.95);
         }
         
         @media (max-width: 768px) {
@@ -1154,6 +1314,7 @@ MAIN_HTML = """
             .metrics-grid .metric-item { padding: 6px 10px; }
             .metrics-grid .metric-item .value { font-size: 14px; }
             .card { padding: 10px; }
+            .table-wrapper { max-height: 300px; }
             table { font-size: 9px; min-width: 450px; }
             th, td { padding: 3px 4px; }
             .chart-container { height: 100px; }
@@ -1167,7 +1328,9 @@ MAIN_HTML = """
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
             .patterns-table { font-size: 9px; }
             .patterns-table th, .patterns-table td { padding: 4px 6px; }
-            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
+            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; min-width: auto; }
+            .pagination button { padding: 2px 8px; font-size: 10px; }
+            .pagination .info { font-size: 9px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1177,6 +1340,7 @@ MAIN_HTML = """
             .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
             .bottom-nav .nav-item .icon { font-size: 14px; }
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            .table-wrapper { max-height: 200px; }
         }
     </style>
 </head>
@@ -1210,7 +1374,7 @@ MAIN_HTML = """
                 <span class="status-dot"></span>
                 <span>Система активна</span>
                 <span style="color:rgba(255,255,255,0.2);">|</span>
-                <span style="color:rgba(255,255,255,0.2);">v12 PRO</span>
+                <span style="color:rgba(255,255,255,0.2);">v13 PRO</span>
             </div>
             <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
             <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
@@ -1222,7 +1386,7 @@ MAIN_HTML = """
     <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
     <div id="page-settings" class="page"><div id="settings-content"></div></div>
 
-    <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
+    <div class="footer">Quantum Bet Bot v13 PRO © 2026</div>
 </div>
 
 <div class="bottom-nav">
@@ -1316,24 +1480,63 @@ MAIN_HTML = """
     let currentPage = 'dashboard';
     let isLoading = false;
     let chartData = null;
+    let currentPageNum = 1;
+    const pageSize = 20;
 
     // ============================================================
-    // УВЕДОМЛЕНИЯ
+    // УЛУЧШЕНИЕ 1: УВЕДОМЛЕНИЯ С ИКОНКАМИ И КНОПКОЙ ЗАКРЫТИЯ
     // ============================================================
-    function showNotification(message, type) {
+    function showNotification(message, type = 'info', title = null) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        const titles = {
+            success: 'Успешно!',
+            error: 'Ошибка!',
+            warning: 'Внимание!',
+            info: 'Информация'
+        };
+        
         const notification = document.createElement('div');
-        notification.className = 'notification' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
-        notification.textContent = message;
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="icon">${icons[type] || 'ℹ️'}</div>
+            <div class="content">
+                <div class="title">${title || titles[type] || 'Информация'}</div>
+                <div class="message">${message}</div>
+            </div>
+            <button class="close-btn" onclick="this.closest('.notification').remove()">✕</button>
+        `;
+        
         document.body.appendChild(notification);
         
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, 300);
-        }, 3000);
+        // Автоматическое закрытие через 4 секунды
+        const timeout = setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 300);
+            }
+        }, 4000);
+        
+        // Клик по уведомлению закрывает его
+        notification.addEventListener('click', function(e) {
+            if (e.target.tagName !== 'BUTTON') {
+                clearTimeout(timeout);
+                this.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (this.parentNode) {
+                        this.remove();
+                    }
+                }, 300);
+            }
+        });
     }
 
     // ============================================================
@@ -1401,12 +1604,28 @@ MAIN_HTML = """
         document.getElementById('page-' + page).classList.add('active');
 
         currentPage = page;
+        currentPageNum = 1;
         loadPageData(page);
     }
 
     // ============================================================
-    // ЗАГРУЗКА ДАННЫХ
+    // УЛУЧШЕНИЕ 4: ЗАГРУЗКА ДАННЫХ С КНОПКОЙ ПОВТОРА
     // ============================================================
+    function showError(contentId, errorMessage) {
+        const contentEl = document.getElementById(contentId);
+        contentEl.innerHTML = `
+            <div class="error-container">
+                <div class="emoji">🚀</div>
+                <div class="title">Не удалось загрузить данные</div>
+                <div class="message">${errorMessage || 'Проверьте подключение к интернету и попробуйте снова.'}</div>
+                <button class="retry-btn" onclick="loadPageData('${contentId.replace('-content', '')}')">
+                    🔄 Повторить попытку
+                </button>
+            </div>
+        `;
+        hideLoadingScreen();
+    }
+
     async function loadPageData(page) {
         if (isLoading) return;
 
@@ -1422,6 +1641,9 @@ MAIN_HTML = """
 
         try {
             const response = await fetch('/api/all_data?t=' + Date.now());
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
             const data = await response.json();
             cachedData = data;
 
@@ -1432,11 +1654,10 @@ MAIN_HTML = """
                 case 'settings': renderSettings(data); break;
             }
             
-            // Скрываем экран загрузки после загрузки данных
             hideLoadingScreen();
         } catch (error) {
-            contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
-            hideLoadingScreen();
+            console.error('Ошибка загрузки:', error);
+            showError(contentId, error.message || 'Неизвестная ошибка');
         }
 
         isLoading = false;
@@ -1504,6 +1725,35 @@ MAIN_HTML = """
         return decimalPlaces >= 3;
     }
 
+    // ============================================================
+    // УЛУЧШЕНИЕ 3: ДИНАМИКА ПАТТЕРНОВ (ТРЕНДЫ)
+    // ============================================================
+    function calculateTrend(profits) {
+        if (profits.length < 2) return { direction: 'stable', change: 0 };
+        
+        const firstHalf = profits.slice(0, Math.floor(profits.length / 2));
+        const secondHalf = profits.slice(Math.floor(profits.length / 2));
+        
+        const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+        const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+        
+        const change = ((avgSecond - avgFirst) / (Math.abs(avgFirst) || 1)) * 100;
+        
+        if (change > 5) return { direction: 'up', change: change };
+        if (change < -5) return { direction: 'down', change: change };
+        return { direction: 'stable', change: change };
+    }
+
+    function getTrendHtml(trend) {
+        if (trend.direction === 'up') {
+            return `<span class="trend-up trend-arrow-up">${trend.change.toFixed(1)}%</span>`;
+        } else if (trend.direction === 'down') {
+            return `<span class="trend-down trend-arrow-down">${Math.abs(trend.change).toFixed(1)}%</span>`;
+        } else {
+            return `<span class="trend-stable trend-arrow-stable">${trend.change.toFixed(1)}%</span>`;
+        }
+    }
+
     function detectDecimalPatterns(history) {
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
         if (!settings.anomaly_detection) return [];
@@ -1550,6 +1800,9 @@ MAIN_HTML = """
                 const totalStakes = group.bets.reduce((sum, b) => sum + (b.bet.stake || 0), 0);
                 const roi = totalStakes > 0 ? (totalProfit / totalStakes * 100) : 0;
                 
+                // УЛУЧШЕНИЕ 3: РАСЧЁТ ТРЕНДА
+                const trend = calculateTrend(profits);
+                
                 let status = '📌';
                 let recommendation = '';
                 if (winrate >= 70 && group.bets.length >= 3) {
@@ -1583,7 +1836,8 @@ MAIN_HTML = """
                     roi: roi,
                     status: status,
                     recommendation: recommendation,
-                    bets: group.bets
+                    bets: group.bets,
+                    trend: trend
                 });
             }
         });
@@ -1608,7 +1862,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА
+    // УЛУЧШЕНИЕ 2: РЕНДЕР ДАШБОРДА С ПАГИНАЦИЕЙ
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats;
@@ -1644,69 +1898,149 @@ MAIN_HTML = """
                     <h2>📋 Все ставки</h2>
                     <span class="count">Всего: ${history.length}</span>
                 </div>
-                <div class="table-wrapper">
+                <div class="table-wrapper" id="historyTableWrapper">
                     <table>
                         <thead><tr>
                             <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
                         </tr></thead>
-                        <tbody>
-        `;
-
-        if (history.length === 0) {
-            html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
-        } else {
-            history.slice().reverse().forEach((bet, idx) => {
-                const realIdx = history.length - 1 - idx;
-                const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
-                html += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
-                        <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
-                        <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                        <td>${bet.bet}</td>
-                        <td>${bet.odds}</td>
-                        <td>$${bet.stake}</td>
-                        <td>${bet.ev}%</td>
-                        <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                        <td class="${profitClass}">$${bet.profit}</td>
-                        <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
-                    </tr>
-                    <tr id="edit-row-${realIdx}" class="edit-row">
-                        <td colspan="11">
-                            <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-                                <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
-                                <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
-                                <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
-                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
-                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
-                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
-                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
-                                <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
-                                    <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
-                                    <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
-                                    <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
-                                    <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
-                                </select>
-                                <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">💾</button>
-                                <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:rgba(248,113,113,0.15);color:#f87171;border-color:rgba(248,113,113,0.1);">🗑️</button>
-                                <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        html += `
+                        <tbody id="historyTableBody">
                         </tbody>
                     </table>
                 </div>
+                <div id="paginationContainer"></div>
             </div>
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
+        
+        // Сохраняем историю для пагинации
+        window._allHistory = history;
+        window._currentPage = 1;
+        
+        renderHistoryPage(1);
         setTimeout(() => renderChart(data.profit_data), 50);
+    }
+
+    function renderHistoryPage(page) {
+        const history = window._allHistory || [];
+        const totalPages = Math.ceil(history.length / pageSize) || 1;
+        
+        if (page > totalPages) page = totalPages;
+        if (page < 1) page = 1;
+        window._currentPage = page;
+        
+        const start = (page - 1) * pageSize;
+        const end = Math.min(start + pageSize, history.length);
+        const pageData = history.slice(start, end);
+        
+        const tbody = document.getElementById('historyTableBody');
+        if (!tbody) return;
+        
+        if (history.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
+            return;
+        }
+        
+        // Показываем в обратном порядке (свежие сверху)
+        const reversed = [...pageData].reverse();
+        let html = '';
+        const globalIndex = history.length - start - 1;
+        
+        reversed.forEach((bet, idx) => {
+            const realIdx = history.length - 1 - (start + idx);
+            const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
+            html += `
+                <tr>
+                    <td>${start + idx + 1}</td>
+                    <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
+                    <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
+                    <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
+                    <td>${bet.bet}</td>
+                    <td>${bet.odds}</td>
+                    <td>$${bet.stake}</td>
+                    <td>${bet.ev}%</td>
+                    <td><span class="badge ${bet.result}">${bet.result}</span></td>
+                    <td class="${profitClass}">$${bet.profit}</td>
+                    <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
+                </tr>
+                <tr id="edit-row-${realIdx}" class="edit-row">
+                    <td colspan="11">
+                        <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
+                            <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
+                            <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
+                            <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
+                            <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
+                            <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
+                            <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
+                            <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
+                            <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
+                                <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
+                                <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
+                                <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
+                                <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
+                            </select>
+                            <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">💾</button>
+                            <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:rgba(248,113,113,0.15);color:#f87171;border-color:rgba(248,113,113,0.1);">🗑️</button>
+                            <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+        
+        // Рендерим пагинацию
+        renderPagination(totalPages, page);
+    }
+
+    function renderPagination(totalPages, currentPage) {
+        const container = document.getElementById('paginationContainer');
+        if (!container) return;
+        
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        let html = '<div class="pagination">';
+        html += `<button onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>◀</button>`;
+        
+        const maxVisible = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        
+        if (startPage > 1) {
+            html += `<button onclick="goToPage(1)">1</button>`;
+            if (startPage > 2) html += `<span style="color:rgba(255,255,255,0.2);padding:0 4px;">...</span>`;
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<button onclick="goToPage(${i})" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) html += `<span style="color:rgba(255,255,255,0.2);padding:0 4px;">...</span>`;
+            html += `<button onclick="goToPage(${totalPages})">${totalPages}</button>`;
+        }
+        
+        html += `<button onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>▶</button>`;
+        html += `<span class="info">${currentPage}/${totalPages}</span>`;
+        html += '</div>';
+        
+        container.innerHTML = html;
+    }
+
+    function goToPage(page) {
+        const history = window._allHistory || [];
+        const totalPages = Math.ceil(history.length / pageSize) || 1;
+        if (page < 1 || page > totalPages) return;
+        window._currentPage = page;
+        renderHistoryPage(page);
     }
 
     // ============================================================
@@ -1775,7 +2109,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ
+    // РЕНДЕР АНАЛИТИКИ (с улучшенной динамикой)
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
@@ -1848,6 +2182,7 @@ MAIN_HTML = """
                                 <th>Проход</th>
                                 <th>Прибыль</th>
                                 <th>ROI</th>
+                                <th>Тренд</th>
                                 <th>Рекомендация</th>
                             </tr>
                         </thead>
@@ -1862,6 +2197,7 @@ MAIN_HTML = """
                                     <td style="color:${p.winrate >= 60 ? '#34d399' : (p.winrate >= 40 ? '#fbbf24' : '#f87171')};font-weight:600;">${p.winrate.toFixed(1)}%</td>
                                     <td style="color:${p.totalProfit >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${p.totalProfit >= 0 ? '+' : ''}$${p.totalProfit.toFixed(2)}</td>
                                     <td style="color:${p.roi >= 0 ? '#34d399' : '#f87171'};">${p.roi.toFixed(1)}%</td>
+                                    <td>${getTrendHtml(p.trend)}</td>
                                     <td>${getRecommendation(p.stake).icon} ${getRecommendation(p.stake).bet}</td>
                                 </tr>
                             `).join('')}
@@ -1906,7 +2242,7 @@ MAIN_HTML = """
             `;
         }
 
-        // ===== БЫСТРАЯ СТАТИСТИКА =====
+        // Быстрая статистика
         html += `
             <div class="card">
                 <div class="card-header">
@@ -1934,7 +2270,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (с трендом)
     // ============================================================
     function renderPatternCard(pattern, idx) {
         let statusColor;
@@ -2016,8 +2352,8 @@ MAIN_HTML = """
                         <div class="value" style="color:#f87171;">$${pattern.minProfit.toFixed(2)}</div>
                     </div>
                     <div class="metric">
-                        <div class="label">ROI</div>
-                        <div class="value" style="color:${pattern.roi >= 0 ? '#34d399' : '#f87171'};">${pattern.roi.toFixed(1)}%</div>
+                        <div class="label">Тренд</div>
+                        <div class="value" style="font-size:14px;">${getTrendHtml(pattern.trend)}</div>
                     </div>
                 </div>
                 
@@ -2051,6 +2387,9 @@ MAIN_HTML = """
                 <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
                     💡 ${pattern.recommendation}
                     ${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}
+                    <span style="display:block;margin-top:2px;font-size:8px;">
+                        📊 Тренд: ${pattern.trend.direction === 'up' ? '📈 Восходящий' : pattern.trend.direction === 'down' ? '📉 Нисходящий' : '➡️ Стабильный'} (${pattern.trend.change.toFixed(1)}%)
+                    </span>
                 </div>
             </div>
         `;
@@ -2137,7 +2476,7 @@ MAIN_HTML = """
         const result = document.getElementById('resultSelect').value;
         
         if (!matchName) {
-            alert('❌ Введите название матча!');
+            showNotification('Пожалуйста, введите название матча', 'warning', '⚠️ Внимание!');
             return;
         }
         
@@ -2156,14 +2495,14 @@ MAIN_HTML = """
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('✅ Матч добавлен!');
-                location.reload();
+                showNotification(`Матч "${matchName}" успешно добавлен!`, 'success', '✅ Готово!');
+                setTimeout(() => location.reload(), 1500);
             } else {
-                alert('❌ Ошибка: ' + data.error);
+                showNotification('Ошибка: ' + data.error, 'error', '❌ Ошибка');
             }
         })
         .catch(error => {
-            alert('❌ Ошибка: ' + error);
+            showNotification('Ошибка: ' + error, 'error', '❌ Ошибка');
         });
     }
 
@@ -2419,6 +2758,7 @@ MAIN_HTML = """
         link.download = 'chart_' + new Date().toISOString().slice(0,10) + '.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
+        showNotification('График сохранён как PNG', 'success', '✅ Готово!');
     }
 
     // ============================================================
@@ -2593,7 +2933,7 @@ MAIN_HTML = """
         };
         
         if (!projectData.data) {
-            showNotification('⏳ Загрузка данных...', '');
+            showNotification('Загрузка данных для экспорта...', 'info', '⏳ Подождите');
             fetch('/api/all_data')
                 .then(response => response.json())
                 .then(data => {
@@ -2601,7 +2941,7 @@ MAIN_HTML = """
                     downloadProjectFile(projectData);
                 })
                 .catch(error => {
-                    showNotification('❌ Ошибка загрузки данных: ' + error, 'error');
+                    showNotification('Ошибка загрузки данных: ' + error, 'error', '❌ Ошибка');
                 });
             return;
         }
@@ -2622,14 +2962,14 @@ MAIN_HTML = """
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
-        showNotification('✅ Проект успешно сохранен!', 'success');
+        showNotification('Проект успешно сохранён!', 'success', '✅ Готово!');
     }
 
     function importProject(event) {
         const file = event.target.files[0];
         if (!file) return;
         
-        showNotification('⏳ Загрузка файла...', '');
+        showNotification('Загрузка файла...', 'info', '⏳ Подождите');
         
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -2637,7 +2977,7 @@ MAIN_HTML = """
                 const projectData = JSON.parse(e.target.result);
                 
                 if (!projectData.version) {
-                    showNotification('❌ Неверный формат файла!', 'error');
+                    showNotification('Неверный формат файла!', 'error', '❌ Ошибка');
                     return;
                 }
                 
@@ -2657,7 +2997,7 @@ MAIN_HTML = """
                 }
                 
                 if (projectData.data && projectData.data.history) {
-                    showNotification('⏳ Отправка данных на сервер...', '');
+                    showNotification('Отправка данных на сервер...', 'info', '⏳ Подождите');
                     
                     fetch('/api/import_project', {
                         method: 'POST',
@@ -2670,22 +3010,22 @@ MAIN_HTML = """
                     .then(response => response.json())
                     .then(result => {
                         if (result.success) {
-                            showNotification(`✅ Проект загружен! Импортировано ${result.count || 0} ставок.`, 'success');
+                            showNotification(`Проект загружен! Импортировано ${result.count || 0} ставок.`, 'success', '✅ Готово!');
                             refreshData();
                         } else {
-                            showNotification('❌ Ошибка загрузки: ' + result.error, 'error');
+                            showNotification('Ошибка загрузки: ' + result.error, 'error', '❌ Ошибка');
                         }
                     })
                     .catch(error => {
-                        showNotification('❌ Ошибка: ' + error, 'error');
+                        showNotification('Ошибка: ' + error, 'error', '❌ Ошибка');
                     });
                 } else {
-                    showNotification('✅ Настройки загружены! Данные не найдены.', 'success');
+                    showNotification('Настройки загружены! Данные не найдены.', 'success', '✅ Готово!');
                     refreshData();
                 }
                 
             } catch (error) {
-                showNotification('❌ Ошибка чтения файла: ' + error, 'error');
+                showNotification('Ошибка чтения файла: ' + error, 'error', '❌ Ошибка');
             }
         };
         reader.readAsText(file);
@@ -2728,13 +3068,13 @@ MAIN_HTML = """
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('✅ Ставка обновлена!', 'success');
+                showNotification('Ставка обновлена!', 'success', '✅ Готово!');
                 refreshData();
             } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
+                showNotification('Ошибка: ' + result.error, 'error', '❌ Ошибка');
             }
         } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
+            showNotification('Ошибка: ' + e, 'error', '❌ Ошибка');
         }
     }
 
@@ -2748,19 +3088,20 @@ MAIN_HTML = """
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('✅ Ставка удалена!', 'success');
+                showNotification('Ставка удалена!', 'success', '✅ Готово!');
                 refreshData();
             } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
+                showNotification('Ошибка: ' + result.error, 'error', '❌ Ошибка');
             }
         } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
+            showNotification('Ошибка: ' + e, 'error', '❌ Ошибка');
         }
     }
 
     async function runSimulation() {
         const count = parseInt(document.getElementById('simCount').value) || 1000;
         document.getElementById('simResults').style.display = 'block';
+        showNotification(`Запуск симуляции (${count} итераций)...`, 'info', '⏳ Подождите');
         try {
             const response = await fetch('/api/simulate', {
                 method: 'POST',
@@ -2769,7 +3110,7 @@ MAIN_HTML = """
             });
             const data = await response.json();
             if (data.error) {
-                showNotification('❌ Ошибка: ' + data.error, 'error');
+                showNotification('Ошибка: ' + data.error, 'error', '❌ Ошибка');
                 return;
             }
             document.getElementById('simProfit').textContent = '$' + data.profit;
@@ -2819,8 +3160,9 @@ MAIN_HTML = """
                     }
                 });
             }
+            showNotification('Симуляция завершена!', 'success', '✅ Готово!');
         } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
+            showNotification('Ошибка: ' + e, 'error', '❌ Ошибка');
         }
     }
 
@@ -2834,11 +3176,11 @@ MAIN_HTML = """
             });
             const data = await response.json();
             if (data.success) {
-                showNotification('✅ Банк обновлен: $' + data.bank, 'success');
+                showNotification(`Банк обновлён: $${data.bank}`, 'success', '✅ Готово!');
                 refreshData();
             }
         } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
+            showNotification('Ошибка: ' + e, 'error', '❌ Ошибка');
         }
     }
 
@@ -2854,7 +3196,10 @@ MAIN_HTML = """
         const file = event.target.files[0];
         const statusDiv = document.getElementById('importStatus');
         const fileNameSpan = document.getElementById('fileName');
-        if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
+        if (!file) { 
+            statusDiv.textContent = '❌ Файл не выбран';
+            return; 
+        }
         fileNameSpan.textContent = '📄 ' + file.name;
         statusDiv.textContent = '⏳ Загрузка файла...';
         const reader = new FileReader();
@@ -2866,9 +3211,11 @@ MAIN_HTML = """
                 const json = XLSX.utils.sheet_to_json(sheet);
                 if (json.length === 0) {
                     statusDiv.textContent = '❌ Файл пуст или неправильный формат';
+                    showNotification('Файл пуст или неправильный формат', 'error', '❌ Ошибка');
                     return;
                 }
                 statusDiv.textContent = '⏳ Отправка данных на сервер...';
+                showNotification(`Импорт ${json.length} записей...`, 'info', '⏳ Подождите');
                 fetch('/api/import_excel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2877,15 +3224,21 @@ MAIN_HTML = """
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок! Страница обновится...';
+                        statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок!';
+                        showNotification(`Импортировано ${data.count} ставок!`, 'success', '✅ Готово!');
                         setTimeout(() => refreshData(), 1500);
                     } else {
                         statusDiv.textContent = '❌ Ошибка: ' + data.error;
+                        showNotification('Ошибка: ' + data.error, 'error', '❌ Ошибка');
                     }
                 })
-                .catch(error => { statusDiv.textContent = '❌ Ошибка: ' + error; });
+                .catch(error => { 
+                    statusDiv.textContent = '❌ Ошибка: ' + error;
+                    showNotification('Ошибка: ' + error, 'error', '❌ Ошибка');
+                });
             } catch (error) {
                 statusDiv.textContent = '❌ Ошибка чтения файла: ' + error;
+                showNotification('Ошибка чтения файла: ' + error, 'error', '❌ Ошибка');
             }
         };
         reader.readAsArrayBuffer(file);
