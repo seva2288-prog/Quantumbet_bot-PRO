@@ -126,7 +126,7 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ (ТОЛЬКО НА СЕГОДНЯ, ПОГОДА ОТКЛЮЧЕНА)
+# ПОИСК МАТЧЕЙ (ТОЛЬКО НА СЕГОДНЯ)
 # ============================================================
 
 def get_matches_with_factors():
@@ -145,21 +145,20 @@ def get_matches_with_factors():
                 
                 if matches and isinstance(matches, list):
                     for match in matches:
-                        # ===== ЖЁСТКАЯ ПРОВЕРКА =====
                         if match is None:
                             continue
                         if not isinstance(match, dict):
                             continue
                         
-                        fixture = match.get("fixture")
+                        fixture = match.get("fixture", {})
                         if not fixture or not isinstance(fixture, dict):
                             continue
                         
-                        teams = match.get("teams")
+                        teams = match.get("teams", {})
                         if not teams or not isinstance(teams, dict):
                             continue
                         
-                        league = match.get("league")
+                        league = match.get("league", {})
                         if not league or not isinstance(league, dict):
                             continue
                         
@@ -334,7 +333,7 @@ def recalc_stats():
     logger.info(f"📊 Статистика пересчитана: {stats}")
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ
+# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (РАДИКАЛЬНОЕ ИСПРАВЛЕНИЕ)
 # ============================================================
 
 def find_top_matches(matches):
@@ -343,18 +342,34 @@ def find_top_matches(matches):
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
 
+    # ===== ПРОВЕРЯЕМ ВСЕ МАТЧИ =====
+    valid_matches = []
     for match in matches:
-        # ===== ЖЁСТКАЯ ПРОВЕРКА =====
         if match is None:
+            logger.warning("⚠️ Пропущен None матч")
             continue
         if not isinstance(match, dict):
+            logger.warning(f"⚠️ Пропущен не-словарь: {type(match)} — {match}")
             continue
-        
+        valid_matches.append(match)
+    
+    logger.info(f"📊 Всего матчей: {len(matches)}, Валидных: {len(valid_matches)}")
+    
+    for match in valid_matches:
         if bets_placed >= max_bets:
             logger.info(f"⚠️ Достигнут лимит ставок: {max_bets}")
             break
 
         try:
+            # ===== БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ =====
+            fixture = match.get("fixture")
+            if not fixture or not isinstance(fixture, dict):
+                continue
+            
+            fixture_id = fixture.get("id")
+            if not fixture_id:
+                continue
+            
             teams = match.get("teams")
             if not teams or not isinstance(teams, dict):
                 continue
@@ -370,15 +385,6 @@ def find_top_matches(matches):
             
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
-            
-            fixture = match.get("fixture")
-            if not fixture or not isinstance(fixture, dict):
-                continue
-            
-            fixture_id = fixture.get("id")
-            if not fixture_id:
-                logger.warning(f"⚠️ Нет fixture_id для матча {home} vs {away}")
-                continue
 
             factors = match.get("factors", {})
             if not isinstance(factors, dict):
