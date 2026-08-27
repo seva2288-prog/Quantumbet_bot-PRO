@@ -30,6 +30,25 @@ search_running = False
 
 # ===== КОНСТАНТА ЧАСОВОГО ПОЯСА =====
 TIMEZONE_OFFSET = 3  # UTC+3
+TIMEOUT = 30  # Увеличенный таймаут
+
+# ===== ФУНКЦИЯ ОТПРАВКИ ОШИБОК В TELEGRAM =====
+def send_error_to_telegram(error_text: str):
+    """Отправляет ошибку в Telegram для мгновенного уведомления"""
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
+        # Обрезаем длинные сообщения
+        if len(error_text) > 4000:
+            error_text = error_text[:4000] + "...(обрезано)"
+        data = {
+            'chat_id': Config.ADMIN_CHAT_ID,
+            'text': f"❌ <b>ОШИБКА БОТА</b>\n\n{error_text}",
+            'parse_mode': 'HTML'
+        }
+        requests.post(url, json=data, timeout=5)
+    except Exception as e:
+        logger.error(f"Не удалось отправить ошибку в Telegram: {e}")
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
     import requests
@@ -43,6 +62,7 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
         requests.post(url, json=data, timeout=10)
     except Exception as e:
         logger.error(f"Send error: {e}")
+        send_error_to_telegram(f"Ошибка отправки в Telegram: {e}")
 
 # ============ ЭКСПОРТ В EXCEL ============
 def export_to_excel():
@@ -116,7 +136,6 @@ def export_to_excel():
 def get_matches_with_factors():
     all_matches = []
     
-    # ===== ИЩЕМ ТОЛЬКО НА СЕГОДНЯ =====
     today = datetime.now().strftime('%Y-%m-%d')
     dates_to_search = [today]
     
@@ -146,7 +165,6 @@ def get_matches_with_factors():
                                     "referee": match.get("fixture", {}).get("referee")
                                 }
                                 
-                                # ===== ПОГОДА ОТКЛЮЧЕНА =====
                                 match["weather"] = None
                                 match["weather_reason"] = "🌤️ Погода отключена"
                                 
@@ -155,9 +173,11 @@ def get_matches_with_factors():
                 else:
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
             except Exception as e:
-                logger.error(f"❌ Ошибка {league_name} на {search_date}: {e}")
+                error_msg = f"Ошибка {league_name} на {search_date}: {e}"
+                logger.error(f"❌ {error_msg}")
+                send_error_to_telegram(error_msg)
             
-            time.sleep(0.3)
+            time.sleep(0.1)  # уменьшил с 0.3 до 0.1 для скорости
     
     logger.info(f"📊 Найдено матчей: {len(all_matches)}")
     return all_matches
@@ -188,7 +208,6 @@ def find_top_matches(matches):
             if match_time:
                 try:
                     dt = datetime.fromisoformat(match_time.replace("Z", "+00:00"))
-                    # ===== ДОБАВЛЯЕМ СМЕЩЕНИЕ ЧАСОВОГО ПОЯСА =====
                     dt = dt + timedelta(hours=TIMEZONE_OFFSET)
                     match_time = dt.strftime("%d.%m.%Y %H:%M")
                 except:
@@ -241,14 +260,12 @@ def find_top_matches(matches):
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
 
-                # ===== АВТО-СТАВКА С ДАТОЙ И ВРЕМЕНЕМ =====
                 try:
                     bet_result = auto_bet.check_and_bet(match_data)
                     if bet_result:
                         bets_placed += 1
                         msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
                         msg += f"🏟️ {bet_result['match']}\n"
-                        # ===== ДОБАВЛЯЕМ ДАТУ И ВРЕМЯ =====
                         if bet_result.get('match_time'):
                             msg += f"📅 {bet_result['match_time']}\n"
                         msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
@@ -259,10 +276,14 @@ def find_top_matches(matches):
                         send_telegram(msg)
                         logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
                 except Exception as e:
-                    logger.error(f"Ошибка авто-ставки: {e}")
+                    error_msg = f"Ошибка авто-ставки: {e}"
+                    logger.error(f"❌ {error_msg}")
+                    send_error_to_telegram(error_msg)
 
         except Exception as e:
-            logger.error(f"Ошибка: {e}")
+            error_msg = f"Ошибка в find_top_matches: {e}"
+            logger.error(f"❌ {error_msg}")
+            send_error_to_telegram(error_msg)
             continue
 
     all_matches_data.sort(key=lambda x: x['bets'][0]['ev'] if x['bets'] else 0, reverse=True)
@@ -389,7 +410,9 @@ def webhook():
                                     send_telegram(msg)
                                     
                                 except Exception as e:
-                                    logger.error(f"❌ Ошибка сохранения: {e}")
+                                    error_msg = f"Ошибка сохранения результата: {e}"
+                                    logger.error(f"❌ {error_msg}")
+                                    send_error_to_telegram(error_msg)
                         else:
                             cache.pop(f"match_{match_id}", None)
                             storage.save_cache(cache)
@@ -426,11 +449,6 @@ def webhook():
 
                         top_matches = find_top_matches(matches)
                         if top_matches:
-                            # ===== КАРТОЧКИ МАТЧЕЙ ОТКЛЮЧЕНЫ =====
-                            # for i, match in enumerate(top_matches[:20], 1):
-                            #     send_match_with_buttons(match, i)
-                            #     time.sleep(0.5)
-
                             elapsed = (datetime.now() - start_time).seconds
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
@@ -483,7 +501,9 @@ def webhook():
         
         return "ok", 200
     except Exception as e:
-        logger.error(f"Webhook error: {e}")
+        error_msg = f"Webhook error: {e}"
+        logger.error(f"❌ {error_msg}")
+        send_error_to_telegram(error_msg)
         return "ok", 200
 
 # ============================================================
@@ -578,7 +598,9 @@ def update_history():
         })
         
     except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")
+        error_msg = f"Ошибка обновления истории: {e}"
+        logger.error(f"❌ {error_msg}")
+        send_error_to_telegram(error_msg)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/', methods=['GET'])
@@ -596,4 +618,5 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
+    logger.info("✅ Мониторинг ошибок включен")
     app.run(host='0.0.0.0', port=port)
