@@ -12,9 +12,8 @@ class FootballAPI:
     def __init__(self):
         self.base_url = Config.FOOTBALL_API_URL
         self.api_key = Config.FOOTBALL_API_KEY
-        # ===== ПРАВИЛЬНЫЕ ЗАГОЛОВКИ ДЛЯ API-FOOTBALL =====
         self.headers = {
-            'x-apisports-key': self.api_key,  # ← ИСПРАВЛЕНО!
+            'x-apisports-key': self.api_key,
             'x-rapidapi-host': 'v3.football.api-sports.io'
         }
 
@@ -24,7 +23,11 @@ class FootballAPI:
     def get_matches(self, league_id, date):
         try:
             url = f"{self.base_url}/fixtures"
-            params = {'league': league_id, 'date': date}
+            params = {
+                'league': league_id,
+                'date': date,
+                'season': datetime.now().year  # ← ДОБАВЛЕНО!
+            }
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
             if response.status_code != 200:
