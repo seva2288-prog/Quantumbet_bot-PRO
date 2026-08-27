@@ -10,8 +10,8 @@ logger = get_logger(__name__)
 class AutoBet:
     def __init__(self):
         self.enabled = True
-        self.max_bets_per_day = getattr(Config, 'MAX_BETS_PER_DAY', 20)
-        self.max_bets_per_run = getattr(Config, 'MAX_BETS_PER_RUN', 20)
+        self.max_bets_per_day = getattr(Config, 'MAX_BETS_PER_DAY', 30)
+        self.max_bets_per_run = getattr(Config, 'MAX_BETS_PER_RUN', 30)
         self.min_ev = getattr(Config, 'MIN_EV', 5)
         self.min_odds = getattr(Config, 'MIN_ODDS', 1.5)
         self.marker_threshold = getattr(Config, 'MARKER_THRESHOLD', 80)
@@ -23,6 +23,7 @@ class AutoBet:
         if not self.enabled:
             return None
 
+        # Проверяем лимит на день
         today = datetime.now().strftime('%Y-%m-%d')
         if self.last_bet_date != today:
             self.bets_today = 0
@@ -32,6 +33,7 @@ class AutoBet:
             logger.info(f"⚠️ Дневной лимит ставок исчерпан ({self.max_bets_per_day})")
             return None
 
+        # Получаем историю для поиска маркеров
         history = storage.load_history()
         markers = self._find_markers(history)
 
@@ -39,10 +41,12 @@ class AutoBet:
             logger.info("⚠️ Нет активных маркеров")
             return None
 
+        # Проверяем ставки в матче
         bets = match_data.get('bets', [])
         if not bets:
             return None
 
+        # Выбираем лучшую ставку
         best_bet = bets[0]
         ev = best_bet.get('ev', 0)
         odds = best_bet.get('odds', 0)
@@ -52,29 +56,34 @@ class AutoBet:
         if odds < self.min_odds:
             return None
 
+        # Находим подходящий маркер
         marker = self._find_marker_for_bet(markers, best_bet)
         if not marker:
             logger.info(f"⚠️ Нет маркера для {best_bet.get('label')}")
             return None
 
+        # Делаем ставку
         stake = marker.get('stake', 0)
         if stake <= 0:
             stake = best_bet.get('stake', 10)
 
+        # Проверяем банк
         bank = storage.load_bank()
-        if stake > bank * 0.1:
+        if stake > bank * 0.1:  # Не более 10% банка
             stake = round(bank * 0.05, 2)
 
-        # ===== ДАТА И ВРЕМЯ МАТЧА =====
+        # Получаем время матча
         match_time = match_data.get('match_time', '')
         if not match_time:
             match_time = datetime.now().strftime('%d.%m.%Y %H:%M')
 
+        # ===== СОХРАНЯЕМ СТАВКУ С fixture_id =====
         bet_record = {
             'home': match_data.get('home', ''),
             'away': match_data.get('away', ''),
+            'fixture_id': match_data.get('fixture_id'),  # ← ДЛЯ АВТО-ОБНОВЛЕНИЯ
             'league': match_data.get('league', ''),
-            'match_time': match_time,  # ← ДОБАВЛЕНО
+            'match_time': match_time,
             'bet': best_bet.get('label', ''),
             'odds': odds,
             'stake': stake,
@@ -87,6 +96,7 @@ class AutoBet:
             'auto': True
         }
 
+        # Сохраняем в историю
         history.append(bet_record)
         storage.save_history(history)
 
@@ -95,13 +105,14 @@ class AutoBet:
 
         return {
             'match': f"{bet_record['home']} vs {bet_record['away']}",
-            'match_time': match_time,  # ← ДОБАВЛЕНО
+            'match_time': match_time,
             'bet': bet_record['bet'],
             'odds': bet_record['odds'],
             'stake': bet_record['stake'],
             'ev': bet_record['ev'],
             'marker_stake': marker.get('stake', 0),
-            'marker_type': marker.get('type', 'unknown')
+            'marker_type': marker.get('type', 'unknown'),
+            'fixture_id': match_data.get('fixture_id')  # ← ДЛЯ АВТО-ОБНОВЛЕНИЯ
         }
 
     def _find_markers(self, history):
@@ -155,9 +166,10 @@ class AutoBet:
                     })
 
         # ============================================================
-        # 2. РУЧНЫЕ МАРКЕРЫ
+        # 2. РУЧНЫЕ МАРКЕРЫ (ВСЕГДА АКТИВНЫ)
         # ============================================================
         manual_markers = [
+            # Маркер 1: 1X
             {
                 'stake': 45.125,
                 'winrate': 100.0,
@@ -166,6 +178,7 @@ class AutoBet:
                 'type': '1X',
                 'confidence': 100.0
             },
+            # Маркер 2: ТМ 2.5
             {
                 'stake': 42.86875000000006,
                 'winrate': 100.0,
@@ -174,6 +187,7 @@ class AutoBet:
                 'type': 'ТМ 2.5',
                 'confidence': 100.0
             },
+            # Маркер 3: ОБЗ
             {
                 'stake': 40.7253125,
                 'winrate': 66.7,
@@ -182,6 +196,7 @@ class AutoBet:
                 'type': 'ОБЗ',
                 'confidence': 66.7
             },
+            # Маркер 4: X2
             {
                 'stake': 42.86875000000001,
                 'winrate': 80.0,
@@ -230,4 +245,5 @@ class AutoBet:
         return markers[0] if markers else None
 
 
+# Создаем глобальный экземпляр
 auto_bet = AutoBet()
