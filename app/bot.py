@@ -145,33 +145,60 @@ def get_matches_with_factors():
                 
                 if matches and isinstance(matches, list):
                     for match in matches:
-                        # ===== ПРОВЕРКА: match НЕ ДОЛЖЕН БЫТЬ None ИЛИ СТРОКОЙ =====
+                        # ===== ЖЁСТКАЯ ПРОВЕРКА =====
                         if match is None:
                             continue
                         if not isinstance(match, dict):
                             continue
                         
-                        if match.get("fixture", {}).get("status", {}).get("short") == "NS":
-                            match_id = match.get("fixture", {}).get("id")
-                            if match_id and match_id not in [m.get("fixture", {}).get("id") for m in all_matches if isinstance(m, dict)]:
-                                home_id = match.get("teams", {}).get("home", {}).get("id")
-                                away_id = match.get("teams", {}).get("away", {}).get("id")
-                                
-                                match["factors"] = {
-                                    "home_form": football_api.get_form(home_id) if home_id else None,
-                                    "away_form": football_api.get_form(away_id) if away_id else None,
-                                    "home_injuries_list": football_api.get_injuries(home_id) if home_id else [],
-                                    "away_injuries_list": football_api.get_injuries(away_id) if away_id else [],
-                                    "home_id": home_id,
-                                    "away_id": away_id,
-                                    "referee": match.get("fixture", {}).get("referee")
-                                }
-                                
-                                match["weather"] = None
-                                match["weather_reason"] = "🌤️ Погода отключена"
-                                
-                                match["league"]["name"] = league_name
-                                all_matches.append(match)
+                        fixture = match.get("fixture")
+                        if not fixture or not isinstance(fixture, dict):
+                            continue
+                        
+                        teams = match.get("teams")
+                        if not teams or not isinstance(teams, dict):
+                            continue
+                        
+                        league = match.get("league")
+                        if not league or not isinstance(league, dict):
+                            continue
+                        
+                        status = fixture.get("status", {})
+                        if not isinstance(status, dict):
+                            continue
+                        
+                        if status.get("short") == "NS":
+                            match_id = fixture.get("id")
+                            if not match_id:
+                                continue
+                            
+                            existing_ids = [m.get("fixture", {}).get("id") for m in all_matches if isinstance(m, dict)]
+                            if match_id in existing_ids:
+                                continue
+                            
+                            home_team = teams.get("home", {})
+                            away_team = teams.get("away", {})
+                            
+                            home_id = home_team.get("id") if isinstance(home_team, dict) else None
+                            away_id = away_team.get("id") if isinstance(away_team, dict) else None
+                            
+                            match["factors"] = {
+                                "home_form": football_api.get_form(home_id) if home_id else None,
+                                "away_form": football_api.get_form(away_id) if away_id else None,
+                                "home_injuries_list": football_api.get_injuries(home_id) if home_id else [],
+                                "away_injuries_list": football_api.get_injuries(away_id) if away_id else [],
+                                "home_id": home_id,
+                                "away_id": away_id,
+                                "referee": fixture.get("referee")
+                            }
+                            
+                            match["weather"] = None
+                            match["weather_reason"] = "🌤️ Погода отключена"
+                            
+                            if isinstance(league, dict):
+                                league["name"] = league_name
+                            
+                            all_matches.append(match)
                 else:
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
             except Exception as e:
@@ -317,7 +344,7 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     for match in matches:
-        # ===== ПРОВЕРКА: ПРОПУСКАЕМ None И НЕ-СЛОВАРИ =====
+        # ===== ЖЁСТКАЯ ПРОВЕРКА =====
         if match is None:
             continue
         if not isinstance(match, dict):
@@ -328,18 +355,36 @@ def find_top_matches(matches):
             break
 
         try:
-            home = match.get("teams", {}).get("home", {}).get("name", "Unknown")
-            away = match.get("teams", {}).get("away", {}).get("name", "Unknown")
-            league = match.get("league", {}).get("name", "Unknown")
-            fixture_id = match.get("fixture", {}).get("id")
+            teams = match.get("teams")
+            if not teams or not isinstance(teams, dict):
+                continue
             
+            home_team = teams.get("home")
+            away_team = teams.get("away")
+            
+            if not isinstance(home_team, dict) or not isinstance(away_team, dict):
+                continue
+            
+            home = home_team.get("name", "Unknown")
+            away = away_team.get("name", "Unknown")
+            
+            league_data = match.get("league")
+            league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
+            
+            fixture = match.get("fixture")
+            if not fixture or not isinstance(fixture, dict):
+                continue
+            
+            fixture_id = fixture.get("id")
             if not fixture_id:
                 logger.warning(f"⚠️ Нет fixture_id для матча {home} vs {away}")
                 continue
 
             factors = match.get("factors", {})
+            if not isinstance(factors, dict):
+                factors = {}
 
-            match_time = match.get("fixture", {}).get("date", "")
+            match_time = fixture.get("date", "")
             if match_time:
                 try:
                     dt = datetime.fromisoformat(match_time.replace("Z", "+00:00"))
@@ -690,16 +735,24 @@ def webhook():
                     for match in matches:
                         if match is None or not isinstance(match, dict):
                             continue
-                        fixture_id = match.get("fixture", {}).get("id")
+                        fixture = match.get("fixture")
+                        if not fixture or not isinstance(fixture, dict):
+                            continue
+                        fixture_id = fixture.get("id")
                         if fixture_id:
                             odds_data = football_api.get_match_odds(fixture_id)
                             if odds_data:
                                 arb_opps = arbitrage_analyzer.find_arbitrage(odds_data)
                                 if arb_opps:
+                                    teams = match.get("teams", {})
+                                    home = teams.get("home", {}).get("name", "Unknown") if isinstance(teams.get("home"), dict) else "Unknown"
+                                    away = teams.get("away", {}).get("name", "Unknown") if isinstance(teams.get("away"), dict) else "Unknown"
+                                    league_data = match.get("league", {})
+                                    league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
                                     match_data = {
-                                        'home': match.get("teams", {}).get("home", {}).get("name", "Unknown"),
-                                        'away': match.get("teams", {}).get("away", {}).get("name", "Unknown"),
-                                        'league': match.get("league", {}).get("name", "Unknown")
+                                        'home': home,
+                                        'away': away,
+                                        'league': league
                                     }
                                     msg = arbitrage_analyzer.format_arb_message(match_data, arb_opps)
                                     send_telegram(msg)
@@ -728,14 +781,22 @@ def webhook():
                     for match in matches:
                         if match is None or not isinstance(match, dict):
                             continue
-                        fixture_id = match.get("fixture", {}).get("id")
+                        fixture = match.get("fixture")
+                        if not fixture or not isinstance(fixture, dict):
+                            continue
+                        fixture_id = fixture.get("id")
                         if fixture_id:
                             odds_data = football_api.get_match_odds(fixture_id)
                             if odds_data:
+                                teams = match.get("teams", {})
+                                home = teams.get("home", {}).get("name", "Unknown") if isinstance(teams.get("home"), dict) else "Unknown"
+                                away = teams.get("away", {}).get("name", "Unknown") if isinstance(teams.get("away"), dict) else "Unknown"
+                                league_data = match.get("league", {})
+                                league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
                                 match_data = {
-                                    'home': match.get("teams", {}).get("home", {}).get("name", "Unknown"),
-                                    'away': match.get("teams", {}).get("away", {}).get("name", "Unknown"),
-                                    'league': match.get("league", {}).get("name", "Unknown")
+                                    'home': home,
+                                    'away': away,
+                                    'league': league
                                 }
                                 anomalies = anomaly_detector.find_anomalies(match_data, odds_data)
                                 if anomalies:
