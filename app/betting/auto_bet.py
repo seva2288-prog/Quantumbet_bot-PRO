@@ -65,10 +65,16 @@ class AutoBet:
         if stake > bank * 0.1:
             stake = round(bank * 0.05, 2)
 
+        # ===== ДАТА И ВРЕМЯ МАТЧА =====
+        match_time = match_data.get('match_time', '')
+        if not match_time:
+            match_time = datetime.now().strftime('%d.%m.%Y %H:%M')
+
         bet_record = {
             'home': match_data.get('home', ''),
             'away': match_data.get('away', ''),
             'league': match_data.get('league', ''),
+            'match_time': match_time,  # ← ДОБАВЛЕНО
             'bet': best_bet.get('label', ''),
             'odds': odds,
             'stake': stake,
@@ -85,10 +91,11 @@ class AutoBet:
         storage.save_history(history)
 
         self.bets_today += 1
-        logger.info(f"✅ АВТО-СТАВКА: {bet_record['bet']} на {bet_record['home']} vs {bet_record['away']}")
+        logger.info(f"✅ АВТО-СТАВКА: {bet_record['bet']} на {bet_record['home']} vs {bet_record['away']} ({match_time})")
 
         return {
             'match': f"{bet_record['home']} vs {bet_record['away']}",
+            'match_time': match_time,  # ← ДОБАВЛЕНО
             'bet': bet_record['bet'],
             'odds': bet_record['odds'],
             'stake': bet_record['stake'],
@@ -148,10 +155,9 @@ class AutoBet:
                     })
 
         # ============================================================
-        # 2. РУЧНЫЕ МАРКЕРЫ (ВСЕГДА АКТИВНЫ)
+        # 2. РУЧНЫЕ МАРКЕРЫ
         # ============================================================
         manual_markers = [
-            # Маркер 1: 1X
             {
                 'stake': 45.125,
                 'winrate': 100.0,
@@ -160,7 +166,6 @@ class AutoBet:
                 'type': '1X',
                 'confidence': 100.0
             },
-            # Маркер 2: ТМ 2.5
             {
                 'stake': 42.86875000000006,
                 'winrate': 100.0,
@@ -169,7 +174,6 @@ class AutoBet:
                 'type': 'ТМ 2.5',
                 'confidence': 100.0
             },
-            # Маркер 3: ОБЗ
             {
                 'stake': 40.7253125,
                 'winrate': 66.7,
@@ -178,7 +182,6 @@ class AutoBet:
                 'type': 'ОБЗ',
                 'confidence': 66.7
             },
-            # ===== МАРКЕР 4: X2 (с суммой 01) =====
             {
                 'stake': 42.86875000000001,
                 'winrate': 80.0,
