@@ -1144,6 +1144,98 @@ MAIN_HTML = """
             to { opacity: 0; transform: translateX(100px); }
         }
         
+        /* ===== МОДАЛЬНОЕ ОКНО ДЛЯ ВВОДА РЕЗУЛЬТАТА ===== */
+        .result-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .result-modal-content {
+            background: rgba(20,20,35,0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(167,139,250,0.15);
+            padding: 24px;
+            max-width: 450px;
+            width: 100%;
+        }
+        .result-modal-content h3 {
+            color: #a78bfa;
+            margin: 0 0 16px 0;
+        }
+        .result-modal-content .match-info {
+            font-size: 11px;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 4px;
+        }
+        .result-modal-content .match-teams {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e8e8f0;
+            margin-bottom: 12px;
+        }
+        .result-modal-content .bet-info {
+            font-size: 13px;
+            color: #a78bfa;
+            margin-bottom: 12px;
+        }
+        .result-modal-content input[type="number"] {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 6px;
+            color: #e8e8f0;
+            font-size: 13px;
+        }
+        .result-modal-content .btn-save {
+            flex: 1;
+            padding: 10px;
+            background: linear-gradient(135deg, #34d399, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .result-modal-content .btn-save:hover {
+            box-shadow: 0 0 30px rgba(52,211,153,0.2);
+        }
+        .result-modal-content .btn-cancel {
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 8px;
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .result-modal-content .btn-cancel:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .result-modal-content .close-btn {
+            background: rgba(255,255,255,0.05);
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+        }
+        .result-modal-content .close-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 10px; }
             .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
@@ -1168,6 +1260,7 @@ MAIN_HTML = """
             .patterns-table { font-size: 9px; }
             .patterns-table th, .patterns-table td { padding: 4px 6px; }
             .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
+            .result-modal-content { padding: 16px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1177,6 +1270,7 @@ MAIN_HTML = """
             .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
             .bottom-nav .nav-item .icon { font-size: 14px; }
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            .result-modal-content .bet-info { font-size: 11px; }
         }
     </style>
 </head>
@@ -1432,7 +1526,6 @@ MAIN_HTML = """
                 case 'settings': renderSettings(data); break;
             }
             
-            // Скрываем экран загрузки после загрузки данных
             hideLoadingScreen();
         } catch (error) {
             contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
@@ -1608,7 +1701,139 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА
+    // ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ РЕЗУЛЬТАТА СТАВКИ
+    // ============================================================
+    function determineBetResult(betType, homeGoals, awayGoals) {
+        const total = homeGoals + awayGoals;
+        const betTypeLower = betType.toLowerCase();
+        
+        if (betTypeLower.includes('оз - да') || betTypeLower.includes('обз')) {
+            return (homeGoals > 0 && awayGoals > 0) ? 'win' : 'loss';
+        }
+        if (betTypeLower.includes('тм 2.5')) {
+            return total < 2.5 ? 'win' : 'loss';
+        }
+        if (betTypeLower.includes('тб 2.5')) {
+            return total > 2.5 ? 'win' : 'loss';
+        }
+        if (betTypeLower.includes('1x')) {
+            return homeGoals >= awayGoals ? 'win' : 'loss';
+        }
+        if (betTypeLower.includes('x2')) {
+            return awayGoals >= homeGoals ? 'win' : 'loss';
+        }
+        if (betTypeLower.includes('п1') || betTypeLower.includes('победа хозяев')) {
+            if (homeGoals > awayGoals) return 'win';
+            if (homeGoals === awayGoals) return 'push';
+            return 'loss';
+        }
+        if (betTypeLower.includes('п2') || betTypeLower.includes('победа гостей')) {
+            if (awayGoals > homeGoals) return 'win';
+            if (homeGoals === awayGoals) return 'push';
+            return 'loss';
+        }
+        return 'pending';
+    }
+
+    // ============================================================
+    // МОДАЛЬНОЕ ОКНО ДЛЯ ВВОДА РЕЗУЛЬТАТА
+    // ============================================================
+    function openResultModal(index) {
+        const bet = cachedData.history[index];
+        if (!bet) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'result-modal';
+        modal.id = 'resultModal';
+        
+        modal.innerHTML = `
+            <div class="result-modal-content">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3>📝 Ввести результат</h3>
+                    <button class="close-btn" onclick="closeResultModal()">✖</button>
+                </div>
+                
+                <div class="match-info">🏟️ Матч</div>
+                <div class="match-teams">${bet.home} vs ${bet.away}</div>
+                
+                <div class="bet-info">📊 ${bet.bet} | КЭФ: ${bet.odds} | Сумма: $${bet.stake}</div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                    <div>
+                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">⚽ Голы хозяев</label>
+                        <input type="number" id="resultHomeGoals" min="0" max="20" value="0">
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">⚽ Голы гостей</label>
+                        <input type="number" id="resultAwayGoals" min="0" max="20" value="0">
+                    </div>
+                </div>
+                
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-save" onclick="saveManualResult(${index})">💾 Сохранить результат</button>
+                    <button class="btn-cancel" onclick="closeResultModal()">Отмена</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    function closeResultModal() {
+        const modal = document.getElementById('resultModal');
+        if (modal) modal.remove();
+    }
+
+    // ============================================================
+    // СОХРАНЕНИЕ РУЧНОГО РЕЗУЛЬТАТА
+    // ============================================================
+    function saveManualResult(index) {
+        const homeGoals = parseInt(document.getElementById('resultHomeGoals').value) || 0;
+        const awayGoals = parseInt(document.getElementById('resultAwayGoals').value) || 0;
+        
+        const bet = cachedData.history[index];
+        if (!bet) {
+            alert('❌ Ставка не найдена');
+            return;
+        }
+        
+        const result = determineBetResult(bet.bet, homeGoals, awayGoals);
+        
+        let profit = 0;
+        if (result === 'win') {
+            profit = bet.stake * (bet.odds - 1);
+        } else if (result === 'loss') {
+            profit = -bet.stake;
+        }
+        
+        fetch('/api/update_bet_result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                index: index,
+                home_goals: homeGoals,
+                away_goals: awayGoals,
+                result: result,
+                profit: profit
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('✅ Результат сохранён!', 'success');
+                closeResultModal();
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('❌ Ошибка: ' + error, 'error');
+        });
+    }
+
+    // ============================================================
+    // РЕНДЕР ДАШБОРДА (С КНОПКОЙ "ВВЕСТИ РЕЗУЛЬТАТ")
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats;
@@ -1648,16 +1873,30 @@ MAIN_HTML = """
                     <table>
                         <thead><tr>
                             <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
+                            <th>📝</th>
                         </tr></thead>
                         <tbody>
         `;
 
         if (history.length === 0) {
-            html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
+            html += `<tr><td colspan="12" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
         } else {
             history.slice().reverse().forEach((bet, idx) => {
                 const realIdx = history.length - 1 - idx;
                 const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
+                
+                let actionButton = '';
+                if (bet.result === 'pending' || bet.result === 'PENDING') {
+                    actionButton = `
+                        <button onclick="openResultModal(${realIdx})" 
+                                style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);border-radius:4px;color:#34d399;padding:2px 8px;font-size:9px;cursor:pointer;white-space:nowrap;">
+                            📝 Ввести результат
+                        </button>
+                    `;
+                } else {
+                    actionButton = `<span style="color:rgba(255,255,255,0.2);font-size:9px;">✅</span>`;
+                }
+                
                 html += `
                     <tr>
                         <td>${idx + 1}</td>
@@ -1671,9 +1910,10 @@ MAIN_HTML = """
                         <td><span class="badge ${bet.result}">${bet.result}</span></td>
                         <td class="${profitClass}">$${bet.profit}</td>
                         <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
+                        <td>${actionButton}</td>
                     </tr>
                     <tr id="edit-row-${realIdx}" class="edit-row">
-                        <td colspan="11">
+                        <td colspan="12">
                             <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
                                 <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
                                 <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
@@ -1906,7 +2146,6 @@ MAIN_HTML = """
             `;
         }
 
-        // ===== БЫСТРАЯ СТАТИСТИКА =====
         html += `
             <div class="card">
                 <div class="card-header">
@@ -2061,26 +2300,12 @@ MAIN_HTML = """
     // ============================================================
     function addMatchManually(stake, betType) {
         const modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        `;
-        
+        modal.className = 'result-modal';
         modal.innerHTML = `
-            <div style="background:rgba(20,20,35,0.95);border-radius:16px;border:1px solid rgba(167,139,250,0.15);padding:24px;max-width:450px;width:100%;">
+            <div class="result-modal-content">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                    <h3 style="color:#a78bfa;margin:0;">➕ Добавить матч</h3>
-                    <button onclick="this.closest('div[style]').remove()" style="background:rgba(255,255,255,0.05);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;color:rgba(255,255,255,0.5);cursor:pointer;">✖</button>
+                    <h3>➕ Добавить матч</h3>
+                    <button class="close-btn" onclick="this.closest('.result-modal').remove()">✖</button>
                 </div>
                 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
@@ -2115,29 +2340,21 @@ MAIN_HTML = """
                 </div>
                 
                 <div style="display:flex;gap:8px;">
-                    <button onclick="saveManualMatch('${stake}', '${betType}')" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;border-radius:8px;color:white;font-size:14px;font-weight:600;cursor:pointer;">
-                        💾 Сохранить
-                    </button>
-                    <button onclick="this.closest('div[style]').remove()" style="padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px;">
-                        Отмена
-                    </button>
+                    <button class="btn-save" onclick="saveManualMatch('${stake}', '${betType}')">💾 Сохранить</button>
+                    <button class="btn-cancel" onclick="this.closest('.result-modal').remove()">Отмена</button>
                 </div>
             </div>
         `;
-        
         document.body.appendChild(modal);
     }
 
-    // ============================================================
-    // ФУНКЦИЯ СОХРАНЕНИЯ РУЧНОГО МАТЧА
-    // ============================================================
     function saveManualMatch(stake, betType) {
         const matchName = document.getElementById('matchNameInput').value;
         const score = document.getElementById('scoreInput').value;
         const result = document.getElementById('resultSelect').value;
         
         if (!matchName) {
-            alert('❌ Введите название матча!');
+            showNotification('❌ Введите название матча!', 'error');
             return;
         }
         
@@ -2156,19 +2373,19 @@ MAIN_HTML = """
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('✅ Матч добавлен!');
+                showNotification('✅ Матч добавлен!', 'success');
                 location.reload();
             } else {
-                alert('❌ Ошибка: ' + data.error);
+                showNotification('❌ Ошибка: ' + data.error, 'error');
             }
         })
         .catch(error => {
-            alert('❌ Ошибка: ' + error);
+            showNotification('❌ Ошибка: ' + error, 'error');
         });
     }
 
     // ============================================================
-    // ИНТЕРАКТИВНЫЙ ГРАФИК
+    // ОСТАЛЬНЫЕ ФУНКЦИИ (ИНТЕРАКТИВНЫЙ ГРАФИК, СИМУЛЯТОР, НАСТРОЙКИ)
     // ============================================================
     function initInteractiveChart(history) {
         const ctx = document.getElementById('interactiveChart');
@@ -2906,7 +3123,7 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС (С КЭШИРОВАНИЕМ)
+# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
 # ============================================================
 
 # КЭШ
@@ -3008,6 +3225,41 @@ def get_profit_data(history):
     
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     return {'dates': dates, 'profits': profits}
+
+# ============================================================
+# API ДЛЯ РУЧНОГО ВВОДА РЕЗУЛЬТАТА
+# ============================================================
+
+@app.route('/api/update_bet_result', methods=['POST'])
+def update_bet_result():
+    try:
+        data = request.json
+        index = data.get('index')
+        home_goals = data.get('home_goals')
+        away_goals = data.get('away_goals')
+        result = data.get('result')
+        profit = data.get('profit', 0)
+        
+        _, history = get_data_from_bot()
+        
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        
+        history[index]['home_goals'] = home_goals
+        history[index]['away_goals'] = away_goals
+        history[index]['result'] = result
+        history[index]['profit'] = profit
+        
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
+        
+        if response.status_code == 200:
+            CACHE.pop('all_data', None)
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Ошибка сохранения'}), 500
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ============================================================
 # API ДЛЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
