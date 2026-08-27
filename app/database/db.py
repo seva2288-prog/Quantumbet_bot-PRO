@@ -10,17 +10,14 @@ logger = get_logger(__name__)
 DB_PATH = 'data/bets.db'
 
 def get_connection():
-    """Создает подключение к БД"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """Инициализация базы данных"""
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица ставок
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +38,6 @@ def init_db():
         )
     ''')
     
-    # Индексы для быстрого поиска
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_date ON bets(date)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_result ON bets(result)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_bets_stake ON bets(stake)')
@@ -58,7 +54,6 @@ class BetDB:
         init_db()
     
     def save_bet(self, bet):
-        """Сохраняет одну ставку"""
         conn = get_connection()
         cursor = conn.cursor()
         
@@ -122,57 +117,43 @@ class BetDB:
         return True
     
     def save_bets(self, bets):
-        """Сохраняет несколько ставок"""
         for bet in bets:
             self.save_bet(bet)
         logger.info(f"✅ Сохранено {len(bets)} ставок в БД")
     
     def load_history(self):
-        """Загружает ВСЮ историю"""
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM bets ORDER BY date DESC
-        ''')
+        cursor.execute('SELECT * FROM bets ORDER BY date DESC')
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
     
     def get_bets_by_date(self, date):
-        """Быстрый поиск по дате"""
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM bets WHERE date LIKE ? ORDER BY date DESC
-        ''', (f'{date}%',))
+        cursor.execute('SELECT * FROM bets WHERE date LIKE ? ORDER BY date DESC', (f'{date}%',))
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
     
     def get_bets_by_result(self, result):
-        """Быстрый поиск по результату"""
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM bets WHERE result = ? ORDER BY date DESC
-        ''', (result,))
+        cursor.execute('SELECT * FROM bets WHERE result = ? ORDER BY date DESC', (result,))
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
     
     def get_bets_by_stake(self, stake):
-        """Быстрый поиск по сумме"""
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM bets WHERE stake = ? ORDER BY date DESC
-        ''', (stake,))
+        cursor.execute('SELECT * FROM bets WHERE stake = ? ORDER BY date DESC', (stake,))
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
     
     def get_stats(self):
-        """Быстрая статистика"""
         conn = get_connection()
         cursor = conn.cursor()
         
@@ -191,51 +172,23 @@ class BetDB:
         cursor.execute('SELECT SUM(profit) as profit FROM bets')
         profit = cursor.fetchone()['profit'] or 0
         
-        cursor.execute('SELECT stake FROM bets ORDER BY id DESC LIMIT 1')
-        last = cursor.fetchone()
-        bank = 1000
-        
         conn.close()
-        
         return {
             'total': total,
             'wins': wins,
             'losses': losses,
             'pushes': pushes,
             'profit': round(profit, 2),
-            'bank': bank
+            'bank': 1000
         }
     
-    def get_dates_with_bets(self):
-        """Получает список дат с ставками"""
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT DISTINCT date(date) as date FROM bets ORDER BY date DESC
-        ''')
-        rows = cursor.fetchall()
-        conn.close()
-        return [row['date'] for row in rows]
-    
     def clear_all(self):
-        """Очищает все ставки"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM bets')
         conn.commit()
         conn.close()
         logger.warning("🗑️ Все ставки удалены из БД")
-    
-    def migrate_from_json(self):
-        """Миграция из JSON в БД"""
-        # Импортируем storage ТОЛЬКО здесь (без циклической зависимости)
-        from app.database.storage import storage
-        history = storage.load_history()
-        if history:
-            self.save_bets(history)
-            logger.info(f"✅ Мигрировано {len(history)} ставок из JSON в БД")
-        return len(history)
 
 
-# Создаем глобальный экземпляр
 db = BetDB()
