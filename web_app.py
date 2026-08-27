@@ -28,6 +28,132 @@ MAIN_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
+        /* ============================================================
+           ЭКРАН ЗАГРУЗКИ
+           ============================================================ */
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050510;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            transition: opacity 0.8s ease;
+            overflow: hidden;
+        }
+        #loadingScreen .milky-way {
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 120%;
+            height: 140%;
+            background: radial-gradient(ellipse at 40% 50%, 
+                rgba(100, 80, 180, 0.06) 0%, 
+                rgba(60, 40, 120, 0.04) 20%, 
+                rgba(30, 20, 80, 0.02) 50%,
+                transparent 80%);
+            transform: rotate(-15deg);
+            filter: blur(60px);
+            animation: loadingMilkyPulse 12s ease-in-out infinite alternate;
+        }
+        #loadingScreen .milky-way-2 {
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 100%;
+            height: 120%;
+            background: radial-gradient(ellipse at 60% 40%, 
+                rgba(140, 100, 200, 0.04) 0%, 
+                rgba(80, 50, 150, 0.03) 30%, 
+                transparent 70%);
+            transform: rotate(25deg);
+            filter: blur(80px);
+            animation: loadingMilkyPulse2 15s ease-in-out infinite alternate;
+        }
+        #loadingScreen .logo {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+        #loadingScreen .logo-text {
+            font-size: 56px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: pulse 2s ease-in-out infinite;
+            letter-spacing: 3px;
+            text-shadow: 0 0 60px rgba(124, 58, 237, 0.15);
+        }
+        #loadingScreen .logo-sub {
+            margin-top: 6px;
+            color: rgba(255,255,255,0.15);
+            font-size: 14px;
+            letter-spacing: 8px;
+            font-weight: 300;
+        }
+        #loadingScreen .spinner {
+            margin-top: 30px;
+            width: 32px;
+            height: 32px;
+            margin-left: auto;
+            margin-right: auto;
+            border: 2px solid rgba(167,139,250,0.08);
+            border-top: 2px solid #a78bfa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        #loadingScreen .loading-text {
+            margin-top: 14px;
+            color: rgba(255,255,255,0.08);
+            font-size: 10px;
+            letter-spacing: 3px;
+        }
+        #loadingScreen .loading-stars {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #loadingScreen .loading-star {
+            position: absolute;
+            border-radius: 50%;
+            background: white;
+            animation: loadingTwinkle var(--duration) ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.97); }
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes loadingMilkyPulse {
+            0% { opacity: 0.6; transform: rotate(-15deg) scale(1); }
+            100% { opacity: 1; transform: rotate(-10deg) scale(1.05); }
+        }
+        @keyframes loadingMilkyPulse2 {
+            0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
+            100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); }
+        }
+        @keyframes loadingTwinkle {
+            0% { opacity: 0.15; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        /* ============================================================
+           ОСНОВНЫЕ СТИЛИ
+           ============================================================ */
         * {
             margin: 0;
             padding: 0;
@@ -1056,6 +1182,21 @@ MAIN_HTML = """
 </head>
 <body>
 
+<!-- ============================================================
+     ЭКРАН ЗАГРУЗКИ С МЛЕЧНЫМ ПУТЁМ
+     ============================================================ -->
+<div id="loadingScreen">
+    <div class="milky-way"></div>
+    <div class="milky-way-2"></div>
+    <div id="loadingStars" class="loading-stars"></div>
+    <div class="logo">
+        <div class="logo-text">QUANTUM</div>
+        <div class="logo-sub">BET BOT</div>
+        <div class="spinner"></div>
+        <div class="loading-text">ЗАГРУЗКА</div>
+    </div>
+</div>
+
 <div class="stars-container" id="starsContainer">
     <div class="milky-way"></div>
     <div class="milky-way-2"></div>
@@ -1105,7 +1246,47 @@ MAIN_HTML = """
 
 <script>
     // ============================================================
-    // ГЕНЕРАЦИЯ ЗВЁЗД
+    // ЗВЁЗДЫ ДЛЯ ЭКРАНА ЗАГРУЗКИ
+    // ============================================================
+    (function generateLoadingStars() {
+        const container = document.getElementById('loadingStars');
+        if (!container) return;
+        const count = 150;
+        for (let i = 0; i < count; i++) {
+            const star = document.createElement('div');
+            star.className = 'loading-star';
+            const size = 0.5 + Math.random() * 2.5;
+            star.style.width = size + 'px';
+            star.style.height = size + 'px';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.setProperty('--duration', (2 + Math.random() * 4) + 's');
+            star.style.animationDelay = (Math.random() * 5) + 's';
+            star.style.opacity = 0.3 + Math.random() * 0.7;
+            container.appendChild(star);
+        }
+    })();
+
+    // ============================================================
+    // СКРЫТИЕ ЭКРАНА ЗАГРУЗКИ
+    // ============================================================
+    function hideLoadingScreen() {
+        const loading = document.getElementById('loadingScreen');
+        if (loading) {
+            loading.style.opacity = '0';
+            setTimeout(function() {
+                loading.style.display = 'none';
+            }, 800);
+        }
+    }
+
+    // Скрыть после загрузки страницы
+    window.addEventListener('load', function() {
+        setTimeout(hideLoadingScreen, 600);
+    });
+
+    // ============================================================
+    // ЗВЁЗДЫ ДЛЯ ОСНОВНОГО ФОНА
     // ============================================================
     (function generateStars() {
         const container = document.getElementById('starsContainer');
@@ -1250,8 +1431,12 @@ MAIN_HTML = """
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
+            
+            // Скрываем экран загрузки после загрузки данных
+            hideLoadingScreen();
         } catch (error) {
             contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
+            hideLoadingScreen();
         }
 
         isLoading = false;
@@ -1423,7 +1608,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА (БЕЗ КАЛЕНДАРЯ)
+    // РЕНДЕР ДАШБОРДА
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats;
@@ -2729,7 +2914,6 @@ CACHE = {}
 CACHE_TIME = 30  # секунд
 
 def get_data_from_bot():
-    """Получение данных из бота через API"""
     try:
         stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=30)
         stats_data = stats_response.json() if stats_response.status_code == 200 else {}
@@ -2748,14 +2932,11 @@ def index():
 
 @app.route('/api/all_data')
 def all_data():
-    """Возвращает все данные за один запрос с кэшированием"""
-    # Проверяем кэш
     if 'all_data' in CACHE:
         cached_data, timestamp = CACHE['all_data']
         if (datetime.now() - timestamp).seconds < CACHE_TIME:
             return jsonify(cached_data)
     
-    # Если данных нет или они устарели
     stats_data, history = get_data_from_bot()
     profit_data = get_profit_data(history)
     
@@ -2790,9 +2971,7 @@ def all_data():
         'matches': matches
     }
     
-    # Сохраняем в кэш
     CACHE['all_data'] = (result, datetime.now())
-    
     return jsonify(result)
 
 def get_profit_data(history):
@@ -2828,7 +3007,6 @@ def get_profit_data(history):
         profits.append(round(day_profit, 2))
     
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    
     return {'dates': dates, 'profits': profits}
 
 # ============================================================
@@ -2849,7 +3027,6 @@ def add_manual_match():
         if not match_name:
             return jsonify({'error': 'Название матча обязательно'}), 400
         
-        # Парсим счёт
         home_goals = None
         away_goals = None
         if score and '-' in score:
@@ -2860,7 +3037,6 @@ def add_manual_match():
             except:
                 pass
         
-        # Парсим команды
         home = 'Unknown'
         away = 'Unknown'
         if ' vs ' in match_name:
@@ -2872,7 +3048,6 @@ def add_manual_match():
             home = parts[0].strip()
             away = parts[1].strip()
         
-        # Считаем прибыль
         if result == 'win':
             profit = round(stake * (odds - 1), 2)
         elif result == 'loss':
@@ -2880,10 +3055,8 @@ def add_manual_match():
         else:
             profit = 0
         
-        # Получаем текущую историю
         stats_data, history = get_data_from_bot()
         
-        # Сохраняем в историю
         bet_record = {
             'home': home,
             'away': away,
@@ -2901,11 +3074,9 @@ def add_manual_match():
         }
         history.append(bet_record)
         
-        # Сохраняем через API бота
         response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
-            # Очищаем кэш
             CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': 1})
         else:
@@ -2928,14 +3099,11 @@ def import_project():
         if not history:
             return jsonify({'error': 'Нет данных для импорта'}), 400
         
-        # Получаем текущую историю
         _, current_history = get_data_from_bot()
         
-        # Обновляем банк если есть
         if stats and 'bank' in stats:
             requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=30)
         
-        # Добавляем новые ставки
         existing_keys = set()
         for bet in current_history:
             key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
@@ -2949,7 +3117,6 @@ def import_project():
                 imported += 1
                 existing_keys.add(key)
         
-        # Сохраняем обновленную историю
         response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=30)
         
         if response.status_code == 200:
