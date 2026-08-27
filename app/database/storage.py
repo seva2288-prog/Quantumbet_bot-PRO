@@ -13,22 +13,10 @@ class Storage:
     def __init__(self):
         self.data_dir = Config.DATA_DIR
         self._ensure_dir()
-        self._migrate_if_needed()
 
     def _ensure_dir(self):
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
-
-    def _migrate_if_needed(self):
-        json_path = self._get_file_path('history.json')
-        if os.path.exists(json_path):
-            existing = db.load_history()
-            if not existing:
-                count = db.migrate_from_json()
-                if count > 0:
-                    backup_path = self._get_file_path('history_backup.json')
-                    os.rename(json_path, backup_path)
-                    logger.info(f"📦 JSON файл переименован в history_backup.json")
 
     def _get_file_path(self, filename):
         return os.path.join(self.data_dir, filename)
@@ -92,9 +80,6 @@ class Storage:
 
     def get_bets_by_stake(self, stake):
         return db.get_bets_by_stake(stake)
-
-    def get_dates_with_bets(self):
-        return db.get_dates_with_bets()
 
 
 storage = Storage()
