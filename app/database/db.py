@@ -62,7 +62,6 @@ class BetDB:
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Проверяем, есть ли уже такая ставка
         cursor.execute('''
             SELECT id FROM bets 
             WHERE home = ? AND away = ? AND date = ?
@@ -70,7 +69,6 @@ class BetDB:
         
         existing = cursor.fetchone()
         if existing:
-            # Обновляем существующую
             cursor.execute('''
                 UPDATE bets SET
                     league = ?,
@@ -98,7 +96,6 @@ class BetDB:
                 existing['id']
             ))
         else:
-            # Вставляем новую
             cursor.execute('''
                 INSERT INTO bets (
                     home, away, league, bet, odds, stake, ev, 
@@ -131,7 +128,7 @@ class BetDB:
         logger.info(f"✅ Сохранено {len(bets)} ставок в БД")
     
     def load_history(self):
-        """Загружает ВСЮ историю (для совместимости)"""
+        """Загружает ВСЮ историю"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -142,7 +139,7 @@ class BetDB:
         return [dict(row) for row in rows]
     
     def get_bets_by_date(self, date):
-        """Быстрый поиск по дате (использует индекс)"""
+        """Быстрый поиск по дате"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -153,7 +150,7 @@ class BetDB:
         return [dict(row) for row in rows]
     
     def get_bets_by_result(self, result):
-        """Быстрый поиск по результату (использует индекс)"""
+        """Быстрый поиск по результату"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -164,7 +161,7 @@ class BetDB:
         return [dict(row) for row in rows]
     
     def get_bets_by_stake(self, stake):
-        """Быстрый поиск по сумме (использует индекс)"""
+        """Быстрый поиск по сумме"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -175,34 +172,28 @@ class BetDB:
         return [dict(row) for row in rows]
     
     def get_stats(self):
-        """Быстрая статистика (использует индексы)"""
+        """Быстрая статистика"""
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Всего ставок
         cursor.execute('SELECT COUNT(*) as total FROM bets')
         total = cursor.fetchone()['total']
         
-        # Выигрыши
         cursor.execute('SELECT COUNT(*) as wins FROM bets WHERE result = "win"')
         wins = cursor.fetchone()['wins']
         
-        # Проигрыши
         cursor.execute('SELECT COUNT(*) as losses FROM bets WHERE result = "loss"')
         losses = cursor.fetchone()['losses']
         
-        # Возвраты
         cursor.execute('SELECT COUNT(*) as pushes FROM bets WHERE result = "push"')
         pushes = cursor.fetchone()['pushes']
         
-        # Прибыль
         cursor.execute('SELECT SUM(profit) as profit FROM bets')
         profit = cursor.fetchone()['profit'] or 0
         
-        # Банк (из последней ставки или по умолчанию)
         cursor.execute('SELECT stake FROM bets ORDER BY id DESC LIMIT 1')
         last = cursor.fetchone()
-        bank = 1000  # стартовый банк
+        bank = 1000
         
         conn.close()
         
@@ -216,7 +207,7 @@ class BetDB:
         }
     
     def get_dates_with_bets(self):
-        """Получает список дат, в которых есть ставки"""
+        """Получает список дат с ставками"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('''
@@ -227,7 +218,7 @@ class BetDB:
         return [row['date'] for row in rows]
     
     def clear_all(self):
-        """Очищает все ставки (осторожно!)"""
+        """Очищает все ставки"""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM bets')
@@ -237,6 +228,7 @@ class BetDB:
     
     def migrate_from_json(self):
         """Миграция из JSON в БД"""
+        # Импортируем storage ТОЛЬКО здесь (без циклической зависимости)
         from app.database.storage import storage
         history = storage.load_history()
         if history:
