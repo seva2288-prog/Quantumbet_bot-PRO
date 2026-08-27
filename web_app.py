@@ -1283,6 +1283,11 @@ MAIN_HTML = """
                 bet: 'ТМ 2.5',
                 icon: '🔽',
                 description: 'Тотал меньше 2.5 голов'
+            },
+            '42.86875000000001': {
+                bet: 'X2',
+                icon: '✈️',
+                description: 'Гости не проиграют (Победа или ничья гостей)'
             }
         };
         
@@ -1418,7 +1423,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА
+    // РЕНДЕР ДАШБОРДА (БЕЗ КАЛЕНДАРЯ)
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats;
@@ -1585,11 +1590,13 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ (С ДЕТЕКТОРОМ ДРОБНЫХ СУММ)
+    // РЕНДЕР АНАЛИТИКИ
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        
+        window._historyData = history;
         
         const patterns = detectDecimalPatterns(history);
         const hasPatterns = patterns.length > 0;
@@ -1714,6 +1721,7 @@ MAIN_HTML = """
             `;
         }
 
+        // ===== БЫСТРАЯ СТАТИСТИКА =====
         html += `
             <div class="card">
                 <div class="card-header">
@@ -1741,7 +1749,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С КНОПКОЙ "ДОБАВИТЬ МАТЧ")
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
     // ============================================================
     function renderPatternCard(pattern, idx) {
         let statusColor;
@@ -1848,7 +1856,6 @@ MAIN_HTML = """
                     ${betsHtml}
                 </div>
                 
-                <!-- ===== КНОПКА ДОБАВЛЕНИЯ МАТЧА ===== -->
                 <button onclick="addMatchManually('${pattern.stake}', '${recommendation.bet}')" 
                         style="width:100%;margin-top:6px;padding:6px;background:rgba(52,211,153,0.08);border:1px dashed rgba(52,211,153,0.2);border-radius:6px;color:#34d399;cursor:pointer;font-size:10px;transition:all 0.3s ease;"
                         onmouseover="this.style.background='rgba(52,211,153,0.15)'" 
@@ -2714,16 +2721,20 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
+# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС (С КЭШИРОВАНИЕМ)
 # ============================================================
+
+# КЭШ
+CACHE = {}
+CACHE_TIME = 30  # секунд
 
 def get_data_from_bot():
     """Получение данных из бота через API"""
     try:
-        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=30)
         stats_data = stats_response.json() if stats_response.status_code == 200 else {}
         
-        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history_response = requests.get(f'{BOT_URL}/api/history', timeout=30)
         history = history_response.json() if history_response.status_code == 200 else []
         
         return stats_data, history
@@ -2737,13 +2748,19 @@ def index():
 
 @app.route('/api/all_data')
 def all_data():
-    """Возвращает все данные за один запрос"""
-    stats_data, history = get_data_from_bot()
+    """Возвращает все данные за один запрос с кэшированием"""
+    # Проверяем кэш
+    if 'all_data' in CACHE:
+        cached_data, timestamp = CACHE['all_data']
+        if (datetime.now() - timestamp).seconds < CACHE_TIME:
+            return jsonify(cached_data)
     
+    # Если данных нет или они устарели
+    stats_data, history = get_data_from_bot()
     profit_data = get_profit_data(history)
     
     try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
+        response = requests.get(f'{BOT_URL}/matches', timeout=30)
         matches = response.json() if response.status_code == 200 else []
     except:
         matches = []
@@ -2757,7 +2774,7 @@ def all_data():
     roi = stats_data.get('roi', 0)
     avg_stake = stats_data.get('avg_stake', 0)
     
-    return jsonify({
+    result = {
         'stats': {
             'bank': bank,
             'total_bets': total_bets,
@@ -2771,7 +2788,12 @@ def all_data():
         'history': history,
         'profit_data': profit_data,
         'matches': matches
-    })
+    }
+    
+    # Сохраняем в кэш
+    CACHE['all_data'] = (result, datetime.now())
+    
+    return jsonify(result)
 
 def get_profit_data(history):
     profits = []
@@ -2880,9 +2902,11 @@ def add_manual_match():
         history.append(bet_record)
         
         # Сохраняем через API бота
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            # Очищаем кэш
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': 1})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -2909,7 +2933,7 @@ def import_project():
         
         # Обновляем банк если есть
         if stats and 'bank' in stats:
-            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=10)
+            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=30)
         
         # Добавляем новые ставки
         existing_keys = set()
@@ -2926,9 +2950,10 @@ def import_project():
                 existing_keys.add(key)
         
         # Сохраняем обновленную историю
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': imported})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3090,9 +3115,10 @@ def import_excel():
             history.append(bet_record)
             imported += 1
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': imported})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3128,9 +3154,10 @@ def edit_bet():
         else:
             history[index]['profit'] = 0
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3151,9 +3178,10 @@ def delete_bet():
         
         deleted = history.pop(index)
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'deleted': deleted})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3166,7 +3194,8 @@ def update_bank():
     try:
         data = request.json
         if 'bank' in data:
-            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
+            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=30)
+            CACHE.pop('all_data', None)
             return jsonify(response.json())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
