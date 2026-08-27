@@ -30,7 +30,6 @@ search_running = False
 
 # ===== КОНСТАНТА ЧАСОВОГО ПОЯСА =====
 TIMEZONE_OFFSET = 3  # UTC+3
-TIMEOUT = 30
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -146,9 +145,10 @@ def get_matches_with_factors():
                 
                 if matches and isinstance(matches, list):
                     for match in matches:
-                        # ===== ПРОВЕРКА: ЭТО СЛОВАРЬ? =====
+                        # ===== ПРОВЕРКА: match НЕ ДОЛЖЕН БЫТЬ None ИЛИ СТРОКОЙ =====
+                        if match is None:
+                            continue
                         if not isinstance(match, dict):
-                            logger.warning(f"⚠️ Пропущен матч (не словарь): {type(match)}")
                             continue
                         
                         if match.get("fixture", {}).get("status", {}).get("short") == "NS":
@@ -250,7 +250,6 @@ def update_pending_bets():
                     fixture_id = football_api.find_fixture_by_teams(home, away)
                     if fixture_id:
                         bet['fixture_id'] = fixture_id
-                        logger.info(f"🔍 Найден fixture_id для {home} vs {away}: {fixture_id}")
             
             if fixture_id:
                 match_data = football_api.get_match_result(fixture_id)
@@ -318,9 +317,10 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     for match in matches:
-        # ===== ПРОВЕРКА: ПРОПУСКАЕМ НЕ-СЛОВАРИ =====
+        # ===== ПРОВЕРКА: ПРОПУСКАЕМ None И НЕ-СЛОВАРИ =====
+        if match is None:
+            continue
         if not isinstance(match, dict):
-            logger.warning(f"⚠️ Пропущен не-словарь: {type(match)}")
             continue
         
         if bets_placed >= max_bets:
@@ -688,7 +688,7 @@ def webhook():
                     
                     found_arbs = 0
                     for match in matches:
-                        if not isinstance(match, dict):
+                        if match is None or not isinstance(match, dict):
                             continue
                         fixture_id = match.get("fixture", {}).get("id")
                         if fixture_id:
@@ -726,7 +726,7 @@ def webhook():
                     
                     found = 0
                     for match in matches:
-                        if not isinstance(match, dict):
+                        if match is None or not isinstance(match, dict):
                             continue
                         fixture_id = match.get("fixture", {}).get("id")
                         if fixture_id:
