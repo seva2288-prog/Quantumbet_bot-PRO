@@ -7,8 +7,13 @@ import requests
 from datetime import datetime, timedelta
 import json
 import random
+import time
 
 app = Flask(__name__)
+
+# ===== КЭШИРОВАНИЕ =====
+CACHE = {}
+CACHE_TIME = 30  # секунд
 
 # URL бота
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
@@ -28,6 +33,7 @@ MAIN_HTML = """
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
+        /* Стили из предыдущей версии (без изменений) */
         * {
             margin: 0;
             padding: 0;
@@ -1009,6 +1015,103 @@ MAIN_HTML = """
         .notification.success { border-color: rgba(52, 211, 153, 0.3); }
         .notification.error { border-color: rgba(248, 113, 113, 0.3); }
         
+        /* ===== СТИЛИ ДЛЯ КАЛЕНДАРЯ ===== */
+        .day-selector {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            color: #e8e8f0;
+            font-size: 14px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.3)' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+        .day-selector option {
+            background: #1a1a2e;
+            color: #e8e8f0;
+        }
+        .day-selector:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        
+        .day-bets-container {
+            display: none;
+            margin-top: 10px;
+            animation: fadeIn 0.3s ease;
+        }
+        .day-bets-container.active {
+            display: block;
+        }
+        
+        .day-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .day-stats .stat-item {
+            text-align: center;
+        }
+        .day-stats .stat-item .stat-label {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .day-stats .stat-item .stat-value {
+            font-size: 16px;
+            font-weight: 700;
+        }
+        
+        .day-bets-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .day-bet-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 11px;
+        }
+        .day-bet-item .bet-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .day-bet-item .bet-info .bet-num {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 9px;
+        }
+        .day-bet-item .bet-info .bet-match {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .day-bet-item .bet-info .bet-score {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .day-bet-item .bet-info .bet-result {
+            font-weight: 600;
+        }
+        .day-bet-item .bet-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .day-bet-item .bet-right .bet-type {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .day-bet-item .bet-right .bet-profit {
+            font-weight: 600;
+        }
+        
         @keyframes slideIn {
             from { opacity: 0; transform: translateX(100px); }
             to { opacity: 1; transform: translateX(0); }
@@ -1042,6 +1145,9 @@ MAIN_HTML = """
             .patterns-table { font-size: 9px; }
             .patterns-table th, .patterns-table td { padding: 4px 6px; }
             .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
+            .day-stats { grid-template-columns: 1fr 1fr 1fr; }
+            .day-bet-item { flex-wrap: wrap; gap: 4px; }
+            .day-bet-item .bet-info { font-size: 10px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1051,6 +1157,7 @@ MAIN_HTML = """
             .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
             .bottom-nav .nav-item .icon { font-size: 14px; }
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            .day-stats { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -1283,6 +1390,11 @@ MAIN_HTML = """
                 bet: 'ТМ 2.5',
                 icon: '🔽',
                 description: 'Тотал меньше 2.5 голов'
+            },
+            '42.86875000000001': {
+                bet: 'X2',
+                icon: '✈️',
+                description: 'Гости не проиграют (Победа или ничья гостей)'
             }
         };
         
@@ -1418,7 +1530,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА
+    // РЕНДЕР ДАШБОРДА (С КАЛЕНДАРЁМ)
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats;
@@ -1515,7 +1627,127 @@ MAIN_HTML = """
             </div>
         `;
 
+        // ===== КАЛЕНДАРЬ СТАВОК (НА ДАШБОРДЕ) =====
+        const daysMap = {};
+        history.forEach(bet => {
+            const date = bet.date ? bet.date.split(' ')[0] : '';
+            if (date) {
+                if (!daysMap[date]) daysMap[date] = [];
+                daysMap[date].push(bet);
+            }
+        });
+        
+        const sortedDays = Object.keys(daysMap).sort((a, b) => b.localeCompare(a));
+        
+        let daysHtml = '';
+        sortedDays.forEach(date => {
+            const bets = daysMap[date];
+            const totalProfit = bets.reduce((sum, b) => sum + (b.profit || 0), 0);
+            const profitSign = totalProfit >= 0 ? '+' : '';
+            daysHtml += `
+                <option value="${date}">${date} (${bets.length} ставок, ${profitSign}$${totalProfit.toFixed(2)})</option>
+            `;
+        });
+        
+        html += `
+            <div class="card">
+                <div class="card-header">
+                    <h2>📅 Календарь ставок</h2>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">Выберите день</span>
+                </div>
+                
+                <div style="margin-bottom:10px;">
+                    <select id="daySelector" onchange="showDayBets()" class="day-selector">
+                        <option value="">📆 Выберите день...</option>
+                        ${daysHtml}
+                    </select>
+                </div>
+                
+                <div id="dayBetsContainer" class="day-bets-container">
+                    <div id="dayBetsContent"></div>
+                </div>
+            </div>
+        `;
+
         document.getElementById('dashboard-content').innerHTML = html;
+        
+        // Функция показа ставок за день
+        window.showDayBets = function() {
+            const selector = document.getElementById('daySelector');
+            const container = document.getElementById('dayBetsContainer');
+            const content = document.getElementById('dayBetsContent');
+            const selectedDate = selector.value;
+            
+            if (!selectedDate) {
+                container.classList.remove('active');
+                return;
+            }
+            
+            const dayBets = history.filter(b => b.date && b.date.split(' ')[0] === selectedDate);
+            
+            if (dayBets.length === 0) {
+                content.innerHTML = '<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.3);">📭 Нет ставок за этот день</div>';
+                container.classList.add('active');
+                return;
+            }
+            
+            const totalProfit = dayBets.reduce((sum, b) => sum + (b.profit || 0), 0);
+            const wins = dayBets.filter(b => b.result === 'win').length;
+            const losses = dayBets.filter(b => b.result === 'loss').length;
+            const profitColor = totalProfit >= 0 ? '#34d399' : '#f87171';
+            const profitSign = totalProfit >= 0 ? '+' : '';
+            const totalCount = dayBets.length;
+            const winrate = Math.round((wins / (wins + losses || 1)) * 100);
+            
+            let betsHtml = '';
+            dayBets.forEach((bet, idx) => {
+                const resultColor = bet.result === 'win' ? '#34d399' : (bet.result === 'loss' ? '#f87171' : '#fbbf24');
+                const profitColor2 = bet.profit >= 0 ? '#34d399' : '#f87171';
+                const profitSign2 = bet.profit >= 0 ? '+' : '';
+                const score = bet.home_goals !== null && bet.away_goals !== null ? `${bet.home_goals}-${bet.away_goals}` : '-';
+                
+                betsHtml += `
+                    <div class="day-bet-item">
+                        <div class="bet-info">
+                            <span class="bet-num">#${idx + 1}</span>
+                            <span class="bet-match">${bet.home} vs ${bet.away}</span>
+                            <span class="bet-score">${score}</span>
+                            <span class="bet-result" style="color:${resultColor};">${bet.result}</span>
+                        </div>
+                        <div class="bet-right">
+                            <span class="bet-type">${bet.bet}</span>
+                            <span class="bet-profit" style="color:${profitColor2};">${profitSign2}$${bet.profit.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = `
+                <div class="day-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">📊 Ставок</div>
+                        <div class="stat-value" style="color:#a78bfa;">${totalCount}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">✅ ${wins} / ❌ ${losses}</div>
+                        <div class="stat-value" style="color:#34d399;">${winrate}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">💰 Прибыль</div>
+                        <div class="stat-value" style="color:${profitColor};">${profitSign}$${totalProfit.toFixed(2)}</div>
+                    </div>
+                </div>
+                
+                <div class="day-bets-list">
+                    ${betsHtml}
+                </div>
+            `;
+            
+            container.classList.add('active');
+        };
+        
+        window._historyData = history;
+        
         setTimeout(() => renderChart(data.profit_data), 50);
     }
 
@@ -1585,11 +1817,13 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ (С ДЕТЕКТОРОМ ДРОБНЫХ СУММ)
+    // РЕНДЕР АНАЛИТИКИ (С БЫСТРОЙ СТАТИСТИКОЙ)
     // ============================================================
     function renderAnalytics(data) {
         const history = data.history || [];
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        
+        window._historyData = history;
         
         const patterns = detectDecimalPatterns(history);
         const hasPatterns = patterns.length > 0;
@@ -1714,6 +1948,7 @@ MAIN_HTML = """
             `;
         }
 
+        // ===== БЫСТРАЯ СТАТИСТИКА (ПЕРЕНЕСЕНА С ДАШБОРДА) =====
         html += `
             <div class="card">
                 <div class="card-header">
@@ -1741,7 +1976,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА (С КНОПКОЙ "ДОБАВИТЬ МАТЧ")
+    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
     // ============================================================
     function renderPatternCard(pattern, idx) {
         let statusColor;
@@ -1848,7 +2083,6 @@ MAIN_HTML = """
                     ${betsHtml}
                 </div>
                 
-                <!-- ===== КНОПКА ДОБАВЛЕНИЯ МАТЧА ===== -->
                 <button onclick="addMatchManually('${pattern.stake}', '${recommendation.bet}')" 
                         style="width:100%;margin-top:6px;padding:6px;background:rgba(52,211,153,0.08);border:1px dashed rgba(52,211,153,0.2);border-radius:6px;color:#34d399;cursor:pointer;font-size:10px;transition:all 0.3s ease;"
                         onmouseover="this.style.background='rgba(52,211,153,0.15)'" 
@@ -2714,16 +2948,20 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС
+# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС (С КЭШИРОВАНИЕМ)
 # ============================================================
+
+# КЭШ
+CACHE = {}
+CACHE_TIME = 30  # секунд
 
 def get_data_from_bot():
     """Получение данных из бота через API"""
     try:
-        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=30)
         stats_data = stats_response.json() if stats_response.status_code == 200 else {}
         
-        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        history_response = requests.get(f'{BOT_URL}/api/history', timeout=30)
         history = history_response.json() if history_response.status_code == 200 else []
         
         return stats_data, history
@@ -2737,13 +2975,19 @@ def index():
 
 @app.route('/api/all_data')
 def all_data():
-    """Возвращает все данные за один запрос"""
-    stats_data, history = get_data_from_bot()
+    """Возвращает все данные за один запрос с кэшированием"""
+    # Проверяем кэш
+    if 'all_data' in CACHE:
+        cached_data, timestamp = CACHE['all_data']
+        if (datetime.now() - timestamp).seconds < CACHE_TIME:
+            return jsonify(cached_data)
     
+    # Если данных нет или они устарели
+    stats_data, history = get_data_from_bot()
     profit_data = get_profit_data(history)
     
     try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
+        response = requests.get(f'{BOT_URL}/matches', timeout=30)
         matches = response.json() if response.status_code == 200 else []
     except:
         matches = []
@@ -2757,7 +3001,7 @@ def all_data():
     roi = stats_data.get('roi', 0)
     avg_stake = stats_data.get('avg_stake', 0)
     
-    return jsonify({
+    result = {
         'stats': {
             'bank': bank,
             'total_bets': total_bets,
@@ -2771,7 +3015,12 @@ def all_data():
         'history': history,
         'profit_data': profit_data,
         'matches': matches
-    })
+    }
+    
+    # Сохраняем в кэш
+    CACHE['all_data'] = (result, datetime.now())
+    
+    return jsonify(result)
 
 def get_profit_data(history):
     profits = []
@@ -2880,9 +3129,11 @@ def add_manual_match():
         history.append(bet_record)
         
         # Сохраняем через API бота
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            # Очищаем кэш
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': 1})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -2909,7 +3160,7 @@ def import_project():
         
         # Обновляем банк если есть
         if stats and 'bank' in stats:
-            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=10)
+            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=30)
         
         # Добавляем новые ставки
         existing_keys = set()
@@ -2926,9 +3177,10 @@ def import_project():
                 existing_keys.add(key)
         
         # Сохраняем обновленную историю
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': imported})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3090,9 +3342,10 @@ def import_excel():
             history.append(bet_record)
             imported += 1
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'count': imported})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3128,9 +3381,10 @@ def edit_bet():
         else:
             history[index]['profit'] = 0
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3151,9 +3405,10 @@ def delete_bet():
         
         deleted = history.pop(index)
         
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=10)
+        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
         
         if response.status_code == 200:
+            CACHE.pop('all_data', None)
             return jsonify({'success': True, 'deleted': deleted})
         else:
             return jsonify({'error': 'Ошибка сохранения'}), 500
@@ -3166,7 +3421,8 @@ def update_bank():
     try:
         data = request.json
         if 'bank' in data:
-            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=10)
+            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=30)
+            CACHE.pop('all_data', None)
             return jsonify(response.json())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
