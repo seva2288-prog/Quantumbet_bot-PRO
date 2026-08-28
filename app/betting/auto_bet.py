@@ -26,7 +26,7 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# AutoBet загружается при первом использовании (избегаем циклического импорта)
+# AutoBet загружается при первом использовании
 # ============================================================
 auto_bet = None
 
@@ -229,7 +229,94 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ (ТОЛЬКО ТМ 2.5)
+# ПАРСИНГ КОЭФФИЦИЕНТОВ
+# ============================================================
+
+def parse_odds(odds_data):
+    """Парсинг коэффициентов из API"""
+    if not odds_data:
+        return None
+    
+    bookmakers = odds_data.get('bookmakers', [])
+    if not bookmakers:
+        return None
+    
+    bookmaker = bookmakers[0]
+    bets = bookmaker.get('bets', [])
+    
+    odds_dict = {}
+    for bet in bets:
+        values = bet.get('values', [])
+        for value in values:
+            bet_type = value.get('value', '')
+            odd = value.get('odd')
+            if bet_type and odd:
+                odds_dict[bet_type] = odd
+    
+    return odds_dict
+
+# ============================================================
+# РАСЧЕТ XG С УЧЕТОМ ФАКТОРОВ
+# ============================================================
+
+def calculate_adjusted_xg(home_id, away_id, factors):
+    """
+    Расчет XG с учетом формы, травм и других факторов
+    """
+    home_xg = 1.2
+    away_xg = 1.0
+    
+    # 1. Форма команд (последние 5 матчей)
+    home_form = factors.get('home_form', '')
+    away_form = factors.get('away_form', '')
+    
+    if home_form:
+        # Считаем очки по форме: W=3, D=1, L=0
+        home_form_points = 0
+        for letter in home_form:
+            if letter == 'W':
+                home_form_points += 3
+            elif letter == 'D':
+                home_form_points += 1
+        home_form_ratio = home_form_points / (len(home_form) * 3) if home_form else 0.5
+        home_xg *= (0.8 + home_form_ratio * 0.4)
+        logger.info(f"   📊 Форма хозяев: {home_form} (коэф: {0.8 + home_form_ratio * 0.4:.2f})")
+    
+    if away_form:
+        away_form_points = 0
+        for letter in away_form:
+            if letter == 'W':
+                away_form_points += 3
+            elif letter == 'D':
+                away_form_points += 1
+        away_form_ratio = away_form_points / (len(away_form) * 3) if away_form else 0.5
+        away_xg *= (0.8 + away_form_ratio * 0.4)
+        logger.info(f"   📊 Форма гостей: {away_form} (коэф: {0.8 + away_form_ratio * 0.4:.2f})")
+    
+    # 2. Травмы
+    home_injuries = factors.get('home_injuries_list', [])
+    away_injuries = factors.get('away_injuries_list', [])
+    
+    if home_injuries:
+        # Каждая травма ключевого игрока снижает XG на 5%
+        injury_penalty = min(len(home_injuries) * 0.05, 0.3)
+        home_xg *= (1 - injury_penalty)
+        logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+    
+    if away_injuries:
+        injury_penalty = min(len(away_injuries) * 0.05, 0.3)
+        away_xg *= (1 - injury_penalty)
+        logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+    
+    # 3. Преимущество домашнего поля
+    home_xg *= 1.1
+    away_xg *= 0.9
+    logger.info(f"   🏠 Преимущество домашнего поля: +10% для хозяев, -10% для гостей")
+    
+    return home_xg, away_xg
+
+# ============================================================
+# ТОП-20 МАТЧЕЙ (ТМ 2.5 + ОБЗ + 1Х)
 # ============================================================
 
 def find_top_matches(matches):
@@ -239,6 +326,15 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    
+    # ============================================================
+    # ВСЕ МАРКЕРЫ И ИХ СТАВКИ
+    # ============================================================
+    BET_TYPES = [
+        {'type': 'under', 'label': 'ТМ 2.5', 'marker': 42.86875000000006, 'keys': ['Under 2.5', 'Under', 'U 2.5']},
+        {'type': 'btts', 'label': 'ОБЗ', 'marker': 40.7253125, 'keys': ['Both Team Score', 'BTTS', 'Both Teams to Score']},
+        {'type': '1X', 'label': '1X', 'marker': 45.125, 'keys': ['Home/Draw', '1X']},
+    ]
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -273,21 +369,37 @@ def find_top_matches(matches):
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
             # ============================================================
-            # ТОЛЬКО ТМ 2.5
+            # 1. ПОЛУЧАЕМ КОЭФФИЦИЕНТЫ
             # ============================================================
-            bet_type = 'under'
-            odds = 1.95
-            label = 'ТМ 2.5'
-            marker = 42.86875000000006
+            odds_data = football_api.get_match_odds(fixture_id)
             
-            # Считаем вероятность
-            home_xg = 1.2
-            away_xg = 1.0
+            if not odds_data:
+                logger.warning(f"⚠️ Нет коэффициентов для {home} vs {away}")
+                continue
+            
+            odds_dict = parse_odds(odds_data)
+            
+            if not odds_dict:
+                logger.warning(f"⚠️ Не удалось распарсить коэффициенты для {home} vs {away}")
+                continue
+            
+            logger.info(f"   📊 Доступные коэффициенты: {odds_dict}")
+            
+            # ============================================================
+            # 2. РАСЧЕТ XG С УЧЕТОМ ВСЕХ ФАКТОРОВ
+            # ============================================================
+            factors = match.get('factors', {})
+            home_id = factors.get('home_id')
+            away_id = factors.get('away_id')
+            
+            home_xg, away_xg = calculate_adjusted_xg(home_id, away_id, factors)
+            
+            logger.info(f"   📈 Итоговый XG: {home} {home_xg:.2f} - {away_xg:.2f} {away}")
+            
+            # ============================================================
+            # 3. РАСЧЕТ ВЕРОЯТНОСТЕЙ
+            # ============================================================
             probs = calculate_probabilities(home_xg, away_xg)
-            prob = probs.get(bet_type, 0.33)
-            ev = calculate_ev(prob, odds)
-            
-            logger.info(f"   🎯 {label}: prob={prob}, odds={odds}, ev={ev}%, маркер={marker}")
             
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
@@ -310,24 +422,56 @@ def find_top_matches(matches):
                 "home_xg": round(home_xg, 2),
                 "away_xg": round(away_xg, 2),
                 "weather_reason": "🌤️",
-                "factors": {},
+                "factors": factors,
                 "intuition": [],
                 "bets": []
             }
 
             # ============================================================
-            # ДОБАВЛЯЕМ СТАВКУ ТМ 2.5
+            # 4. ПРОВЕРЯЕМ КАЖДЫЙ ТИП СТАВКИ
             # ============================================================
-            match_data["bets"].append({
-                "bet_type": bet_type,
-                "label": label,
-                "odds": odds,
-                "prob": round(prob * 100, 1),
-                "ev": round(ev, 1),
-                "stake": round(marker, 2),
-                "marker_stake": marker
-            })
-            logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
+            for bet_config in BET_TYPES:
+                bet_type = bet_config['type']
+                label = bet_config['label']
+                marker = bet_config['marker']
+                keys = bet_config['keys']
+                
+                # Ищем коэффициент
+                odds = None
+                for key in keys:
+                    if key in odds_dict:
+                        odds = odds_dict[key]
+                        break
+                
+                if not odds:
+                    logger.info(f"   ⏭️ Нет коэффициента для {label}")
+                    continue
+                
+                # Получаем вероятность
+                prob = probs.get(bet_type, 0.33)
+                
+                # Считаем EV
+                ev = calculate_ev(prob, odds)
+                
+                logger.info(f"   📊 {label}: prob={prob*100:.1f}%, odds={odds}, ev={ev}%")
+                
+                # ============================================================
+                # 5. ЕСЛИ EV > 5% — ДОБАВЛЯЕМ СТАВКУ
+                # ============================================================
+                if ev < 5:
+                    logger.info(f"   ⏭️ Пропуск {label}: EV={ev}% < 5%")
+                    continue
+                
+                match_data["bets"].append({
+                    "bet_type": bet_type,
+                    "label": label,
+                    "odds": odds,
+                    "prob": round(prob * 100, 1),
+                    "ev": round(ev, 1),
+                    "stake": round(marker, 2),
+                    "marker_stake": marker
+                })
+                logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
 
             if match_data["bets"]:
                 all_matches_data.append(match_data)
