@@ -39,10 +39,12 @@ def send_error_to_telegram(error_text: str):
             'parse_mode': 'HTML'
         }
         requests.post(url, json=data, timeout=5)
+        logger.info(f"✅ Ошибка отправлена в Telegram")
     except Exception as e:
         logger.error(f"Не удалось отправить ошибку в Telegram: {e}")
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
+    """Отправка сообщения в Telegram с логированием"""
     import requests
     url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -51,9 +53,13 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
         'parse_mode': parse_mode
     }
     try:
-        requests.post(url, json=data, timeout=10)
+        logger.info(f"📤 Отправка в Telegram: {text[:100]}...")
+        response = requests.post(url, json=data, timeout=10)
+        logger.info(f"✅ Ответ Telegram: {response.status_code}")
+        if response.status_code != 200:
+            logger.error(f"❌ Ошибка отправки: {response.text}")
     except Exception as e:
-        logger.error(f"Send error: {e}")
+        logger.error(f"❌ Send error: {e}")
         send_error_to_telegram(f"Ошибка отправки в Telegram: {e}")
 
 # ============ ЭКСПОРТ В EXCEL ============
@@ -352,7 +358,7 @@ def find_top_matches(matches):
     return all_matches_data[:20]
 
 # ============================================================
-# WEBHOOK
+# WEBHOOK С ОТЛАДКОЙ
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -362,12 +368,20 @@ def webhook():
     try:
         data = request.get_json()
         if not data:
+            logger.warning("⚠️ Пустой запрос")
             return "ok", 200
+        
+        # ============================================================
+        # ОТЛАДКА: ЛОГИРУЕМ ВСЕ ВХОДЯЩИЕ ДАННЫЕ
+        # ============================================================
+        logger.info("=" * 50)
+        logger.info(f"📨 ПОЛУЧЕН ЗАПРОС ОТ TELEGRAM")
+        logger.info(f"📨 Данные: {data}")
+        logger.info("=" * 50)
         
         if 'callback_query' in data:
             callback = data['callback_query']
             callback_data = callback.get('data', '')
-            
             logger.info(f"📨 Нажата кнопка: {callback_data}")
             
             import requests
@@ -489,21 +503,41 @@ def webhook():
             text = message.get('text', '')
             chat_id = message.get('chat', {}).get('id')
             
-            if str(chat_id) != Config.ADMIN_CHAT_ID:
+            # ============================================================
+            # ОТЛАДКА: ЛОГИРУЕМ ИНФОРМАЦИЮ О СООБЩЕНИИ
+            # ============================================================
+            logger.info(f"👤 CHAT ID: {chat_id}")
+            logger.info(f"📝 ТЕКСТ: {text}")
+            logger.info(f"🔑 ADMIN ID: {Config.ADMIN_CHAT_ID}")
+            
+            if str(chat_id) != str(Config.ADMIN_CHAT_ID):
+                logger.warning(f"⛔ ДОСТУП ЗАПРЕЩЕН для {chat_id}")
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
+            
+            logger.info(f"✅ ДОСТУП РАЗРЕШЕН для {chat_id}")
             
             # ============================================================
             # ОБРАБОТКА КОМАНД
             # ============================================================
             
             if text == '/start':
-                send_telegram(handlers.handle_start())
+                logger.info("🔄 Обработка /start")
+                try:
+                    response_text = handlers.handle_start()
+                    logger.info(f"📤 Ответ: {response_text[:100]}...")
+                    send_telegram(response_text)
+                    logger.info("✅ /start выполнен")
+                except Exception as e:
+                    logger.error(f"❌ Ошибка в /start: {e}")
+                    send_error_to_telegram(f"Ошибка в /start: {e}")
             
             elif text == '/help':
+                logger.info("🔄 Обработка /help")
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
+                logger.info("🔄 Обработка /update")
                 if search_running:
                     send_telegram("⚠️ Поиск уже запущен!")
                 else:
@@ -517,7 +551,6 @@ def webhook():
 
                         top_matches = find_top_matches(matches)
                         
-                        # Сохраняем в кэш для /today
                         cache = storage.load_cache()
                         cache['top_matches'] = top_matches
                         storage.save_cache(cache)
@@ -538,27 +571,35 @@ def webhook():
                     search_running = False
             
             elif text == '/today':
+                logger.info("🔄 Обработка /today")
                 send_telegram(handlers.handle_today())
             
             elif text == '/bank':
+                logger.info("🔄 Обработка /bank")
                 send_telegram(handlers.handle_bank())
             
             elif text == '/stats':
+                logger.info("🔄 Обработка /stats")
                 send_telegram(handlers.handle_stats())
             
             elif text == '/bettypes':
+                logger.info("🔄 Обработка /bettypes")
                 send_telegram(handlers.handle_bettypes())
             
             elif text == '/timestats':
+                logger.info("🔄 Обработка /timestats")
                 send_telegram(handlers.handle_timestats())
             
             elif text == '/mlstats':
+                logger.info("🔄 Обработка /mlstats")
                 send_telegram(handlers.handle_mlstats())
             
             elif text == '/report':
+                logger.info("🔄 Обработка /report")
                 send_telegram(handlers.handle_report())
             
             elif text == '/export':
+                logger.info("🔄 Обработка /export")
                 file, message = export_to_excel()
                 if file:
                     send_telegram(message)
@@ -568,33 +609,41 @@ def webhook():
                     data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
                     try:
                         requests.post(url, files=files, data=data, timeout=30)
+                        logger.info("✅ Excel отправлен")
                     except Exception as e:
                         logger.error(f"Ошибка отправки файла: {e}")
                 else:
                     send_telegram(message)
             
             elif text == '/autobet':
+                logger.info("🔄 Обработка /autobet")
                 auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
                 auto_bet.enabled = auto_bot_enabled
                 send_telegram(handlers.handle_autobet(auto_bot_enabled))
             
             elif text == '/train':
+                logger.info("🔄 Обработка /train")
                 send_telegram(handlers.handle_train())
             
             elif text == '/arb':
+                logger.info("🔄 Обработка /arb")
                 send_telegram(handlers.handle_arb())
             
             elif text == '/anomalies':
+                logger.info("🔄 Обработка /anomalies")
                 send_telegram(handlers.handle_anomalies())
             
             elif text == '/security':
+                logger.info("🔄 Обработка /security")
                 send_telegram(handlers.handle_security())
             
             elif text == '/stop':
+                logger.info("🔄 Обработка /stop")
                 search_running = False
                 send_telegram(handlers.handle_stop())
             
             elif text == '/update_results':
+                logger.info("🔄 Обработка /update_results")
                 send_telegram("🔄 Проверка результатов матчей...")
                 updated = update_pending_bets()
                 if updated > 0:
@@ -603,20 +652,21 @@ def webhook():
                     send_telegram("📭 Нет завершённых матчей для обновления")
             
             elif text.startswith('/team'):
+                logger.info("🔄 Обработка /team")
                 team_name = text.replace('/team', '').strip()
                 send_telegram(handlers.handle_team(team_name))
             
             elif text.startswith('/unblock'):
+                logger.info("🔄 Обработка /unblock")
                 ip = text.replace('/unblock', '').strip()
                 send_telegram(handlers.handle_unblock(ip))
             
             elif text.startswith('/result'):
-                # /result Fulham vs Chelsea 2-1
+                logger.info("🔄 Обработка /result")
                 parts = text.replace('/result', '').strip()
                 if ' vs ' in parts:
                     match_part = parts.split(' vs ')
                     if len(match_part) == 2:
-                        # Извлекаем команды и счёт
                         match_parts = match_part[1].split(' ')
                         if len(match_parts) >= 2:
                             away = match_parts[0]
@@ -631,8 +681,10 @@ def webhook():
                     send_telegram("⚠️ Используй: /result Fulham vs Chelsea 2-1")
             
             else:
+                logger.info(f"❌ Неизвестная команда: {text}")
                 send_telegram("❌ Неизвестная команда. /help")
         
+        logger.info("✅ Webhook завершен")
         return "ok", 200
     except Exception as e:
         error_msg = f"Webhook error: {e}"
@@ -858,7 +910,6 @@ def update_history():
 
 @app.route('/api/matches', methods=['GET'])
 def api_matches():
-    """Получить матчи из кэша"""
     cache = storage.load_cache()
     matches = cache.get('top_matches', [])
     return jsonify(matches)
@@ -884,75 +935,3 @@ if __name__ == "__main__":
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("✅ Мониторинг ошибок включен")
     app.run(host='0.0.0.0', port=port)
-
-elif text == '/start':
-    send_telegram(handlers.handle_start())
-
-elif text == '/today':
-    send_telegram(handlers.handle_today())
-
-elif text == '/bank':
-    send_telegram(handlers.handle_bank())
-
-elif text == '/stats':
-    send_telegram(handlers.handle_stats())
-
-elif text == '/bettypes':
-    send_telegram(handlers.handle_bettypes())
-
-elif text == '/timestats':
-    send_telegram(handlers.handle_timestats())
-
-elif text == '/mlstats':
-    send_telegram(handlers.handle_mlstats())
-
-elif text == '/report':
-    send_telegram(handlers.handle_report())
-
-elif text == '/export':
-    send_telegram(handlers.handle_export())
-
-elif text == '/autobet':
-    auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
-    auto_bet.enabled = auto_bot_enabled
-    send_telegram(handlers.handle_autobet(auto_bot_enabled))
-
-elif text == '/train':
-    send_telegram(handlers.handle_train())
-
-elif text == '/arb':
-    send_telegram(handlers.handle_arb())
-
-elif text == '/anomalies':
-    send_telegram(handlers.handle_anomalies())
-
-elif text == '/security':
-    send_telegram(handlers.handle_security())
-
-elif text == '/stop':
-    send_telegram(handlers.handle_stop())
-
-elif text == '/help':
-    send_telegram(handlers.handle_help())
-
-elif text.startswith('/team'):
-    team_name = text.replace('/team', '').strip()
-    send_telegram(handlers.handle_team(team_name))
-
-elif text.startswith('/unblock'):
-    ip = text.replace('/unblock', '').strip()
-    send_telegram(handlers.handle_unblock(ip))
-
-elif text.startswith('/result'):
-    # /result Fulham vs Chelsea 2-1
-    parts = text.replace('/result', '').strip()
-    if ' vs ' in parts:
-        match_part = parts.split(' vs ')
-        if len(match_part) == 2:
-            match = match_part[0].strip() + ' vs ' + match_part[1].split(' ')[0].strip()
-            score = match_part[1].split(' ')[-1].strip() if len(match_part[1].split(' ')) > 1 else ''
-            send_telegram(handlers.handle_result(match, score))
-        else:
-            send_telegram("⚠️ Используй: /result Fulham vs Chelsea 2-1")
-    else:
-        send_telegram("⚠️ Используй: /result Fulham vs Chelsea 2-1")
