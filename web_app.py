@@ -6,7 +6,6 @@ from flask import Flask, render_template_string, jsonify, request
 import requests
 from datetime import datetime, timedelta
 import json
-import random
 import logging
 
 app = Flask(__name__)
@@ -16,6 +15,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 # URL бота
 BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+
+# КЭШ
+CACHE = {}
+CACHE_TIME = 30  # секунд
 
 # ============================================================
 # ЕДИНЫЙ HTML ШАБЛОН (SPA - ВСЕ СТРАНИЦЫ В ОДНОМ ФАЙЛЕ)
@@ -2913,16 +2916,16 @@ MAIN_HTML = """
 # API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС (С КЭШИРОВАНИЕМ)
 # ============================================================
 
-# КЭШ
-CACHE = {}
-CACHE_TIME = 30  # секунд
-
 # ============================================================
-# ФУНКЦИЯ ПОЛУЧЕНИЯ ДАННЫХ С ДЕМО-ДАННЫМИ
+# ФУНКЦИЯ ПОЛУЧЕНИЯ ДАННЫХ С БОТА (БЕЗ ДЕМО!)
 # ============================================================
 
 def get_data_from_bot():
-    """Получение данных с бота или использование демо-данных"""
+    """
+    Получение данных только с бота.
+    НИКАКИХ ДЕМО-ДАННЫХ!
+    Если бот не отвечает - возвращаем пустые данные.
+    """
     try:
         print("📡 Запрос к боту...")
         stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
@@ -2941,91 +2944,17 @@ def get_data_from_bot():
         else:
             history = []
         
-        # Если есть данные - возвращаем их
-        if stats_data and history:
-            print(f"✅ Получены данные: {len(history)} ставок")
-            return stats_data, history
-        
-        # Если данных нет - используем демо
-        print("⚠️ Данные не получены, использую демо-данные")
-        return get_demo_data()
+        print(f"✅ Получены данные: {len(history)} ставок")
+        return stats_data, history
         
     except Exception as e:
-        print(f"⚠️ Бот не отвечает, использую демо-данные: {e}")
-        return get_demo_data()
+        print(f"❌ Ошибка получения данных: {e}")
+        # ВОЗВРАЩАЕМ ПУСТЫЕ ДАННЫЕ, А НЕ ДЕМО!
+        return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
 
-def get_demo_data():
-    """Демо-данные для тестирования"""
-    demo_stats = {
-        'bank': 2500,
-        'total_bets': 150,
-        'wins': 82,
-        'losses': 55,
-        'profit': 320.50,
-        'winrate': 54.7,
-        'roi': 12.8,
-        'avg_stake': 25.0
-    }
-    
-    demo_history = []
-    
-    # Генерируем демо-ставки за последние 30 дней
-    base_date = datetime.now() - timedelta(days=30)
-    
-    teams = [
-        ('Реал Мадрид', 'Барселона'),
-        ('Ливерпуль', 'Манчестер Сити'),
-        ('Бавария', 'Боруссия'),
-        ('ПСЖ', 'Марсель'),
-        ('Ювентус', 'Милан'),
-        ('Арсенал', 'Челси'),
-        ('Аякс', 'ПСВ'),
-        ('Интер', 'Рома'),
-    ]
-    
-    bet_types = ['П1', 'П2', 'ОБЗ', 'ТМ 2.5', 'ТБ 2.5', '1X', 'X2']
-    results = ['win', 'loss', 'push']
-    weights = [0.55, 0.35, 0.10]  # 55% win, 35% loss, 10% push
-    
-    for i in range(150):
-        date = base_date + timedelta(days=random.randint(0, 30), hours=random.randint(10, 22))
-        home, away = random.choice(teams)
-        
-        # Иногда используем дробные суммы (для демонстрации детектора)
-        if random.random() < 0.15:
-            stake = round(random.uniform(40, 46), 6)
-        else:
-            stake = round(random.uniform(20, 60), 2)
-        
-        odds = round(random.uniform(1.5, 3.0), 2)
-        result = random.choices(results, weights=weights)[0]
-        
-        if result == 'win':
-            profit = round(stake * (odds - 1), 2)
-        elif result == 'loss':
-            profit = -stake
-        else:
-            profit = 0
-        
-        home_goals = random.randint(0, 4)
-        away_goals = random.randint(0, 4)
-        
-        demo_history.append({
-            'home': home,
-            'away': away,
-            'league': 'Демо-лига',
-            'bet': random.choice(bet_types),
-            'odds': odds,
-            'stake': stake,
-            'ev': round(random.uniform(-10, 20), 1),
-            'result': result,
-            'profit': profit,
-            'date': date.strftime('%Y-%m-%d %H:%M'),
-            'home_goals': home_goals,
-            'away_goals': away_goals
-        })
-    
-    return demo_stats, demo_history
+# ============================================================
+# МАРШРУТЫ
+# ============================================================
 
 @app.route('/')
 def index():
@@ -3047,7 +2976,7 @@ def all_data():
     except:
         matches = []
     
-    bank = stats_data.get('bank', 2500)
+    bank = stats_data.get('bank', 1000)
     total_bets = stats_data.get('total_bets', len(history))
     wins = stats_data.get('wins', 0)
     losses = stats_data.get('losses', 0)
