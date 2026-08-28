@@ -17,28 +17,19 @@ from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-# from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
-from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
+
+# ============================================================
+# ПРЯМОЙ ИМПОРТ AutoBet (БЕЗ ЛЕНИВОЙ ЗАГРУЗКИ)
+# ============================================================
+from app.betting.auto_bet import AutoBet
+auto_bet = AutoBet()
 
 logger = get_logger(__name__)
 app = Flask(__name__)
 
 search_running = False
 TIMEZONE_OFFSET = 3
-
-# ============================================================
-# ВСЕ МАРКЕРЫ И ИХ СТАВКИ
-# ============================================================
-MARKERS = {
-    # Маркер: (тип ставки, коэффициент, название)
-    45.125: ('1X', 1.85, '1X'),
-    42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
-    42.86875000000001: ('under', 1.95, 'ТМ 2.5'),
-    40.7253125: ('btts', 1.90, 'ОБЗ'),
-    43.1875: ('X2', 1.90, 'X2'),
-    41.375: ('over', 1.95, 'ТБ 2.5'),
-}
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -52,12 +43,10 @@ def send_error_to_telegram(error_text: str):
             'parse_mode': 'HTML'
         }
         requests.post(url, json=data, timeout=5)
-        logger.info(f"✅ Ошибка отправлена в Telegram")
     except Exception as e:
         logger.error(f"Не удалось отправить ошибку в Telegram: {e}")
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
-    """Отправка сообщения в Telegram с логированием"""
     import requests
     url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -66,9 +55,7 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
         'parse_mode': parse_mode
     }
     try:
-        logger.info(f"📤 Отправка в Telegram: {text[:100]}...")
         response = requests.post(url, json=data, timeout=10)
-        logger.info(f"✅ Ответ Telegram: {response.status_code}")
         if response.status_code != 200:
             logger.error(f"❌ Ошибка отправки: {response.text}")
     except Exception as e:
@@ -151,7 +138,6 @@ def get_matches_with_factors():
     
     logger.info(f"🔍 Поиск матчей на: {today}")
     
-    # Объединяем лиги и кубки
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     logger.info(f"📊 Всего соревнований: {len(all_leagues)}")
     
@@ -236,7 +222,90 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ (ВСЕ МАРКЕРЫ)
+# ПАРСИНГ КОЭФФИЦИЕНТОВ
+# ============================================================
+
+def parse_odds(odds_data):
+    """Парсинг коэффициентов из API"""
+    if not odds_data:
+        return None
+    
+    bookmakers = odds_data.get('bookmakers', [])
+    if not bookmakers:
+        return None
+    
+    bookmaker = bookmakers[0]
+    bets = bookmaker.get('bets', [])
+    
+    odds_dict = {}
+    for bet in bets:
+        values = bet.get('values', [])
+        for value in values:
+            bet_type = value.get('value', '')
+            odd = value.get('odd')
+            if bet_type and odd:
+                odds_dict[bet_type] = odd
+    
+    return odds_dict
+
+# ============================================================
+# РАСЧЕТ XG С УЧЕТОМ ФАКТОРОВ
+# ============================================================
+
+def calculate_adjusted_xg(home_id, away_id, factors):
+    """Расчет XG с учетом формы, травм и других факторов"""
+    home_xg = 1.2
+    away_xg = 1.0
+    
+    # 1. Форма команд (последние 5 матчей)
+    home_form = factors.get('home_form', '')
+    away_form = factors.get('away_form', '')
+    
+    if home_form:
+        home_form_points = 0
+        for letter in home_form:
+            if letter == 'W':
+                home_form_points += 3
+            elif letter == 'D':
+                home_form_points += 1
+        home_form_ratio = home_form_points / (len(home_form) * 3) if home_form else 0.5
+        home_xg *= (0.8 + home_form_ratio * 0.4)
+        logger.info(f"   📊 Форма хозяев: {home_form} (коэф: {0.8 + home_form_ratio * 0.4:.2f})")
+    
+    if away_form:
+        away_form_points = 0
+        for letter in away_form:
+            if letter == 'W':
+                away_form_points += 3
+            elif letter == 'D':
+                away_form_points += 1
+        away_form_ratio = away_form_points / (len(away_form) * 3) if away_form else 0.5
+        away_xg *= (0.8 + away_form_ratio * 0.4)
+        logger.info(f"   📊 Форма гостей: {away_form} (коэф: {0.8 + away_form_ratio * 0.4:.2f})")
+    
+    # 2. Травмы
+    home_injuries = factors.get('home_injuries_list', [])
+    away_injuries = factors.get('away_injuries_list', [])
+    
+    if home_injuries:
+        injury_penalty = min(len(home_injuries) * 0.05, 0.3)
+        home_xg *= (1 - injury_penalty)
+        logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+    
+    if away_injuries:
+        injury_penalty = min(len(away_injuries) * 0.05, 0.3)
+        away_xg *= (1 - injury_penalty)
+        logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+    
+    # 3. Преимущество домашнего поля
+    home_xg *= 1.1
+    away_xg *= 0.9
+    logger.info(f"   🏠 Преимущество домашнего поля: +10% для хозяев, -10% для гостей")
+    
+    return home_xg, away_xg
+
+# ============================================================
+# ТОП-20 МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
@@ -246,6 +315,17 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    
+    # ============================================================
+    # ВСЕ МАРКЕРЫ И ТИПЫ СТАВОК
+    # ============================================================
+    BET_TYPES = [
+        {'type': 'under', 'label': 'ТМ 2.5', 'marker': 42.86875000000006, 'keys': ['Under 2.5', 'Under', 'U 2.5']},
+        {'type': 'btts', 'label': 'ОБЗ', 'marker': 40.7253125, 'keys': ['Both Team Score', 'BTTS', 'Both Teams to Score']},
+        {'type': '1X', 'label': '1X', 'marker': 45.125, 'keys': ['Home/Draw', '1X']},
+        {'type': 'over', 'label': 'ТБ 2.5', 'marker': 41.375, 'keys': ['Over 2.5', 'Over', 'O 2.5']},
+        {'type': 'X2', 'label': 'X2', 'marker': 43.1875, 'keys': ['Away/Draw', 'X2']},
+    ]
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -279,6 +359,39 @@ def find_top_matches(matches):
             
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
+            # ============================================================
+            # 1. ПОЛУЧАЕМ КОЭФФИЦИЕНТЫ
+            # ============================================================
+            odds_data = football_api.get_match_odds(fixture_id)
+            
+            if not odds_data:
+                logger.warning(f"⚠️ Нет коэффициентов для {home} vs {away}")
+                continue
+            
+            odds_dict = parse_odds(odds_data)
+            
+            if not odds_dict:
+                logger.warning(f"⚠️ Не удалось распарсить коэффициенты для {home} vs {away}")
+                continue
+            
+            logger.info(f"   📊 Доступные коэффициенты: {odds_dict}")
+            
+            # ============================================================
+            # 2. РАСЧЕТ XG С УЧЕТОМ ВСЕХ ФАКТОРОВ
+            # ============================================================
+            factors = match.get('factors', {})
+            home_id = factors.get('home_id')
+            away_id = factors.get('away_id')
+            
+            home_xg, away_xg = calculate_adjusted_xg(home_id, away_id, factors)
+            
+            logger.info(f"   📈 Итоговый XG: {home} {home_xg:.2f} - {away_xg:.2f} {away}")
+            
+            # ============================================================
+            # 3. РАСЧЕТ ВЕРОЯТНОСТЕЙ
+            # ============================================================
+            probs = calculate_probabilities(home_xg, away_xg)
+            
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
 
@@ -297,20 +410,48 @@ def find_top_matches(matches):
                 "league": league,
                 "fixture_id": fixture_id,
                 "match_time": match_time,
-                "home_xg": 1.2,
-                "away_xg": 1.0,
+                "home_xg": round(home_xg, 2),
+                "away_xg": round(away_xg, 2),
                 "weather_reason": "🌤️",
-                "factors": {},
+                "factors": factors,
                 "intuition": [],
                 "bets": []
             }
 
             # ============================================================
-            # ПЕРЕБИРАЕМ ВСЕ МАРКЕРЫ
+            # 4. ПРОВЕРЯЕМ КАЖДЫЙ ТИП СТАВКИ
             # ============================================================
-            for marker, (bet_type, odds, label) in MARKERS.items():
-                prob = 0.55  # Фиксированная вероятность
+            for bet_config in BET_TYPES:
+                bet_type = bet_config['type']
+                label = bet_config['label']
+                marker = bet_config['marker']
+                keys = bet_config['keys']
+                
+                # Ищем коэффициент
+                odds = None
+                for key in keys:
+                    if key in odds_dict:
+                        odds = odds_dict[key]
+                        break
+                
+                if not odds:
+                    logger.info(f"   ⏭️ Нет коэффициента для {label}")
+                    continue
+                
+                # Получаем вероятность
+                prob = probs.get(bet_type, 0.33)
+                
+                # Считаем EV
                 ev = calculate_ev(prob, odds)
+                
+                logger.info(f"   📊 {label}: prob={prob*100:.1f}%, odds={odds}, ev={ev}%")
+                
+                # ============================================================
+                # 5. ЕСЛИ EV > 5% — ДОБАВЛЯЕМ СТАВКУ
+                # ============================================================
+                if ev < 5:
+                    logger.info(f"   ⏭️ Пропуск {label}: EV={ev}% < 5%")
+                    continue
                 
                 match_data["bets"].append({
                     "bet_type": bet_type,
@@ -324,7 +465,6 @@ def find_top_matches(matches):
                 logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
 
             if match_data["bets"]:
-                match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
                 
                 try:
@@ -509,10 +649,6 @@ def webhook():
             
             logger.info(f"✅ ДОСТУП РАЗРЕШЕН для {chat_id}")
             
-            # ============================================================
-            # ОБРАБОТКА КОМАНД
-            # ============================================================
-            
             if text == '/start':
                 logger.info("🔄 Обработка /start")
                 send_telegram(handlers.handle_start())
@@ -541,7 +677,7 @@ def webhook():
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
+                                f"🤖 Авто-ставок: {auto_bet.bets_today if auto_bet else 0}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
                         else:
@@ -552,35 +688,27 @@ def webhook():
                     search_running = False
             
             elif text == '/today':
-                logger.info("🔄 Обработка /today")
                 send_telegram(handlers.handle_today())
             
             elif text == '/bank':
-                logger.info("🔄 Обработка /bank")
                 send_telegram(handlers.handle_bank())
             
             elif text == '/stats':
-                logger.info("🔄 Обработка /stats")
                 send_telegram(handlers.handle_stats())
             
             elif text == '/bettypes':
-                logger.info("🔄 Обработка /bettypes")
                 send_telegram(handlers.handle_bettypes())
             
             elif text == '/timestats':
-                logger.info("🔄 Обработка /timestats")
                 send_telegram(handlers.handle_timestats())
             
             elif text == '/mlstats':
-                logger.info("🔄 Обработка /mlstats")
                 send_telegram(handlers.handle_mlstats())
             
             elif text == '/report':
-                logger.info("🔄 Обработка /report")
                 send_telegram(handlers.handle_report())
             
             elif text == '/export':
-                logger.info("🔄 Обработка /export")
                 file, message = export_to_excel()
                 if file:
                     send_telegram(message)
@@ -597,34 +725,27 @@ def webhook():
                     send_telegram(message)
             
             elif text == '/autobet':
-                logger.info("🔄 Обработка /autobet")
                 auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
                 auto_bet.enabled = auto_bot_enabled
                 send_telegram(handlers.handle_autobet(auto_bot_enabled))
             
             elif text == '/train':
-                logger.info("🔄 Обработка /train")
                 send_telegram(handlers.handle_train())
             
             elif text == '/arb':
-                logger.info("🔄 Обработка /arb")
                 send_telegram(handlers.handle_arb())
             
             elif text == '/anomalies':
-                logger.info("🔄 Обработка /anomalies")
                 send_telegram(handlers.handle_anomalies())
             
             elif text == '/security':
-                logger.info("🔄 Обработка /security")
                 send_telegram(handlers.handle_security())
             
             elif text == '/stop':
-                logger.info("🔄 Обработка /stop")
                 search_running = False
                 send_telegram(handlers.handle_stop())
             
             elif text == '/update_results':
-                logger.info("🔄 Обработка /update_results")
                 send_telegram("🔄 Проверка результатов матчей...")
                 updated = update_pending_bets()
                 if updated > 0:
@@ -633,17 +754,14 @@ def webhook():
                     send_telegram("📭 Нет завершённых матчей для обновления")
             
             elif text.startswith('/team'):
-                logger.info("🔄 Обработка /team")
                 team_name = text.replace('/team', '').strip()
                 send_telegram(handlers.handle_team(team_name))
             
             elif text.startswith('/unblock'):
-                logger.info("🔄 Обработка /unblock")
                 ip = text.replace('/unblock', '').strip()
                 send_telegram(handlers.handle_unblock(ip))
             
             elif text.startswith('/result'):
-                logger.info("🔄 Обработка /result")
                 parts = text.replace('/result', '').strip()
                 if ' vs ' in parts:
                     match_part = parts.split(' vs ')
@@ -662,7 +780,6 @@ def webhook():
                     send_telegram("⚠️ Используй: /result Fulham vs Chelsea 2-1")
             
             else:
-                logger.info(f"❌ Неизвестная команда: {text}")
                 send_telegram("❌ Неизвестная команда. /help")
         
         logger.info("✅ Webhook завершен")
