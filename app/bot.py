@@ -28,9 +28,17 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# ФИКСИРОВАННЫЕ МАРКЕРЫ ДЛЯ ТМ 2.5
+# ВСЕ МАРКЕРЫ И ИХ СТАВКИ
 # ============================================================
-TM25_MARKERS = [42.86875000000006, 42.86875000000001]
+MARKERS = {
+    # Маркер: (тип ставки, коэффициент, название)
+    45.125: ('1X', 1.85, '1X'),
+    42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
+    42.86875000000001: ('under', 1.95, 'ТМ 2.5'),
+    40.7253125: ('btts', 1.90, 'ОБЗ'),
+    43.1875: ('X2', 1.90, 'X2'),
+    41.375: ('over', 1.95, 'ТБ 2.5'),
+}
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -228,7 +236,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ (ТОЛЬКО ТМ 2.5)
+# ТОП-20 МАТЧЕЙ (ВСЕ МАРКЕРЫ)
 # ============================================================
 
 def find_top_matches(matches):
@@ -238,9 +246,6 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
-    
-    # Список разрешенных маркеров
-    allowed_markers = [42.86875000000006, 42.86875000000001]
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -274,19 +279,6 @@ def find_top_matches(matches):
             
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
-            # ============================================================
-            # ТЕСТОВЫЕ КОЭФФИЦИЕНТЫ ДЛЯ ТМ 2.5
-            # ============================================================
-            bet_types = [
-                ('under', 1.95, 'ТМ 2.5'),
-            ]
-            
-            logger.info(f"   🎯 Bet types: {bet_types}")
-            
-            home_xg = 1.2
-            away_xg = 1.0
-            probs = calculate_probabilities(home_xg, away_xg)
-            
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
 
@@ -305,40 +297,31 @@ def find_top_matches(matches):
                 "league": league,
                 "fixture_id": fixture_id,
                 "match_time": match_time,
-                "home_xg": round(home_xg, 2),
-                "away_xg": round(away_xg, 2),
+                "home_xg": 1.2,
+                "away_xg": 1.0,
                 "weather_reason": "🌤️",
                 "factors": {},
                 "intuition": [],
                 "bets": []
             }
 
-            # Перебираем маркеры
-            for marker in allowed_markers:
-                for bet_type, odds, label in bet_types:
-                    # ТОЛЬКО ТМ 2.5
-                    if 'ТМ 2.5' not in label and 'under' not in bet_type:
-                        continue
-                    
-                    prob = probs.get(bet_type, 0.33)
-                    ev = calculate_ev(prob, odds)
-                    
-                    # ФИКСИРОВАННЫЙ МАРКЕР
-                    stake = marker
-                    
-                    logger.info(f"   📊 {label}: prob={prob}, odds={odds}, ev={ev}%, маркер={marker}")
-                    
-                    if ev > 1:
-                        match_data["bets"].append({
-                            "bet_type": bet_type,
-                            "label": f"{label} (маркер {marker})",
-                            "odds": odds,
-                            "prob": round(prob * 100, 1),
-                            "ev": round(ev, 1),
-                            "stake": round(stake, 2),
-                            "marker_stake": marker
-                        })
-                        logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} EV={ev}% маркер={marker}")
+            # ============================================================
+            # ПЕРЕБИРАЕМ ВСЕ МАРКЕРЫ
+            # ============================================================
+            for marker, (bet_type, odds, label) in MARKERS.items():
+                prob = 0.55  # Фиксированная вероятность
+                ev = calculate_ev(prob, odds)
+                
+                match_data["bets"].append({
+                    "bet_type": bet_type,
+                    "label": label,
+                    "odds": odds,
+                    "prob": round(prob * 100, 1),
+                    "ev": round(ev, 1),
+                    "stake": round(marker, 2),
+                    "marker_stake": marker
+                })
+                logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
 
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
@@ -361,8 +344,6 @@ def find_top_matches(matches):
                         logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
                 except Exception as e:
                     logger.error(f"❌ Ошибка авто-ставки: {e}")
-            else:
-                logger.info(f"   ❌ Нет подходящих ставок для {home} vs {away}")
 
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
@@ -389,9 +370,6 @@ def webhook():
         if not data:
             return "ok", 200
         
-        # ============================================================
-        # ОТЛАДКА: ЛОГИРУЕМ ВСЕ ВХОДЯЩИЕ ДАННЫЕ
-        # ============================================================
         logger.info("=" * 50)
         logger.info(f"📨 ПОЛУЧЕН ЗАПРОС ОТ TELEGRAM")
         logger.info("=" * 50)
@@ -520,9 +498,6 @@ def webhook():
             text = message.get('text', '')
             chat_id = message.get('chat', {}).get('id')
             
-            # ============================================================
-            # ОТЛАДКА: ЛОГИРУЕМ ИНФОРМАЦИЮ О СООБЩЕНИИ
-            # ============================================================
             logger.info(f"👤 CHAT ID: {chat_id}")
             logger.info(f"📝 ТЕКСТ: {text}")
             logger.info(f"🔑 ADMIN ID: {Config.ADMIN_CHAT_ID}")
@@ -706,17 +681,17 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     total = home_goals + away_goals
     bet_type_lower = bet_type.lower()
     
-    if 'оз - да' in bet_type_lower or 'обз' in bet_type_lower:
+    if 'оз - да' in bet_type_lower or 'обз' in bet_type_lower or 'btts' in bet_type_lower:
         if home_goals > 0 and away_goals > 0:
             return 'win'
         else:
             return 'loss'
-    elif 'тм 2.5' in bet_type_lower:
+    elif 'тм 2.5' in bet_type_lower or 'under' in bet_type_lower:
         if total < 2.5:
             return 'win'
         else:
             return 'loss'
-    elif 'тб 2.5' in bet_type_lower:
+    elif 'тб 2.5' in bet_type_lower or 'over' in bet_type_lower:
         if total > 2.5:
             return 'win'
         else:
