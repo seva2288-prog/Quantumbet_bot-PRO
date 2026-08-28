@@ -26,23 +26,15 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# AutoBet загружается при первом использовании (избегаем циклического импорта)
+# AUTOBET — ПРЯМОЙ ИМПОРТ
 # ============================================================
-auto_bet = None
-
-def get_auto_bet():
-    global auto_bet
-    if auto_bet is None:
-        try:
-            from app.betting.auto_bet import AutoBet
-            auto_bet = AutoBet()
-            logger.info("✅ AutoBet загружен")
-        except Exception as e:
-            logger.error(f"❌ Не удалось загрузить AutoBet: {e}")
-            send_error_to_telegram(f"Не удалось загрузить AutoBet: {e}")
-            auto_bet = None
-            return None
-    return auto_bet
+try:
+    from app.betting.auto_bet import AutoBet
+    auto_bet = AutoBet()
+    logger.info("✅ AutoBet загружен")
+except Exception as e:
+    logger.error(f"❌ Не удалось загрузить AutoBet: {e}")
+    auto_bet = None
 
 def send_error_to_telegram(error_text: str):
     try:
