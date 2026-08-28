@@ -33,9 +33,15 @@ auto_bet = None
 def get_auto_bet():
     global auto_bet
     if auto_bet is None:
-        from app.betting.auto_bet import AutoBet
-        auto_bet = AutoBet()
-        logger.info("✅ AutoBet загружен")
+        try:
+            from app.betting.auto_bet import AutoBet
+            auto_bet = AutoBet()
+            logger.info("✅ AutoBet загружен")
+        except Exception as e:
+            logger.error(f"❌ Не удалось загрузить AutoBet: {e}")
+            send_error_to_telegram(f"Не удалось загрузить AutoBet: {e}")
+            auto_bet = None
+            return None
     return auto_bet
 
 def send_error_to_telegram(error_text: str):
@@ -477,7 +483,12 @@ def find_top_matches(matches):
                 all_matches_data.append(match_data)
                 
                 try:
-                    bet_result = get_auto_bet().check_and_bet(match_data)
+                    auto = get_auto_bet()
+                    if auto is None:
+                        logger.error("❌ AutoBet не загружен — пропускаем ставку")
+                        continue
+
+                    bet_result = auto.check_and_bet(match_data)
                     if bet_result:
                         bets_placed += 1
                         msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
@@ -493,6 +504,7 @@ def find_top_matches(matches):
                         logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
                 except Exception as e:
                     logger.error(f"❌ Ошибка авто-ставки: {e}")
+                    send_error_to_telegram(f"Ошибка авто-ставки: {e}")
 
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
@@ -683,10 +695,12 @@ def webhook():
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
+                            auto = get_auto_bet()
+                            bets_today_count = auto.bets_today if auto is not None else 0
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {get_auto_bet().bets_today}\n"
+                                f"🤖 Авто-ставок: {bets_today_count}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
                         else:
@@ -734,9 +748,12 @@ def webhook():
                     send_telegram(message)
             
             elif text == '/autobet':
-                auto_bot_enabled = not getattr(get_auto_bet(), 'enabled', True)
-                get_auto_bet().enabled = auto_bot_enabled
-                send_telegram(handlers.handle_autobet(auto_bot_enabled))
+                auto = get_auto_bet()
+                if auto is None:
+                    send_telegram("❌ AutoBet не загружен")
+                else:
+                    auto.enabled = not getattr(auto, 'enabled', True)
+                    send_telegram(handlers.handle_autobet(auto.enabled))
             
             elif text == '/train':
                 send_telegram(handlers.handle_train())
