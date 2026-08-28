@@ -17,7 +17,6 @@ from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-from app.betting.auto_bet import AutoBet
 from app.scheduler import start_scheduler
 
 logger = get_logger(__name__)
@@ -26,8 +25,18 @@ app = Flask(__name__)
 search_running = False
 TIMEZONE_OFFSET = 3
 
-# Создаем экземпляр AutoBet
-auto_bet = AutoBet()
+# ============================================================
+# AutoBet загружается при первом использовании (избегаем циклического импорта)
+# ============================================================
+auto_bet = None
+
+def get_auto_bet():
+    global auto_bet
+    if auto_bet is None:
+        from app.betting.auto_bet import AutoBet
+        auto_bet = AutoBet()
+        logger.info("✅ AutoBet загружен")
+    return auto_bet
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -324,7 +333,7 @@ def find_top_matches(matches):
                 all_matches_data.append(match_data)
                 
                 try:
-                    bet_result = auto_bet.check_and_bet(match_data)
+                    bet_result = get_auto_bet().check_and_bet(match_data)
                     if bet_result:
                         bets_placed += 1
                         msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
@@ -533,7 +542,7 @@ def webhook():
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
+                                f"🤖 Авто-ставок: {get_auto_bet().bets_today}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
                         else:
@@ -581,8 +590,8 @@ def webhook():
                     send_telegram(message)
             
             elif text == '/autobet':
-                auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
-                auto_bet.enabled = auto_bot_enabled
+                auto_bot_enabled = not getattr(get_auto_bet(), 'enabled', True)
+                get_auto_bet().enabled = auto_bot_enabled
                 send_telegram(handlers.handle_autobet(auto_bot_enabled))
             
             elif text == '/train':
