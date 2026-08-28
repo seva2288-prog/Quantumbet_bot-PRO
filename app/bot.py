@@ -269,37 +269,37 @@ def find_top_matches(matches):
             # ============================================================
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
-            # Получаем коэффициенты
-            odds_data = football_api.get_match_odds(fixture_id)
+            # ============================================================
+            # ТЕСТОВЫЕ СТАВКИ ДЛЯ ВСЕХ МАТЧЕЙ
+            # ============================================================
+            logger.info(f"🧪 ИСПОЛЬЗУЮ ТЕСТОВЫЕ СТАВКИ для {home} vs {away}")
             
-            # ============================================================
-            # ЕСЛИ НЕТ КОЭФФИЦИЕНТОВ — ИСПОЛЬЗУЙ ТЕСТОВЫЕ
-            # ============================================================
-            if not odds_data:
-                logger.warning(f"⚠️ Нет коэффициентов для {home} vs {away}, использую тестовые")
-                # Тестовые коэффициенты
-                odds_data = {
-                    'bookmakers': [{
-                        'bets': [{
-                            'values': [
-                                {'value': 'Home', 'odd': 1.85},
-                                {'value': 'Away', 'odd': 4.20},
-                                {'value': 'Draw', 'odd': 3.40}
-                            ]
-                        }]
+            # Тестовые коэффициенты
+            test_odds = {
+                'bookmakers': [{
+                    'bets': [{
+                        'values': [
+                            {'value': 'Home', 'odd': 1.85},
+                            {'value': 'Draw', 'odd': 3.40},
+                            {'value': 'Away', 'odd': 4.20}
+                        ]
                     }]
-                }
-                logger.info(f"🧪 ТЕСТОВЫЕ коэффициенты для {home} vs {away}")
+                }]
+            }
             
-            logger.info(f"   📊 Odds получены: {odds_data is not None}")
+            # Получаем типы ставок из тестовых данных
+            bet_types = get_bet_types(test_odds)
             
-            # Получаем типы ставок
-            bet_types = get_bet_types(odds_data)
-            logger.info(f"   🎯 Bet types: {bet_types}")
-            
+            # ЕСЛИ ВСЕ РАВНО ПУСТО — СТАВИМ ВРУЧНУЮ
             if not bet_types:
-                logger.warning(f"   ❌ Нет типов ставок для {home} vs {away}")
-                continue
+                logger.warning(f"⚠️ get_bet_types вернул пусто, ставлю вручную для {home} vs {away}")
+                bet_types = [
+                    ('1', 1.85, 'П1'),
+                    ('X', 3.40, 'X'),
+                    ('2', 4.20, 'П2'),
+                ]
+            
+            logger.info(f"   🎯 Bet types: {bet_types}")
             
             # Считаем вероятности
             home_xg = 1.2
@@ -334,9 +334,10 @@ def find_top_matches(matches):
             }
 
             for bet_type, odds, label in bet_types:
-                prob = probs.get(bet_type, 0)
+                prob = probs.get(bet_type, 0.33)
                 if prob < 0.05 or prob > 0.99:
-                    logger.info(f"   ⏭️ {label}: prob={prob} (вне диапазона)")
+                    prob = 0.33
+                    logger.info(f"   ⏭️ {label}: prob={prob} (скорректировано)")
                     continue
 
                 ev = calculate_ev(prob, odds)
