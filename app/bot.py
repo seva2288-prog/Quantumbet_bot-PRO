@@ -3,8 +3,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import time
-import os
 import json
 from datetime import datetime, timedelta
 
@@ -13,7 +14,7 @@ from app.database.storage import storage
 from app.api.football import football_api
 from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
-from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners, predict_yellow_cards
+from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types
 from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
@@ -23,13 +24,47 @@ from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
 from app.security.auth import security
 
+# === БЕЗОПАСНОСТЬ ===
+from app.security.middleware import admin_only, rate_limit, security_middleware
+from app.security.monitor import monitor
+
 logger = get_logger(__name__)
 app = Flask(__name__)
 
-search_running = False
+# === ЗАЩИТА ОТ DDoS ===
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[f"{Config.RATE_LIMIT} per {Config.RATE_PERIOD} seconds"]
+)
 
-# ===== КОНСТАНТА ЧАСОВОГО ПОЯСА =====
-TIMEZONE_OFFSET = 3  # UTC+3
+# === ЗАЩИТА ЗАПРОСОВ ===
+@app.before_request
+def protect_request():
+    """Защита всех входящих запросов"""
+    client_ip = request.remote_addr
+    
+    # Проверка блокировки
+    if security_middleware.is_blocked(client_ip):
+        monitor.log_attack("Blocked IP", f"IP {client_ip} пытался подключиться")
+        return "🚫 Доступ запрещён", 403
+    
+    # Проверка на подозрительную активность
+    if request.is_json:
+        data = request.get_json()
+        if data and 'message' in data:
+            chat_id = data['message'].get('chat', {}).get('id')
+            if str(chat_id) != Config.ADMIN_CHAT_ID and str(chat_id) != Config.ADMIN_CHAT_ID:
+                monitor.log_attack("Unauthorized access", f"Chat {chat_id} пытался использовать бота")
+
+# === СКРЫВАЕМ ОШИБКИ ===
+@app.errorhandler(Exception)
+def handle_error(e):
+    monitor.log_attack("Error", str(e))
+    return "Internal Server Error", 500
+
+search_running = False
+TIMEZONE_OFFSET = 3
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -126,12 +161,11 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ (ТОЛЬКО НА СЕГОДНЯ, ПОГОДА ОТКЛЮЧЕНА)
+# ПОИСК МАТЧЕЙ
 # ============================================================
 
 def get_matches_with_factors():
     all_matches = []
-    
     today = datetime.now().strftime('%Y-%m-%d')
     dates_to_search = [today]
     
@@ -143,22 +177,18 @@ def get_matches_with_factors():
                 matches = football_api.get_matches(league_id, search_date)
                 league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
                 
-                # ===== ПРОВЕРЯЕМ, ЧТО matches - СПИСОК =====
                 if not matches or not isinstance(matches, list):
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
                     continue
                 
                 for match in matches:
-                    # ===== ПРОВЕРКА: ЭТО СЛОВАРЬ? =====
                     if not isinstance(match, dict):
                         continue
                     
-                    # ===== ПРОВЕРКА: ЕСТЬ ЛИ fixture? =====
                     fixture = match.get("fixture")
                     if not fixture or not isinstance(fixture, dict):
                         continue
                     
-                    # ===== ПРОВЕРКА: СТАТУС МАТЧА =====
                     status = fixture.get("status", {})
                     if not isinstance(status, dict):
                         continue
@@ -168,7 +198,6 @@ def get_matches_with_factors():
                         if not match_id:
                             continue
                         
-                        # ===== ПРОВЕРКА НА ДУБЛИКАТ =====
                         existing_ids = []
                         for m in all_matches:
                             if isinstance(m, dict):
@@ -223,7 +252,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (ПОЛНОСТЬЮ ПЕРЕПИСАНА + ЗАЩИТА)
+# ТОП-20 МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
@@ -278,7 +307,6 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            # ===== xG =====
             try:
                 home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
             except Exception as e:
@@ -295,14 +323,10 @@ def find_top_matches(matches):
                 logger.warning(f"probs не словарь для {home} vs {away}: {type(probs)}")
                 continue
 
-            # ===== КЛЮЧЕВАЯ ЗАЩИТА ОТ ОШИБКИ =====
             odds_data = football_api.get_match_odds(fixture_id)
 
             if not odds_data or not isinstance(odds_data, dict):
-                logger.warning(
-                    f"Пропуск {home} vs {away} (fixture {fixture_id}) — "
-                    f"odds_data = {type(odds_data)} | {str(odds_data)[:120]}"
-                )
+                logger.warning(f"Пропуск {home} vs {away} (fixture {fixture_id})")
                 continue
 
             bet_types = get_bet_types(odds_data)
@@ -375,10 +399,12 @@ def find_top_matches(matches):
     return all_matches_data[:20]
 
 # ============================================================
-# WEBHOOK
+# WEBHOOK (С ЗАЩИТОЙ)
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
+@admin_only
+@rate_limit(limit=50, period=60)
 def webhook():
     global search_running
     
@@ -513,6 +539,7 @@ def webhook():
             chat_id = message.get('chat', {}).get('id')
             
             if str(chat_id) != Config.ADMIN_CHAT_ID:
+                monitor.log_attack("Unauthorized command", f"Chat {chat_id} пытался использовать команду {text}")
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
             
@@ -588,6 +615,43 @@ def webhook():
                 else:
                     send_telegram("📭 Нет завершённых матчей для обновления")
             
+            # === НОВЫЕ КОМАНДЫ БЕЗОПАСНОСТИ ===
+            elif text == '/security':
+                msg = "🛡️ <b>СТАТУС БЕЗОПАСНОСТИ</b>\n\n"
+                msg += f"🔐 Токен: {Config.get_masked_token()}\n"
+                msg += f"👤 Админ: {Config.ADMIN_CHAT_ID}\n"
+                msg += f"📊 Лиг: {len(Config.LEAGUES)}\n"
+                msg += f"🔒 HTTPS: {'✅ Включен' if Config.is_production() else '❌'}\n"
+                msg += f"🛡️ IP-фильтр: {'✅ Включен' if Config.ALLOWED_IPS else '❌'}\n"
+                msg += f"📝 Логов атак: {len(monitor.warning_log)}\n"
+                send_telegram(msg)
+            
+            elif text == '/attacks':
+                attacks = monitor.get_recent_attacks(10)
+                if attacks:
+                    msg = "⚠️ <b>ПОСЛЕДНИЕ АТАКИ</b>\n\n" + "\n".join(attacks[-10:])
+                else:
+                    msg = "✅ Атак не обнаружено!"
+                send_telegram(msg)
+            
+            elif text.startswith('/block_ip'):
+                parts = text.split()
+                if len(parts) == 2:
+                    ip = parts[1]
+                    security_middleware.block_ip(ip)
+                    send_telegram(f"✅ IP {ip} заблокирован!")
+                else:
+                    send_telegram("❌ Используйте: /block_ip <IP>")
+            
+            elif text.startswith('/unblock_ip'):
+                parts = text.split()
+                if len(parts) == 2:
+                    ip = parts[1]
+                    security_middleware.blocked_ips.discard(ip)
+                    send_telegram(f"✅ IP {ip} разблокирован!")
+                else:
+                    send_telegram("❌ Используйте: /unblock_ip <IP>")
+            
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
@@ -603,7 +667,6 @@ def webhook():
 # ============================================================
 
 def determine_bet_result(bet_type, home_goals, away_goals):
-    """Определяет результат ставки по счёту"""
     total = home_goals + away_goals
     bet_type_lower = bet_type.lower()
     
@@ -649,7 +712,6 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     return 'pending'
 
 def update_pending_bets():
-    """Автоматическое обновление результатов PENDING ставок"""
     history = storage.load_history()
     updated = 0
     
@@ -698,7 +760,6 @@ def update_pending_bets():
     return updated
 
 def recalc_stats():
-    """Пересчитывает статистику"""
     history = storage.load_history()
     stats = storage.load_stats()
     
@@ -725,6 +786,7 @@ def recalc_stats():
 # ============================================================
 
 @app.route('/api/stats', methods=['GET'])
+@admin_only
 def api_stats():
     stats = storage.load_stats()
     bank = storage.load_bank()
@@ -754,6 +816,7 @@ def api_stats():
     })
 
 @app.route('/api/history', methods=['GET'])
+@admin_only
 def api_history():
     history = storage.load_history()
     
@@ -769,6 +832,7 @@ def api_history():
     return jsonify(history)
 
 @app.route('/api/bank', methods=['POST'])
+@admin_only
 def api_update_bank():
     data = request.json
     if 'bank' in data:
@@ -777,6 +841,7 @@ def api_update_bank():
     return jsonify({'error': 'No bank value'}), 400
 
 @app.route('/api/update_history', methods=['POST'])
+@admin_only
 def update_history():
     try:
         data = request.json
@@ -833,4 +898,5 @@ if __name__ == "__main__":
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("✅ Мониторинг ошибок включен")
+    logger.info("🛡️ Защита включена!")
     app.run(host='0.0.0.0', port=port)
