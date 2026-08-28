@@ -12,29 +12,47 @@ class Config:
     """Конфигурация бота с защитой от утечек"""
     
     # ============================================
-    # 🔐 ОБЯЗАТЕЛЬНЫЕ ПЕРЕМЕННЫЕ (должны быть в .env)
+    # 🔐 ОБЯЗАТЕЛЬНЫЕ ПЕРЕМЕННЫЕ
     # ============================================
     
-    # --- ТЕЛЕГРАМ ---
     TELEGRAM_TOKEN: str = os.getenv('TELEGRAM_TOKEN', '')
     ADMIN_CHAT_ID: str = os.getenv('ADMIN_CHAT_ID', '')
-    
-    # --- API КЛЮЧИ ---
     FOOTBALL_API_KEY: str = os.getenv('FOOTBALL_API_KEY', '')
-    WEATHER_API_KEY: str = os.getenv('WEATHER_API_KEY', '')  # Опционально
+    WEATHER_API_KEY: str = os.getenv('WEATHER_API_KEY', '')
     
-    # --- БЕЗОПАСНОСТЬ ---
+    # ============================================
+    # 🔐 БЕЗОПАСНОСТЬ
+    # ============================================
+    
     ENCRYPTION_KEY: bytes = os.getenv('ENCRYPTION_KEY', 'default-key-change-me').encode()
     SESSION_SECRET: str = os.getenv('SESSION_SECRET', 'default-secret-change-me')
     
     # ============================================
-    # ⚙️ НАСТРОЙКИ (с значениями по умолчанию)
+    # 🌐 API URL
+    # ============================================
+    
+    FOOTBALL_API_URL: str = os.getenv('FOOTBALL_API_URL', 'https://v3.football.api-sports.io')
+    WEATHER_API_URL: str = os.getenv('WEATHER_API_URL', 'https://api.openweathermap.org/data/2.5')
+    
+    # ============================================
+    # 📁 ПУТИ
+    # ============================================
+    
+    DATA_DIR: str = os.getenv('DATA_DIR', 'data')
+    LOGS_DIR: str = os.getenv('LOGS_DIR', 'logs')
+    
+    # ============================================
+    # ⚙️ НАСТРОЙКИ
     # ============================================
     
     MAX_BETS_PER_RUN: int = int(os.getenv('MAX_BETS_PER_RUN', '5'))
     TIMEZONE_OFFSET: int = int(os.getenv('TIMEZONE_OFFSET', '3'))
+    ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'development')
     
-    # --- ЛИГИ ---
+    # ============================================
+    # 📊 ЛИГИ
+    # ============================================
+    
     LEAGUES: List[int] = [
         39, 140, 78, 135, 61, 94, 144, 87, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
         14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
@@ -63,11 +81,11 @@ class Config:
         382, 383, 384, 385, 386, 387, 388, 389, 390, 391, 392, 393, 394, 395, 396,
         397, 398, 399, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411,
         412, 413, 414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426,
-        427, 428, 429, 430, 431, 432, 433, 434, 435,  436, 437, 438, 439451, 440, 441,
-        442, 443, 444, 445, 446, 447, 448, 449, 450, 452, 453, 454, 455, 456,
-        457, 458, 459, 460, 461, 462, 463, 464, 465, 466, 467, 468, 469, 470, 471,
-        472, 473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483, 484, 485, 486,
-        487, 488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499, 500
+        427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437, 438, 439, 440, 441,
+        442, 443, 444, 445, 446, 447, 448, 449, 450, 452, 453, 454, 455, 456, 457,
+        458, 459, 460, 461, 462, 463, 464, 465, 466, 467, 468, 469, 470, 471, 472,
+        473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483, 484, 485, 486, 487,
+        488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499, 500
     ]
     
     LEAGUE_NAMES: Dict[int, str] = {
@@ -89,10 +107,7 @@ class Config:
     
     @classmethod
     def check(cls) -> bool:
-        """
-        Проверяет наличие всех обязательных переменных
-        Выбрасывает ValueError если что-то пропущено
-        """
+        """Проверяет наличие всех обязательных переменных"""
         required_vars = {
             'TELEGRAM_TOKEN': cls.TELEGRAM_TOKEN,
             'ADMIN_CHAT_ID': cls.ADMIN_CHAT_ID,
@@ -105,32 +120,28 @@ class Config:
             error_msg = (
                 f"❌ ОТСУТСТВУЮТ ОБЯЗАТЕЛЬНЫЕ ПЕРЕМЕННЫЕ:\n"
                 f"{', '.join(missing)}\n\n"
-                f"📝 Добавьте их в файл .env в корне проекта:\n"
+                f"📝 Добавьте их в файл .env:\n"
                 f"TELEGRAM_TOKEN=ваш_токен\n"
                 f"ADMIN_CHAT_ID=ваш_чат_id\n"
                 f"FOOTBALL_API_KEY=ваш_api_ключ"
             )
             raise ValueError(error_msg)
         
-        # Дополнительные проверки
-        if cls.ENCRYPTION_KEY == b'default-key-change-me':
-            print("⚠️  ВНИМАНИЕ: Используется стандартный ключ шифрования!")
-            print("   Сгенерируйте новый в .env: ENCRYPTION_KEY=ваш_уникальный_ключ")
-        
-        if cls.SESSION_SECRET == 'default-secret-change-me':
-            print("⚠️  ВНИМАНИЕ: Используется стандартный SESSION_SECRET!")
-            print("   Сгенерируйте новый в .env: SESSION_SECRET=ваш_уникальный_секрет")
+        # Создаём папки если их нет
+        Path(cls.DATA_DIR).mkdir(exist_ok=True)
+        Path(cls.LOGS_DIR).mkdir(exist_ok=True)
         
         print("✅ Конфигурация загружена успешно!")
-        print(f"🤖 Бот: @{cls.TELEGRAM_TOKEN[:10]}... (скрыто)")
+        print(f"🤖 Бот: {cls.get_masked_token()}")
         print(f"📊 Лиг: {len(cls.LEAGUES)}")
         print(f"💰 Макс. ставок: {cls.MAX_BETS_PER_RUN}")
+        print(f"📁 Данные: {cls.DATA_DIR}")
         
         return True
     
     @classmethod
     def get_masked_token(cls) -> str:
-        """Возвращает замаскированный токен для логов"""
+        """Возвращает замаскированный токен"""
         token = cls.TELEGRAM_TOKEN
         if len(token) > 10:
             return f"{token[:5]}...{token[-5:]}"
@@ -139,21 +150,16 @@ class Config:
     @classmethod
     def is_production(cls) -> bool:
         """Проверяет, запущен ли бот в продакшене"""
-        return os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+        return cls.ENVIRONMENT.lower() == 'production'
 
 
 # ============================================
-# 🚀 БЫСТРЫЙ ТЕСТ ПРИ ЗАПУСКЕ
+# 🚀 АВТОМАТИЧЕСКАЯ ПРОВЕРКА ПРИ ИМПОРТЕ
 # ============================================
 
-if __name__ == "__main__":
-    # Тестируем конфиг
-    try:
-        Config.check()
-        print("\n📋 Текущие настройки:")
-        print(f"  • Время: UTC+{Config.TIMEZONE_OFFSET}")
-        print(f"  • Режим: {'PRODUCTION' if Config.is_production() else 'DEVELOPMENT'}")
-        print(f"  • Шифрование: {'✅ Включено' if Config.ENCRYPTION_KEY != b'default-key-change-me' else '⚠️  Используется стандартный ключ'}")
-    except ValueError as e:
-        print(f"\n{e}")
-        exit(1)
+try:
+    Config.check()
+except ValueError as e:
+    print(f"\n🚨 {e}\n")
+    print("⚠️  Бот не может запуститься без правильной настройки .env")
+    raise
