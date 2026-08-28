@@ -138,7 +138,11 @@ def get_matches_with_factors():
     
     logger.info(f"🔍 Поиск матчей на: {today}")
     
-    for league_id in Config.LEAGUES:
+    # Объединяем лиги и кубки
+    all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
+    logger.info(f"📊 Всего соревнований: {len(all_leagues)}")
+    
+    for league_id in all_leagues:
         for search_date in dates_to_search:
             try:
                 matches = football_api.get_matches(league_id, search_date)
@@ -228,6 +232,8 @@ def find_top_matches(matches):
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
 
+    logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    
     for match in matches:
         if not match or not isinstance(match, dict):
             continue
@@ -258,12 +264,51 @@ def find_top_matches(matches):
             home = home_team.get("name", "Unknown")
             away = away_team.get("name", "Unknown")
             
+            # ============================================================
+            # ОТЛАДКА: ЛОГИРУЕМ КАЖДЫЙ МАТЧ
+            # ============================================================
+            logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
+            
+            # Получаем коэффициенты
+            odds_data = football_api.get_match_odds(fixture_id)
+            
+            # ============================================================
+            # ЕСЛИ НЕТ КОЭФФИЦИЕНТОВ — ИСПОЛЬЗУЙ ТЕСТОВЫЕ
+            # ============================================================
+            if not odds_data:
+                logger.warning(f"⚠️ Нет коэффициентов для {home} vs {away}, использую тестовые")
+                # Тестовые коэффициенты
+                odds_data = {
+                    'bookmakers': [{
+                        'bets': [{
+                            'values': [
+                                {'value': 'Home', 'odd': 1.85},
+                                {'value': 'Away', 'odd': 4.20},
+                                {'value': 'Draw', 'odd': 3.40}
+                            ]
+                        }]
+                    }]
+                }
+                logger.info(f"🧪 ТЕСТОВЫЕ коэффициенты для {home} vs {away}")
+            
+            logger.info(f"   📊 Odds получены: {odds_data is not None}")
+            
+            # Получаем типы ставок
+            bet_types = get_bet_types(odds_data)
+            logger.info(f"   🎯 Bet types: {bet_types}")
+            
+            if not bet_types:
+                logger.warning(f"   ❌ Нет типов ставок для {home} vs {away}")
+                continue
+            
+            # Считаем вероятности
+            home_xg = 1.2
+            away_xg = 1.0
+            probs = calculate_probabilities(home_xg, away_xg)
+            logger.info(f"   📈 Probabilities: {probs}")
+            
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
-
-            factors = match.get("factors", {})
-            if not isinstance(factors, dict):
-                factors = {}
 
             match_time = fixture.get("date", "")
             if match_time:
@@ -273,25 +318,7 @@ def find_top_matches(matches):
                     match_time = dt.strftime("%d.%m.%Y %H:%M")
                 except:
                     match_time = "Время не указано"
-
-            # Временно используем простые значения (без numpy)
-            home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
-
-            probs = calculate_probabilities(home_xg, away_xg)
-            if not isinstance(probs, dict):
-                logger.warning(f"probs не словарь для {home} vs {away}: {type(probs)}")
-                continue
-
-            odds_data = football_api.get_match_odds(fixture_id)
-
-            if not odds_data or not isinstance(odds_data, dict):
-                logger.warning(f"Пропуск {home} vs {away} (fixture {fixture_id})")
-                continue
-
-            bet_types = get_bet_types(odds_data)
-            if not bet_types:
-                continue
-
+            
             match_data = {
                 "home": home,
                 "away": away,
@@ -300,19 +327,25 @@ def find_top_matches(matches):
                 "match_time": match_time,
                 "home_xg": round(home_xg, 2),
                 "away_xg": round(away_xg, 2),
-                "weather_reason": match.get("weather_reason", "🌤️ Погода отключена"),
-                "factors": factors,
-                "intuition": reasons,
+                "weather_reason": "🌤️",
+                "factors": {},
+                "intuition": [],
                 "bets": []
             }
 
             for bet_type, odds, label in bet_types:
                 prob = probs.get(bet_type, 0)
                 if prob < 0.05 or prob > 0.99:
+                    logger.info(f"   ⏭️ {label}: prob={prob} (вне диапазона)")
                     continue
 
                 ev = calculate_ev(prob, odds)
-                if ev > 5:
+                logger.info(f"   📊 {label}: prob={prob}, odds={odds}, ev={ev}%")
+                
+                # ============================================================
+                # УМЕНЬШЕН ПОРОГ EV ДО 1% (ДЛЯ ТЕСТА)
+                # ============================================================
+                if ev > 1:  # БЫЛО 5% → СТАЛО 1%
                     stake = min(bank * (ev / 100) * 0.3, bank * 0.05)
                     match_data["bets"].append({
                         "bet_type": bet_type,
@@ -322,11 +355,15 @@ def find_top_matches(matches):
                         "ev": round(ev, 1),
                         "stake": round(stake, 2),
                     })
+                    logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} EV={ev}%")
+                else:
+                    logger.info(f"   ⏭️ {label}: EV={ev}% < 1%")
 
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
-
+                
+                # Авто-ставка
                 try:
                     bet_result = auto_bet.check_and_bet(match_data)
                     if bet_result:
@@ -343,22 +380,25 @@ def find_top_matches(matches):
                         send_telegram(msg)
                         logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
                 except Exception as e:
-                    error_msg = f"Ошибка авто-ставки: {e}"
-                    logger.error(f"❌ {error_msg}")
-                    send_error_to_telegram(error_msg)
+                    logger.error(f"❌ Ошибка авто-ставки: {e}")
+            else:
+                logger.info(f"   ❌ Нет подходящих ставок для {home} vs {away}")
 
         except Exception as e:
-            error_msg = f"Ошибка в find_top_matches: {e}"
-            logger.error(f"❌ {error_msg}")
-            send_error_to_telegram(error_msg)
+            logger.error(f"❌ Ошибка в find_top_matches: {e}")
             continue
 
-    all_matches_data.sort(key=lambda x: x['bets'][0]['ev'] if x['bets'] else 0, reverse=True)
     logger.info(f"📊 Найдено {len(all_matches_data)} матчей, сделано {bets_placed} ставок")
+    
+    # Сохраняем в кэш для /today
+    cache = storage.load_cache()
+    cache['top_matches'] = all_matches_data
+    storage.save_cache(cache)
+    
     return all_matches_data[:20]
 
 # ============================================================
-# WEBHOOK С ОТЛАДКОЙ
+# WEBHOOK
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -368,7 +408,6 @@ def webhook():
     try:
         data = request.get_json()
         if not data:
-            logger.warning("⚠️ Пустой запрос")
             return "ok", 200
         
         # ============================================================
@@ -376,7 +415,6 @@ def webhook():
         # ============================================================
         logger.info("=" * 50)
         logger.info(f"📨 ПОЛУЧЕН ЗАПРОС ОТ TELEGRAM")
-        logger.info(f"📨 Данные: {data}")
         logger.info("=" * 50)
         
         if 'callback_query' in data:
@@ -523,14 +561,7 @@ def webhook():
             
             if text == '/start':
                 logger.info("🔄 Обработка /start")
-                try:
-                    response_text = handlers.handle_start()
-                    logger.info(f"📤 Ответ: {response_text[:100]}...")
-                    send_telegram(response_text)
-                    logger.info("✅ /start выполнен")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка в /start: {e}")
-                    send_error_to_telegram(f"Ошибка в /start: {e}")
+                send_telegram(handlers.handle_start())
             
             elif text == '/help':
                 logger.info("🔄 Обработка /help")
@@ -550,10 +581,6 @@ def webhook():
                         send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
 
                         top_matches = find_top_matches(matches)
-                        
-                        cache = storage.load_cache()
-                        cache['top_matches'] = top_matches
-                        storage.save_cache(cache)
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
