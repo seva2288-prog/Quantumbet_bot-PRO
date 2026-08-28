@@ -1,4 +1,4 @@
 """Модуль безопасности бота"""
-from .middleware import SecurityMiddleware
-from .auth import TwoFactorAuth
-from .monitor import SecurityMonitor
+from .auth import security
+from .middleware import SecurityMiddleware, admin_only, rate_limit, security_middleware
+from .monitor import SecurityMonitor, monitor
