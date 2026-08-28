@@ -13,9 +13,10 @@ class FootballAPI:
         self.base_url = Config.FOOTBALL_API_URL
         self.api_key = Config.FOOTBALL_API_KEY
         self.headers = {
-            'x-apisports-key': self.api_key,
+            'x-rapidapi-key': self.api_key,  # ← ИСПРАВЛЕНО!
             'x-rapidapi-host': 'v3.football.api-sports.io'
         }
+        logger.info(f"🔑 API KEY загружен: {self.api_key[:10]}...")
 
     def _get_headers(self):
         return self.headers
@@ -26,7 +27,7 @@ class FootballAPI:
             params = {
                 'league': league_id,
                 'date': date,
-                'season': datetime.now().year  # ← ДОБАВЛЕНО!
+                'season': datetime.now().year
             }
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
@@ -47,18 +48,21 @@ class FootballAPI:
 
     def get_match_odds(self, fixture_id):
         try:
-            url = f"{self.base_url}/odds"
+            url = f"{self.base_url}/fixtures/odds"  # ← ИСПРАВЛЕНО! было /odds
             params = {'fixture': fixture_id}
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
             if response.status_code != 200:
+                logger.warning(f"⚠️ Odds API ошибка {response.status_code} для fixture {fixture_id}")
                 return None
             
             data = response.json()
             if data.get('errors'):
+                logger.warning(f"⚠️ Odds ошибка: {data['errors']}")
                 return None
             
-            if data.get('response'):
+            # Возвращаем первый результат
+            if data.get('response') and len(data['response']) > 0:
                 return data['response'][0]
             return None
         except Exception as e:
