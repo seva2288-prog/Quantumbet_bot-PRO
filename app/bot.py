@@ -883,7 +883,7 @@ if __name__ == "__main__":
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("✅ Мониторинг ошибок включен")
-    app.run(host='0.0.0.0', port=port) в этом коде есть эти изменения # ВНУТРИ webhook(), после проверки текста сообщения:
+    app.run(host='0.0.0.0', port=port)
 
 elif text == '/start':
     send_telegram(handlers.handle_start())
