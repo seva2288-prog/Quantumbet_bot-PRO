@@ -3,8 +3,8 @@ import os
 
 class Config:
     # === ТЕЛЕГРАМ ===
-    TELEGRAM_TOKEN = "8884017743:AAHE5WikM-ywDQ50nv-_nQajYkLSLQB2g3I"
-    ADMIN_CHAT_ID = 228801334  # ← ЭТО ЧИСЛО, БЕЗ КАВЫЧЕК!
+    TELEGRAM_TOKEN = "8884017743:AAEDsDQEV5NZe2x9-XTlZHrsBJ99UtgLHj8"
+    ADMIN_CHAT_ID = 228801334  
     
     # === API ===
     FOOTBALL_API_KEY = "fa6a81c18feae6769a0fa3baefd9e476"
