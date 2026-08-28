@@ -26,7 +26,7 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# AutoBet загружается при первом использовании
+# AutoBet загружается при первом использовании (избегаем циклического импорта)
 # ============================================================
 auto_bet = None
 
@@ -271,7 +271,6 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     away_form = factors.get('away_form', '')
     
     if home_form:
-        # Считаем очки по форме: W=3, D=1, L=0
         home_form_points = 0
         for letter in home_form:
             if letter == 'W':
@@ -298,7 +297,6 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     away_injuries = factors.get('away_injuries_list', [])
     
     if home_injuries:
-        # Каждая травма ключевого игрока снижает XG на 5%
         injury_penalty = min(len(home_injuries) * 0.05, 0.3)
         home_xg *= (1 - injury_penalty)
         logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
@@ -316,7 +314,7 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     return home_xg, away_xg
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ (ТМ 2.5 + ОБЗ + 1Х)
+# ТОП-20 МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
@@ -328,12 +326,14 @@ def find_top_matches(matches):
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
     
     # ============================================================
-    # ВСЕ МАРКЕРЫ И ИХ СТАВКИ
+    # МАРКЕРЫ И ТИПЫ СТАВОК
     # ============================================================
     BET_TYPES = [
         {'type': 'under', 'label': 'ТМ 2.5', 'marker': 42.86875000000006, 'keys': ['Under 2.5', 'Under', 'U 2.5']},
         {'type': 'btts', 'label': 'ОБЗ', 'marker': 40.7253125, 'keys': ['Both Team Score', 'BTTS', 'Both Teams to Score']},
         {'type': '1X', 'label': '1X', 'marker': 45.125, 'keys': ['Home/Draw', '1X']},
+        {'type': 'over', 'label': 'ТБ 2.5', 'marker': 41.375, 'keys': ['Over 2.5', 'Over', 'O 2.5']},
+        {'type': 'X2', 'label': 'X2', 'marker': 43.1875, 'keys': ['Away/Draw', 'X2']},
     ]
     
     for match in matches:
