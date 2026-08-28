@@ -13,7 +13,7 @@ class FootballAPI:
         self.base_url = Config.FOOTBALL_API_URL
         self.api_key = Config.FOOTBALL_API_KEY
         self.headers = {
-            'x-rapidapi-key': self.api_key,  # ← ИСПРАВЛЕНО!
+            'x-rapidapi-key': self.api_key,
             'x-rapidapi-host': 'v3.football.api-sports.io'
         }
         logger.info(f"🔑 API KEY загружен: {self.api_key[:10]}...")
@@ -48,7 +48,7 @@ class FootballAPI:
 
     def get_match_odds(self, fixture_id):
         try:
-            url = f"{self.base_url}/fixtures/odds"  # ← ИСПРАВЛЕНО! было /odds
+            url = f"{self.base_url}/odds"  # ← ПРАВИЛЬНО!
             params = {'fixture': fixture_id}
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
@@ -61,7 +61,6 @@ class FootballAPI:
                 logger.warning(f"⚠️ Odds ошибка: {data['errors']}")
                 return None
             
-            # Возвращаем первый результат
             if data.get('response') and len(data['response']) > 0:
                 return data['response'][0]
             return None
@@ -142,11 +141,11 @@ class FootballAPI:
             
             injuries = data.get('response', [])
             if injuries:
-                return [{'player': i['player']['name'], 'reason': i.get('reason', 'Травма')} for i in injuries[:5]]
+                return [{':player': i['player']['name'], 'reason {': i.get('reason', 'eТравма')} for i in}")
+ injuries[:5]]
             return []
         except Exception as e:
-            logger.error(f"Ошибка get_injuries: {e}")
-            return []
+            logger.error(f"Ошибка get_injuries            return []
 
     def get_team_cards_stats(self, team_id):
         try:
