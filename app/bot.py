@@ -4,7 +4,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, request, jsonify
 import time
-import os
 import json
 from datetime import datetime, timedelta
 
@@ -13,23 +12,20 @@ from app.database.storage import storage
 from app.api.football import football_api
 from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
-from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners, predict_yellow_cards
+from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types
 from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-from app.ml.predictor import ml_predictor
+# from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
 from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
-from app.security.auth import security
 
 logger = get_logger(__name__)
 app = Flask(__name__)
 
 search_running = False
-
-# ===== КОНСТАНТА ЧАСОВОГО ПОЯСА =====
-TIMEZONE_OFFSET = 3  # UTC+3
+TIMEZONE_OFFSET = 3
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -126,12 +122,11 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ (ТОЛЬКО НА СЕГОДНЯ, ПОГОДА ОТКЛЮЧЕНА)
+# ПОИСК МАТЧЕЙ
 # ============================================================
 
 def get_matches_with_factors():
     all_matches = []
-    
     today = datetime.now().strftime('%Y-%m-%d')
     dates_to_search = [today]
     
@@ -143,22 +138,18 @@ def get_matches_with_factors():
                 matches = football_api.get_matches(league_id, search_date)
                 league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
                 
-                # ===== ПРОВЕРЯЕМ, ЧТО matches - СПИСОК =====
                 if not matches or not isinstance(matches, list):
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
                     continue
                 
                 for match in matches:
-                    # ===== ПРОВЕРКА: ЭТО СЛОВАРЬ? =====
                     if not isinstance(match, dict):
                         continue
                     
-                    # ===== ПРОВЕРКА: ЕСТЬ ЛИ fixture? =====
                     fixture = match.get("fixture")
                     if not fixture or not isinstance(fixture, dict):
                         continue
                     
-                    # ===== ПРОВЕРКА: СТАТУС МАТЧА =====
                     status = fixture.get("status", {})
                     if not isinstance(status, dict):
                         continue
@@ -168,7 +159,6 @@ def get_matches_with_factors():
                         if not match_id:
                             continue
                         
-                        # ===== ПРОВЕРКА НА ДУБЛИКАТ =====
                         existing_ids = []
                         for m in all_matches:
                             if isinstance(m, dict):
@@ -223,7 +213,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ С АВТО-СТАВКАМИ (ПОЛНОСТЬЮ ПЕРЕПИСАНА + ЗАЩИТА)
+# ТОП-20 МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
@@ -278,31 +268,18 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            # ===== xG =====
-            try:
-                home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-            except Exception as e:
-                logger.warning(f"Ошибка xG {home} vs {away}: {e}")
-                home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
-
-            try:
-                home_xg, away_xg = ml_predictor.predict_xg(factors)
-            except Exception as e:
-                logger.warning(f"Ошибка ML {home} vs {away}: {e}")
+            # Временно используем простые значения (без numpy)
+            home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
 
             probs = calculate_probabilities(home_xg, away_xg)
             if not isinstance(probs, dict):
                 logger.warning(f"probs не словарь для {home} vs {away}: {type(probs)}")
                 continue
 
-            # ===== КЛЮЧЕВАЯ ЗАЩИТА ОТ ОШИБКИ =====
             odds_data = football_api.get_match_odds(fixture_id)
 
             if not odds_data or not isinstance(odds_data, dict):
-                logger.warning(
-                    f"Пропуск {home} vs {away} (fixture {fixture_id}) — "
-                    f"odds_data = {type(odds_data)} | {str(odds_data)[:120]}"
-                )
+                logger.warning(f"Пропуск {home} vs {away} (fixture {fixture_id})")
                 continue
 
             bet_types = get_bet_types(odds_data)
@@ -603,7 +580,6 @@ def webhook():
 # ============================================================
 
 def determine_bet_result(bet_type, home_goals, away_goals):
-    """Определяет результат ставки по счёту"""
     total = home_goals + away_goals
     bet_type_lower = bet_type.lower()
     
@@ -649,7 +625,6 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     return 'pending'
 
 def update_pending_bets():
-    """Автоматическое обновление результатов PENDING ставок"""
     history = storage.load_history()
     updated = 0
     
@@ -698,7 +673,6 @@ def update_pending_bets():
     return updated
 
 def recalc_stats():
-    """Пересчитывает статистику"""
     history = storage.load_history()
     stats = storage.load_stats()
     
