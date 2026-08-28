@@ -1,85 +1,110 @@
-# app/database/storage.py
 import os
 import json
-from datetime import datetime
-from app.config import Config
-from app.utils.logger import get_logger
-from app.database.db import db
-
-logger = get_logger(__name__)
-
+from pathlib import Path
 
 class Storage:
+    """Хранение данных бота"""
+    
     def __init__(self):
-        self.data_dir = Config.DATA_DIR
-        self._ensure_dir()
-
-    def _ensure_dir(self):
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
-
-    def _get_file_path(self, filename):
-        return os.path.join(self.data_dir, filename)
-
+        # Определяем папку data в корне проекта
+        base_dir = Path(__file__).parent.parent.parent
+        self.data_dir = base_dir / 'data'
+        
+        # Создаём папку если её нет
+        self.data_dir.mkdir(exist_ok=True)
+        
+        # Пути к файлам
+        self.history_file = self.data_dir / 'history.json'
+        self.bank_file = self.data_dir / 'bank.json'
+        self.stats_file = self.data_dir / 'stats.json'
+        self.cache_file = self.data_dir / 'cache.json'
+        
+        # Инициализация файлов
+        self._init_files()
+    
+    def _init_files(self):
+        """Создаёт файлы с пустыми данными если их нет"""
+        default_data = {
+            'history.json': [],
+            'bank.json': 1000.0,
+            'stats.json': {
+                'total': 0,
+                'wins': 0,
+                'losses': 0,
+                'pushes': 0,
+                'total_profit': 0,
+                'winrate': 0,
+                'roi': 0
+            },
+            'cache.json': {}
+        }
+        
+        for filename, default in default_data.items():
+            file_path = self.data_dir / filename
+            if not file_path.exists():
+                with open(file_path, 'w') as f:
+                    json.dump(default, f, indent=2)
+    
     def load_history(self):
-        return db.load_history()
-
-    def save_history(self, history):
-        db.save_bets(history)
-
-    def load_stats(self):
-        stats = db.get_stats()
+        """Загружает историю ставок"""
         try:
-            with open(self._get_file_path('stats.json'), 'r') as f:
-                file_stats = json.load(f)
-                if 'bank' in file_stats:
-                    stats['bank'] = file_stats['bank']
-        except:
-            stats['bank'] = 1000
-        return stats
-
-    def save_stats(self, stats):
-        try:
-            with open(self._get_file_path('stats.json'), 'w') as f:
-                json.dump({'bank': stats.get('bank', 1000)}, f, indent=2)
-        except:
-            pass
-
-    def load_cache(self):
-        try:
-            with open(self._get_file_path('cache.json'), 'r') as f:
+            with open(self.history_file, 'r') as f:
                 return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
-
-    def save_cache(self, cache):
-        with open(self._get_file_path('cache.json'), 'w') as f:
-            json.dump(cache, f, indent=2, ensure_ascii=False)
-
+        except:
+            return []
+    
+    def save_history(self, data):
+        """Сохраняет историю ставок"""
+        with open(self.history_file, 'w') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    
     def load_bank(self):
+        """Загружает банк"""
         try:
-            stats = self.load_stats()
-            return stats.get('bank', 1000)
-        except Exception:
-            return 1000
-
-    def save_bank(self, bank):
+            with open(self.bank_file, 'r') as f:
+                return json.load(f)
+        except:
+            return 1000.0
+    
+    def save_bank(self, amount):
+        """Сохраняет банк"""
+        with open(self.bank_file, 'w') as f:
+            json.dump(amount, f, indent=2)
+    
+    def load_stats(self):
+        """Загружает статистику"""
         try:
-            stats = self.load_stats()
-            stats['bank'] = bank
-            self.save_stats(stats)
-            return True
-        except Exception:
-            return False
+            with open(self.stats_file, 'r') as f:
+                return json.load(f)
+        except:
+            return {
+                'total': 0,
+                'wins': 0,
+                'losses': 0,
+                'pushes': 0,
+                'total_profit': 0,
+                'winrate': 0,
+                'roi': 0
+            }
+    
+    def save_stats(self, data):
+        """Сохраняет статистику"""
+        with open(self.stats_file, 'w') as f:
+            json.dump(data, f, indent=2)
+    
+    def load_cache(self):
+        """Загружает кэш"""
+        try:
+            with open(self.cache_file, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    
+    def save_cache(self, data):
+        """Сохраняет кэш"""
+        with open(self.cache_file, 'w') as f:
+            json.dump(data, f, indent=2)
 
-    def get_bets_by_date(self, date):
-        return db.get_bets_by_date(date)
 
-    def get_bets_by_result(self, result):
-        return db.get_bets_by_result(result)
-
-    def get_bets_by_stake(self, stake):
-        return db.get_bets_by_stake(stake)
-
-
+# Создаём глобальный экземпляр
 storage = Storage()
