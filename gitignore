@@ -1,33 +1,41 @@
+# Секреты
+.env
+.env.*
+*.env
+!.env.example
+
+# Данные
+data/
+*.db
+*.sqlite
+*.json
+!requirements.txt
+!README.md
+
+# Логи
+*.log
+logs/
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
-
-# Data
-data/*.json
-data/*.db
-logs/
-*.log
-
-# Environment
-.env
-.env.local
-.env.*.local
+.venv
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets
+.secrets.baseline
