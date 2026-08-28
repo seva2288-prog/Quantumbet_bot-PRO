@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantumbot"
+version = "1.0.0"
+dependencies = [
+    "Flask>=2.3.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "cryptography>=41.0.0",
+    "openpyxl>=3.1.0",
+    "APScheduler>=3.10.0",
+    "python-telegram-bot>=20.6",
+    "numpy>=1.24.0",
+]
