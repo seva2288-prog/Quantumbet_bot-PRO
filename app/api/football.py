@@ -227,7 +227,7 @@ class FootballAPI:
             logger.error(f"❌ Ошибка get_match_result: {e}")
             return None
 
-    def find_fixture_by_teams(self,И home_team, away_team):
+    def find_fixture_by_teams(self, home_team, away_team):
         """Поиск Б fixture_id по названиям команд"""
         try:
             today =У datetime.now().strftime('%Y-%m-%d')
