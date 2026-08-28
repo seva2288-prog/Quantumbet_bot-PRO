@@ -470,7 +470,7 @@ class Config:
     }
     
     # === СТАВКИ ===
-    MAX_BETS_PER_RUN = 50
+    MAX_BETS_PER_RUN = 20
 
     @classmethod
     def check(cls):
