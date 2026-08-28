@@ -20,7 +20,7 @@ from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
 
 # ============================================================
-# ПРЯМОЙ ИМПОРТ AutoBet (БЕЗ ЛЕНИВОЙ ЗАГРУЗКИ)
+# ПРЯМОЙ ИМПОРТ AutoBet
 # ============================================================
 from app.betting.auto_bet import AutoBet
 auto_bet = AutoBet()
@@ -261,25 +261,25 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     home_form = factors.get('home_form', '')
     away_form = factors.get('away_form', '')
     
-    if home_form and isinstance(home_form, str):
+    if home_form and isinstance(home_form, str) and len(home_form) > 0:
         home_form_points = 0
         for letter in home_form:
             if letter == 'W':
                 home_form_points += 3
             elif letter == 'D':
                 home_form_points += 1
-        home_form_ratio = home_form_points / (len(home_form) * 3) if home_form else 0.5
+        home_form_ratio = home_form_points / (len(home_form) * 3)
         home_xg *= (0.8 + home_form_ratio * 0.4)
         logger.info(f"   📊 Форма хозяев: {home_form} (коэф: {0.8 + home_form_ratio * 0.4:.2f})")
     
-    if away_form and isinstance(away_form, str):
+    if away_form and isinstance(away_form, str) and len(away_form) > 0:
         away_form_points = 0
         for letter in away_form:
             if letter == 'W':
                 away_form_points += 3
             elif letter == 'D':
                 away_form_points += 1
-        away_form_ratio = away_form_points / (len(away_form) * 3) if away_form else 0.5
+        away_form_ratio = away_form_points / (len(away_form) * 3)
         away_xg *= (0.8 + away_form_ratio * 0.4)
         logger.info(f"   📊 Форма гостей: {away_form} (коэф: {0.8 + away_form_ratio * 0.4:.2f})")
     
@@ -287,12 +287,12 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     home_injuries = factors.get('home_injuries_list', [])
     away_injuries = factors.get('away_injuries_list', [])
     
-    if home_injuries and isinstance(home_injuries, list):
+    if home_injuries and isinstance(home_injuries, list) and len(home_injuries) > 0:
         injury_penalty = min(len(home_injuries) * 0.05, 0.3)
         home_xg *= (1 - injury_penalty)
         logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
     
-    if away_injuries and isinstance(away_injuries, list):
+    if away_injuries and isinstance(away_injuries, list) and len(away_injuries) > 0:
         injury_penalty = min(len(away_injuries) * 0.05, 0.3)
         away_xg *= (1 - injury_penalty)
         logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
