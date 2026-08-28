@@ -9,4 +9,3 @@ python-telegram-bot==20.6
 pydantic==2.5.0
 colorlog==6.8.0
 Flask-Limiter==3.5.0
-numpy==1.24.3
