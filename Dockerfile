@@ -2,9 +2,12 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# Устанавливаем зависимости
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Копируем код
 COPY . .
 
-CMD ["python", "web_app.py"]
+# Запускаем
+CMD ["python", "app/bot.py"]
