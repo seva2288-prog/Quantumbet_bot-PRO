@@ -19,7 +19,7 @@ from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-from app.ml.predictor import ml_predictor
+# from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
 from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
 from app.security.auth import security
@@ -307,16 +307,20 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            try:
-                home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-            except Exception as e:
-                logger.warning(f"Ошибка xG {home} vs {away}: {e}")
-                home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
+            # Временно отключено (numpy)
+            # try:
+            #     home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
+            # except Exception as e:
+            #     logger.warning(f"Ошибка xG {home} vs {away}: {e}")
+            #     home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
 
-            try:
-                home_xg, away_xg = ml_predictor.predict_xg(factors)
-            except Exception as e:
-                logger.warning(f"Ошибка ML {home} vs {away}: {e}")
+            # Временно используем простые значения
+            home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
+
+            # try:
+            #     home_xg, away_xg = ml_predictor.predict_xg(factors)
+            # except Exception as e:
+            #     logger.warning(f"Ошибка ML {home} vs {away}: {e}")
 
             probs = calculate_probabilities(home_xg, away_xg)
             if not isinstance(probs, dict):
@@ -399,7 +403,7 @@ def find_top_matches(matches):
     return all_matches_data[:20]
 
 # ============================================================
-# WEBHOOK (С ЗАЩИТОЙ)
+# WEBHOOK
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -615,7 +619,7 @@ def webhook():
                 else:
                     send_telegram("📭 Нет завершённых матчей для обновления")
             
-            # === НОВЫЕ КОМАНДЫ БЕЗОПАСНОСТИ ===
+            # === КОМАНДЫ БЕЗОПАСНОСТИ ===
             elif text == '/security':
                 msg = "🛡️ <b>СТАТУС БЕЗОПАСНОСТИ</b>\n\n"
                 msg += f"🔐 Токен: {Config.get_masked_token()}\n"
