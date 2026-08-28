@@ -17,8 +17,7 @@ from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-# from app.ml.predictor import ml_predictor
-from app.betting.auto_bet import auto_bet
+from app.betting.auto_bet import AutoBet
 from app.scheduler import start_scheduler
 
 logger = get_logger(__name__)
@@ -26,6 +25,9 @@ app = Flask(__name__)
 
 search_running = False
 TIMEZONE_OFFSET = 3
+
+# Создаем экземпляр AutoBet
+auto_bet = AutoBet()
 
 def send_error_to_telegram(error_text: str):
     try:
