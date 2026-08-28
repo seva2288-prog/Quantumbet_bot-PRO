@@ -27,6 +27,11 @@ app = Flask(__name__)
 search_running = False
 TIMEZONE_OFFSET = 3
 
+# ============================================================
+# ФИКСИРОВАННЫЕ МАРКЕРЫ ДЛЯ ТМ 2.5
+# ============================================================
+TM25_MARKERS = [42.86875000000006, 42.86875000000001]
+
 def send_error_to_telegram(error_text: str):
     try:
         import requests
@@ -223,7 +228,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ
+# ТОП-20 МАТЧЕЙ (ТОЛЬКО ТМ 2.5)
 # ============================================================
 
 def find_top_matches(matches):
@@ -233,6 +238,9 @@ def find_top_matches(matches):
     max_bets = Config.MAX_BETS_PER_RUN
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    
+    # Список разрешенных маркеров
+    allowed_markers = [42.86875000000006, 42.86875000000001]
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -264,48 +272,20 @@ def find_top_matches(matches):
             home = home_team.get("name", "Unknown")
             away = away_team.get("name", "Unknown")
             
-            # ============================================================
-            # ОТЛАДКА: ЛОГИРУЕМ КАЖДЫЙ МАТЧ
-            # ============================================================
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
             # ============================================================
-            # ТЕСТОВЫЕ СТАВКИ ДЛЯ ВСЕХ МАТЧЕЙ
+            # ТЕСТОВЫЕ КОЭФФИЦИЕНТЫ ДЛЯ ТМ 2.5
             # ============================================================
-            logger.info(f"🧪 ИСПОЛЬЗУЮ ТЕСТОВЫЕ СТАВКИ для {home} vs {away}")
-            
-            # Тестовые коэффициенты
-            test_odds = {
-                'bookmakers': [{
-                    'bets': [{
-                        'values': [
-                            {'value': 'Home', 'odd': 1.85},
-                            {'value': 'Draw', 'odd': 3.40},
-                            {'value': 'Away', 'odd': 4.20}
-                        ]
-                    }]
-                }]
-            }
-            
-            # Получаем типы ставок из тестовых данных
-            bet_types = get_bet_types(test_odds)
-            
-            # ЕСЛИ ВСЕ РАВНО ПУСТО — СТАВИМ ВРУЧНУЮ
-            if not bet_types:
-                logger.warning(f"⚠️ get_bet_types вернул пусто, ставлю вручную для {home} vs {away}")
-                bet_types = [
-                    ('1', 1.85, 'П1'),
-                    ('X', 3.40, 'X'),
-                    ('2', 4.20, 'П2'),
-                ]
+            bet_types = [
+                ('under', 1.95, 'ТМ 2.5'),
+            ]
             
             logger.info(f"   🎯 Bet types: {bet_types}")
             
-            # Считаем вероятности
             home_xg = 1.2
             away_xg = 1.0
             probs = calculate_probabilities(home_xg, away_xg)
-            logger.info(f"   📈 Probabilities: {probs}")
             
             league_data = match.get("league")
             league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
@@ -333,38 +313,37 @@ def find_top_matches(matches):
                 "bets": []
             }
 
-            for bet_type, odds, label in bet_types:
-                prob = probs.get(bet_type, 0.33)
-                if prob < 0.05 or prob > 0.99:
-                    prob = 0.33
-                    logger.info(f"   ⏭️ {label}: prob={prob} (скорректировано)")
-                    continue
-
-                ev = calculate_ev(prob, odds)
-                logger.info(f"   📊 {label}: prob={prob}, odds={odds}, ev={ev}%")
-                
-                # ============================================================
-                # УМЕНЬШЕН ПОРОГ EV ДО 1% (ДЛЯ ТЕСТА)
-                # ============================================================
-                if ev > 1:  # БЫЛО 5% → СТАЛО 1%
-                    stake = min(bank * (ev / 100) * 0.3, bank * 0.05)
-                    match_data["bets"].append({
-                        "bet_type": bet_type,
-                        "label": label,
-                        "odds": odds,
-                        "prob": round(prob * 100, 1),
-                        "ev": round(ev, 1),
-                        "stake": round(stake, 2),
-                    })
-                    logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} EV={ev}%")
-                else:
-                    logger.info(f"   ⏭️ {label}: EV={ev}% < 1%")
+            # Перебираем маркеры
+            for marker in allowed_markers:
+                for bet_type, odds, label in bet_types:
+                    # ТОЛЬКО ТМ 2.5
+                    if 'ТМ 2.5' not in label and 'under' not in bet_type:
+                        continue
+                    
+                    prob = probs.get(bet_type, 0.33)
+                    ev = calculate_ev(prob, odds)
+                    
+                    # ФИКСИРОВАННЫЙ МАРКЕР
+                    stake = marker
+                    
+                    logger.info(f"   📊 {label}: prob={prob}, odds={odds}, ev={ev}%, маркер={marker}")
+                    
+                    if ev > 1:
+                        match_data["bets"].append({
+                            "bet_type": bet_type,
+                            "label": f"{label} (маркер {marker})",
+                            "odds": odds,
+                            "prob": round(prob * 100, 1),
+                            "ev": round(ev, 1),
+                            "stake": round(stake, 2),
+                            "marker_stake": marker
+                        })
+                        logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} EV={ev}% маркер={marker}")
 
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
                 
-                # Авто-ставка
                 try:
                     bet_result = auto_bet.check_and_bet(match_data)
                     if bet_result:
@@ -386,12 +365,11 @@ def find_top_matches(matches):
                 logger.info(f"   ❌ Нет подходящих ставок для {home} vs {away}")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка в find_top_matches: {e}")
+            logger.error(f"❌ Ошибка: {e}")
             continue
 
     logger.info(f"📊 Найдено {len(all_matches_data)} матчей, сделано {bets_placed} ставок")
     
-    # Сохраняем в кэш для /today
     cache = storage.load_cache()
     cache['top_matches'] = all_matches_data
     storage.save_cache(cache)
