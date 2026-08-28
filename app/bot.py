@@ -13,7 +13,7 @@ from app.database.storage import storage
 from app.api.football import football_api
 from app.api.weather import weather_api
 from app.analytics.xg import xg_analyzer
-from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types, predict_half_goals, predict_exact_score, predict_corners, predict_yellow_cards
+from app.analytics.probability import calculate_probabilities, calculate_ev, get_bet_types
 from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
