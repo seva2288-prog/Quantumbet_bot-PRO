@@ -26,15 +26,11 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# AUTOBET — ПРЯМОЙ ИМПОРТ
+# AUTOBET — ПРЯМОЙ ИМПОРТ (БЕЗ TRY)
 # ============================================================
-try:
-    from app.betting.auto_bet import AutoBet
-    auto_bet = AutoBet()
-    logger.info("✅ AutoBet загружен")
-except Exception as e:
-    logger.error(f"❌ Не удалось загрузить AutoBet: {e}")
-    auto_bet = None
+from app.betting.auto_bet import AutoBet
+auto_bet = AutoBet()
+logger.info("✅ AutoBet загружен")
 
 def send_error_to_telegram(error_text: str):
     try:
