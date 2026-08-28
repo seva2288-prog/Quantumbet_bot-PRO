@@ -249,7 +249,7 @@ def parse_odds(odds_data):
     return odds_dict
 
 # ============================================================
-# РАСЧЕТ XG С УЧЕТОМ ФАКТОРОВ
+# РАСЧЕТ XG С УЧЕТОМ ФАКТОРОВ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 # ============================================================
 
 def calculate_adjusted_xg(home_id, away_id, factors):
@@ -261,7 +261,7 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     home_form = factors.get('home_form', '')
     away_form = factors.get('away_form', '')
     
-    if home_form:
+    if home_form and isinstance(home_form, str):
         home_form_points = 0
         for letter in home_form:
             if letter == 'W':
@@ -272,7 +272,7 @@ def calculate_adjusted_xg(home_id, away_id, factors):
         home_xg *= (0.8 + home_form_ratio * 0.4)
         logger.info(f"   📊 Форма хозяев: {home_form} (коэф: {0.8 + home_form_ratio * 0.4:.2f})")
     
-    if away_form:
+    if away_form and isinstance(away_form, str):
         away_form_points = 0
         for letter in away_form:
             if letter == 'W':
@@ -287,12 +287,12 @@ def calculate_adjusted_xg(home_id, away_id, factors):
     home_injuries = factors.get('home_injuries_list', [])
     away_injuries = factors.get('away_injuries_list', [])
     
-    if home_injuries:
+    if home_injuries and isinstance(home_injuries, list):
         injury_penalty = min(len(home_injuries) * 0.05, 0.3)
         home_xg *= (1 - injury_penalty)
         logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
     
-    if away_injuries:
+    if away_injuries and isinstance(away_injuries, list):
         injury_penalty = min(len(away_injuries) * 0.05, 0.3)
         away_xg *= (1 - injury_penalty)
         logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
