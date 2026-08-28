@@ -19,17 +19,30 @@ from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
 
-# ============================================================
-# ПРЯМОЙ ИМПОРТ AutoBet
-# ============================================================
-from app.betting.auto_bet import AutoBet
-auto_bet = AutoBet()
-
 logger = get_logger(__name__)
 app = Flask(__name__)
 
 search_running = False
 TIMEZONE_OFFSET = 3
+
+# ============================================================
+# AutoBet загружается при первом использовании (избегаем циклического импорта)
+# ============================================================
+auto_bet = None
+
+def get_auto_bet():
+    global auto_bet
+    if auto_bet is None:
+        try:
+            from app.betting.auto_bet import AutoBet
+            auto_bet = AutoBet()
+            logger.info("✅ AutoBet загружен")
+        except Exception as e:
+            logger.error(f"❌ Не удалось загрузить AutoBet: {e}")
+            send_error_to_telegram(f"Не удалось загрузить AutoBet: {e}")
+            auto_bet = None
+            return None
+    return auto_bet
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -226,7 +239,6 @@ def get_matches_with_factors():
 # ============================================================
 
 def parse_odds(odds_data):
-    """Парсинг коэффициентов из API"""
     if not odds_data:
         return None
     
@@ -249,76 +261,66 @@ def parse_odds(odds_data):
     return odds_dict
 
 # ============================================================
-# РАСЧЕТ XG С УЧЕТОМ ФАКТОРОВ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+# РАСЧЕТ XG (исправлено под список/строку)
 # ============================================================
 
 def calculate_adjusted_xg(home_id, away_id, factors):
-    """Расчет XG с учетом формы, травм и других факторов"""
     home_xg = 1.2
     away_xg = 1.0
     
-    # 1. Форма команд (последние 5 матчей)
-    home_form = factors.get('home_form', '')
-    away_form = factors.get('away_form', '')
+    home_form = factors.get('home_form', '') or ''
+    away_form = factors.get('away_form', '') or ''
+
+    if isinstance(home_form, (list, tuple)):
+        home_form = ''.join(str(x) for x in home_form)
+    if isinstance(away_form, (list, tuple)):
+        away_form = ''.join(str(x) for x in away_form)
+
+    home_form = str(home_form).upper()
+    away_form = str(away_form).upper()
     
-    if home_form and isinstance(home_form, str) and len(home_form) > 0:
-        home_form_points = 0
-        for letter in home_form:
-            if letter == 'W':
-                home_form_points += 3
-            elif letter == 'D':
-                home_form_points += 1
-        home_form_ratio = home_form_points / (len(home_form) * 3)
+    if home_form:
+        home_form_points = sum(3 if l == 'W' else 1 if l == 'D' else 0 for l in home_form)
+        home_form_ratio = home_form_points / (len(home_form) * 3) if home_form else 0.5
         home_xg *= (0.8 + home_form_ratio * 0.4)
         logger.info(f"   📊 Форма хозяев: {home_form} (коэф: {0.8 + home_form_ratio * 0.4:.2f})")
     
-    if away_form and isinstance(away_form, str) and len(away_form) > 0:
-        away_form_points = 0
-        for letter in away_form:
-            if letter == 'W':
-                away_form_points += 3
-            elif letter == 'D':
-                away_form_points += 1
-        away_form_ratio = away_form_points / (len(away_form) * 3)
+    if away_form:
+        away_form_points = sum(3 if l == 'W' else 1 if l == 'D' else 0 for l in away_form)
+        away_form_ratio = away_form_points / (len(away_form) * 3) if away_form else 0.5
         away_xg *= (0.8 + away_form_ratio * 0.4)
         logger.info(f"   📊 Форма гостей: {away_form} (коэф: {0.8 + away_form_ratio * 0.4:.2f})")
     
-    # 2. Травмы
-    home_injuries = factors.get('home_injuries_list', [])
-    away_injuries = factors.get('away_injuries_list', [])
+    home_injuries = factors.get('home_injuries_list', []) or []
+    away_injuries = factors.get('away_injuries_list', []) or []
     
-    if home_injuries and isinstance(home_injuries, list) and len(home_injuries) > 0:
+    if home_injuries:
         injury_penalty = min(len(home_injuries) * 0.05, 0.3)
         home_xg *= (1 - injury_penalty)
-        logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+        logger.info(f"   🏥 Травмы хозяев: {len(home_injuries)} (пенальти: {injury_penalty*100:.0f}%)")
     
-    if away_injuries and isinstance(away_injuries, list) and len(away_injuries) > 0:
+    if away_injuries:
         injury_penalty = min(len(away_injuries) * 0.05, 0.3)
         away_xg *= (1 - injury_penalty)
-        logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} игроков (пенальти: {injury_penalty*100:.0f}%)")
+        logger.info(f"   🏥 Травмы гостей: {len(away_injuries)} (пенальти: {injury_penalty*100:.0f}%)")
     
-    # 3. Преимущество домашнего поля
     home_xg *= 1.1
     away_xg *= 0.9
-    logger.info(f"   🏠 Преимущество домашнего поля: +10% для хозяев, -10% для гостей")
+    logger.info(f"   🏠 Домашнее преимущество: +10% / -10%")
     
     return home_xg, away_xg
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ
+# ТОП МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
-    bank = storage.load_bank()
     all_matches_data = []
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
     
-    # ============================================================
-    # ВСЕ МАРКЕРЫ И ТИПЫ СТАВОК
-    # ============================================================
     BET_TYPES = [
         {'type': 'under', 'label': 'ТМ 2.5', 'marker': 42.86875000000006, 'keys': ['Under 2.5', 'Under', 'U 2.5']},
         {'type': 'btts', 'label': 'ОБЗ', 'marker': 40.7253125, 'keys': ['Both Team Score', 'BTTS', 'Both Teams to Score']},
@@ -359,37 +361,23 @@ def find_top_matches(matches):
             
             logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
             
-            # ============================================================
-            # 1. ПОЛУЧАЕМ КОЭФФИЦИЕНТЫ
-            # ============================================================
             odds_data = football_api.get_match_odds(fixture_id)
-            
             if not odds_data:
                 logger.warning(f"⚠️ Нет коэффициентов для {home} vs {away}")
                 continue
             
             odds_dict = parse_odds(odds_data)
-            
             if not odds_dict:
-                logger.warning(f"⚠️ Не удалось распарсить коэффициенты для {home} vs {away}")
+                logger.warning(f"⚠️ Не удалось распарсить коэффициенты")
                 continue
             
-            logger.info(f"   📊 Доступные коэффициенты: {odds_dict}")
-            
-            # ============================================================
-            # 2. РАСЧЕТ XG С УЧЕТОМ ВСЕХ ФАКТОРОВ
-            # ============================================================
             factors = match.get('factors', {})
             home_id = factors.get('home_id')
             away_id = factors.get('away_id')
             
             home_xg, away_xg = calculate_adjusted_xg(home_id, away_id, factors)
-            
             logger.info(f"   📈 Итоговый XG: {home} {home_xg:.2f} - {away_xg:.2f} {away}")
             
-            # ============================================================
-            # 3. РАСЧЕТ ВЕРОЯТНОСТЕЙ
-            # ============================================================
             probs = calculate_probabilities(home_xg, away_xg)
             
             league_data = match.get("league")
@@ -418,16 +406,12 @@ def find_top_matches(matches):
                 "bets": []
             }
 
-            # ============================================================
-            # 4. ПРОВЕРЯЕМ КАЖДЫЙ ТИП СТАВКИ
-            # ============================================================
             for bet_config in BET_TYPES:
                 bet_type = bet_config['type']
                 label = bet_config['label']
                 marker = bet_config['marker']
                 keys = bet_config['keys']
                 
-                # Ищем коэффициент
                 odds = None
                 for key in keys:
                     if key in odds_dict:
@@ -435,22 +419,12 @@ def find_top_matches(matches):
                         break
                 
                 if not odds:
-                    logger.info(f"   ⏭️ Нет коэффициента для {label}")
                     continue
                 
-                # Получаем вероятность
                 prob = probs.get(bet_type, 0.33)
-                
-                # Считаем EV
                 ev = calculate_ev(prob, odds)
                 
-                logger.info(f"   📊 {label}: prob={prob*100:.1f}%, odds={odds}, ev={ev}%")
-                
-                # ============================================================
-                # 5. ЕСЛИ EV > 5% — ДОБАВЛЯЕМ СТАВКУ
-                # ============================================================
                 if ev < 5:
-                    logger.info(f"   ⏭️ Пропуск {label}: EV={ev}% < 5%")
                     continue
                 
                 match_data["bets"].append({
@@ -462,13 +436,18 @@ def find_top_matches(matches):
                     "stake": round(marker, 2),
                     "marker_stake": marker
                 })
-                logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
+                logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}%")
 
             if match_data["bets"]:
                 all_matches_data.append(match_data)
                 
                 try:
-                    bet_result = auto_bet.check_and_bet(match_data)
+                    auto = get_auto_bet()
+                    if auto is None:
+                        logger.error("❌ AutoBet не загружен — пропускаем ставку")
+                        continue
+
+                    bet_result = auto.check_and_bet(match_data)
                     if bet_result:
                         bets_placed += 1
                         msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
@@ -484,6 +463,7 @@ def find_top_matches(matches):
                         logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
                 except Exception as e:
                     logger.error(f"❌ Ошибка авто-ставки: {e}")
+                    send_error_to_telegram(f"Ошибка авто-ставки: {e}")
 
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
@@ -640,25 +620,19 @@ def webhook():
             
             logger.info(f"👤 CHAT ID: {chat_id}")
             logger.info(f"📝 ТЕКСТ: {text}")
-            logger.info(f"🔑 ADMIN ID: {Config.ADMIN_CHAT_ID}")
             
             if str(chat_id) != str(Config.ADMIN_CHAT_ID):
                 logger.warning(f"⛔ ДОСТУП ЗАПРЕЩЕН для {chat_id}")
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
             
-            logger.info(f"✅ ДОСТУП РАЗРЕШЕН для {chat_id}")
-            
             if text == '/start':
-                logger.info("🔄 Обработка /start")
                 send_telegram(handlers.handle_start())
             
             elif text == '/help':
-                logger.info("🔄 Обработка /help")
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
-                logger.info("🔄 Обработка /update")
                 if search_running:
                     send_telegram("⚠️ Поиск уже запущен!")
                 else:
@@ -674,10 +648,12 @@ def webhook():
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
+                            auto = get_auto_bet()
+                            bets_today_count = auto.bets_today if auto is not None else 0
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today if auto_bet else 0}\n"
+                                f"🤖 Авто-ставок: {bets_today_count}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
                         else:
@@ -718,16 +694,18 @@ def webhook():
                     data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
                     try:
                         requests.post(url, files=files, data=data, timeout=30)
-                        logger.info("✅ Excel отправлен")
                     except Exception as e:
                         logger.error(f"Ошибка отправки файла: {e}")
                 else:
                     send_telegram(message)
             
             elif text == '/autobet':
-                auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
-                auto_bet.enabled = auto_bot_enabled
-                send_telegram(handlers.handle_autobet(auto_bot_enabled))
+                auto = get_auto_bet()
+                if auto is None:
+                    send_telegram("❌ AutoBet не загружен")
+                else:
+                    auto.enabled = not getattr(auto, 'enabled', True)
+                    send_telegram(handlers.handle_autobet(auto.enabled))
             
             elif text == '/train':
                 send_telegram(handlers.handle_train())
@@ -799,44 +777,23 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     bet_type_lower = bet_type.lower()
     
     if 'оз - да' in bet_type_lower or 'обз' in bet_type_lower or 'btts' in bet_type_lower:
-        if home_goals > 0 and away_goals > 0:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if home_goals > 0 and away_goals > 0 else 'loss'
     elif 'тм 2.5' in bet_type_lower or 'under' in bet_type_lower:
-        if total < 2.5:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if total < 2.5 else 'loss'
     elif 'тб 2.5' in bet_type_lower or 'over' in bet_type_lower:
-        if total > 2.5:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if total > 2.5 else 'loss'
     elif '1x' in bet_type_lower:
-        if home_goals >= away_goals:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if home_goals >= away_goals else 'loss'
     elif 'x2' in bet_type_lower:
-        if away_goals >= home_goals:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if away_goals >= home_goals else 'loss'
     elif 'п1' in bet_type_lower or 'победа хозяев' in bet_type_lower:
-        if home_goals > away_goals:
-            return 'win'
-        elif home_goals == away_goals:
-            return 'push'
-        else:
-            return 'loss'
+        if home_goals > away_goals: return 'win'
+        elif home_goals == away_goals: return 'push'
+        else: return 'loss'
     elif 'п2' in bet_type_lower or 'победа гостей' in bet_type_lower:
-        if away_goals > home_goals:
-            return 'win'
-        elif home_goals == away_goals:
-            return 'push'
-        else:
-            return 'loss'
+        if away_goals > home_goals: return 'win'
+        elif home_goals == away_goals: return 'push'
+        else: return 'loss'
     return 'pending'
 
 def update_pending_bets():
@@ -878,7 +835,7 @@ def update_pending_bets():
                                 bet['profit'] = 0
                             
                             updated += 1
-                            logger.info(f"✅ Обновлена ставка: {bet['home']} vs {bet['away']} → {result} ({home_goals}-{away_goals})")
+                            logger.info(f"✅ Обновлена ставка: {bet['home']} vs {bet['away']} → {result}")
     
     if updated > 0:
         storage.save_history(history)
@@ -910,7 +867,7 @@ def recalc_stats():
     logger.info(f"📊 Статистика пересчитана: {stats}")
 
 # ============================================================
-# API ЭНДПОИНТЫ
+# API
 # ============================================================
 
 @app.route('/api/stats', methods=['GET'])
@@ -975,7 +932,6 @@ def update_history():
             return jsonify({'error': 'Нет данных'}), 400
         
         storage.save_history(history)
-        logger.info(f"✅ История обновлена: {len(history)} записей")
         
         total = len(history)
         wins = sum(1 for b in history if b.get('result') == 'win')
