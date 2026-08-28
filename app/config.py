@@ -12,13 +12,13 @@ class Config:
     """Конфигурация бота"""
     
     # === ТЕЛЕГРАМ ===
-    TELEGRAM_TOKEN: str = os.getenv('TELEGRAM_TOKEN', '')
-    ADMIN_CHAT_ID: str = os.getenv('ADMIN_CHAT_ID', '')
+    TELEGRAM_TOKEN: str = os.getenv('8884017743:AAEDsDQEV5NZe2x9-XTlZHrsBJ99UtgLHj8', '')
+    ADMIN_CHAT_ID: str = os.getenv('228801334', '')
     
     # === API ===
-    FOOTBALL_API_KEY: str = os.getenv('FOOTBALL_API_KEY', '')
+    FOOTBALL_API_KEY: str = os.getenv('fa6a81c18feae6769a0fa3baefd9e476', '')
     FOOTBALL_API_URL: str = os.getenv('FOOTBALL_API_URL', 'https://v3.football.api-sports.io')
-    WEATHER_API_KEY: str = os.getenv('WEATHER_API_KEY', '')
+    WEATHER_API_KEY: str = os.getenv('3d69818fe9856aad5b2a6ad2705c6617', '')
     WEATHER_API_URL: str = os.getenv('WEATHER_API_URL', 'https://api.openweathermap.org/data/2.5')
     
     # === БЕЗОПАСНОСТЬ ===
