@@ -22,6 +22,7 @@ class FootballAPI:
         return self.headers
 
     def get_matches(self, league_id, date):
+        """Получение матчей по лиге и дате"""
         try:
             url = f"{self.base_url}/fixtures"
             params = {
@@ -29,6 +30,8 @@ class FootballAPI:
                 'date': date,
                 'season': datetime.now().year
             }
+            
+            logger.info(f"📡 Запрос матчей: лига {league_id}, дата {date}")
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
             if response.status_code != 200:
@@ -41,15 +44,19 @@ class FootballAPI:
                 logger.error(f"❌ API ошибка: {data['errors']}")
                 return []
             
-            return data.get('response', [])
+            matches = data.get('response', [])
+            logger.info(f"✅ Найдено матчей: {len(matches)}")
+            return matches
         except Exception as e:
             logger.error(f"❌ Ошибка get_matches: {e}")
             return []
 
     def get_match_odds(self, fixture_id):
+        """Получение коэффициентов для матча"""
         try:
             url = f"{self.base_url}/odds"
             params = {'fixture': fixture_id}
+            
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
             if response.status_code != 200:
@@ -57,18 +64,22 @@ class FootballAPI:
                 return None
             
             data = response.json()
+            
             if data.get('errors'):
                 logger.warning(f"⚠️ Odds ошибка: {data['errors']}")
                 return None
             
             if data.get('response') and len(data['response']) > 0:
-                return data['response'][0]
+                odds_data = data['response'][0]
+                logger.info(f"✅ Коэффициенты получены для fixture {fixture_id}")
+                return odds_data
             return None
         except Exception as e:
-            logger.error(f"Ошибка get_match_odds: {e}")
+            logger.error(f"❌ Ошибка get_match_odds: {e}")
             return None
 
     def get_team_stats(self, team_id):
+        """Получение статистики команды"""
         try:
             url = f"{self.base_url}/teams/statistics"
             params = {'team': team_id, 'season': datetime.now().year}
@@ -83,10 +94,11 @@ class FootballAPI:
             
             return data.get('response', {})
         except Exception as e:
-            logger.error(f"Ошибка get_team_stats: {e}")
+            logger.error(f"❌ Ошибка get_team_stats: {e}")
             return {}
 
     def get_form(self, team_id):
+        """Получение формы команды (последние 5 матчей)"""
         try:
             url = f"{self.base_url}/fixtures"
             params = {'team': team_id, 'last': 5, 'season': datetime.now().year}
@@ -123,10 +135,11 @@ class FootballAPI:
                 return ''.join(form[-5:]) if form else None
             return None
         except Exception as e:
-            logger.error(f"Ошибка get_form: {e}")
+            logger.error(f"❌ Ошибка get_form: {e}")
             return None
 
     def get_injuries(self, team_id):
+        """Получение травм команды"""
         try:
             url = f"{self.base_url}/injuries"
             params = {'team': team_id}
@@ -150,10 +163,11 @@ class FootballAPI:
                 return result
             return []
         except Exception as e:
-            logger.error(f"Ошибка get_injuries: {e}")
+            logger.error(f"❌ Ошибка get_injuries: {e}")
             return []
 
     def get_team_cards_stats(self, team_id):
+        """Получение статистики карточек команды"""
         try:
             url = f"{self.base_url}/teams/statistics"
             params = {'team': team_id, 'season': datetime.now().year}
@@ -173,13 +187,15 @@ class FootballAPI:
                 'red_avg': cards.get('red', {}).get('average', 0)
             }
         except Exception as e:
-            logger.error(f"Ошибка get_team_cards_stats: {e}")
+            logger.error(f"❌ Ошибка get_team_cards_stats: {e}")
             return {'yellow_avg': 0, 'red_avg': 0}
 
     def get_referee_stats(self, referee_name):
+        """Получение статистики судьи (заглушка)"""
         return {'cards_avg': 3.5}
 
     def get_match_result(self, fixture_id):
+        """Получение результата матча по fixture_id"""
         try:
             url = f"{self.base_url}/fixtures"
             params = {'id': fixture_id}
@@ -208,12 +224,13 @@ class FootballAPI:
                     }
             return None
         except Exception as e:
-            logger.error(f"Ошибка get_match_result: {e}")
+            logger.error(f"❌ Ошибка get_match_result: {e}")
             return None
 
-    def find_fixture_by_teams(self, home_team, away_team):
+    def find_fixture_by_teams(self,И home_team, away_team):
+        """Поиск Б fixture_id по названиям команд"""
         try:
-            today = datetime.now().strftime('%Y-%m-%d')
+            today =У datetime.now().strftime('%Y-%m-%d')
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
             
             for date in [today, yesterday]:
@@ -242,8 +259,9 @@ class FootballAPI:
                             return match['fixture']['id']
             return None
         except Exception as e:
-            logger.error(f"Ошибка find_fixture_by_teams: {e}")
+            logger.error(f"❌ Ошибка find_fixture_by_teams: {e}")
             return None
 
 
+# Создаем экземпляр для использования
 football_api = FootballAPI()
