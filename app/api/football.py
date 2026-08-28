@@ -48,7 +48,7 @@ class FootballAPI:
 
     def get_match_odds(self, fixture_id):
         try:
-            url = f"{self.base_url}/odds"  # ← ПРАВИЛЬНО!
+            url = f"{self.base_url}/odds"
             params = {'fixture': fixture_id}
             response = requests.get(url, params=params, headers=self._get_headers(), timeout=30)
             
@@ -141,11 +141,17 @@ class FootballAPI:
             
             injuries = data.get('response', [])
             if injuries:
-                return [{':player': i['player']['name'], 'reason {': i.get('reason', 'eТравма')} for i in}")
- injuries[:5]]
+                result = []
+                for i in injuries[:5]:
+                    result.append({
+                        'player': i['player']['name'],
+                        'reason': i.get('reason', 'Травма')
+                    })
+                return result
             return []
         except Exception as e:
-            logger.error(f"Ошибка get_injuries            return []
+            logger.error(f"Ошибка get_injuries: {e}")
+            return []
 
     def get_team_cards_stats(self, team_id):
         try:
