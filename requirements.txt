@@ -1,11 +1,12 @@
-pip
-setuptools
-wheel
 Flask
+Werkzeug
 python-dotenv
 requests
 cryptography
 openpyxl
 APScheduler
 python-telegram-bot
+pydantic
+colorloq
+Flask-Limiter
 numpy
