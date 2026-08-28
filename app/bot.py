@@ -3,8 +3,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, request, jsonify
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import time
 import json
 from datetime import datetime, timedelta
@@ -22,46 +20,9 @@ from app.utils.logger import setup_logging, get_logger
 # from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
 from app.betting.auto_bet import auto_bet
 from app.scheduler import start_scheduler
-from app.security.auth import security
-
-# === БЕЗОПАСНОСТЬ ===
-from app.security.middleware import admin_only, rate_limit, security_middleware
-from app.security.monitor import monitor
 
 logger = get_logger(__name__)
 app = Flask(__name__)
-
-# === ЗАЩИТА ОТ DDoS ===
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=[f"{Config.RATE_LIMIT} per {Config.RATE_PERIOD} seconds"]
-)
-
-# === ЗАЩИТА ЗАПРОСОВ ===
-@app.before_request
-def protect_request():
-    """Защита всех входящих запросов"""
-    client_ip = request.remote_addr
-    
-    # Проверка блокировки
-    if security_middleware.is_blocked(client_ip):
-        monitor.log_attack("Blocked IP", f"IP {client_ip} пытался подключиться")
-        return "🚫 Доступ запрещён", 403
-    
-    # Проверка на подозрительную активность
-    if request.is_json:
-        data = request.get_json()
-        if data and 'message' in data:
-            chat_id = data['message'].get('chat', {}).get('id')
-            if str(chat_id) != Config.ADMIN_CHAT_ID and str(chat_id) != Config.ADMIN_CHAT_ID:
-                monitor.log_attack("Unauthorized access", f"Chat {chat_id} пытался использовать бота")
-
-# === СКРЫВАЕМ ОШИБКИ ===
-@app.errorhandler(Exception)
-def handle_error(e):
-    monitor.log_attack("Error", str(e))
-    return "Internal Server Error", 500
 
 search_running = False
 TIMEZONE_OFFSET = 3
@@ -307,20 +268,8 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            # Временно отключено (numpy)
-            # try:
-            #     home_xg, away_xg, reasons = xg_analyzer.calculate_xg(match, fixture_id)
-            # except Exception as e:
-            #     logger.warning(f"Ошибка xG {home} vs {away}: {e}")
-            #     home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
-
-            # Временно используем простые значения
+            # Временно используем простые значения (без numpy)
             home_xg, away_xg, reasons = 1.2, 1.0, ["fallback"]
-
-            # try:
-            #     home_xg, away_xg = ml_predictor.predict_xg(factors)
-            # except Exception as e:
-            #     logger.warning(f"Ошибка ML {home} vs {away}: {e}")
 
             probs = calculate_probabilities(home_xg, away_xg)
             if not isinstance(probs, dict):
@@ -407,8 +356,6 @@ def find_top_matches(matches):
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
-@admin_only
-@rate_limit(limit=50, period=60)
 def webhook():
     global search_running
     
@@ -543,7 +490,6 @@ def webhook():
             chat_id = message.get('chat', {}).get('id')
             
             if str(chat_id) != Config.ADMIN_CHAT_ID:
-                monitor.log_attack("Unauthorized command", f"Chat {chat_id} пытался использовать команду {text}")
                 send_telegram("⛔ Нет доступа")
                 return "ok", 200
             
@@ -618,43 +564,6 @@ def webhook():
                     send_telegram(f"✅ Обновлено {updated} результатов!")
                 else:
                     send_telegram("📭 Нет завершённых матчей для обновления")
-            
-            # === КОМАНДЫ БЕЗОПАСНОСТИ ===
-            elif text == '/security':
-                msg = "🛡️ <b>СТАТУС БЕЗОПАСНОСТИ</b>\n\n"
-                msg += f"🔐 Токен: {Config.get_masked_token()}\n"
-                msg += f"👤 Админ: {Config.ADMIN_CHAT_ID}\n"
-                msg += f"📊 Лиг: {len(Config.LEAGUES)}\n"
-                msg += f"🔒 HTTPS: {'✅ Включен' if Config.is_production() else '❌'}\n"
-                msg += f"🛡️ IP-фильтр: {'✅ Включен' if Config.ALLOWED_IPS else '❌'}\n"
-                msg += f"📝 Логов атак: {len(monitor.warning_log)}\n"
-                send_telegram(msg)
-            
-            elif text == '/attacks':
-                attacks = monitor.get_recent_attacks(10)
-                if attacks:
-                    msg = "⚠️ <b>ПОСЛЕДНИЕ АТАКИ</b>\n\n" + "\n".join(attacks[-10:])
-                else:
-                    msg = "✅ Атак не обнаружено!"
-                send_telegram(msg)
-            
-            elif text.startswith('/block_ip'):
-                parts = text.split()
-                if len(parts) == 2:
-                    ip = parts[1]
-                    security_middleware.block_ip(ip)
-                    send_telegram(f"✅ IP {ip} заблокирован!")
-                else:
-                    send_telegram("❌ Используйте: /block_ip <IP>")
-            
-            elif text.startswith('/unblock_ip'):
-                parts = text.split()
-                if len(parts) == 2:
-                    ip = parts[1]
-                    security_middleware.blocked_ips.discard(ip)
-                    send_telegram(f"✅ IP {ip} разблокирован!")
-                else:
-                    send_telegram("❌ Используйте: /unblock_ip <IP>")
             
             else:
                 send_telegram("❌ Неизвестная команда. /help")
@@ -790,7 +699,6 @@ def recalc_stats():
 # ============================================================
 
 @app.route('/api/stats', methods=['GET'])
-@admin_only
 def api_stats():
     stats = storage.load_stats()
     bank = storage.load_bank()
@@ -820,7 +728,6 @@ def api_stats():
     })
 
 @app.route('/api/history', methods=['GET'])
-@admin_only
 def api_history():
     history = storage.load_history()
     
@@ -836,7 +743,6 @@ def api_history():
     return jsonify(history)
 
 @app.route('/api/bank', methods=['POST'])
-@admin_only
 def api_update_bank():
     data = request.json
     if 'bank' in data:
@@ -845,7 +751,6 @@ def api_update_bank():
     return jsonify({'error': 'No bank value'}), 400
 
 @app.route('/api/update_history', methods=['POST'])
-@admin_only
 def update_history():
     try:
         data = request.json
@@ -902,5 +807,4 @@ if __name__ == "__main__":
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("✅ Мониторинг ошибок включен")
-    logger.info("🛡️ Защита включена!")
     app.run(host='0.0.0.0', port=port)
