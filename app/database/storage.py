@@ -1,80 +1,47 @@
-import os
+# app/database/storage.py
 import json
-from pathlib import Path
+import os
+from datetime import datetime
 
 class Storage:
-    """Хранение данных бота"""
+    """Класс для управления данными (банк, история, кэш)"""
     
     def __init__(self):
-        # Определяем папку data в корне проекта
-        base_dir = Path(__file__).parent.parent.parent
-        self.data_dir = base_dir / 'data'
-        
-        # Создаём папку если её нет
-        self.data_dir.mkdir(exist_ok=True)
-        
-        # Пути к файлам
-        self.history_file = self.data_dir / 'history.json'
-        self.bank_file = self.data_dir / 'bank.json'
-        self.stats_file = self.data_dir / 'stats.json'
-        self.cache_file = self.data_dir / 'cache.json'
-        
-        # Инициализация файлов
-        self._init_files()
+        self.data_dir = 'data'
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
     
-    def _init_files(self):
-        """Создаёт файлы с пустыми данными если их нет"""
-        default_data = {
-            'history.json': [],
-            'bank.json': 1000.0,
-            'stats.json': {
-                'total': 0,
-                'wins': 0,
-                'losses': 0,
-                'pushes': 0,
-                'total_profit': 0,
-                'winrate': 0,
-                'roi': 0
-            },
-            'cache.json': {}
-        }
-        
-        for filename, default in default_data.items():
-            file_path = self.data_dir / filename
-            if not file_path.exists():
-                with open(file_path, 'w') as f:
-                    json.dump(default, f, indent=2)
+    def load_bank(self):
+        """Загружает текущий банк"""
+        try:
+            with open(f'{self.data_dir}/bank.json', 'r') as f:
+                data = json.load(f)
+                return data.get('bank', 1000.0)
+        except:
+            return 1000.0
+    
+    def save_bank(self, bank):
+        """Сохраняет банк"""
+        with open(f'{self.data_dir}/bank.json', 'w') as f:
+            json.dump({'bank': bank, 'updated': datetime.now().isoformat()}, f)
     
     def load_history(self):
         """Загружает историю ставок"""
         try:
-            with open(self.history_file, 'r') as f:
+            with open(f'{self.data_dir}/history.json', 'r') as f:
                 return json.load(f)
         except:
             return []
     
-    def save_history(self, data):
+    def save_history(self, history):
         """Сохраняет историю ставок"""
-        with open(self.history_file, 'w') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    
-    def load_bank(self):
-        """Загружает банк"""
-        try:
-            with open(self.bank_file, 'r') as f:
-                return json.load(f)
-        except:
-            return 1000.0
-    
-    def save_bank(self, amount):
-        """Сохраняет банк"""
-        with open(self.bank_file, 'w') as f:
-            json.dump(amount, f, indent=2)
+        with open(f'{self.data_dir}/history.json', 'w') as f:
+            json.dump(history, f, indent=2)
     
     def load_stats(self):
         """Загружает статистику"""
         try:
-            with open(self.stats_file, 'r') as f:
+            with open(f'{self.data_dir}/stats.json', 'r') as f:
                 return json.load(f)
         except:
             return {
@@ -87,24 +54,23 @@ class Storage:
                 'roi': 0
             }
     
-    def save_stats(self, data):
+    def save_stats(self, stats):
         """Сохраняет статистику"""
-        with open(self.stats_file, 'w') as f:
-            json.dump(data, f, indent=2)
+        with open(f'{self.data_dir}/stats.json', 'w') as f:
+            json.dump(stats, f, indent=2)
     
     def load_cache(self):
         """Загружает кэш"""
         try:
-            with open(self.cache_file, 'r') as f:
+            with open(f'{self.data_dir}/cache.json', 'r') as f:
                 return json.load(f)
         except:
             return {}
     
-    def save_cache(self, data):
+    def save_cache(self, cache):
         """Сохраняет кэш"""
-        with open(self.cache_file, 'w') as f:
-            json.dump(data, f, indent=2)
+        with open(f'{self.data_dir}/cache.json', 'w') as f:
+            json.dump(cache, f, indent=2)
 
-
-# Создаём глобальный экземпляр
+# Создаем глобальный экземпляр
 storage = Storage()
