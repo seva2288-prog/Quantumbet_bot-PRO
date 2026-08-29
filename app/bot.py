@@ -17,18 +17,14 @@ from app.analytics.arbitrage import arbitrage_analyzer
 from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
-# from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
 
-# ============================================================
-# ⚠️ ВАЖНО: ИСПРАВЛЕН ИМПОРТ - используем класс напрямую
-# ============================================================
+# Импорт AutoBet с защитой от ошибок
 try:
-    from app.betting.auto_bet import AutoBet  # Правильный импорт класса
-    auto_bet = AutoBet()  # Создаем экземпляр
+    from app.betting import AutoBet
+    auto_bet = AutoBet()
 except ImportError as e:
     logger = get_logger(__name__)
     logger.error(f"❌ Ошибка импорта AutoBet: {e}")
-    # Создаем заглушку, чтобы бот не падал
     class DummyAutoBet:
         enabled = False
         bets_today = 0
@@ -46,16 +42,12 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# ВСЕ МАРКЕРЫ И ИХ СТАВКИ
+# ТОЛЬКО ТМ 2.5 С МАРКЕРАМИ ИЗ СКРИНШОТА
 # ============================================================
 MARKERS = {
-    # Маркер: (тип ставки, коэффициент, название)
-    45.125: ('1X', 1.85, '1X'),
     42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
     42.86875000000001: ('under', 1.95, 'ТМ 2.5'),
-    40.7253125: ('btts', 1.90, 'ОБЗ'),
-    43.1875: ('X2', 1.90, 'X2'),
-    41.375: ('over', 1.95, 'ТБ 2.5'),
+    # Можно добавить больше маркеров если нужно
 }
 
 def send_error_to_telegram(error_text: str):
@@ -169,7 +161,6 @@ def get_matches_with_factors():
     
     logger.info(f"🔍 Поиск матчей на: {today}")
     
-    # Объединяем лиги и кубки
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     logger.info(f"📊 Всего соревнований: {len(all_leagues)}")
     
@@ -254,7 +245,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП-20 МАТЧЕЙ (ВСЕ МАРКЕРЫ)
+# ТОП МАТЧЕЙ - ТОЛЬКО ТМ 2.5
 # ============================================================
 
 def find_top_matches(matches):
@@ -309,14 +300,23 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
             
+            # Получаем XG для матча
+            try:
+                xg_data = xg_analyzer.analyze_match(home, away)
+                home_xg = xg_data.get('home_xg', 1.2)
+                away_xg = xg_data.get('away_xg', 1.0)
+            except:
+                home_xg = 1.2
+                away_xg = 1.0
+            
             match_data = {
                 "home": home,
                 "away": away,
                 "league": league,
                 "fixture_id": fixture_id,
                 "match_time": match_time,
-                "home_xg": 1.2,
-                "away_xg": 1.0,
+                "home_xg": home_xg,
+                "away_xg": away_xg,
                 "weather_reason": "🌤️",
                 "factors": {},
                 "intuition": [],
@@ -324,30 +324,61 @@ def find_top_matches(matches):
             }
 
             # ============================================================
-            # ПЕРЕБИРАЕМ ВСЕ МАРКЕРЫ
+            # ТОЛЬКО ТМ 2.5 С АНАЛИЗОМ НА ОСНОВЕ XG
             # ============================================================
-            for marker, (bet_type, odds, label) in MARKERS.items():
-                prob = 0.55  # Фиксированная вероятность
-                ev = calculate_ev(prob, odds)
-                
-                match_data["bets"].append({
-                    "bet_type": bet_type,
-                    "label": label,
-                    "odds": odds,
-                    "prob": round(prob * 100, 1),
-                    "ev": round(ev, 1),
-                    "stake": round(marker, 2),
-                    "marker_stake": marker
-                })
-                logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | Маркер: {marker}")
+            bet_type = 'under'
+            label = 'ТМ 2.5'
+            odds = 1.95
+
+            # Рассчитываем вероятность на основе XG
+            total_xg = home_xg + away_xg
+
+            # Вероятность ТМ 2.5 на основе XG
+            if total_xg < 2.0:
+                prob = 0.75  # Очень высокая вероятность
+                ev_text = "🔥 ОТЛИЧНО"
+            elif total_xg < 2.5:
+                prob = 0.65  # Высокая вероятность
+                ev_text = "✅ ХОРОШО"
+            elif total_xg < 3.0:
+                prob = 0.55  # Средняя
+                ev_text = "📊 СРЕДНЕ"
+            elif total_xg < 3.5:
+                prob = 0.45  # Низкая
+                ev_text = "⚠️ НИЗКАЯ"
+            else:
+                prob = 0.35  # Очень низкая
+                ev_text = "❌ ПЛОХО"
+
+            ev = calculate_ev(prob, odds)
+            
+            # Пропускаем ставки с отрицательным EV
+            if ev <= 0:
+                logger.info(f"   ⏭️ Пропускаем: {label} | EV: {ev}% (отрицательное)")
+                continue
+
+            # Используем маркер из MARKERS
+            marker = list(MARKERS.keys())[0]  # Берем первый маркер
+            
+            match_data["bets"].append({
+                "bet_type": bet_type,
+                "label": label,
+                "odds": odds,
+                "prob": round(prob * 100, 1),
+                "ev": round(ev, 1),
+                "stake": round(marker, 2),
+                "marker_stake": marker,
+                "xg_total": round(total_xg, 2),
+                "xg_home": home_xg,
+                "xg_away": away_xg
+            })
+            
+            logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | XG: {total_xg:.2f} | {ev_text}")
 
             if match_data["bets"]:
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
                 
-                # ============================================================
-                # ИСПРАВЛЕНО: проверяем что auto_bet существует и имеет метод
-                # ============================================================
                 try:
                     if auto_bet and hasattr(auto_bet, 'check_and_bet'):
                         bet_result = auto_bet.check_and_bet(match_data)
@@ -359,7 +390,8 @@ def find_top_matches(matches):
                                 msg += f"📅 {bet_result['match_time']}\n"
                             msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
                             msg += f"💰 Сумма: ${bet_result['stake']}\n"
-                            msg += f"📈 EV: {bet_result['ev']}%"
+                            msg += f"📈 EV: {bet_result['ev']}%\n"
+                            msg += f"⚽ XG: {bet_result.get('xg_total', 0):.2f}"
                             if bet_result.get('marker_stake'):
                                 msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
                             send_telegram(msg)
@@ -382,7 +414,7 @@ def find_top_matches(matches):
     return all_matches_data[:20]
 
 # ============================================================
-# WEBHOOK
+# ОСТАЛЬНАЯ ЧАСТЬ КОДА (WEBHOOK, API, ЗАПУСК)
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -533,10 +565,6 @@ def webhook():
             
             logger.info(f"✅ ДОСТУП РАЗРЕШЕН для {chat_id}")
             
-            # ============================================================
-            # ОБРАБОТКА КОМАНД
-            # ============================================================
-            
             if text == '/start':
                 logger.info("🔄 Обработка /start")
                 send_telegram(handlers.handle_start())
@@ -562,7 +590,6 @@ def webhook():
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
-                            # Проверяем наличие auto_bet перед использованием
                             bets_today = auto_bet.bets_today if hasattr(auto_bet, 'bets_today') else 0
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
@@ -942,5 +969,6 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
+    logger.info("✅ Только ТМ 2.5")
     logger.info("✅ Мониторинг ошибок включен")
     app.run(host='0.0.0.0', port=port)
