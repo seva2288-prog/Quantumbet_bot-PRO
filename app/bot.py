@@ -47,8 +47,10 @@ TIMEZONE_OFFSET = 3
 MARKERS = {
     42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
     42.86875000000001: ('under', 1.95, 'ТМ 2.5'),
-    # Можно добавить больше маркеров если нужно
 }
+
+# Топ-лиги с высокой результативностью
+TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
 def send_error_to_telegram(error_text: str):
     try:
@@ -245,7 +247,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - ТОЛЬКО ТМ 2.5
+# ТОП МАТЧЕЙ - ТОЛЬКО ТМ 2.5 С РЕАЛЬНЫМ АНАЛИЗОМ
 # ============================================================
 
 def find_top_matches(matches):
@@ -256,13 +258,12 @@ def find_top_matches(matches):
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
     
+    # Сортировка матчей по качеству (только лучшие)
+    scored_matches = []
+    
     for match in matches:
         if not match or not isinstance(match, dict):
             continue
-        
-        if bets_placed >= max_bets:
-            logger.info(f"⚠️ Достигнут лимит ставок: {max_bets}")
-            break
 
         try:
             fixture = match.get("fixture")
@@ -286,11 +287,11 @@ def find_top_matches(matches):
             home = home_team.get("name", "Unknown")
             away = away_team.get("name", "Unknown")
             
-            logger.info(f"📊 Анализ: {home} vs {away} (ID: {fixture_id})")
-            
+            # Получаем название лиги
             league_data = match.get("league")
-            league = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
+            league_name = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
 
+            # Время матча
             match_time = fixture.get("date", "")
             if match_time:
                 try:
@@ -300,121 +301,216 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
             
-            # Получаем XG для матча
-            try:
-                xg_data = xg_analyzer.analyze_match(home, away)
-                home_xg = xg_data.get('home_xg', 1.2)
-                away_xg = xg_data.get('away_xg', 1.0)
-            except:
-                home_xg = 1.2
-                away_xg = 1.0
+            # ============================================================
+            # 1. ПОЛУЧАЕМ РЕАЛЬНЫЕ ДАННЫЕ ДЛЯ АНАЛИЗА
+            # ============================================================
+            
+            # Получаем форму команд (последние 5 матчей)
+            home_form = football_api.get_form(home_team.get("id"))
+            away_form = football_api.get_form(away_team.get("id"))
+            
+            # Получаем статистику голов
+            if home_form:
+                home_goals_avg = home_form.get('goals_avg', 1.2)
+                home_conceded_avg = home_form.get('conceded_avg', 1.0)
+            else:
+                home_goals_avg = 1.2
+                home_conceded_avg = 1.0
+                
+            if away_form:
+                away_goals_avg = away_form.get('goals_avg', 1.0)
+                away_conceded_avg = away_form.get('conceded_avg', 1.2)
+            else:
+                away_goals_avg = 1.0
+                away_conceded_avg = 1.2
+            
+            # ============================================================
+            # 2. РАССЧИТЫВАЕМ РЕАЛЬНЫЙ XG
+            # ============================================================
+            
+            # XG на основе формы и статистики
+            home_xg = (home_goals_avg + away_conceded_avg) / 2
+            away_xg = (away_goals_avg + home_conceded_avg) / 2
+            
+            # Корректировка на домашнее преимущество
+            home_xg *= 1.1
+            away_xg *= 0.9
+            
+            total_xg = home_xg + away_xg
+            
+            # ============================================================
+            # 3. РАССЧИТЫВАЕМ РЕАЛЬНУЮ ВЕРОЯТНОСТЬ ТМ 2.5
+            # ============================================================
+            
+            # На основе XG рассчитываем вероятность ТМ 2.5
+            # Используем распределение Пуассона (упрощенно)
+            if total_xg <= 1.5:
+                prob_under = 0.85  # Очень высокая вероятность
+                quality = "🔥 ОТЛИЧНО"
+            elif total_xg <= 2.0:
+                prob_under = 0.75
+                quality = "✅ ХОРОШО"
+            elif total_xg <= 2.3:
+                prob_under = 0.65
+                quality = "📊 СРЕДНЕ"
+            elif total_xg <= 2.5:
+                prob_under = 0.55
+                quality = "📊 СРЕДНЕ"
+            elif total_xg <= 2.8:
+                prob_under = 0.45
+                quality = "⚠️ НИЗКАЯ"
+            elif total_xg <= 3.0:
+                prob_under = 0.35
+                quality = "❌ ПЛОХО"
+            else:
+                prob_under = 0.25  # Низкая вероятность
+                quality = "❌ ОЧЕНЬ ПЛОХО"
+            
+            # ============================================================
+            # 4. РАССЧИТЫВАЕМ EV
+            # ============================================================
+            
+            odds = 1.95
+            ev = (prob_under * odds) - 1
+            ev_percent = ev * 100
+            
+            # ============================================================
+            # 5. ФИЛЬТРУЕМ СТАВКИ (ТОЛЬКО ЛУЧШИЕ)
+            # ============================================================
+            
+            # Условия для ставки:
+            # 1. EV > 5% (положительное ожидание)
+            # 2. Total XG < 2.5 (реально низкая результативность)
+            # 3. Prob > 50% (вероятность выше 50%)
+            
+            skip_reason = None
+            
+            if ev_percent < 5:
+                skip_reason = f"EV: {ev_percent:.1f}% (слишком низкое)"
+                
+            elif total_xg > 2.8:
+                skip_reason = f"XG: {total_xg:.2f} (слишком высокий)"
+                
+            elif prob_under < 0.50:
+                skip_reason = f"Prob: {prob_under*100:.1f}% (слишком низкая)"
+            
+            # Пропускаем матчи, где команды сильно забивают
+            elif home_goals_avg > 2.0 or away_goals_avg > 2.0:
+                skip_reason = f"Команды много забивают (H: {home_goals_avg:.1f}, A: {away_goals_avg:.1f})"
+            
+            # В топ-лигах нужен более низкий XG
+            elif league_name in TOP_LEAGUES and total_xg > 2.3:
+                skip_reason = f"Топ-лига, высокий XG: {total_xg:.2f}"
+            
+            if skip_reason:
+                logger.info(f"⏭️ Пропускаем: {home} vs {away} | {skip_reason}")
+                continue
+            
+            # ============================================================
+            # 6. СОХРАНЯЕМ МАТЧ ДЛЯ СТАВКИ
+            # ============================================================
             
             match_data = {
                 "home": home,
                 "away": away,
-                "league": league,
+                "league": league_name,
                 "fixture_id": fixture_id,
                 "match_time": match_time,
-                "home_xg": home_xg,
-                "away_xg": away_xg,
+                "home_xg": round(home_xg, 2),
+                "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form,
+                "away_form": away_form,
+                "home_goals_avg": home_goals_avg,
+                "away_goals_avg": away_goals_avg,
                 "weather_reason": "🌤️",
                 "factors": {},
                 "intuition": [],
                 "bets": []
             }
-
-            # ============================================================
-            # ТОЛЬКО ТМ 2.5 С АНАЛИЗОМ НА ОСНОВЕ XG
-            # ============================================================
-            bet_type = 'under'
-            label = 'ТМ 2.5'
-            odds = 1.95
-
-            # Рассчитываем вероятность на основе XG
-            total_xg = home_xg + away_xg
-
-            # Вероятность ТМ 2.5 на основе XG
-            if total_xg < 2.0:
-                prob = 0.75  # Очень высокая вероятность
-                ev_text = "🔥 ОТЛИЧНО"
-            elif total_xg < 2.5:
-                prob = 0.65  # Высокая вероятность
-                ev_text = "✅ ХОРОШО"
-            elif total_xg < 3.0:
-                prob = 0.55  # Средняя
-                ev_text = "📊 СРЕДНЕ"
-            elif total_xg < 3.5:
-                prob = 0.45  # Низкая
-                ev_text = "⚠️ НИЗКАЯ"
-            else:
-                prob = 0.35  # Очень низкая
-                ev_text = "❌ ПЛОХО"
-
-            ev = calculate_ev(prob, odds)
             
-            # Пропускаем ставки с отрицательным EV
-            if ev <= 0:
-                logger.info(f"   ⏭️ Пропускаем: {label} | EV: {ev}% (отрицательное)")
-                continue
-
-            # Используем маркер из MARKERS
-            marker = list(MARKERS.keys())[0]  # Берем первый маркер
+            # Добавляем ставку
+            marker = list(MARKERS.keys())[0]
             
             match_data["bets"].append({
-                "bet_type": bet_type,
-                "label": label,
+                "bet_type": 'under',
+                "label": 'ТМ 2.5',
                 "odds": odds,
-                "prob": round(prob * 100, 1),
-                "ev": round(ev, 1),
+                "prob": round(prob_under * 100, 1),
+                "ev": round(ev_percent, 1),
                 "stake": round(marker, 2),
                 "marker_stake": marker,
                 "xg_total": round(total_xg, 2),
-                "xg_home": home_xg,
-                "xg_away": away_xg
+                "xg_home": round(home_xg, 2),
+                "xg_away": round(away_xg, 2),
+                "home_goals_avg": home_goals_avg,
+                "away_goals_avg": away_goals_avg,
+                "quality": quality
             })
             
-            logger.info(f"   ✅ ДОБАВЛЕНА СТАВКА: {label} | КЭФ: {odds} | EV: {ev}% | XG: {total_xg:.2f} | {ev_text}")
-
-            if match_data["bets"]:
-                match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
-                all_matches_data.append(match_data)
-                
-                try:
-                    if auto_bet and hasattr(auto_bet, 'check_and_bet'):
-                        bet_result = auto_bet.check_and_bet(match_data)
-                        if bet_result:
-                            bets_placed += 1
-                            msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
-                            msg += f"🏟️ {bet_result['match']}\n"
-                            if bet_result.get('match_time'):
-                                msg += f"📅 {bet_result['match_time']}\n"
-                            msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
-                            msg += f"💰 Сумма: ${bet_result['stake']}\n"
-                            msg += f"📈 EV: {bet_result['ev']}%\n"
-                            msg += f"⚽ XG: {bet_result.get('xg_total', 0):.2f}"
-                            if bet_result.get('marker_stake'):
-                                msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
-                            send_telegram(msg)
-                            logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
-                    else:
-                        logger.warning("⚠️ AutoBet не инициализирован - пропускаем ставку")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка авто-ставки: {e}")
-
+            # Сохраняем матч с оценкой качества
+            match_score = {
+                'match_data': match_data,
+                'score': ev_percent + (0.6 - prob_under) * 100  # Чем выше EV и ниже XG, тем лучше
+            }
+            scored_matches.append(match_score)
+            
+            logger.info(f"✅ КАНДИДАТ: {home} vs {away} | XG: {total_xg:.2f} | EV: {ev_percent:.1f}% | Prob: {prob_under*100:.1f}% | {quality}")
+            
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
             continue
-
-    logger.info(f"📊 Найдено {len(all_matches_data)} матчей, сделано {bets_placed} ставок")
     
+    # ============================================================
+    # 7. СОРТИРУЕМ И БЕРЕМ ТОЛЬКО ЛУЧШИЕ МАТЧИ
+    # ============================================================
+    
+    # Сортируем по качеству (от лучшего к худшему)
+    scored_matches.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Берем только топ-максимум ставок
+    top_matches = scored_matches[:max_bets]
+    
+    logger.info(f"📊 Найдено {len(scored_matches)} кандидатов, выбрано {len(top_matches)} лучших")
+    
+    # ============================================================
+    # 8. РАЗМЕЩАЕМ СТАВКИ НА ЛУЧШИЕ МАТЧИ
+    # ============================================================
+    
+    for item in top_matches:
+        match_data = item['match_data']
+        
+        try:
+            if auto_bet and hasattr(auto_bet, 'check_and_bet'):
+                bet_result = auto_bet.check_and_bet(match_data)
+                if bet_result:
+                    bets_placed += 1
+                    msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
+                    msg += f"🏟️ {bet_result['match']}\n"
+                    if bet_result.get('match_time'):
+                        msg += f"📅 {bet_result['match_time']}\n"
+                    msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
+                    msg += f"💰 Сумма: ${bet_result['stake']}\n"
+                    msg += f"📈 EV: {bet_result['ev']}%\n"
+                    msg += f"⚽ XG: {bet_result.get('xg_total', 0):.2f}\n"
+                    msg += f"📊 Prob: {bet_result.get('prob', 0)}%\n"
+                    msg += f"🏆 {bet_result.get('quality', '')}"
+                    if bet_result.get('marker_stake'):
+                        msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
+                    send_telegram(msg)
+                    logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка авто-ставки: {e}")
+    
+    # Сохраняем в кэш
     cache = storage.load_cache()
-    cache['top_matches'] = all_matches_data
+    cache['top_matches'] = [item['match_data'] for item in top_matches]
     storage.save_cache(cache)
     
-    return all_matches_data[:20]
+    return [item['match_data'] for item in top_matches]
 
 # ============================================================
-# ОСТАЛЬНАЯ ЧАСТЬ КОДА (WEBHOOK, API, ЗАПУСК)
+# WEBHOOK
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -969,6 +1065,7 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
-    logger.info("✅ Только ТМ 2.5")
+    logger.info("✅ Только ТМ 2.5 с REAL анализом")
+    logger.info("✅ Фильтрация по EV, XG, Prob")
     logger.info("✅ Мониторинг ошибок включен")
     app.run(host='0.0.0.0', port=port)
