@@ -148,48 +148,69 @@ class FootballAPI:
         return ''.join(form)
     
     def get_match_statistics(self, fixture_id):
-        """Получает расширенную статистику матча (xG, удары, владение и т.д.)"""
-        cache_key = f"stats_{fixture_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
+    """Получает расширенную статистику матча (xG, удары, владение)"""
+    cache_key = f"stats_{fixture_id}"
+    if cache_key in self.cache:
+        logger.info(f"📊 Статистика для {fixture_id} из кэша")
+        return self.cache[cache_key]
+    
+    try:
+        logger.info(f"📡 Запрос статистики для матча {fixture_id}")
+        params = {'fixture': fixture_id}
+        data = self._make_request('/fixtures/statistics', params)
         
-        try:
-            params = {'fixture': fixture_id}
-            data = self._make_request('/fixtures/statistics', params)
-            
-            if data and 'response' in data:
-                statistics = {}
-                for team_stats in data['response']:
-                    team_name = team_stats.get('team', {}).get('name', '')
-                    stats = {}
+        # Логируем ответ для отладки
+        logger.info(f"📡 Ответ API: {data is not None}")
+        if data:
+            logger.info(f"📡 Ключи ответа: {data.keys()}")
+            logger.info(f"📡 Response: {len(data.get('response', []))} команд")
+        
+        if data and 'response' in data:
+            statistics = {}
+            for team_stats in data['response']:
+                team_name = team_stats.get('team', {}).get('name', 'Unknown')
+                stats = {}
+                
+                for stat in team_stats.get('statistics', []):
+                    key = stat.get('type', '')
+                    value = stat.get('value', 0)
                     
-                    for stat in team_stats.get('statistics', []):
-                        key = stat.get('type', '')
-                        value = stat.get('value', 0)
-                        
-                        # Преобразуем проценты в числа
-                        if isinstance(value, str) and '%' in value:
+                    # Обработка разных типов данных
+                    if value is None:
+                        value = 0
+                    elif isinstance(value, str):
+                        if '%' in value:
                             try:
                                 value = float(value.replace('%', ''))
                             except:
                                 value = 0
-                        elif isinstance(value, str):
+                        else:
                             try:
                                 value = float(value)
                             except:
                                 value = 0
-                        
-                        stats[key] = value
+                    elif isinstance(value, (int, float)):
+                        value = float(value)
+                    else:
+                        value = 0
                     
-                    statistics[team_name] = stats
+                    stats[key] = value
                 
-                self.cache[cache_key] = statistics
-                return statistics
+                statistics[team_name] = stats
+                logger.info(f"   📊 {team_name}: xG={stats.get('xG', 0)}, удары={stats.get('Total Shots', 0)}")
+            
+            self.cache[cache_key] = statistics
+            return statistics
+        else:
+            logger.warning(f"⚠️ Нет данных статистики для матча {fixture_id}")
+            return None
                 
-        except Exception as e:
-            logger.error(f"Ошибка получения статистики матча {fixture_id}: {e}")
-        
-        return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статистики матча {fixture_id}: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return None
     
     def get_head_to_head(self, home_team, away_team):
         """Получает историю личных встреч"""
