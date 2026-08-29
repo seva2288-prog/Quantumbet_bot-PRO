@@ -247,7 +247,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - ТОЛЬКО ТМ 2.5 С РЕАЛЬНЫМ АНАЛИЗОМ
+# ТОП МАТЧЕЙ - РАСШИРЕННЫЙ АНАЛИЗ С НОВЫМИ ПАРАМЕТРАМИ
 # ============================================================
 
 def find_top_matches(matches):
@@ -256,9 +256,8 @@ def find_top_matches(matches):
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
 
-    logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    logger.info(f"🔍 Анализ {len(matches)} матчей с расширенными параметрами...")
     
-    # Сортировка матчей по качеству (только лучшие)
     scored_matches = []
     
     for match in matches:
@@ -287,11 +286,10 @@ def find_top_matches(matches):
             home = home_team.get("name", "Unknown")
             away = away_team.get("name", "Unknown")
             
-            # Получаем название лиги
             league_data = match.get("league")
             league_name = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
+            league_id = league_data.get("id") if isinstance(league_data, dict) else None
 
-            # Время матча
             match_time = fixture.get("date", "")
             if match_time:
                 try:
@@ -302,72 +300,136 @@ def find_top_matches(matches):
                     match_time = "Время не указано"
             
             # ============================================================
-            # 1. ПОЛУЧАЕМ РЕАЛЬНЫЕ ДАННЫЕ ДЛЯ АНАЛИЗА
+            # 1. ПОЛУЧАЕМ РАСШИРЕННУЮ СТАТИСТИКУ МАТЧА (xG, удары, владение)
             # ============================================================
+            statistics = football_api.get_match_statistics(fixture_id)
             
-            # Получаем форму команд (последние 5 матчей)
-            home_form = football_api.get_form(home_team.get("id"))
-            away_form = football_api.get_form(away_team.get("id"))
+            home_xg = 1.2
+            away_xg = 1.0
+            home_shots = 0
+            away_shots = 0
+            home_shots_on_target = 0
+            away_shots_on_target = 0
+            home_possession = 50
+            away_possession = 50
+            home_corners = 0
+            away_corners = 0
             
-            # Получаем статистику голов
-            if home_form:
-                home_goals_avg = home_form.get('goals_avg', 1.2)
-                home_conceded_avg = home_form.get('conceded_avg', 1.0)
-            else:
-                home_goals_avg = 1.2
-                home_conceded_avg = 1.0
-                
-            if away_form:
-                away_goals_avg = away_form.get('goals_avg', 1.0)
-                away_conceded_avg = away_form.get('conceded_avg', 1.2)
-            else:
-                away_goals_avg = 1.0
-                away_conceded_avg = 1.2
-            
-            # ============================================================
-            # 2. РАССЧИТЫВАЕМ РЕАЛЬНЫЙ XG
-            # ============================================================
-            
-            # XG на основе формы и статистики
-            home_xg = (home_goals_avg + away_conceded_avg) / 2
-            away_xg = (away_goals_avg + home_conceded_avg) / 2
-            
-            # Корректировка на домашнее преимущество
-            home_xg *= 1.1
-            away_xg *= 0.9
+            if statistics:
+                for team_name, stats in statistics.items():
+                    if home.lower() in team_name.lower() or team_name.lower() in home.lower():
+                        home_xg = stats.get('xG', 1.2)
+                        home_shots = stats.get('Total Shots', 0)
+                        home_shots_on_target = stats.get('Shots on Goal', 0)
+                        home_possession = stats.get('Possession', 50)
+                        home_corners = stats.get('Corner Kicks', 0)
+                    elif away.lower() in team_name.lower() or team_name.lower() in away.lower():
+                        away_xg = stats.get('xG', 1.0)
+                        away_shots = stats.get('Total Shots', 0)
+                        away_shots_on_target = stats.get('Shots on Goal', 0)
+                        away_possession = stats.get('Possession', 50)
+                        away_corners = stats.get('Corner Kicks', 0)
             
             total_xg = home_xg + away_xg
             
             # ============================================================
-            # 3. РАССЧИТЫВАЕМ РЕАЛЬНУЮ ВЕРОЯТНОСТЬ ТМ 2.5
+            # 2. ПОЛУЧАЕМ ФОРМУ КОМАНД
+            # ============================================================
+            home_form_data = football_api.get_form(home_team.get("id"))
+            away_form_data = football_api.get_form(away_team.get("id"))
+            
+            home_form = home_form_data.get('form', '') if home_form_data else ''
+            away_form = away_form_data.get('form', '') if away_form_data else ''
+            
+            home_goals_avg = home_form_data.get('goals_avg', 1.2) if home_form_data else 1.2
+            away_goals_avg = away_form_data.get('goals_avg', 1.0) if away_form_data else 1.0
+            home_conceded_avg = home_form_data.get('conceded_avg', 1.0) if home_form_data else 1.0
+            away_conceded_avg = away_form_data.get('conceded_avg', 1.2) if away_form_data else 1.2
+            
+            # ============================================================
+            # 3. ПОЛУЧАЕМ ИСТОРИЮ ЛИЧНЫХ ВСТРЕЧ (H2H)
+            # ============================================================
+            h2h = football_api.get_head_to_head(home, away)
+            
+            h2h_home_wins = 0
+            h2h_draws = 0
+            h2h_away_wins = 0
+            h2h_avg_goals = 2.5
+            h2h_home_win_rate = 0
+            
+            if h2h:
+                h2h_home_wins = h2h.get('home_wins', 0)
+                h2h_draws = h2h.get('draws', 0)
+                h2h_away_wins = h2h.get('away_wins', 0)
+                h2h_avg_goals = h2h.get('avg_goals', 2.5)
+                h2h_home_win_rate = h2h.get('home_win_rate', 0)
+            
+            # ============================================================
+            # 4. ПОЛУЧАЕМ ТУРНИРНУЮ ТАБЛИЦУ
+            # ============================================================
+            standings = football_api.get_standings(league_id) if league_id else None
+            
+            home_position = 99
+            away_position = 99
+            home_points = 0
+            away_points = 0
+            
+            if standings:
+                if home in standings:
+                    home_position = standings[home].get('position', 99)
+                    home_points = standings[home].get('points', 0)
+                if away in standings:
+                    away_position = standings[away].get('position', 99)
+                    away_points = standings[away].get('points', 0)
+            
+            # ============================================================
+            # 5. РАССЧИТЫВАЕМ ВЕРОЯТНОСТЬ ТМ 2.5
             # ============================================================
             
-            # На основе XG рассчитываем вероятность ТМ 2.5
-            # Используем распределение Пуассона (упрощенно)
+            # Базовая вероятность на основе xG
             if total_xg <= 1.5:
-                prob_under = 0.85  # Очень высокая вероятность
-                quality = "🔥 ОТЛИЧНО"
+                prob_under = 0.85
             elif total_xg <= 2.0:
                 prob_under = 0.75
-                quality = "✅ ХОРОШО"
             elif total_xg <= 2.3:
                 prob_under = 0.65
-                quality = "📊 СРЕДНЕ"
             elif total_xg <= 2.5:
                 prob_under = 0.55
-                quality = "📊 СРЕДНЕ"
             elif total_xg <= 2.8:
                 prob_under = 0.45
-                quality = "⚠️ НИЗКАЯ"
             elif total_xg <= 3.0:
                 prob_under = 0.35
-                quality = "❌ ПЛОХО"
             else:
-                prob_under = 0.25  # Низкая вероятность
-                quality = "❌ ОЧЕНЬ ПЛОХО"
+                prob_under = 0.25
+            
+            # Корректировка на основе H2H
+            if h2h_avg_goals < 2.0:
+                prob_under += 0.10
+            elif h2h_avg_goals > 3.0:
+                prob_under -= 0.10
+            
+            # Корректировка на основе позиции в таблице
+            if home_position <= 4 and away_position >= 15:
+                # Топ-команда играет с аутсайдером - часто мало голов
+                prob_under += 0.05
+            elif home_position >= 15 and away_position <= 4:
+                prob_under += 0.05
+            
+            # Корректировка на основе формы
+            if home_form and away_form:
+                home_wins = home_form.count('W')
+                away_wins = away_form.count('W')
+                
+                if home_wins >= 4 and away_wins <= 1:
+                    prob_under += 0.05
+                elif home_wins <= 1 and away_wins >= 4:
+                    prob_under += 0.05
+            
+            # Ограничиваем вероятность
+            prob_under = max(0.25, min(0.85, prob_under))
             
             # ============================================================
-            # 4. РАССЧИТЫВАЕМ EV
+            # 6. РАССЧИТЫВАЕМ EV
             # ============================================================
             
             odds = 1.95
@@ -375,39 +437,28 @@ def find_top_matches(matches):
             ev_percent = ev * 100
             
             # ============================================================
-            # 5. ФИЛЬТРУЕМ СТАВКИ (ТОЛЬКО ЛУЧШИЕ)
+            # 7. ФИЛЬТРУЕМ СТАВКИ
             # ============================================================
-            
-            # Условия для ставки:
-            # 1. EV > 5% (положительное ожидание)
-            # 2. Total XG < 2.5 (реально низкая результативность)
-            # 3. Prob > 50% (вероятность выше 50%)
             
             skip_reason = None
             
             if ev_percent < 5:
                 skip_reason = f"EV: {ev_percent:.1f}% (слишком низкое)"
-                
             elif total_xg > 2.8:
                 skip_reason = f"XG: {total_xg:.2f} (слишком высокий)"
-                
             elif prob_under < 0.50:
                 skip_reason = f"Prob: {prob_under*100:.1f}% (слишком низкая)"
-            
-            # Пропускаем матчи, где команды сильно забивают
-            elif home_goals_avg > 2.0 or away_goals_avg > 2.0:
-                skip_reason = f"Команды много забивают (H: {home_goals_avg:.1f}, A: {away_goals_avg:.1f})"
-            
-            # В топ-лигах нужен более низкий XG
-            elif league_name in TOP_LEAGUES and total_xg > 2.3:
-                skip_reason = f"Топ-лига, высокий XG: {total_xg:.2f}"
+            elif home_position <= 3 and away_position <= 3:
+                skip_reason = f"Обе команды в топ-3 (может быть много голов)"
+            elif home_shots_on_target > 8 or away_shots_on_target > 8:
+                skip_reason = f"Много ударов в створ (H: {home_shots_on_target}, A: {away_shots_on_target})"
             
             if skip_reason:
                 logger.info(f"⏭️ Пропускаем: {home} vs {away} | {skip_reason}")
                 continue
             
             # ============================================================
-            # 6. СОХРАНЯЕМ МАТЧ ДЛЯ СТАВКИ
+            # 8. СОХРАНЯЕМ МАТЧ ДЛЯ СТАВКИ
             # ============================================================
             
             match_data = {
@@ -423,6 +474,27 @@ def find_top_matches(matches):
                 "away_form": away_form,
                 "home_goals_avg": home_goals_avg,
                 "away_goals_avg": away_goals_avg,
+                "home_shots": home_shots,
+                "away_shots": away_shots,
+                "home_shots_on_target": home_shots_on_target,
+                "away_shots_on_target": away_shots_on_target,
+                "home_possession": home_possession,
+                "away_possession": away_possession,
+                "home_corners": home_corners,
+                "away_corners": away_corners,
+                "h2h": {
+                    "home_wins": h2h_home_wins,
+                    "draws": h2h_draws,
+                    "away_wins": h2h_away_wins,
+                    "avg_goals": h2h_avg_goals,
+                    "home_win_rate": h2h_home_win_rate
+                },
+                "standings": {
+                    "home_position": home_position,
+                    "away_position": away_position,
+                    "home_points": home_points,
+                    "away_points": away_points
+                },
                 "weather_reason": "🌤️",
                 "factors": {},
                 "intuition": [],
@@ -443,38 +515,39 @@ def find_top_matches(matches):
                 "xg_total": round(total_xg, 2),
                 "xg_home": round(home_xg, 2),
                 "xg_away": round(away_xg, 2),
-                "home_goals_avg": home_goals_avg,
-                "away_goals_avg": away_goals_avg,
-                "quality": quality
+                "home_form": home_form,
+                "away_form": away_form,
+                "home_position": home_position,
+                "away_position": away_position,
+                "h2h_avg_goals": h2h_avg_goals,
+                "home_shots_on_target": home_shots_on_target,
+                "away_shots_on_target": away_shots_on_target
             })
             
             # Сохраняем матч с оценкой качества
             match_score = {
                 'match_data': match_data,
-                'score': ev_percent + (0.6 - prob_under) * 100  # Чем выше EV и ниже XG, тем лучше
+                'score': ev_percent + (0.6 - prob_under) * 100
             }
             scored_matches.append(match_score)
             
-            logger.info(f"✅ КАНДИДАТ: {home} vs {away} | XG: {total_xg:.2f} | EV: {ev_percent:.1f}% | Prob: {prob_under*100:.1f}% | {quality}")
+            logger.info(f"✅ КАНДИДАТ: {home} vs {away} | XG: {total_xg:.2f} | EV: {ev_percent:.1f}% | Prob: {prob_under*100:.1f}% | H2H: {h2h_home_wins}-{h2h_draws}-{h2h_away_wins}")
             
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
             continue
     
     # ============================================================
-    # 7. СОРТИРУЕМ И БЕРЕМ ТОЛЬКО ЛУЧШИЕ МАТЧИ
+    # 9. СОРТИРУЕМ И ВЫБИРАЕМ ЛУЧШИЕ
     # ============================================================
     
-    # Сортируем по качеству (от лучшего к худшему)
     scored_matches.sort(key=lambda x: x['score'], reverse=True)
-    
-    # Берем только топ-максимум ставок
     top_matches = scored_matches[:max_bets]
     
     logger.info(f"📊 Найдено {len(scored_matches)} кандидатов, выбрано {len(top_matches)} лучших")
     
     # ============================================================
-    # 8. РАЗМЕЩАЕМ СТАВКИ НА ЛУЧШИЕ МАТЧИ
+    # 10. РАЗМЕЩАЕМ СТАВКИ
     # ============================================================
     
     for item in top_matches:
@@ -494,7 +567,9 @@ def find_top_matches(matches):
                     msg += f"📈 EV: {bet_result['ev']}%\n"
                     msg += f"⚽ XG: {bet_result.get('xg_total', 0):.2f}\n"
                     msg += f"📊 Prob: {bet_result.get('prob', 0)}%\n"
-                    msg += f"🏆 {bet_result.get('quality', '')}"
+                    msg += f"📈 Форма: {bet_result.get('home_form', '')} vs {bet_result.get('away_form', '')}\n"
+                    msg += f"🏆 Позиция: #{bet_result.get('home_position', '?')} vs #{bet_result.get('away_position', '?')}\n"
+                    msg += f"📊 H2H: {bet_result.get('h2h_avg_goals', 0):.1f} голов в среднем"
                     if bet_result.get('marker_stake'):
                         msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
                     send_telegram(msg)
@@ -502,7 +577,6 @@ def find_top_matches(matches):
         except Exception as e:
             logger.error(f"❌ Ошибка авто-ставки: {e}")
     
-    # Сохраняем в кэш
     cache = storage.load_cache()
     cache['top_matches'] = [item['match_data'] for item in top_matches]
     storage.save_cache(cache)
