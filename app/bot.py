@@ -18,7 +18,25 @@ from app.analytics.anomalies import anomaly_detector
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 # from app.ml.predictor import ml_predictor  # Временно отключено (numpy)
-from app.betting.auto_bet import auto_bet
+
+# ============================================================
+# ⚠️ ВАЖНО: ИСПРАВЛЕН ИМПОРТ - используем класс напрямую
+# ============================================================
+try:
+    from app.betting.auto_bet import AutoBet  # Правильный импорт класса
+    auto_bet = AutoBet()  # Создаем экземпляр
+except ImportError as e:
+    logger = get_logger(__name__)
+    logger.error(f"❌ Ошибка импорта AutoBet: {e}")
+    # Создаем заглушку, чтобы бот не падал
+    class DummyAutoBet:
+        enabled = False
+        bets_today = 0
+        def check_and_bet(self, match_data):
+            logger.warning("⚠️ AutoBet не загружен - пропускаем ставку")
+            return None
+    auto_bet = DummyAutoBet()
+
 from app.scheduler import start_scheduler
 
 logger = get_logger(__name__)
@@ -327,21 +345,27 @@ def find_top_matches(matches):
                 match_data["bets"].sort(key=lambda x: x['ev'], reverse=True)
                 all_matches_data.append(match_data)
                 
+                # ============================================================
+                # ИСПРАВЛЕНО: проверяем что auto_bet существует и имеет метод
+                # ============================================================
                 try:
-                    bet_result = auto_bet.check_and_bet(match_data)
-                    if bet_result:
-                        bets_placed += 1
-                        msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
-                        msg += f"🏟️ {bet_result['match']}\n"
-                        if bet_result.get('match_time'):
-                            msg += f"📅 {bet_result['match_time']}\n"
-                        msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
-                        msg += f"💰 Сумма: ${bet_result['stake']}\n"
-                        msg += f"📈 EV: {bet_result['ev']}%"
-                        if bet_result.get('marker_stake'):
-                            msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
-                        send_telegram(msg)
-                        logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
+                    if auto_bet and hasattr(auto_bet, 'check_and_bet'):
+                        bet_result = auto_bet.check_and_bet(match_data)
+                        if bet_result:
+                            bets_placed += 1
+                            msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
+                            msg += f"🏟️ {bet_result['match']}\n"
+                            if bet_result.get('match_time'):
+                                msg += f"📅 {bet_result['match_time']}\n"
+                            msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
+                            msg += f"💰 Сумма: ${bet_result['stake']}\n"
+                            msg += f"📈 EV: {bet_result['ev']}%"
+                            if bet_result.get('marker_stake'):
+                                msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
+                            send_telegram(msg)
+                            logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
+                    else:
+                        logger.warning("⚠️ AutoBet не инициализирован - пропускаем ставку")
                 except Exception as e:
                     logger.error(f"❌ Ошибка авто-ставки: {e}")
 
@@ -538,10 +562,12 @@ def webhook():
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
+                            # Проверяем наличие auto_bet перед использованием
+                            bets_today = auto_bet.bets_today if hasattr(auto_bet, 'bets_today') else 0
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
+                                f"🤖 Авто-ставок: {bets_today}\n"
                                 f"⏱️ Время: {elapsed} сек."
                             )
                         else:
@@ -598,9 +624,11 @@ def webhook():
             
             elif text == '/autobet':
                 logger.info("🔄 Обработка /autobet")
-                auto_bot_enabled = not getattr(auto_bet, 'enabled', True)
-                auto_bet.enabled = auto_bot_enabled
-                send_telegram(handlers.handle_autobet(auto_bot_enabled))
+                if hasattr(auto_bet, 'enabled'):
+                    auto_bet.enabled = not auto_bet.enabled
+                    send_telegram(handlers.handle_autobet(auto_bet.enabled))
+                else:
+                    send_telegram("⚠️ AutoBet недоступен")
             
             elif text == '/train':
                 logger.info("🔄 Обработка /train")
