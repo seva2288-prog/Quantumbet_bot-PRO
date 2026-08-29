@@ -12,7 +12,7 @@ class FootballAPI:
         self.base_url = base_url or "https://v3.football.api-sports.io"
         self.cache = {}
         self.last_request_time = 0
-        self.min_request_interval = 0.5  # 500ms между запросами
+        self.min_request_interval = 1.0  # 1 секунда между запросами (для избежания лимитов)
         
     def _make_request(self, endpoint, params=None):
         """Выполняет запрос к API с кэшированием"""
@@ -71,7 +71,6 @@ class FootballAPI:
             return self.cache[cache_key]
         
         try:
-            # Получаем последние матчи команды
             params = {
                 'team': team_id,
                 'last': 5,
@@ -92,7 +91,6 @@ class FootballAPI:
                         goals = match.get('goals', {})
                         teams = match.get('teams', {})
                         
-                        # Определяем, играла ли команда дома или в гостях
                         if teams.get('home', {}).get('id') == team_id:
                             scored = goals.get('home', 0)
                             conceded = goals.get('away', 0)
@@ -103,7 +101,6 @@ class FootballAPI:
                         goals_scored.append(scored)
                         goals_conceded.append(conceded)
                         
-                        # Результат матча
                         if scored > conceded:
                             wins += 1
                         elif scored == conceded:
@@ -150,6 +147,170 @@ class FootballAPI:
                     form.append('L')
         return ''.join(form)
     
+    def get_match_statistics(self, fixture_id):
+        """Получает расширенную статистику матча (xG, удары, владение и т.д.)"""
+        cache_key = f"stats_{fixture_id}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            params = {'fixture': fixture_id}
+            data = self._make_request('/fixtures/statistics', params)
+            
+            if data and 'response' in data:
+                statistics = {}
+                for team_stats in data['response']:
+                    team_name = team_stats.get('team', {}).get('name', '')
+                    stats = {}
+                    
+                    for stat in team_stats.get('statistics', []):
+                        key = stat.get('type', '')
+                        value = stat.get('value', 0)
+                        
+                        # Преобразуем проценты в числа
+                        if isinstance(value, str) and '%' in value:
+                            try:
+                                value = float(value.replace('%', ''))
+                            except:
+                                value = 0
+                        elif isinstance(value, str):
+                            try:
+                                value = float(value)
+                            except:
+                                value = 0
+                        
+                        stats[key] = value
+                    
+                    statistics[team_name] = stats
+                
+                self.cache[cache_key] = statistics
+                return statistics
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики матча {fixture_id}: {e}")
+        
+        return None
+    
+    def get_head_to_head(self, home_team, away_team):
+        """Получает историю личных встреч"""
+        cache_key = f"h2h_{home_team}_{away_team}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            # Находим ID команд по названиям
+            home_id = self.get_team_id(home_team)
+            away_id = self.get_team_id(away_team)
+            
+            if home_id and away_id:
+                params = {
+                    'h2h': f"{home_id}-{away_id}",
+                    'last': 5
+                }
+                data = self._make_request('/fixtures/headtohead', params)
+                
+                if data and 'response' in data:
+                    fixtures = data['response']
+                    result = {
+                        'matches': [],
+                        'home_wins': 0,
+                        'away_wins': 0,
+                        'draws': 0,
+                        'goals_scored': 0,
+                        'goals_conceded': 0
+                    }
+                    
+                    for fixture in fixtures:
+                        teams = fixture.get('teams', {})
+                        goals = fixture.get('goals', {})
+                        
+                        home_score = goals.get('home', 0)
+                        away_score = goals.get('away', 0)
+                        
+                        result['matches'].append({
+                            'home': teams.get('home', {}).get('name', ''),
+                            'away': teams.get('away', {}).get('name', ''),
+                            'home_score': home_score,
+                            'away_score': away_score
+                        })
+                        
+                        if home_score > away_score:
+                            result['home_wins'] += 1
+                        elif home_score < away_score:
+                            result['away_wins'] += 1
+                        else:
+                            result['draws'] += 1
+                        
+                        result['goals_scored'] += home_score
+                        result['goals_conceded'] += away_score
+                    
+                    if result['matches']:
+                        result['avg_goals'] = round((result['goals_scored'] + result['goals_conceded']) / len(result['matches']), 2)
+                        result['home_win_rate'] = round((result['home_wins'] / len(result['matches'])) * 100, 1)
+                    
+                    self.cache[cache_key] = result
+                    return result
+                    
+        except Exception as e:
+            logger.error(f"Ошибка получения H2H {home_team} vs {away_team}: {e}")
+        
+        return None
+    
+    def get_team_id(self, team_name):
+        """Получает ID команды по названию"""
+        cache_key = f"team_id_{team_name}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            params = {'name': team_name}
+            data = self._make_request('/teams', params)
+            
+            if data and 'response' in data:
+                for team in data['response']:
+                    if team.get('name', '').lower() == team_name.lower():
+                        team_id = team.get('team', {}).get('id')
+                        self.cache[cache_key] = team_id
+                        return team_id
+                        
+        except Exception as e:
+            logger.error(f"Ошибка получения ID команды {team_name}: {e}")
+        
+        return None
+    
+    def get_standings(self, league_id):
+        """Получает турнирную таблицу"""
+        cache_key = f"standings_{league_id}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            params = {
+                'league': league_id,
+                'season': datetime.now().year
+            }
+            data = self._make_request('/standings', params)
+            
+            if data and 'response' in data:
+                standings = {}
+                for league in data['response']:
+                    for standing in league.get('league', {}).get('standings', []):
+                        for team in standing:
+                            team_name = team.get('team', {}).get('name', '')
+                            standings[team_name] = {
+                                'position': team.get('rank', 0),
+                                'points': team.get('points', 0),
+                                'form': team.get('form', ''),
+                                'goals_diff': team.get('goalsDiff', 0)
+                            }
+                self.cache[cache_key] = standings
+                return standings
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения таблицы {league_id}: {e}")
+        
+        return None
+    
     def get_injuries(self, team_id):
         """Получает травмированных игроков команды"""
         cache_key = f"injuries_{team_id}"
@@ -180,9 +341,7 @@ class FootballAPI:
             return self.cache[cache_key]
         
         try:
-            params = {
-                'id': fixture_id
-            }
+            params = {'id': fixture_id}
             data = self._make_request('/fixtures', params)
             
             if data and 'response' in data:
@@ -208,7 +367,6 @@ class FootballAPI:
     def find_fixture_by_teams(self, home_team, away_team):
         """Находит ID матча по названиям команд"""
         try:
-            # Ищем матч на сегодня
             today = datetime.now().strftime('%Y-%m-%d')
             params = {
                 'date': today,
