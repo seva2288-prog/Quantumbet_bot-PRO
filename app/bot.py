@@ -1132,6 +1132,48 @@ def health():
 # ЗАПУСК
 # ============================================================
 
+@app.route('/test_api', methods=['GET'])
+def test_api():
+    """Тестовый эндпоинт для проверки API"""
+    results = {}
+    
+    # 1. Проверка ключа
+    results['api_key'] = Config.FOOTBALL_API_KEY[:8] + '...' if Config.FOOTBALL_API_KEY else 'НЕТ КЛЮЧА'
+    
+    # 2. Проверка получения матчей (Premier League)
+    try:
+        matches = football_api.get_matches(39, datetime.now().strftime('%Y-%m-%d'))
+        results['matches_premier'] = len(matches) if matches else 0
+    except Exception as e:
+        results['matches_premier'] = f"Ошибка: {e}"
+    
+    # 3. Проверка получения статистики (первый матч)
+    try:
+        if matches and len(matches) > 0:
+            fixture_id = matches[0].get('fixture', {}).get('id')
+            if fixture_id:
+                stats = football_api.get_match_statistics(fixture_id)
+                results['stats_test'] = '✅ Получена' if stats else '❌ Не получена'
+                results['fixture_id'] = fixture_id
+            else:
+                results['stats_test'] = 'Нет ID матча'
+    except Exception as e:
+        results['stats_test'] = f"Ошибка: {e}"
+    
+    # 4. Проверка формы команды
+    try:
+        if matches and len(matches) > 0:
+            home_id = matches[0].get('teams', {}).get('home', {}).get('id')
+            if home_id:
+                form = football_api.get_form(home_id)
+                results['form_test'] = '✅ Получена' if form else '❌ Не получена'
+            else:
+                results['form_test'] = 'Нет ID команды'
+    except Exception as e:
+        results['form_test'] = f"Ошибка: {e}"
+    
+    return jsonify(results)
+
 if __name__ == "__main__":
     setup_logging()
     start_scheduler()
