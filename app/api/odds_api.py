@@ -55,27 +55,41 @@ class OddsAPIClient:
         try:
             # Маппинг лиг на названия спорта в Odds API
             sport_map = {
+    # Англия
     'АПЛ': 'soccer_epl',
     'Premier League': 'soccer_epl',
     'Чемпионшип': 'soccer_efl_champ',
     'Championship': 'soccer_efl_champ',
+    'League 1': 'soccer_england_league1',
+    'League 2': 'soccer_england_league2',
+    
+    # Испания
     'Ла Лига': 'soccer_spain_la_liga',
     'La Liga': 'soccer_spain_la_liga',
     'Сегунда': 'soccer_spain_segunda_division',
+    
+    # Германия
     'Бундеслига': 'soccer_germany_bundesliga',
     'Bundesliga': 'soccer_germany_bundesliga',
     'Вторая Бундеслига': 'soccer_germany_bundesliga2',
+    
+    # Италия
     'Серия А': 'soccer_italy_serie_a',
     'Serie A': 'soccer_italy_serie_a',
     'Серия B': 'soccer_italy_serie_b',
+    
+    # Франция
     'Лига 1': 'soccer_france_ligue_one',
     'Ligue 1': 'soccer_france_ligue_one',
     'Лига 2': 'soccer_france_ligue_two',
+    
+    # Другие
     'MLS': 'soccer_usa_mls',
     'МЛС': 'soccer_usa_mls',
     'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
     'Лига Европы УЕФА': 'soccer_uefa_europa_league',
     'Копа Либертадорес': 'soccer_conmebol_copa_libertadores',
+    'Копа Судамерикана': 'soccer_conmebol_copa_sudamericana',
     'Эредивизи': 'soccer_netherlands_eredivisie',
     'Примейра Лига': 'soccer_portugal_primeira_liga',
     'Супер Лига': 'soccer_turkey_super_league',
@@ -84,6 +98,8 @@ class OddsAPIClient:
     'Аргентина Примера': 'soccer_argentina_primera_division',
     'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
     'Япония J1 Лига': 'soccer_japan_j_league',
+    'Корея K Лига 1': 'soccer_korea_kleague1',
+    'Мексика Liga MX': 'soccer_mexico_ligamx',
 }
             
             sport_key = sport_map.get(league, 'soccer_epl')
