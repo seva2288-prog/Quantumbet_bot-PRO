@@ -529,13 +529,13 @@ class AutoBet:
             'stake': stake,
             'ev': best_bet.get('ev', 0),
             'marker_stake': best_bet.get('marker_stake', 0),
-            'xg_total': best_bet.get('xg_total', 0),
+            'xg_total': match_data.get('total_xg', 0),  # ← ИСПРАВЛЕНО!
             'prob': best_bet.get('prob', 0),
-            'home_form': best_bet.get('home_form', ''),
-            'away_form': best_bet.get('away_form', ''),
-            'home_position': best_bet.get('home_position', '?'),
-            'away_position': best_bet.get('away_position', '?'),
-            'bet_type': best_bet.get('bet_type', 'under'),
+            'home_form': match_data.get('home_form', ''),  # ← ИСПРАВЛЕНО
+            'away_form': match_data.get('away_form', ''),  # ← ИСПРАВЛЕНО
+            'home_position': match_data.get('standings', {}).get('home_position', '?'),  # ← ИСПРАВЛЕНО
+            'away_position': match_data.get('standings', {}).get('away_position', '?'),  # ← ИСПРАВЛЕНО
+            'bet_type': best_bet.get('type', 'under'),
             'is_over': best_bet.get('is_over', False)
         }
 
