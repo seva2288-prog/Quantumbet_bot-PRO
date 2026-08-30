@@ -5,6 +5,7 @@ import time
 import json
 import logging
 import random
+import math
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 
@@ -13,7 +14,6 @@ from flask import Flask, request, jsonify
 # ============================================================
 from app.config import Config
 from app.database.storage import storage
-from app.analytics.probability import calculate_ev
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
@@ -419,14 +419,13 @@ class AutoBet:
             'stake': stake,
             'ev': best_bet.get('ev', 0),
             'marker_stake': best_bet.get('marker_stake', 0),
-            'xg_total': best_bet.get('xg_total', 0),
+            'xg_total': match_data.get('total_xg', 0),
             'prob': best_bet.get('prob', 0),
-            'home_form': best_bet.get('home_form', ''),
-            'away_form': best_bet.get('away_form', ''),
-            'home_position': best_bet.get('home_position', '?'),
-            'away_position': best_bet.get('away_position', '?'),
-            'bet_type': best_bet.get('bet_type', 'under'),
-            'is_over': best_bet.get('is_over', False)
+            'home_form': match_data.get('home_form', ''),
+            'away_form': match_data.get('away_form', ''),
+            'home_position': match_data.get('standings', {}).get('home_position', '?'),
+            'away_position': match_data.get('standings', {}).get('away_position', '?'),
+            'bet_type': best_bet.get('type', 'under'),
         }
 
 auto_bet = AutoBet()
@@ -659,7 +658,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - С РАЗДЕЛЕНИЕМ НА ТМ 2.5 И ТБ 2.5
+# ТОП МАТЧЕЙ - ВСЕ ТИПЫ СТАВОК
 # ============================================================
 
 def find_top_matches(matches):
@@ -667,12 +666,11 @@ def find_top_matches(matches):
     all_matches_data = []
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
-    
-    # Списки для разных типов матчей
-    under_matches = []  # ТМ 2.5
-    over_matches = []   # ТБ 2.5
 
     logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    
+    # Список всех матчей с лучшими ставками
+    best_matches = []
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -721,16 +719,6 @@ def find_top_matches(matches):
             
             home_xg = 1.2
             away_xg = 1.0
-            home_shots = 0
-            away_shots = 0
-            home_shots_on_target = 0
-            away_shots_on_target = 0
-            home_possession = 50
-            away_possession = 50
-            home_corners = 0
-            away_corners = 0
-            
-            api_worked = False
             
             if statistics:
                 for team_name, stats in statistics.items():
@@ -738,23 +726,13 @@ def find_top_matches(matches):
                         xg_val = stats.get('xG')
                         if xg_val is not None and xg_val > 0:
                             home_xg = float(xg_val)
-                            api_worked = True
-                        home_shots = stats.get('Total Shots', 0)
-                        home_shots_on_target = stats.get('Shots on Goal', 0)
-                        home_possession = stats.get('Possession', 50)
-                        home_corners = stats.get('Corner Kicks', 0)
                     elif away.lower() in team_name.lower() or team_name.lower() in away.lower():
                         xg_val = stats.get('xG')
                         if xg_val is not None and xg_val > 0:
                             away_xg = float(xg_val)
-                            api_worked = True
-                        away_shots = stats.get('Total Shots', 0)
-                        away_shots_on_target = stats.get('Shots on Goal', 0)
-                        away_possession = stats.get('Possession', 50)
-                        away_corners = stats.get('Corner Kicks', 0)
             
             # ЕСЛИ API НЕ ВЕРНУЛ ДАННЫЕ - ИСПОЛЬЗУЕМ ЗАПАСНОЙ ВАРИАНТ
-            if not api_worked or home_xg is None or away_xg is None:
+            if home_xg == 1.2 and away_xg == 1.0:
                 if league_name in FALLBACK_XG:
                     home_xg = FALLBACK_XG[league_name]['home']
                     away_xg = FALLBACK_XG[league_name]['away']
@@ -789,80 +767,177 @@ def find_top_matches(matches):
             
             home_position = 99
             away_position = 99
-            home_points = 0
-            away_points = 0
             
             if standings:
                 if home in standings:
                     home_position = standings[home].get('position', 99)
-                    home_points = standings[home].get('points', 0)
                 if away in standings:
                     away_position = standings[away].get('position', 99)
-                    away_points = standings[away].get('points', 0)
             
             # ============================================================
-            # 4. ОПРЕДЕЛЯЕМ ТИП МАТЧА (ТМ 2.5 ИЛИ ТБ 2.5)
+            # 4. РАССЧИТЫВАЕМ ВЕРОЯТНОСТИ ДЛЯ ВСЕХ СТАВОК
             # ============================================================
             
-            is_over = False
-            over_reason = ""
+            # Функция для расчета вероятности по Пуассону
+            def poisson_prob(avg, goals):
+                return (math.exp(-avg) * avg ** goals) / math.factorial(goals)
             
-            # Условия для ТБ 2.5 (много голов)
-            if total_xg > 2.8:
-                is_over = True
-                over_reason = f"Высокий XG: {total_xg:.2f}"
-            elif home_goals_avg > 2.0 or away_goals_avg > 2.0:
-                is_over = True
-                over_reason = f"Команды много забивают (H: {home_goals_avg:.1f}, A: {away_goals_avg:.1f})"
-            elif home_position <= 3 and away_position <= 3:
-                is_over = True
-                over_reason = "Обе команды в топ-3"
-            elif home_shots_on_target > 8 or away_shots_on_target > 8:
-                is_over = True
-                over_reason = f"Много ударов в створ (H: {home_shots_on_target}, A: {away_shots_on_target})"
-            elif home_conceded_avg > 1.5 and away_conceded_avg > 1.5:
-                is_over = True
-                over_reason = "Обе команды много пропускают"
+            # Вероятность голов для каждой команды
+            home_goals_prob = [poisson_prob(home_xg, i) for i in range(6)]
+            away_goals_prob = [poisson_prob(away_xg, i) for i in range(6)]
             
-            # ============================================================
-            # 5. РАССЧИТЫВАЕМ ВЕРОЯТНОСТЬ
-            # ============================================================
+            # Вероятность результатов
+            prob_home_win = 0
+            prob_away_win = 0
+            prob_draw = 0
+            prob_1X = 0
+            prob_X2 = 0
+            prob_over_2_5 = 0
+            prob_under_2_5 = 0
+            prob_btts = 0
             
-            # Для ТМ 2.5
-            if total_xg <= 1.5:
-                prob_under = 0.85
-            elif total_xg <= 2.0:
-                prob_under = 0.75
-            elif total_xg <= 2.3:
-                prob_under = 0.65
-            elif total_xg <= 2.5:
-                prob_under = 0.55
-            elif total_xg <= 2.8:
-                prob_under = 0.45
-            elif total_xg <= 3.0:
-                prob_under = 0.35
-            else:
-                prob_under = 0.25
-            
-            prob_under = max(0.25, min(0.85, prob_under))
-            
-            # Для ТБ 2.5
-            prob_over = 1 - prob_under
-            
-            # ============================================================
-            # 6. РАССЧИТЫВАЕМ EV ДЛЯ ОБОИХ ТИПОВ
-            # ============================================================
-            
-            odds = 1.95
-            
-            ev_under = (prob_under * odds) - 1
-            ev_under_percent = ev_under * 100
-            
-            ev_over = (prob_over * odds) - 1
-            ev_over_percent = ev_over * 100
+            # Перебираем все варианты голов (0-5)
+            for h_g in range(6):
+                for a_g in range(6):
+                    p = home_goals_prob[h_g] * away_goals_prob[a_g]
+                    total_goals = h_g + a_g
+                    
+                    if h_g > a_g:
+                        prob_home_win += p
+                    elif h_g < a_g:
+                        prob_away_win += p
+                    else:
+                        prob_draw += p
+                    
+                    if h_g >= a_g:
+                        prob_1X += p
+                    if a_g >= h_g:
+                        prob_X2 += p
+                    
+                    if total_goals > 2.5:
+                        prob_over_2_5 += p
+                    else:
+                        prob_under_2_5 += p
+                    
+                    if h_g > 0 and a_g > 0:
+                        prob_btts += p
             
             # ============================================================
-            # 7. СОХРАНЯЕМ МАТЧ
+            # 5. КОЭФФИЦИЕНТЫ ДЛЯ СТАВОК
+            # ============================================================
+            
+            odds = {
+                '1X': 1.85,
+                'X2': 1.85,
+                'П1': 2.10,
+                'П2': 2.10,
+                'ТМ 2.5': 1.95,
+                'ТБ 2.5': 1.95,
+                'ОБЗ': 1.90,
+            }
+            
+            # ============================================================
+            # 6. РАССЧИТЫВАЕМ EV ДЛЯ ВСЕХ СТАВОК
+            # ============================================================
+            
+            bets = []
+            
+            # 1X
+            ev_1x = (prob_1X * odds['1X']) - 1
+            bets.append({
+                'type': '1X',
+                'label': '1X',
+                'prob': round(prob_1X * 100, 1),
+                'ev': round(ev_1x * 100, 1),
+                'odds': odds['1X'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # X2
+            ev_x2 = (prob_X2 * odds['X2']) - 1
+            bets.append({
+                'type': 'X2',
+                'label': 'X2',
+                'prob': round(prob_X2 * 100, 1),
+                'ev': round(ev_x2 * 100, 1),
+                'odds': odds['X2'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # П1
+            ev_p1 = (prob_home_win * odds['П1']) - 1
+            bets.append({
+                'type': 'П1',
+                'label': 'П1',
+                'prob': round(prob_home_win * 100, 1),
+                'ev': round(ev_p1 * 100, 1),
+                'odds': odds['П1'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # П2
+            ev_p2 = (prob_away_win * odds['П2']) - 1
+            bets.append({
+                'type': 'П2',
+                'label': 'П2',
+                'prob': round(prob_away_win * 100, 1),
+                'ev': round(ev_p2 * 100, 1),
+                'odds': odds['П2'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # ТМ 2.5
+            ev_under = (prob_under_2_5 * odds['ТМ 2.5']) - 1
+            bets.append({
+                'type': 'under',
+                'label': 'ТМ 2.5',
+                'prob': round(prob_under_2_5 * 100, 1),
+                'ev': round(ev_under * 100, 1),
+                'odds': odds['ТМ 2.5'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # ТБ 2.5
+            ev_over = (prob_over_2_5 * odds['ТБ 2.5']) - 1
+            bets.append({
+                'type': 'over',
+                'label': 'ТБ 2.5',
+                'prob': round(prob_over_2_5 * 100, 1),
+                'ev': round(ev_over * 100, 1),
+                'odds': odds['ТБ 2.5'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # ОБЗ
+            ev_btts = (prob_btts * odds['ОБЗ']) - 1
+            bets.append({
+                'type': 'btts',
+                'label': 'ОБЗ',
+                'prob': round(prob_btts * 100, 1),
+                'ev': round(ev_btts * 100, 1),
+                'odds': odds['ОБЗ'],
+                'stake': round(42.86875, 2)
+            })
+            
+            # ============================================================
+            # 7. ВЫБИРАЕМ ЛУЧШУЮ СТАВКУ (С МАКСИМАЛЬНЫМ EV)
+            # ============================================================
+            
+            # Сортируем по EV (от лучшего к худшему)
+            bets.sort(key=lambda x: x['ev'], reverse=True)
+            
+            best_bet = bets[0]
+            
+            # ============================================================
+            # 8. ФИЛЬТРУЕМ СТАВКИ (ТОЛЬКО EV > 5%)
+            # ============================================================
+            
+            if best_bet['ev'] < 5:
+                logger.info(f"⏭️ Пропускаем: {home} vs {away} | Лучший EV: {best_bet['ev']}%")
+                continue
+            
+            # ============================================================
+            # 9. СОХРАНЯЕМ МАТЧ С ЛУЧШЕЙ СТАВКОЙ
             # ============================================================
             
             match_data = {
@@ -880,141 +955,65 @@ def find_top_matches(matches):
                 "away_goals_avg": away_goals_avg,
                 "home_conceded_avg": home_conceded_avg,
                 "away_conceded_avg": away_conceded_avg,
-                "home_shots": home_shots,
-                "away_shots": away_shots,
-                "home_shots_on_target": home_shots_on_target,
-                "away_shots_on_target": away_shots_on_target,
-                "home_possession": home_possession,
-                "away_possession": away_possession,
-                "home_corners": home_corners,
-                "away_corners": away_corners,
                 "standings": {
                     "home_position": home_position,
-                    "away_position": away_position,
-                    "home_points": home_points,
-                    "away_points": away_points
+                    "away_position": away_position
                 },
-                "is_over": is_over,
-                "over_reason": over_reason,
+                "bets": bets,
+                "best_bet": best_bet,
                 "weather_reason": "🌤️",
-                "factors": {},
-                "intuition": [],
-                "bets": []
+                "factors": {}
             }
             
-            # ============================================================
-            # 8. ДОБАВЛЯЕМ СТАВКИ
-            # ============================================================
+            best_matches.append(match_data)
             
-            marker = list(MARKERS.keys())[0]
+            logger.info(f"✅ КАНДИДАТ: {home} vs {away} | ЛУЧШАЯ СТАВКА: {best_bet['label']} | EV: {best_bet['ev']}% | Prob: {best_bet['prob']}%")
             
-            # Если матч с высокой результативностью - показываем ТБ 2.5
-            if is_over:
-                match_data["bets"].append({
-                    "bet_type": 'over',
-                    "label": 'ТБ 2.5',
-                    "odds": odds,
-                    "prob": round(prob_over * 100, 1),
-                    "ev": round(ev_over_percent, 1),
-                    "stake": round(marker, 2),
-                    "marker_stake": marker,
-                    "xg_total": round(total_xg, 2),
-                    "xg_home": round(home_xg, 2),
-                    "xg_away": round(away_xg, 2),
-                    "home_form": home_form,
-                    "away_form": away_form,
-                    "home_position": home_position,
-                    "away_position": away_position,
-                    "is_over": True,
-                    "over_reason": over_reason
-                })
-                over_matches.append(match_data)
-                logger.info(f"🔴 ТБ 2.5: {home} vs {away} | XG: {total_xg:.2f} | EV: {ev_over_percent:.1f}% | {over_reason}")
-            else:
-                # ТМ 2.5
-                if ev_under_percent > 5 and prob_under > 0.45:
-                    match_data["bets"].append({
-                        "bet_type": 'under',
-                        "label": 'ТМ 2.5',
-                        "odds": odds,
-                        "prob": round(prob_under * 100, 1),
-                        "ev": round(ev_under_percent, 1),
-                        "stake": round(marker, 2),
-                        "marker_stake": marker,
-                        "xg_total": round(total_xg, 2),
-                        "xg_home": round(home_xg, 2),
-                        "xg_away": round(away_xg, 2),
-                        "home_form": home_form,
-                        "away_form": away_form,
-                        "home_position": home_position,
-                        "away_position": away_position,
-                        "is_over": False,
-                        "over_reason": ""
-                    })
-                    under_matches.append(match_data)
-                    logger.info(f"🟢 ТМ 2.5: {home} vs {away} | XG: {total_xg:.2f} | EV: {ev_under_percent:.1f}%")
+            # Показываем топ-3 ставки в логах
+            for i, bet in enumerate(bets[:3], 1):
+                logger.info(f"   {i}. {bet['label']} | EV: {bet['ev']}% | Prob: {bet['prob']}%")
             
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
             continue
     
     # ============================================================
-    # 9. СОРТИРУЕМ И ВЫБИРАЕМ ЛУЧШИЕ
+    # 10. СОРТИРУЕМ ПО EV И ВЫБИРАЕМ ЛУЧШИЕ
     # ============================================================
     
-    # Сортируем ТМ по EV
-    under_matches.sort(key=lambda x: x['bets'][0]['ev'] if x['bets'] else 0, reverse=True)
-    over_matches.sort(key=lambda x: x['bets'][0]['ev'] if x['bets'] else 0, reverse=True)
+    best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    top_matches = best_matches[:max_bets]
     
-    # Берем топ-5 ТМ и топ-5 ТБ
-    top_under = under_matches[:max_bets]
-    top_over = over_matches[:max_bets]
-    
-    logger.info(f"📊 Найдено ТМ 2.5: {len(under_matches)}, выбрано: {len(top_under)}")
-    logger.info(f"📊 Найдено ТБ 2.5: {len(over_matches)}, выбрано: {len(top_over)}")
+    logger.info(f"📊 Найдено {len(best_matches)} кандидатов, выбрано {len(top_matches)}")
     
     # ============================================================
-    # 10. ОТПРАВЛЯЕМ ОТДЕЛЬНЫЕ СООБЩЕНИЯ
+    # 11. ОТПРАВЛЯЕМ СООБЩЕНИЯ В TELEGRAM
     # ============================================================
     
-    # Сообщение для ТМ 2.5
-    if top_under:
-        msg = f"🟢 <b>ТМ 2.5 (МАЛО ГОЛОВ)</b>\n"
-        msg += f"📊 Найдено: {len(top_under)} матчей\n\n"
-        for i, match_data in enumerate(top_under, 1):
-            bet = match_data['bets'][0]
+    if top_matches:
+        msg = f"🎯 <b>ЛУЧШИЕ СТАВКИ</b>\n"
+        msg += f"📊 Найдено: {len(top_matches)} матчей\n\n"
+        
+        for i, match_data in enumerate(top_matches, 1):
+            best = match_data['best_bet']
             msg += f"{i}. <b>{match_data['home']} vs {match_data['away']}</b>\n"
             msg += f"   📅 {match_data['match_time']}\n"
             msg += f"   🏆 {match_data['league']}\n"
-            msg += f"   ⚽ XG: {bet['xg_total']:.2f} | EV: {bet['ev']}%\n"
-            msg += f"   📈 Форма: {bet['home_form']} vs {bet['away_form']}\n"
-            msg += f"   🏆 Позиция: #{bet['home_position']} vs #{bet['away_position']}\n"
+            msg += f"   🎯 <b>{best['label']}</b> | КЭФ: {best['odds']}\n"
+            msg += f"   📈 EV: {best['ev']}% | Вероятность: {best['prob']}%\n"
+            msg += f"   ⚽ XG: {match_data['total_xg']:.2f}\n"
+            msg += f"   📈 Форма: {match_data['home_form']} vs {match_data['away_form']}\n"
+            msg += f"   🏆 Позиция: #{match_data['standings']['home_position']} vs #{match_data['standings']['away_position']}\n"
             msg += "\n"
-        msg += "✅ Ставки на ТМ 2.5"
-        send_telegram(msg)
-    
-    # Сообщение для ТБ 2.5
-    if top_over:
-        msg = f"🔴 <b>ТБ 2.5 (МНОГО ГОЛОВ)</b>\n"
-        msg += f"📊 Найдено: {len(top_over)} матчей\n\n"
-        for i, match_data in enumerate(top_over, 1):
-            bet = match_data['bets'][0]
-            msg += f"{i}. <b>{match_data['home']} vs {match_data['away']}</b>\n"
-            msg += f"   📅 {match_data['match_time']}\n"
-            msg += f"   🏆 {match_data['league']}\n"
-            msg += f"   ⚽ XG: {bet['xg_total']:.2f} | EV: {bet['ev']}%\n"
-            msg += f"   📈 Форма: {bet['home_form']} vs {bet['away_form']}\n"
-            msg += f"   🏆 Позиция: #{bet['home_position']} vs #{bet['away_position']}\n"
-            msg += f"   🔥 {match_data['over_reason']}\n"
-            msg += "\n"
-        msg += "⚠️ На эти матчи ставки НЕ делаются (высокая результативность)"
+        
+        msg += "✅ Ставки готовы!"
         send_telegram(msg)
     
     # ============================================================
-    # 11. РАЗМЕЩАЕМ СТАВКИ ТОЛЬКО НА ТМ 2.5
+    # 12. РАЗМЕЩАЕМ СТАВКИ (ТОЛЬКО ЛУЧШИЕ)
     # ============================================================
     
-    for match_data in top_under:
+    for match_data in top_matches:
         try:
             if auto_bet and hasattr(auto_bet, 'check_and_bet'):
                 bet_result = auto_bet.check_and_bet(match_data)
@@ -1039,18 +1038,16 @@ def find_top_matches(matches):
             logger.error(f"❌ Ошибка авто-ставки: {e}")
     
     # ============================================================
-    # 12. СОХРАНЯЕМ В КЭШ (ГЛАВНОЕ ИСПРАВЛЕНИЕ!)
+    # 13. СОХРАНЯЕМ В КЭШ
     # ============================================================
     
     cache = storage.load_cache()
-    cache['top_matches'] = [item for item in top_under] + [item for item in top_over]
+    cache['top_matches'] = top_matches
     storage.save_cache(cache)
     
-    logger.info(f"💾 Сохранено в кэш: {len(cache['top_matches'])} матчей")
+    logger.info(f"💾 Сохранено в кэш: {len(top_matches)} матчей")
     
-    all_matches_data = [item for item in top_under] + [item for item in top_over]
-    
-    return all_matches_data
+    return top_matches
 
 # ============================================================
 # ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
@@ -1060,16 +1057,22 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     total = home_goals + away_goals
     bet_type_lower = bet_type.lower()
     
-    if 'тм 2.5' in bet_type_lower or 'under' in bet_type_lower:
-        if total < 2.5:
-            return 'win'
-        else:
-            return 'loss'
+    # Исходы матча
+    if bet_type_lower == 'п1':
+        return 'win' if home_goals > away_goals else ('push' if home_goals == away_goals else 'loss')
+    elif bet_type_lower == 'п2':
+        return 'win' if away_goals > home_goals else ('push' if home_goals == away_goals else 'loss')
+    elif bet_type_lower == '1x':
+        return 'win' if home_goals >= away_goals else 'loss'
+    elif bet_type_lower == 'x2':
+        return 'win' if away_goals >= home_goals else 'loss'
+    elif bet_type_lower == 'обз' or bet_type_lower == 'btts':
+        return 'win' if home_goals > 0 and away_goals > 0 else 'loss'
+    elif 'тм 2.5' in bet_type_lower or 'under' in bet_type_lower:
+        return 'win' if total < 2.5 else 'loss'
     elif 'тб 2.5' in bet_type_lower or 'over' in bet_type_lower:
-        if total > 2.5:
-            return 'win'
-        else:
-            return 'loss'
+        return 'win' if total > 2.5 else 'loss'
+    
     return 'pending'
 
 def update_pending_bets():
@@ -1631,9 +1634,7 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
-    logger.info("✅ ТМ 2.5 и ТБ 2.5 - раздельный вывод")
-    logger.info("✅ Эндпоинт /api/all_data доступен")
-    logger.info("✅ Эндпоинт /api/import_excel доступен")
-    logger.info("✅ Эндпоинт /api/import_project доступен")
+    logger.info("✅ Анализ всех типов ставок: 1X, X2, П1, П2, ТМ, ТБ, ОБЗ")
+    logger.info("✅ Выбор лучшей ставки по EV")
     logger.info("✅ Кэш матчей сохраняется")
     app.run(host='0.0.0.0', port=port)
