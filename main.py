@@ -11,6 +11,7 @@ from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import io
+import signal
 
 # ============================================================
 # ИМПОРТЫ ИЗ ПРОЕКТА
@@ -60,7 +61,7 @@ FALLBACK_XG = {
 }
 
 # ============================================================
-# КЛАСС FOOTBALL_API (СИНХРОННЫЙ, С КЭШИРОВАНИЕМ)
+# КЛАСС FOOTBALL_API (С КЭШИРОВАНИЕМ)
 # ============================================================
 class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
@@ -1030,7 +1031,7 @@ def get_matches_with_factors():
     return unique_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ
+# ТОП МАТЧЕЙ С СОХРАНЕНИЕМ В ИСТОРИЮ
 # ============================================================
 
 def find_top_matches(matches):
@@ -1368,8 +1369,10 @@ def find_top_matches(matches):
         send_telegram(msg)
     
     # ============================================================
-    # 15. РАЗМЕЩАЕМ СТАВКИ
+    # 15. РАЗМЕЩАЕМ СТАВКИ И СОХРАНЯЕМ В ИСТОРИЮ
     # ============================================================
+    history = storage.load_history()  # ← ЗАГРУЖАЕМ ИСТОРИЮ
+    
     for item in top_matches:
         match_data = item['match_data']
         
@@ -1378,6 +1381,23 @@ def find_top_matches(matches):
                 bet_result = auto_bet.check_and_bet(match_data)
                 if bet_result:
                     bets_placed += 1
+                    
+                    # ← СОХРАНЯЕМ СТАВКУ В ИСТОРИЮ
+                    bet_entry = {
+                        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                        'home': match_data.get('home', ''),
+                        'away': match_data.get('away', ''),
+                        'home_goals': None,
+                        'away_goals': None,
+                        'bet': bet_result.get('bet', 'ТМ 2.5'),
+                        'odds': bet_result.get('odds', 0),
+                        'ev': bet_result.get('ev', 0),
+                        'stake': bet_result.get('stake', 0),
+                        'result': 'pending',
+                        'profit': 0,
+                        'fixture_id': match_data.get('fixture_id')
+                    }
+                    history.append(bet_entry)  # ← ДОБАВЛЯЕМ В ИСТОРИЮ
                     
                     log_bet_analysis(bet_result)
                     
@@ -1400,6 +1420,12 @@ def find_top_matches(matches):
                     logger.info(f"✅ АВТО-СТАВКА #{bets_placed}")
         except Exception as e:
             logger.error(f"❌ Ошибка авто-ставки: {e}")
+    
+    # ← СОХРАНЯЕМ ИСТОРИЮ ПОСЛЕ ВСЕХ СТАВОК
+    if bets_placed > 0:
+        storage.save_history(history)
+        recalc_stats()
+        logger.info(f"💾 Сохранено {bets_placed} ставок в историю")
     
     cache = storage.load_cache()
     cache['top_matches'] = [item['match_data'] for item in top_matches]
@@ -2081,7 +2107,6 @@ def webhook():
 # ============================================================
 # УЛУЧШЕНИЕ 8: GRACEFUL SHUTDOWN
 # ============================================================
-import signal
 
 def graceful_shutdown(signum, frame):
     logger.info("🛑 Получен сигнал остановки...")
