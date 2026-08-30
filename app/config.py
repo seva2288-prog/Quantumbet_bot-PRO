@@ -12,6 +12,10 @@ class Config:
     WEATHER_API_KEY = "7f0cfaced346b0fe364815ab65d627af"
     WEATHER_API_URL = "https://api.openweathermap.org/data/2.5"
     
+    # === ODD API (НОВОЕ) ===
+    ODDS_API_KEY = "1a65316b9cba21b39cf5e6e008a3839e"
+    ODDS_API_URL = "https://api.the-odds-api.com/v4"
+    
     # ============================================================
     # ЕВРОПА — ПО 2 ЛИГИ НА СТРАНУ
     # ============================================================
@@ -553,6 +557,8 @@ class Config:
             missing.append("ADMIN_CHAT_ID")
         if not cls.FOOTBALL_API_KEY:
             missing.append("FOOTBALL_API_KEY")
+        if not cls.ODDS_API_KEY:
+            missing.append("ODDS_API_KEY")
         
         if missing:
             raise ValueError(f"Отсутствуют: {', '.join(missing)}")
@@ -561,6 +567,7 @@ class Config:
         print(f"📊 Лиг: {len(cls.LEAGUES)}")
         print(f"🏆 Кубков: {len(cls.CUP_LEAGUES)}")
         print(f"📋 Всего соревнований: {len(cls.LEAGUES) + len(cls.CUP_LEAGUES)}")
+        print(f"🎯 Odds API ключ: {cls.ODDS_API_KEY[:8]}...")
 
 # Проверка при загрузке
 Config.check()
