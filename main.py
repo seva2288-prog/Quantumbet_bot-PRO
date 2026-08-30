@@ -4,8 +4,10 @@ import requests
 import time
 import json
 import logging
+import random
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
+import io
 
 # ============================================================
 # ИМПОРТЫ ИЗ ПРОЕКТА
@@ -470,13 +472,268 @@ class FootballAPI:
 football_api = FootballAPI()
 
 # ============================================================
-# КЛАСС AUTOBET
+# УЛУЧШЕНИЕ 1: КЛАСС УПРАВЛЕНИЯ РИСКАМИ
+# ============================================================
+class RiskManager:
+    def __init__(self, bankroll):
+        self.bankroll = bankroll
+        self.max_stake_percent = 0.05
+        self.max_daily_loss = 0.15
+        self.daily_loss = 0
+        
+    def update_bankroll(self, new_bankroll):
+        self.bankroll = new_bankroll
+        
+    def calculate_stake(self, ev, odds, prob):
+        """Расчет оптимальной ставки по Келли с ограничениями"""
+        if ev < 0:
+            return 0
+        
+        # Базовая ставка по Келли
+        kelly_percent = (prob * odds - 1) / (odds - 1)
+        
+        # Ограничиваем Келли
+        kelly_percent = min(kelly_percent, self.max_stake_percent)
+        
+        # Корректируем на EV
+        if ev < 5:
+            kelly_percent *= 0.5
+        elif ev < 10:
+            kelly_percent *= 0.75
+        
+        # Проверка дневного лимита
+        if self.daily_loss < -self.max_daily_loss * self.bankroll:
+            kelly_percent *= 0.5
+            logger.warning("⚠️ Дневной лимит проигрыша близок")
+        
+        stake = self.bankroll * kelly_percent
+        return round(stake, 2)
+    
+    def update_daily_loss(self, profit):
+        self.daily_loss += profit
+
+# ============================================================
+# УЛУЧШЕНИЕ 2: УЛУЧШЕННАЯ ВЕРОЯТНОСТЬ ТМ 2.5
+# ============================================================
+def calculate_under_probability(total_xg, home_goals_avg, away_goals_avg, 
+                                home_conceded_avg, away_conceded_avg,
+                                home_position, away_position):
+    """Улучшенный расчет вероятности ТМ 2.5"""
+    
+    # 1. На основе XG
+    if total_xg <= 1.5:
+        prob_xg = 0.85
+    elif total_xg <= 2.0:
+        prob_xg = 0.75
+    elif total_xg <= 2.3:
+        prob_xg = 0.65
+    elif total_xg <= 2.5:
+        prob_xg = 0.55
+    elif total_xg <= 2.8:
+        prob_xg = 0.45
+    elif total_xg <= 3.0:
+        prob_xg = 0.35
+    else:
+        prob_xg = 0.25
+    
+    # 2. На основе формы команд
+    avg_goals = (home_goals_avg + away_goals_avg) / 2
+    avg_conceded = (home_conceded_avg + away_conceded_avg) / 2
+    
+    if avg_goals < 1.0 and avg_conceded < 1.0:
+        prob_form = 0.80
+    elif avg_goals < 1.2 and avg_conceded < 1.2:
+        prob_form = 0.70
+    elif avg_goals < 1.5 and avg_conceded < 1.5:
+        prob_form = 0.60
+    elif avg_goals < 1.8 and avg_conceded < 1.8:
+        prob_form = 0.50
+    else:
+        prob_form = 0.40
+    
+    # 3. На основе турнирной позиции
+    position_factor = 0
+    if home_position <= 3 and away_position <= 3:
+        position_factor = -0.15
+    elif home_position <= 5 and away_position <= 5:
+        position_factor = -0.10
+    elif home_position <= 10 and away_position <= 10:
+        position_factor = -0.05
+    elif home_position >= 15 and away_position >= 15:
+        position_factor = 0.10
+    
+    # Итоговая вероятность
+    final_prob = prob_xg * 0.6 + prob_form * 0.3 + (prob_xg + prob_form) / 2 * 0.1
+    final_prob += position_factor
+    
+    # Ограничиваем диапазон
+    final_prob = max(0.20, min(0.90, final_prob))
+    
+    return final_prob
+
+# ============================================================
+# УЛУЧШЕНИЕ 3: ДЕТЕКТОР ВАЖНЫХ МАТЧЕЙ
+# ============================================================
+def is_important_match(home, away, home_position, away_position, league_name):
+    """Проверка, является ли матч важным"""
+    
+    # Топ-матчи в топ-лигах
+    if league_name in TOP_LEAGUES:
+        if home_position <= 6 or away_position <= 6:
+            return True, "Топ-матч"
+    
+    # Дерби
+    derbies = [
+        ("Liverpool", "Everton"),
+        ("Manchester United", "Manchester City"),
+        ("Arsenal", "Tottenham"),
+        ("Real Madrid", "Barcelona"),
+        ("Atletico Madrid", "Real Madrid"),
+        ("Bayern Munich", "Borussia Dortmund"),
+        ("AC Milan", "Inter Milan"),
+        ("Roma", "Lazio"),
+        ("Celtic", "Rangers"),
+        ("Fenerbahce", "Galatasaray"),
+    ]
+    
+    for h, a in derbies:
+        if (home == h and away == a) or (home == a and away == h):
+            return True, f"Дерби: {h} vs {a}"
+    
+    return False, None
+
+# ============================================================
+# УЛУЧШЕНИЕ 4: АНАЛИЗ ВЫСОКОЙ РЕЗУЛЬТАТИВНОСТИ
+# ============================================================
+def analyze_high_scoring_potential(match_data, h2h_data=None):
+    """Детальный анализ потенциала высокой результативности"""
+    
+    factors = []
+    score = 0
+    
+    # 1. XG
+    total_xg = match_data.get('total_xg', 0)
+    if total_xg > 3.0:
+        factors.append(f"Высокий XG: {total_xg:.2f}")
+        score += 30
+    elif total_xg > 2.5:
+        factors.append(f"Средний XG: {total_xg:.2f}")
+        score += 20
+    
+    # 2. Форма команд
+    home_goals_avg = match_data.get('home_goals_avg', 0)
+    away_goals_avg = match_data.get('away_goals_avg', 0)
+    
+    if home_goals_avg > 1.8:
+        factors.append(f"Дома много забивают: {home_goals_avg:.1f}")
+        score += 15
+    if away_goals_avg > 1.8:
+        factors.append(f"В гостях много забивают: {away_goals_avg:.1f}")
+        score += 15
+    
+    # 3. Турнирное положение
+    home_position = match_data.get('standings', {}).get('home_position', 99)
+    away_position = match_data.get('standings', {}).get('away_position', 99)
+    
+    if home_position <= 3 and away_position <= 3:
+        factors.append("Обе команды в топ-3")
+        score += 20
+    
+    # 4. История личных встреч
+    if h2h_data:
+        avg_goals_h2h = h2h_data.get('avg_goals', 0)
+        if avg_goals_h2h > 3.0:
+            factors.append(f"В H2H много голов: {avg_goals_h2h:.1f}")
+            score += 20
+        elif avg_goals_h2h > 2.5:
+            factors.append(f"В H2H средние голы: {avg_goals_h2h:.1f}")
+            score += 10
+    
+    return {
+        'score': score,
+        'factors': factors,
+        'is_high_scoring': score >= 50
+    }
+
+# ============================================================
+# УЛУЧШЕНИЕ 5: МОНИТОРИНГ ЭФФЕКТИВНОСТИ
+# ============================================================
+class PerformanceMonitor:
+    def __init__(self):
+        self.metrics = {
+            'total_bets': 0,
+            'win_rate': 0,
+            'profit': 0,
+            'roi': 0,
+            'avg_odds': 0,
+            'avg_ev': 0,
+            'max_win_streak': 0,
+            'max_loss_streak': 0,
+            'current_streak': 0
+        }
+    
+    def update_metrics(self):
+        history = storage.load_history()
+        
+        if not history:
+            return
+        
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        losses = sum(1 for b in history if b.get('result') == 'loss')
+        pushes = sum(1 for b in history if b.get('result') == 'push')
+        total_profit = sum(b.get('profit', 0) for b in history)
+        total_stake = sum(b.get('stake', 0) for b in history)
+        
+        # Расчет стриков
+        max_win_streak = 0
+        max_loss_streak = 0
+        current_streak = 0
+        current_type = None
+        
+        for bet in history:
+            result = bet.get('result')
+            if result in ['win', 'loss']:
+                if current_type == result:
+                    current_streak += 1
+                else:
+                    current_type = result
+                    current_streak = 1
+                
+                if current_type == 'win':
+                    max_win_streak = max(max_win_streak, current_streak)
+                else:
+                    max_loss_streak = max(max_loss_streak, current_streak)
+        
+        self.metrics = {
+            'total_bets': len(history),
+            'win_rate': round(wins / (wins + losses) * 100, 1) if (wins + losses) > 0 else 0,
+            'profit': round(total_profit, 2),
+            'roi': round((total_profit / total_stake * 100), 1) if total_stake > 0 else 0,
+            'avg_odds': round(sum(b.get('odds', 0) for b in history) / len(history), 2) if history else 0,
+            'avg_ev': round(sum(b.get('ev', 0) for b in history) / len(history), 1) if history else 0,
+            'max_win_streak': max_win_streak,
+            'max_loss_streak': max_loss_streak,
+            'current_streak': current_streak if current_type else 0
+        }
+        
+        storage.save_stats(self.metrics)
+
+performance_monitor = PerformanceMonitor()
+
+# ============================================================
+# КЛАСС AUTOBET С УЛУЧШЕНИЯМИ
 # ============================================================
 class AutoBet:
     def __init__(self):
         self.enabled = True
         self.bets_today = 0
         self.max_bets_per_day = 10
+        self.risk_manager = None
+        self.performance_monitor = PerformanceMonitor()
+        
+    def initialize_risk_manager(self):
+        bank = storage.load_bank()
+        self.risk_manager = RiskManager(bank)
         
     def check_and_bet(self, match_data):
         if not self.enabled:
@@ -494,14 +751,19 @@ class AutoBet:
             
         if best_bet.get('odds', 0) < 1.5:
             return None
-            
-        bank = storage.load_bank()
-        stake = best_bet.get('stake', 0)
-        max_stake = bank * 0.1
         
-        if stake > max_stake:
-            stake = max_stake
-            best_bet['stake'] = stake
+        # Используем RiskManager для расчета ставки
+        if not self.risk_manager:
+            self.initialize_risk_manager()
+        
+        ev = best_bet.get('ev', 0)
+        odds = best_bet.get('odds', 0)
+        prob = best_bet.get('prob', 0) / 100
+        
+        stake = self.risk_manager.calculate_stake(ev, odds, prob)
+        
+        if stake <= 0:
+            return None
             
         self.bets_today += 1
         
@@ -621,7 +883,26 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ
+# УЛУЧШЕНИЕ 6: ПОДРОБНОЕ ЛОГИРОВАНИЕ СТАВКИ
+# ============================================================
+def log_bet_analysis(bet_data):
+    """Подробное логирование анализа ставки"""
+    logger.info("=" * 60)
+    logger.info(f"📊 АНАЛИЗ СТАВКИ: {bet_data.get('match', 'Unknown')}")
+    logger.info("-" * 60)
+    logger.info(f"📈 XG: {bet_data.get('xg_total', 0):.2f}")
+    logger.info(f"📊 Вероятность ТМ 2.5: {bet_data.get('prob', 0)}%")
+    logger.info(f"💹 EV: {bet_data.get('ev', 0)}%")
+    logger.info(f"📊 Коэффициент: {bet_data.get('odds', 0)}")
+    logger.info(f"💰 Сумма: ${bet_data.get('stake', 0)}")
+    logger.info(f"📈 Форма: {bet_data.get('home_form', '')} vs {bet_data.get('away_form', '')}")
+    logger.info(f"🏆 Позиции: #{bet_data.get('home_position', '?')} vs #{bet_data.get('away_position', '?')}")
+    if bet_data.get('h2h_avg_goals'):
+        logger.info(f"🔄 H2H средние голы: {bet_data.get('h2h_avg_goals', 0):.2f}")
+    logger.info("=" * 60)
+
+# ============================================================
+# ПОИСК МАТЧЕЙ С УЛУЧШЕНИЯМИ
 # ============================================================
 
 def get_matches_with_factors():
@@ -685,6 +966,11 @@ def get_matches_with_factors():
                         if not home_id or not away_id:
                             continue
                         
+                        # Получаем H2H для анализа
+                        home_name = home_team.get("name", "")
+                        away_name = away_team.get("name", "")
+                        h2h_data = football_api.get_head_to_head(home_name, away_name)
+                        
                         match["factors"] = {
                             "home_form": football_api.get_form(home_id) if home_id else None,
                             "away_form": football_api.get_form(away_id) if away_id else None,
@@ -692,7 +978,8 @@ def get_matches_with_factors():
                             "away_injuries_list": football_api.get_injuries(away_id) if away_id else [],
                             "home_id": home_id,
                             "away_id": away_id,
-                            "referee": fixture.get("referee")
+                            "referee": fixture.get("referee"),
+                            "h2h_data": h2h_data
                         }
                         
                         match["weather"] = None
@@ -715,7 +1002,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - С ВЫВОДОМ МАТЧЕЙ С "МНОГО ГОЛОВ"
+# ТОП МАТЧЕЙ С УЛУЧШЕНИЯМИ
 # ============================================================
 
 def find_top_matches(matches):
@@ -724,7 +1011,6 @@ def find_top_matches(matches):
     bets_placed = 0
     max_bets = Config.MAX_BETS_PER_RUN
     
-    # Список для матчей с "много голов"
     high_scoring_matches = []
 
     logger.info(f"🔍 Анализ {len(matches)} матчей с расширенными параметрами...")
@@ -770,11 +1056,12 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
             
+            # Получаем H2H данные
+            h2h_data = match.get("factors", {}).get("h2h_data")
+            
             # ============================================================
             # 1. ПОЛУЧАЕМ XG
             # ============================================================
-            
-            # Пробуем получить статистику из API
             statistics = football_api.get_match_statistics(fixture_id)
             
             home_xg = 1.2
@@ -811,9 +1098,7 @@ def find_top_matches(matches):
                         away_possession = stats.get('Possession', 50)
                         away_corners = stats.get('Corner Kicks', 0)
             
-            # ЕСЛИ API НЕ ВЕРНУЛ ДАННЫЕ - ИСПОЛЬЗУЕМ ЗАПАСНОЙ ВАРИАНТ
             if not api_worked or home_xg is None or away_xg is None:
-                # Запасные значения по лигам
                 if league_name in FALLBACK_XG:
                     home_xg = FALLBACK_XG[league_name]['home']
                     away_xg = FALLBACK_XG[league_name]['away']
@@ -821,8 +1106,6 @@ def find_top_matches(matches):
                     home_xg = 1.3
                     away_xg = 1.0
                 
-                # Добавляем случайную вариацию
-                import random
                 random.seed(fixture_id)
                 home_xg *= (1 + random.uniform(-0.1, 0.1))
                 away_xg *= (1 + random.uniform(-0.1, 0.1))
@@ -862,55 +1145,51 @@ def find_top_matches(matches):
                     away_points = standings[away].get('points', 0)
             
             # ============================================================
-            # 4. РАССЧИТЫВАЕМ ВЕРОЯТНОСТЬ ТМ 2.5
+            # 4. УЛУЧШЕННЫЙ РАСЧЕТ ВЕРОЯТНОСТИ
             # ============================================================
-            
-            if total_xg <= 1.5:
-                prob_under = 0.85
-            elif total_xg <= 2.0:
-                prob_under = 0.75
-            elif total_xg <= 2.3:
-                prob_under = 0.65
-            elif total_xg <= 2.5:
-                prob_under = 0.55
-            elif total_xg <= 2.8:
-                prob_under = 0.45
-            elif total_xg <= 3.0:
-                prob_under = 0.35
-            else:
-                prob_under = 0.25
-            
-            prob_under = max(0.25, min(0.85, prob_under))
+            prob_under = calculate_under_probability(
+                total_xg, home_goals_avg, away_goals_avg,
+                home_conceded_avg, away_conceded_avg,
+                home_position, away_position
+            )
             
             # ============================================================
-            # 5. РАССЧИТЫВАЕМ EV
+            # 5. РАСЧЕТ EV С КОМИССИЕЙ
             # ============================================================
-            
             odds = 1.95
-            ev = (prob_under * odds) - 1
+            commission = 0.05
+            fair_odds = 1 / prob_under
+            true_odds = odds * (1 - commission)
+            ev = (prob_under * true_odds) - 1
             ev_percent = ev * 100
             
             # ============================================================
-            # 6. ПРОВЕРЯЕМ НА "МНОГО ГОЛОВ" (ТОП-3)
+            # 6. ПРОВЕРКА НА ВАЖНЫЙ МАТЧ
             # ============================================================
-            
-            is_high_scoring = False
-            high_scoring_reason = ""
-            
-            if home_position <= 3 and away_position <= 3:
-                is_high_scoring = True
-                high_scoring_reason = "Обе команды в топ-3"
-            elif home_goals_avg > 2.0 or away_goals_avg > 2.0:
-                is_high_scoring = True
-                high_scoring_reason = f"Команды много забивают (H: {home_goals_avg:.1f}, A: {away_goals_avg:.1f})"
-            elif total_xg > 3.0:
-                is_high_scoring = True
-                high_scoring_reason = f"Высокий XG: {total_xg:.2f}"
+            is_important, important_reason = is_important_match(
+                home, away, home_position, away_position, league_name
+            )
             
             # ============================================================
-            # 7. СОХРАНЯЕМ МАТЧ ДЛЯ СТАВКИ ИЛИ В ОТДЕЛЬНЫЙ СПИСОК
+            # 7. АНАЛИЗ ВЫСОКОЙ РЕЗУЛЬТАТИВНОСТИ
             # ============================================================
+            match_data_for_analysis = {
+                'total_xg': total_xg,
+                'home_goals_avg': home_goals_avg,
+                'away_goals_avg': away_goals_avg,
+                'standings': {
+                    'home_position': home_position,
+                    'away_position': away_position
+                }
+            }
             
+            high_scoring_analysis = analyze_high_scoring_potential(match_data_for_analysis, h2h_data)
+            is_high_scoring = high_scoring_analysis['is_high_scoring']
+            high_scoring_factors = high_scoring_analysis['factors']
+            
+            # ============================================================
+            # 8. СОХРАНЯЕМ ДАННЫЕ МАТЧА
+            # ============================================================
             match_data = {
                 "home": home,
                 "away": away,
@@ -941,23 +1220,25 @@ def find_top_matches(matches):
                 "weather_reason": "🌤️",
                 "factors": {},
                 "intuition": [],
-                "bets": []
+                "bets": [],
+                "is_important": is_important,
+                "important_reason": important_reason,
+                "high_scoring_factors": high_scoring_factors,
+                "h2h_data": h2h_data
             }
             
             # ============================================================
-            # 8. ЕСЛИ МАТЧ С "МНОГО ГОЛОВ" - СОХРАНЯЕМ ДЛЯ ИНФОРМАЦИИ
+            # 9. ЕСЛИ МАТЧ С "МНОГО ГОЛОВ" - СОХРАНЯЕМ ДЛЯ ИНФОРМАЦИИ
             # ============================================================
-            
             if is_high_scoring:
-                match_data['high_scoring_reason'] = high_scoring_reason
+                match_data['high_scoring_reason'] = ', '.join(high_scoring_factors)
                 high_scoring_matches.append(match_data)
-                logger.info(f"⚽ МНОГО ГОЛОВ: {home} vs {away} | {high_scoring_reason} | XG: {total_xg:.2f}")
-                continue  # Пропускаем ставку, но сохраняем для информации
+                logger.info(f"⚽ МНОГО ГОЛОВ: {home} vs {away} | {', '.join(high_scoring_factors)} | XG: {total_xg:.2f}")
+                continue
             
             # ============================================================
-            # 9. ФИЛЬТРУЕМ СТАВКИ ТМ 2.5
+            # 10. ФИЛЬТРУЕМ СТАВКИ
             # ============================================================
-            
             skip_reason = None
             
             if ev_percent < 5:
@@ -966,15 +1247,16 @@ def find_top_matches(matches):
                 skip_reason = f"XG: {total_xg:.2f} (слишком высокий)"
             elif prob_under < 0.45:
                 skip_reason = f"Prob: {prob_under*100:.1f}% (слишком низкая)"
+            elif is_important:
+                skip_reason = f"Важный матч: {important_reason}"
             
             if skip_reason:
                 logger.info(f"⏭️ Пропускаем: {home} vs {away} | {skip_reason}")
                 continue
             
             # ============================================================
-            # 10. ДОБАВЛЯЕМ СТАВКУ
+            # 11. ДОБАВЛЯЕМ СТАВКУ
             # ============================================================
-            
             marker = list(MARKERS.keys())[0]
             
             match_data["bets"].append({
@@ -991,7 +1273,8 @@ def find_top_matches(matches):
                 "home_form": home_form,
                 "away_form": away_form,
                 "home_position": home_position,
-                "away_position": away_position
+                "away_position": away_position,
+                "h2h_avg_goals": h2h_data.get('avg_goals') if h2h_data else None
             })
             
             match_score = {
@@ -1007,9 +1290,8 @@ def find_top_matches(matches):
             continue
     
     # ============================================================
-    # 11. СОРТИРУЕМ И ВЫБИРАЕМ ЛУЧШИЕ ДЛЯ СТАВОК
+    # 12. СОРТИРУЕМ И ВЫБИРАЕМ ЛУЧШИЕ
     # ============================================================
-    
     scored_matches.sort(key=lambda x: x['score'], reverse=True)
     top_matches = scored_matches[:max_bets]
     
@@ -1017,9 +1299,29 @@ def find_top_matches(matches):
     logger.info(f"⚽ Найдено {len(high_scoring_matches)} матчей с 'много голов'")
     
     # ============================================================
-    # 12. ОТПРАВЛЯЕМ ИНФОРМАЦИЮ О МАТЧАХ С "МНОГО ГОЛОВ"
+    # 13. ОТПРАВЛЯЕМ ИНФОРМАЦИЮ О ВАЖНЫХ МАТЧАХ
     # ============================================================
+    important_matches = [m for m in scored_matches if m['match_data'].get('is_important')]
+    if important_matches:
+        msg = f"⭐ <b>ВАЖНЫЕ МАТЧИ</b>\n"
+        msg += f"📊 Найдено: {len(important_matches)} матчей\n\n"
+        
+        for i, item in enumerate(important_matches[:5], 1):
+            match_data = item['match_data']
+            msg += f"{i}. <b>{match_data['home']} vs {match_data['away']}</b>\n"
+            msg += f"   📅 {match_data['match_time']}\n"
+            msg += f"   🏆 {match_data['league']}\n"
+            msg += f"   ⭐ {match_data.get('important_reason', 'Важный матч')}\n"
+            msg += f"   ⚽ XG: {match_data['total_xg']:.2f}\n"
+            msg += f"   📈 Форма: {match_data['home_form']} vs {match_data['away_form']}\n"
+            msg += "\n"
+        
+        msg += "❌ На эти матчи ставки НЕ делаются (высокая важность)"
+        send_telegram(msg)
     
+    # ============================================================
+    # 14. ОТПРАВЛЯЕМ ИНФОРМАЦИЮ О МАТЧАХ С "МНОГО ГОЛОВ"
+    # ============================================================
     if high_scoring_matches:
         msg = f"⚽ <b>МАТЧИ С ВЫСОКОЙ РЕЗУЛЬТАТИВНОСТЬЮ</b>\n"
         msg += f"📊 Найдено: {len(high_scoring_matches)} матчей\n\n"
@@ -1028,7 +1330,8 @@ def find_top_matches(matches):
             msg += f"{i}. <b>{match_data['home']} vs {match_data['away']}</b>\n"
             msg += f"   📅 {match_data['match_time']}\n"
             msg += f"   🏆 {match_data['league']}\n"
-            msg += f"   ⚽ XG: {match_data['total_xg']:.2f} | 📊 {match_data['high_scoring_reason']}\n"
+            msg += f"   ⚽ XG: {match_data['total_xg']:.2f}\n"
+            msg += f"   📊 {match_data.get('high_scoring_reason', '')}\n"
             msg += f"   📈 Форма: {match_data['home_form']} vs {match_data['away_form']}\n"
             msg += f"   🏆 Позиция: #{match_data['standings']['home_position']} vs #{match_data['standings']['away_position']}\n"
             msg += "\n"
@@ -1037,9 +1340,8 @@ def find_top_matches(matches):
         send_telegram(msg)
     
     # ============================================================
-    # 13. РАЗМЕЩАЕМ СТАВКИ
+    # 15. РАЗМЕЩАЕМ СТАВКИ
     # ============================================================
-    
     for item in top_matches:
         match_data = item['match_data']
         
@@ -1048,6 +1350,10 @@ def find_top_matches(matches):
                 bet_result = auto_bet.check_and_bet(match_data)
                 if bet_result:
                     bets_placed += 1
+                    
+                    # Логируем ставку
+                    log_bet_analysis(bet_result)
+                    
                     msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
                     msg += f"🏟️ {bet_result['match']}\n"
                     if bet_result.get('match_time'):
@@ -1070,7 +1376,6 @@ def find_top_matches(matches):
     cache['top_matches'] = [item['match_data'] for item in top_matches]
     storage.save_cache(cache)
     
-    # Возвращаем все матчи для статистики
     all_matches_data = [item['match_data'] for item in top_matches] + high_scoring_matches
     
     return all_matches_data
@@ -1162,10 +1467,448 @@ def recalc_stats():
     stats['roi'] = round((total_profit / total_stake * 100), 1) if total_stake > 0 else 0
     
     storage.save_stats(stats)
+    
+    # Обновляем метрики производительности
+    performance_monitor.update_metrics()
+    
     logger.info(f"📊 Статистика пересчитана: {stats}")
 
 # ============================================================
-# FLASK WEBHOOK
+# ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ГРАФИКА
+# ============================================================
+def get_profit_data(history):
+    """Получение данных для графика прибыли за последние 7 дней"""
+    dates = []
+    profits = []
+    
+    today = datetime.now().date()
+    for i in range(6, -1, -1):
+        date = today - timedelta(days=i)
+        date_str = date.strftime('%Y-%m-%d')
+        
+        day_profit = sum(
+            b.get('profit', 0) 
+            for b in history 
+            if b.get('date', '').startswith(date_str)
+        )
+        
+        dates.append(date.strftime('%d.%m'))
+        profits.append(round(day_profit, 2))
+    
+    return {'dates': dates, 'profits': profits}
+
+# ============================================================
+# API ЭНДПОИНТЫ ДЛЯ ВЕБ-ИНТЕРФЕЙСА
+# ============================================================
+
+@app.route('/api/all_data', methods=['GET'])
+def api_all_data():
+    """Получение всех данных для веб-интерфейса"""
+    try:
+        history = storage.load_history()
+        stats = storage.load_stats()
+        bank = storage.load_bank()
+        
+        # Рассчитываем дополнительные метрики
+        total_bets = len(history)
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        losses = sum(1 for b in history if b.get('result') == 'loss')
+        pushes = sum(1 for b in history if b.get('result') == 'push')
+        total_profit = sum(b.get('profit', 0) for b in history)
+        total_stake = sum(b.get('stake', 0) for b in history)
+        
+        winrate = round(wins / (wins + losses) * 100, 1) if (wins + losses) > 0 else 0
+        roi = round((total_profit / total_stake * 100), 1) if total_stake > 0 else 0
+        avg_stake = round(total_stake / total_bets, 2) if total_bets > 0 else 0
+        
+        profit_data = get_profit_data(history)
+        
+        return jsonify({
+            'stats': {
+                'bank': bank,
+                'total_bets': total_bets,
+                'wins': wins,
+                'losses': losses,
+                'pushes': pushes,
+                'profit': round(total_profit, 2),
+                'winrate': winrate,
+                'roi': roi,
+                'avg_stake': avg_stake
+            },
+            'history': history,
+            'profit_data': profit_data
+        })
+    except Exception as e:
+        logger.error(f"Ошибка получения данных: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/edit_bet', methods=['POST'])
+def api_edit_bet():
+    """Редактирование ставки"""
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        history = storage.load_history()
+        if index < 0 or index >= len(history):
+            return jsonify({'success': False, 'error': 'Ставка не найдена'}), 404
+        
+        bet = history[index]
+        bet['home'] = data.get('home', bet['home'])
+        bet['away'] = data.get('away', bet['away'])
+        bet['home_goals'] = data.get('home_goals')
+        bet['away_goals'] = data.get('away_goals')
+        bet['bet'] = data.get('bet', bet['bet'])
+        bet['odds'] = data.get('odds', bet['odds'])
+        bet['stake'] = data.get('stake', bet['stake'])
+        bet['ev'] = data.get('ev', bet['ev'])
+        bet['result'] = data.get('result', bet['result'])
+        
+        if bet['result'] == 'win':
+            bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
+        elif bet['result'] == 'loss':
+            bet['profit'] = -round(bet['stake'], 2)
+        elif bet['result'] == 'push':
+            bet['profit'] = 0
+        else:
+            bet['profit'] = 0
+        
+        storage.save_history(history)
+        recalc_stats()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Ошибка редактирования: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/delete_bet', methods=['POST'])
+def api_delete_bet():
+    """Удаление ставки"""
+    try:
+        data = request.json
+        index = data.get('index')
+        
+        history = storage.load_history()
+        if index < 0 or index >= len(history):
+            return jsonify({'success': False, 'error': 'Ставка не найдена'}), 404
+        
+        del history[index]
+        storage.save_history(history)
+        recalc_stats()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Ошибка удаления: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bank', methods=['POST'])
+def api_update_bank():
+    """Обновление банка"""
+    try:
+        data = request.json
+        new_bank = data.get('bank')
+        
+        if new_bank is None or new_bank <= 0:
+            return jsonify({'success': False, 'error': 'Неверная сумма'}), 400
+        
+        storage.save_bank(float(new_bank))
+        auto_bet.initialize_risk_manager()
+        
+        return jsonify({'success': True, 'bank': float(new_bank)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/import_excel', methods=['POST'])
+def api_import_excel():
+    """Импорт данных из Excel"""
+    try:
+        data = request.json
+        imported_data = data.get('data', [])
+        
+        if not imported_data:
+            return jsonify({'success': False, 'error': 'Нет данных'}), 400
+        
+        history = storage.load_history()
+        count = 0
+        
+        for row in imported_data:
+            try:
+                date = row.get('Дата', '')
+                match = row.get('Матч', '')
+                score = row.get('Счёт', '')
+                bet_type = row.get('Ставка', '')
+                odds = float(row.get('Коэф', 0))
+                ev = float(row.get('EV%', 0))
+                stake = float(row.get('Сумма', 0))
+                result = row.get('Результат', 'pending')
+                
+                if ' vs ' in match:
+                    home, away = match.split(' vs ', 1)
+                else:
+                    home, away = match, ''
+                
+                home_goals = None
+                away_goals = None
+                if score and '-' in score:
+                    parts = score.split('-')
+                    if len(parts) == 2:
+                        try:
+                            home_goals = int(parts[0].strip())
+                            away_goals = int(parts[1].strip())
+                        except:
+                            pass
+                
+                profit = 0
+                if result == 'win':
+                    profit = round(stake * (odds - 1), 2)
+                elif result == 'loss':
+                    profit = -round(stake, 2)
+                elif result == 'push':
+                    profit = 0
+                
+                bet = {
+                    'date': date,
+                    'home': home,
+                    'away': away,
+                    'home_goals': home_goals,
+                    'away_goals': away_goals,
+                    'bet': bet_type,
+                    'odds': odds,
+                    'ev': ev,
+                    'stake': stake,
+                    'result': result,
+                    'profit': profit,
+                    'fixture_id': None
+                }
+                
+                history.append(bet)
+                count += 1
+                
+            except Exception as e:
+                logger.warning(f"Ошибка импорта строки: {e}")
+                continue
+        
+        storage.save_history(history)
+        recalc_stats()
+        
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        logger.error(f"Ошибка импорта: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/import_project', methods=['POST'])
+def api_import_project():
+    """Импорт проекта"""
+    try:
+        data = request.json
+        history_data = data.get('history', [])
+        
+        if history_data:
+            current_history = storage.load_history()
+            count = 0
+            
+            for bet in history_data:
+                duplicate = False
+                for existing in current_history:
+                    if (existing.get('date') == bet.get('date') and
+                        existing.get('home') == bet.get('home') and
+                        existing.get('away') == bet.get('away') and
+                        existing.get('bet') == bet.get('bet')):
+                        duplicate = True
+                        break
+                
+                if not duplicate:
+                    current_history.append(bet)
+                    count += 1
+            
+            storage.save_history(current_history)
+            recalc_stats()
+            
+            return jsonify({'success': True, 'count': count})
+        else:
+            return jsonify({'success': True, 'count': 0})
+    except Exception as e:
+        logger.error(f"Ошибка импорта проекта: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def api_add_manual_match():
+    """Ручное добавление матча"""
+    try:
+        data = request.json
+        match = data.get('match', '')
+        score = data.get('score', '')
+        result = data.get('result', 'pending')
+        stake = data.get('stake', 0)
+        bet_type = data.get('bet', '')
+        odds = data.get('odds', 1.85)
+        
+        if not match or not bet_type:
+            return jsonify({'success': False, 'error': 'Не все поля заполнены'}), 400
+        
+        if ' vs ' in match:
+            home, away = match.split(' vs ', 1)
+        else:
+            home, away = match, ''
+        
+        home_goals = None
+        away_goals = None
+        if score and '-' in score:
+            parts = score.split('-')
+            if len(parts) == 2:
+                try:
+                    home_goals = int(parts[0].strip())
+                    away_goals = int(parts[1].strip())
+                except:
+                    pass
+        
+        profit = 0
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+        elif result == 'loss':
+            profit = -round(stake, 2)
+        elif result == 'push':
+            profit = 0
+        
+        history = storage.load_history()
+        bet = {
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'home': home,
+            'away': away,
+            'home_goals': home_goals,
+            'away_goals': away_goals,
+            'bet': bet_type,
+            'odds': odds,
+            'ev': 0,
+            'stake': stake,
+            'result': result,
+            'profit': profit,
+            'fixture_id': None
+        }
+        
+        history.append(bet)
+        storage.save_history(history)
+        recalc_stats()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Ошибка добавления матча: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/simulate', methods=['POST'])
+def api_simulate():
+    """Симуляция стратегии"""
+    try:
+        data = request.json
+        count = data.get('count', 1000)
+        
+        history = storage.load_history()
+        if not history:
+            return jsonify({'error': 'Нет данных для симуляции'}), 400
+        
+        bets = []
+        for bet in history:
+            if bet.get('result') in ['win', 'loss']:
+                bets.append({
+                    'stake': bet.get('stake', 0),
+                    'odds': bet.get('odds', 0),
+                    'result': bet.get('result', 'loss')
+                })
+        
+        if len(bets) < 5:
+            return jsonify({'error': 'Слишком мало данных (нужно минимум 5 ставок)'}), 400
+        
+        simulations = []
+        for _ in range(count):
+            selected = random.choices(bets, k=len(bets))
+            
+            total_profit = 0
+            wins = 0
+            for bet in selected:
+                if bet['result'] == 'win':
+                    profit = bet['stake'] * (bet['odds'] - 1)
+                    total_profit += profit
+                    wins += 1
+                else:
+                    total_profit -= bet['stake']
+            
+            winrate = (wins / len(selected)) * 100
+            total_stake = sum(b['stake'] for b in selected)
+            roi = (total_profit / total_stake) * 100 if total_stake > 0 else 0
+            
+            simulations.append({
+                'profit': total_profit,
+                'winrate': winrate,
+                'roi': roi
+            })
+        
+        profits = [s['profit'] for s in simulations]
+        winrates = [s['winrate'] for s in simulations]
+        
+        avg_profit = sum(profits) / len(profits)
+        avg_winrate = sum(winrates) / len(winrates)
+        
+        max_profit = max(profits)
+        min_profit = min(profits)
+        
+        variance = sum((p - avg_profit) ** 2 for p in profits) / len(profits)
+        risk = (variance ** 0.5) / (abs(avg_profit) + 1) * 100
+        
+        sorted_profits = sorted(profits)
+        chart_history = []
+        cumulative = 0
+        for p in sorted_profits[:200]:
+            cumulative += p
+            chart_history.append(cumulative)
+        
+        return jsonify({
+            'profit': round(avg_profit, 2),
+            'winrate': round(avg_winrate, 1),
+            'roi': round(avg_profit / sum(b['stake'] for b in bets) * 100, 1) if sum(b['stake'] for b in bets) > 0 else 0,
+            'risk': round(risk, 1),
+            'total': len(bets),
+            'wins': sum(1 for b in bets if b['result'] == 'win'),
+            'losses': sum(1 for b in bets if b['result'] == 'loss'),
+            'max_profit': round(max_profit, 2),
+            'min_profit': round(min_profit, 2),
+            'avg_stake': round(sum(b['stake'] for b in bets) / len(bets), 2),
+            'history': chart_history,
+            'labels': list(range(1, len(chart_history) + 1))
+        })
+    except Exception as e:
+        logger.error(f"Ошибка симуляции: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export', methods=['GET'])
+def api_export():
+    """Экспорт данных в Excel"""
+    try:
+        file, message = export_to_excel()
+        if file:
+            return send_file(
+                file,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name='quantum_bet_history.xlsx'
+            )
+        else:
+            return jsonify({'error': message}), 400
+    except Exception as e:
+        logger.error(f"Ошибка экспорта: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """Проверка здоровья бота"""
+    return jsonify({
+        'status': 'ok',
+        'time': datetime.now().isoformat(),
+        'version': '12 PRO',
+        'search_running': search_running
+    })
+
+# ============================================================
+# FLASK WEBHOOK (TELEGRAM)
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -1268,6 +2011,19 @@ def webhook():
             elif text == '/stop':
                 search_running = False
                 send_telegram("⏹️ Поиск остановлен")
+            elif text == '/metrics':
+                performance_monitor.update_metrics()
+                metrics = performance_monitor.metrics
+                msg = f"📊 <b>МЕТРИКИ ЭФФЕКТИВНОСТИ</b>\n\n"
+                msg += f"📊 Всего ставок: {metrics['total_bets']}\n"
+                msg += f"🎯 Проходимость: {metrics['win_rate']}%\n"
+                msg += f"📈 Прибыль: ${metrics['profit']}\n"
+                msg += f"💰 ROI: {metrics['roi']}%\n"
+                msg += f"📊 Средний кэф: {metrics['avg_odds']}\n"
+                msg += f"💹 Средний EV: {metrics['avg_ev']}%\n"
+                msg += f"🔥 Макс. вин-стрик: {metrics['max_win_streak']}\n"
+                msg += f"❄️ Макс. лосс-стрик: {metrics['max_loss_streak']}"
+                send_telegram(msg)
             else:
                 send_telegram("❌ Неизвестная команда. /help")
         
@@ -1279,43 +2035,27 @@ def webhook():
         return "ok", 200
 
 # ============================================================
-# API ЭНДПОИНТЫ
-# ============================================================
-
-@app.route('/api/stats', methods=['GET'])
-def api_stats():
-    stats = storage.load_stats()
-    bank = storage.load_bank()
-    return jsonify({'bank': bank, **stats})
-
-@app.route('/api/history', methods=['GET'])
-def api_history():
-    history = storage.load_history()
-    return jsonify(history)
-
-@app.route('/api/matches', methods=['GET'])
-def api_matches():
-    cache = storage.load_cache()
-    return jsonify(cache.get('top_matches', []))
-
-@app.route('/health', methods=['GET'])
-def health():
-    return {"status": "ok", "time": datetime.now().isoformat()}
-
-@app.route('/', methods=['GET'])
-def index():
-    return f"🤖 Quantum Bot PRO | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-
-# ============================================================
 # ЗАПУСК
 # ============================================================
 
 if __name__ == "__main__":
     setup_logging()
     start_scheduler()
+    
+    # Инициализируем RiskManager
+    auto_bet.initialize_risk_manager()
+    
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
-    logger.info("✅ Только ТМ 2.5 с выводом матчей 'много голов'")
+    logger.info("✅ Все улучшения активированы:")
+    logger.info("  📈 Улучшенная вероятностная модель")
+    logger.info("  💰 Управление рисками (Келли)")
+    logger.info("  ⭐ Детектор важных матчей")
+    logger.info("  ⚽ Анализ высокой результативности")
+    logger.info("  📊 Мониторинг эффективности")
+    logger.info("  📝 Подробное логирование ставок")
+    logger.info("=" * 60)
+    
     app.run(host='0.0.0.0', port=port)
