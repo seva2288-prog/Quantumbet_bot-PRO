@@ -2162,7 +2162,7 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН (ЦЕЛЬ 70%+)!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
-    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:"
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:") 
     logger.info("   - Только элитные лиги (топ-5)")
     logger.info("   - EV > 20%")
     logger.info("   - Prob > 60%")
