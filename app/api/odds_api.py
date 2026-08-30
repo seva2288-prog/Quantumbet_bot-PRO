@@ -1,88 +1,136 @@
 # app/api/odds_api.py
-"""
-Модуль для работы с The Odds API
-"""
 import requests
+import time
 import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class OddsAPIClient:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.base_url = "https://api.the-odds-api.com/v4"
+    def __init__(self, api_key=None):
+        from app.config import Config
+        self.api_key = api_key or Config.ODDS_API_KEY
+        self.base_url = Config.ODDS_API_URL
         self.cache = {}
+        self.last_request_time = 0
+        self.min_request_interval = 0.5
         
-    def get_odds_for_match(self, home_team, away_team, league, sport="soccer"):
-        """
-        Получает коэффициенты для конкретного матча
-        """
+        logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
+    
+    def _make_request(self, endpoint, params=None):
+        """Выполняет запрос к Odds API"""
+        try:
+            now = time.time()
+            if now - self.last_request_time < self.min_request_interval:
+                time.sleep(self.min_request_interval - (now - self.last_request_time))
+            
+            url = f"{self.base_url}{endpoint}"
+            params = params or {}
+            params['apiKey'] = self.api_key
+            
+            logger.info(f"📡 Запрос Odds API: {endpoint}")
+            logger.info(f"📡 Параметры: {params}")
+            
+            response = requests.get(url, params=params, timeout=10)
+            self.last_request_time = time.time()
+            
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"📡 Получено событий: {len(data) if data else 0}")
+                return data
+            else:
+                logger.error(f"❌ Odds API ошибка {response.status_code}: {response.text[:200]}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка запроса Odds API: {e}")
+            return None
+    
+    def get_odds_for_match(self, home_team, away_team, league):
+        """Получает коэффициенты для конкретного матча"""
         cache_key = f"{home_team}_{away_team}_{league}"
         if cache_key in self.cache:
             return self.cache[cache_key]
         
         try:
-            # Формируем запрос
-            params = {
-                'apiKey': self.api_key,
-                'sport': sport,
-                'region': 'eu',
-                'markets': 'h2h,spreads,totals'
+            # Маппинг лиг на названия спорта в Odds API
+            sport_map = {
+                'АПЛ': 'soccer_epl',
+                'Premier League': 'soccer_epl',
+                'Ла Лига': 'soccer_spain_la_liga',
+                'La Liga': 'soccer_spain_la_liga',
+                'Бундеслига': 'soccer_germany_bundesliga',
+                'Bundesliga': 'soccer_germany_bundesliga',
+                'Серия А': 'soccer_italy_serie_a',
+                'Serie A': 'soccer_italy_serie_a',
+                'Лига 1': 'soccer_france_ligue_one',
+                'Ligue 1': 'soccer_france_ligue_one',
+                'MLS': 'soccer_usa_mls',
+                'МЛС': 'soccer_usa_mls',
+                'Чемпионшип': 'soccer_england_championship',
+                'Championship': 'soccer_england_championship',
+                'Лига Чемпионов УЕФА': 'soccer_uefa_champions_league',
+                'Лига Европы УЕФА': 'soccer_uefa_europa_league',
             }
             
-            url = f"{self.base_url}/events"
-            response = requests.get(url, params=params, timeout=10)
+            sport_key = sport_map.get(league, 'soccer_epl')
+            region = 'us' if 'MLS' in league or 'МЛС' in league else 'eu'
             
-            if response.status_code == 200:
-                data = response.json()
-                # Ищем нужный матч
+            params = {
+                'sport': sport_key,
+                'region': region,
+                'markets': 'h2h'
+            }
+            
+            logger.info(f"📡 Поиск коэффициентов для {home_team} vs {away_team} в {league}")
+            data = self._make_request('/events', params)
+            
+            if data:
                 for event in data:
-                    if event.get('home_team') == home_team and event.get('away_team') == away_team:
-                        # Нашли матч
+                    if (event.get('home_team', '').lower() in home_team.lower() or home_team.lower() in event.get('home_team', '').lower()) and \
+                       (event.get('away_team', '').lower() in away_team.lower() or away_team.lower() in event.get('away_team', '').lower()):
+                        
                         result = self._extract_odds(event)
                         self.cache[cache_key] = result
+                        logger.info(f"✅ Найдены коэффициенты для {home_team} vs {away_team}")
                         return result
-            else:
-                logger.error(f"Ошибка Odds API: {response.status_code}")
-                return None
-                
+            
+            logger.info(f"⚠️ Матч {home_team} vs {away_team} не найден в Odds API")
+            return None
+            
         except Exception as e:
-            logger.error(f"Ошибка запроса Odds API: {e}")
+            logger.error(f"❌ Ошибка получения коэффициентов: {e}")
             return None
     
     def _extract_odds(self, event):
         """Извлекает коэффициенты из события"""
         result = {
-            'bookmaker': None,
             'best_odds': 0,
-            'all_odds': [],
+            'bookmaker': None,
             'bookmaker_name': '—'
         }
         
-        # Получаем коэффициенты от всех букмекеров
         for bookmaker in event.get('bookmakers', []):
-            bookmaker_name = bookmaker.get('key', '')
             for market in bookmaker.get('markets', []):
                 if market.get('key') == 'h2h':
                     for outcome in market.get('outcomes', []):
-                        if outcome.get('name') == '1X':
-                            odds = outcome.get('price', 0)
-                            if odds > result['best_odds']:
-                                result['best_odds'] = odds
-                                result['bookmaker'] = bookmaker_name
-                                result['bookmaker_name'] = self._get_bookmaker_name(bookmaker_name)
+                        price = outcome.get('price', 0)
+                        if price > result['best_odds']:
+                            result['best_odds'] = price
+                            result['bookmaker'] = bookmaker.get('key')
+                            result['bookmaker_name'] = self._get_bookmaker_name(bookmaker.get('key'))
         
         return result
     
     def _get_bookmaker_name(self, key):
-        """Преобразует ключ букмекера в название"""
         names = {
             'bet365': 'bet365',
             'pinnacle': 'Pinnacle',
             'betfair': 'Betfair',
-            'unibet': 'Unibet',
             'draftkings': 'DraftKings',
             'fanduel': 'FanDuel',
+            '1xbet': '1xBet',
+            'bwin': 'Bwin',
+            'williamhill': 'William Hill',
         }
         return names.get(key, key)
