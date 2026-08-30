@@ -1633,22 +1633,22 @@ MAIN_HTML = """<!DOCTYPE html>
     // РЕНДЕР ДАШБОРДА
     // ============================================================
     function renderDashboard(data) {
-        const s = data.stats;
+        const s = data.stats || {};
         const history = data.history || [];
 
         let html = `
             <div class="stats-grid">
-                <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Банк</div></div>
-                <div class="stat-card"><div class="value green">${s.wins}</div><div class="label">✅ Выигрыши</div></div>
-                <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
-                <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">📈 Прибыль</div></div>
+                <div class="stat-card"><div class="value">$${s.bank || 1000}</div><div class="label">💰 Банк</div></div>
+                <div class="stat-card"><div class="value green">${s.wins || 0}</div><div class="label">✅ Выигрыши</div></div>
+                <div class="stat-card"><div class="value red">${s.losses || 0}</div><div class="label">❌ Проигрыши</div></div>
+                <div class="stat-card"><div class="value gold">$${s.profit || 0}</div><div class="label">📈 Прибыль</div></div>
             </div>
 
             <div class="metrics-grid">
-                <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
-                <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
-                <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi}%</span></div>
-                <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake}</span></div>
+                <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets || 0}</span></div>
+                <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate || 0}%</span></div>
+                <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi || 0}%</span></div>
+                <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake || 0}</span></div>
             </div>
 
             <div class="card">
@@ -1683,27 +1683,27 @@ MAIN_HTML = """<!DOCTYPE html>
                 html += `
                     <tr>
                         <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
-                        <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
+                        <td style="font-size:9px;white-space:nowrap;">${bet.date || '-'}</td>
+                        <td><strong>${bet.home || 'Unknown'}</strong> vs <strong>${bet.away || 'Unknown'}</strong></td>
                         <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                        <td>${bet.bet}</td>
-                        <td>${bet.odds}</td>
-                        <td>$${bet.stake}</td>
-                        <td>${bet.ev}%</td>
-                        <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                        <td class="${profitClass}">$${bet.profit}</td>
+                        <td>${bet.bet || '-'}</td>
+                        <td>${bet.odds || 0}</td>
+                        <td>$${bet.stake || 0}</td>
+                        <td>${bet.ev || 0}%</td>
+                        <td><span class="badge ${bet.result || 'pending'}">${bet.result || 'pending'}</span></td>
+                        <td class="${profitClass}">$${bet.profit || 0}</td>
                         <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
                     </tr>
                     <tr id="edit-row-${realIdx}" class="edit-row">
                         <td colspan="11">
                             <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-                                <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
-                                <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
+                                <input type="text" id="edit_home_${realIdx}" value="${bet.home || ''}" style="width:70px;">
+                                <input type="text" id="edit_away_${realIdx}" value="${bet.away || ''}" style="width:70px;">
                                 <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
-                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
-                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
-                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
-                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
+                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet || ''}" style="width:70px;">
+                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds || 0}" step="0.01" style="width:50px;">
+                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake || 0}" step="0.5" style="width:60px;">
+                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev || 0}" step="0.1" style="width:50px;">
                                 <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
                                     <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
                                     <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
@@ -1728,7 +1728,7 @@ MAIN_HTML = """<!DOCTYPE html>
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
-        setTimeout(() => renderChart(data.profit_data), 50);
+        setTimeout(() => renderChart(data.profit_data || { dates: [], profits: [] }), 50);
     }
 
     // ============================================================
@@ -1744,15 +1744,16 @@ MAIN_HTML = """<!DOCTYPE html>
         }
 
         const isLight = document.body.classList.contains('light-theme');
-        const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
+        const dates = profitData.dates || ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+        const profits = profitData.profits || [0,0,0,0,0,0,0];
 
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.dates,
+                labels: dates,
                 datasets: [{
                     label: 'Прибыль ($)',
-                    data: data.profits,
+                    data: profits,
                     borderColor: '#a78bfa',
                     backgroundColor: 'rgba(167,139,250,0.08)',
                     fill: true,
@@ -1936,15 +1937,15 @@ MAIN_HTML = """<!DOCTYPE html>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">📊 Всего ставок</div>
-                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats.total_bets}</div>
+                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats?.total_bets || 0}</div>
                     </div>
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">🎯 Проходимость</div>
-                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats.winrate}%</div>
+                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats?.winrate || 0}%</div>
                     </div>
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">📈 ROI</div>
-                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats.roi}%</div>
+                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats?.roi || 0}%</div>
                     </div>
                 </div>
             </div>
@@ -2933,7 +2934,7 @@ MAIN_HTML = """<!DOCTYPE html>
 def check_bot_health():
     """Проверяет доступность бота"""
     try:
-        response = requests.get(f'{BOT_URL}/api/health', timeout=5)
+        response = requests.get(f'{BOT_URL}/health', timeout=5)
         if response.status_code == 200:
             data = response.json()
             logger.info(f"✅ Бот доступен: {data}")
@@ -2958,7 +2959,7 @@ def api_all_data():
     """Прокси к боту для получения всех данных"""
     try:
         logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
-        response = requests.get(f'{BOT_URL}/api/all_data', timeout=10)
+        response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
         if response.status_code == 200:
             return jsonify(response.json())
         else:
@@ -2973,7 +2974,6 @@ def api_all_data():
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
-    """Прокси для импорта Excel"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
@@ -2983,7 +2983,6 @@ def import_excel():
 
 @app.route('/api/import_project', methods=['POST'])
 def import_project():
-    """Прокси для импорта проекта"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
@@ -2993,7 +2992,6 @@ def import_project():
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
-    """Прокси для редактирования ставки"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
@@ -3003,7 +3001,6 @@ def edit_bet():
 
 @app.route('/api/delete_bet', methods=['POST'])
 def delete_bet():
-    """Прокси для удаления ставки"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
@@ -3013,7 +3010,6 @@ def delete_bet():
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
-    """Прокси для обновления банка"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
@@ -3023,7 +3019,6 @@ def update_bank():
 
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
-    """Прокси для симуляции"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
@@ -3031,24 +3026,8 @@ def simulate():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/export', methods=['GET'])
-def export_data():
-    """Прокси для экспорта данных"""
-    try:
-        response = requests.get(f'{BOT_URL}/api/export', timeout=30)
-        if response.status_code == 200:
-            return response.content, 200, {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': 'attachment; filename=quantum_bet_history.xlsx'
-            }
-        else:
-            return jsonify({'error': 'Ошибка экспорта'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/add_manual_match', methods=['POST'])
 def add_manual_match():
-    """Прокси для ручного добавления матча"""
     try:
         data = request.json
         response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
@@ -3065,8 +3044,7 @@ def health():
         'web': 'running',
         'bot': 'ok' if bot_ok else 'error',
         'bot_data': bot_data,
-        'bot_url': BOT_URL,
-        'port': 5001
+        'bot_url': BOT_URL
     })
 
 # ============================================================
