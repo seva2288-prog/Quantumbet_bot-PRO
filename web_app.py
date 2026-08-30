@@ -2947,12 +2947,8 @@ def check_bot_health():
         return False, None
 
 # ============================================================
-# API МАРШРУТЫ (ПРОКСИ К БОТУ)
+# API МАРШРУТЫ (С ОБРАБОТКОЙ ОШИБОК)
 # ============================================================
-
-@app.route('/')
-def index():
-    return render_template_string(MAIN_HTML)
 
 @app.route('/api/all_data')
 def api_all_data():
@@ -2960,14 +2956,22 @@ def api_all_data():
     try:
         logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
         response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
+        
         if response.status_code == 200:
-            return jsonify(response.json())
+            try:
+                return jsonify(response.json())
+            except:
+                logger.error("Бот вернул невалидный JSON")
+                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
         else:
             logger.error(f"Бот вернул ошибку: {response.status_code}")
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
+            
     except requests.exceptions.ConnectionError:
         logger.error("❌ Не удалось подключиться к боту!")
         return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
     except Exception as e:
         logger.error(f"Ошибка получения данных: {e}")
         return jsonify({'error': f'Ошибка: {str(e)}'}), 500
@@ -2976,19 +2980,47 @@ def api_all_data():
 def import_excel():
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'Нет данных для импорта'}), 400
+            
         response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
+        
+        if response.status_code == 200:
+            try:
+                return jsonify(response.json())
+            except:
+                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
+        else:
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
+            
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Ошибка импорта Excel: {e}")
+        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
 
 @app.route('/api/import_project', methods=['POST'])
 def import_project():
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'Нет данных для импорта'}), 400
+            
         response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
+        
+        if response.status_code == 200:
+            try:
+                return jsonify(response.json())
+            except:
+                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
+        else:
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
+            
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Ошибка импорта проекта: {e}")
+        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
@@ -3037,7 +3069,6 @@ def add_manual_match():
 
 @app.route('/api/health')
 def health():
-    """Проверка здоровья веб-интерфейса и бота"""
     bot_ok, bot_data = check_bot_health()
     return jsonify({
         'status': 'ok',
@@ -3046,7 +3077,6 @@ def health():
         'bot_data': bot_data,
         'bot_url': BOT_URL
     })
-
 # ============================================================
 # ЗАПУСК
 # ============================================================
