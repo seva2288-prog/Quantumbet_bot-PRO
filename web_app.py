@@ -19,17 +19,16 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 # URL вашего бота на Render
-BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+BOT_URL = os.environ.get('BOT_URL', 'https://quantumbet-bot-pro.onrender.com')
 
 # Проверка при запуске
 print(f"🔗 Бот URL: {BOT_URL}")
 
 # ============================================================
-# HTML ШАБЛОН (ваш полный MAIN_HTML)
+# HTML ШАБЛОН (ПОЛНЫЙ, 3000+ СТРОК)
 # ============================================================
 
-MAIN_HTML = """
-<!DOCTYPE html>
+MAIN_HTML = """<!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
     <title>Quantum Bet Bot</title>
@@ -163,7 +162,7 @@ MAIN_HTML = """
         }
         
         /* ============================================================
-           ОСНОВНЫЕ СТИЛИ (ваши стили отсюда)
+           ОСНОВНЫЕ СТИЛИ
            ============================================================ */
         * {
             margin: 0;
@@ -842,10 +841,6 @@ MAIN_HTML = """
             animation: spin 0.8s linear infinite;
             margin: 0 auto 8px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
         
         .page {
             display: none;
@@ -1257,6 +1252,11 @@ MAIN_HTML = """
 
 <script>
     // ============================================================
+    // КОНФИГУРАЦИЯ
+    // ============================================================
+    const API_BASE = window.location.origin;
+    
+    // ============================================================
     // ЗВЁЗДЫ ДЛЯ ЭКРАНА ЗАГРУЗКИ
     // ============================================================
     (function generateLoadingStars() {
@@ -1291,7 +1291,6 @@ MAIN_HTML = """
         }
     }
 
-    // Скрыть после загрузки страницы
     window.addEventListener('load', function() {
         setTimeout(hideLoadingScreen, 600);
     });
@@ -1432,7 +1431,10 @@ MAIN_HTML = """
         contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
 
         try {
-            const response = await fetch('/api/all_data?t=' + Date.now());
+            const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
+            if (!response.ok) {
+                throw new Error('Сервер вернул ошибку: ' + response.status);
+            }
             const data = await response.json();
             cachedData = data;
 
@@ -1445,9 +1447,21 @@ MAIN_HTML = """
             
             hideLoadingScreen();
         } catch (error) {
-            contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки. Проверьте, что бот запущен!</div>';
+            console.error('Ошибка загрузки:', error);
+            contentEl.innerHTML = `
+                <div class="no-data">
+                    <div class="emoji">⚠️</div>
+                    <div>Ошибка загрузки данных!</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">
+                        ${error.message}
+                    </div>
+                    <button onclick="refreshData()" style="margin-top:8px;padding:6px 16px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.3);border-radius:6px;color:#a78bfa;cursor:pointer;">
+                        🔄 Повторить
+                    </button>
+                </div>
+            `;
             hideLoadingScreen();
-            showNotification('❌ Бот не отвечает! Запустите main.py на порту 5000', 'error');
+            showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
         }
 
         isLoading = false;
@@ -1456,48 +1470,6 @@ MAIN_HTML = """
     function refreshData() {
         cachedData = null;
         loadPageData(currentPage);
-    }
-
-    // ============================================================
-    // ФИКСИРОВАННЫЕ РЕКОМЕНДАЦИИ ДЛЯ ПАТТЕРНОВ
-    // ============================================================
-    function getRecommendation(stake) {
-        const stakeStr = stake.toString();
-        
-        const recommendations = {
-            '45.125': {
-                bet: '1X',
-                icon: '🏠',
-                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
-            },
-            '40.7253125': {
-                bet: 'ОБЗ',
-                icon: '⚽',
-                description: 'Обе команды забьют'
-            },
-            '42.86875000000006': {
-                bet: 'ТМ 2.5',
-                icon: '🔽',
-                description: 'Тотал меньше 2.5 голов'
-            },
-            '42.86875000000001': {
-                bet: 'X2',
-                icon: '✈️',
-                description: 'Гости не проиграют (Победа или ничья гостей)'
-            }
-        };
-        
-        for (const [key, value] of Object.entries(recommendations)) {
-            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
-                return value;
-            }
-        }
-        
-        return {
-            bet: '—',
-            icon: '📌',
-            description: 'Нет рекомендации для этой суммы'
-        };
     }
 
     // ============================================================
@@ -1616,6 +1588,45 @@ MAIN_HTML = """
             }
         });
         return Object.values(skipped).filter(s => s.count >= 2);
+    }
+
+    function getRecommendation(stake) {
+        const stakeStr = stake.toString();
+        
+        const recommendations = {
+            '45.125': {
+                bet: '1X',
+                icon: '🏠',
+                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
+            },
+            '40.7253125': {
+                bet: 'ОБЗ',
+                icon: '⚽',
+                description: 'Обе команды забьют'
+            },
+            '42.86875000000006': {
+                bet: 'ТМ 2.5',
+                icon: '🔽',
+                description: 'Тотал меньше 2.5 голов'
+            },
+            '42.86875000000001': {
+                bet: 'X2',
+                icon: '✈️',
+                description: 'Гости не проиграют (Победа или ничья гостей)'
+            }
+        };
+        
+        for (const [key, value] of Object.entries(recommendations)) {
+            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
+                return value;
+            }
+        }
+        
+        return {
+            bet: '—',
+            icon: '📌',
+            description: 'Нет рекомендации для этой суммы'
+        };
     }
 
     // ============================================================
@@ -1917,7 +1928,6 @@ MAIN_HTML = """
             `;
         }
 
-        // Быстрая статистика
         html += `
             <div class="card">
                 <div class="card-header">
@@ -2149,7 +2159,7 @@ MAIN_HTML = """
             return;
         }
         
-        fetch('/api/add_manual_match', {
+        fetch(API_BASE + '/api/add_manual_match', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2602,7 +2612,7 @@ MAIN_HTML = """
         
         if (!projectData.data) {
             showNotification('⏳ Загрузка данных...', '');
-            fetch('/api/all_data')
+            fetch(API_BASE + '/api/all_data')
                 .then(response => response.json())
                 .then(data => {
                     projectData.data = data;
@@ -2667,7 +2677,7 @@ MAIN_HTML = """
                 if (projectData.data && projectData.data.history) {
                     showNotification('⏳ Отправка данных на сервер...', '');
                     
-                    fetch('/api/import_project', {
+                    fetch(API_BASE + '/api/import_project', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2729,7 +2739,7 @@ MAIN_HTML = """
             index: index
         };
         try {
-            const response = await fetch('/api/edit_bet', {
+            const response = await fetch(API_BASE + '/api/edit_bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -2749,7 +2759,7 @@ MAIN_HTML = """
     async function deleteBet(index) {
         if (!confirm('Удалить эту ставку?')) return;
         try {
-            const response = await fetch('/api/delete_bet', {
+            const response = await fetch(API_BASE + '/api/delete_bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ index: index })
@@ -2770,7 +2780,7 @@ MAIN_HTML = """
         const count = parseInt(document.getElementById('simCount').value) || 1000;
         document.getElementById('simResults').style.display = 'block';
         try {
-            const response = await fetch('/api/simulate', {
+            const response = await fetch(API_BASE + '/api/simulate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ count: count })
@@ -2835,7 +2845,7 @@ MAIN_HTML = """
     async function updateBank() {
         const value = document.getElementById('bankInput').value;
         try {
-            const response = await fetch('/api/bank', {
+            const response = await fetch(API_BASE + '/api/bank', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bank: parseFloat(value) })
@@ -2877,7 +2887,7 @@ MAIN_HTML = """
                     return;
                 }
                 statusDiv.textContent = '⏳ Отправка данных на сервер...';
-                fetch('/api/import_excel', {
+                fetch(API_BASE + '/api/import_excel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ data: json })
@@ -2905,6 +2915,9 @@ MAIN_HTML = """
         }
     });
 
+    // ============================================================
+    // ЗАПУСК
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         loadPageData('dashboard');
     });
@@ -2920,7 +2933,7 @@ MAIN_HTML = """
 def check_bot_health():
     """Проверяет доступность бота"""
     try:
-        response = requests.get(f'{BOT_URL}/api/health', timeout=3)
+        response = requests.get(f'{BOT_URL}/api/health', timeout=5)
         if response.status_code == 200:
             data = response.json()
             logger.info(f"✅ Бот доступен: {data}")
@@ -2944,14 +2957,19 @@ def index():
 def api_all_data():
     """Прокси к боту для получения всех данных"""
     try:
+        logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
         response = requests.get(f'{BOT_URL}/api/all_data', timeout=10)
         if response.status_code == 200:
             return jsonify(response.json())
         else:
-            return jsonify({'error': 'Бот вернул ошибку'}), 500
+            logger.error(f"Бот вернул ошибку: {response.status_code}")
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
+    except requests.exceptions.ConnectionError:
+        logger.error("❌ Не удалось подключиться к боту!")
+        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
     except Exception as e:
         logger.error(f"Ошибка получения данных: {e}")
-        return jsonify({'error': f'Бот недоступен: {e}'}), 500
+        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
@@ -3065,7 +3083,6 @@ if __name__ == '__main__':
     if bot_ok:
         logger.info("✅ Бот доступен")
     else:
-        logger.warning("⚠️ Бот недоступен! Запустите main.py на порту 5000")
-        logger.warning("⚠️ Некоторые функции могут не работать")
+        logger.warning("⚠️ Бот недоступен! Убедитесь, что бот запущен на Render")
     
     app.run(host='0.0.0.0', port=port, debug=False)
