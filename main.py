@@ -2345,6 +2345,34 @@ def health():
 def index():
     return f"🤖 Quantum Bot PRO (70%+ Target + Odds API) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
+@app.route('/test_odds', methods=['GET'])
+def test_odds():
+    """Тестовый эндпоинт для проверки Odds API"""
+    try:
+        # Пытаемся получить коэффициенты для тестового матча MLS
+        result = odds_api.get_odds_for_match("St. Louis City", "FC Dallas", "MLS")
+        if result and result.get('best_odds', 0) > 0:
+            return jsonify({
+                'status': 'ok',
+                'odds': result.get('best_odds'),
+                'bookmaker': result.get('bookmaker_name'),
+                'data': result
+            })
+        else:
+            # Если не нашли MLS, пробуем найти любой матч из АПЛ
+            result = odds_api.get_odds_for_match("Arsenal", "Chelsea", "Premier League")
+            if result and result.get('best_odds', 0) > 0:
+                return jsonify({
+                    'status': 'ok (from EPL)',
+                    'odds': result.get('best_odds'),
+                    'bookmaker': result.get('bookmaker_name'),
+                    'data': result
+                })
+            else:
+                return jsonify({'status': 'error', 'message': 'No odds found for test matches'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
 # ============================================================
 # ЗАПУСК
 # ============================================================
