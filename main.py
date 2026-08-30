@@ -8,14 +8,14 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 
 # ============================================================
-# ИМПОРТЫ ИЗ ПРОЕКТА
+# ИМПОРТЫ ИЗ ПРОЕКТА (С app.)
 # ============================================================
-from config import Config
-from database.storage import storage
-from analytics.probability import calculate_ev
-from telegram.handlers import handlers
-from utils.logger import setup_logging, get_logger
-from scheduler import start_scheduler
+from app.config import Config
+from app.database.storage import storage
+from app.analytics.probability import calculate_ev
+from app.telegram.handlers import handlers
+from app.utils.logger import setup_logging, get_logger
+from app.scheduler import start_scheduler
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
@@ -58,7 +58,6 @@ FALLBACK_XG = {
 # ============================================================
 class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
-        from config import Config
         self.api_key = api_key or Config.FOOTBALL_API_KEY
         self.base_url = base_url or "https://v3.football.api-sports.io"
         self.cache = {}
