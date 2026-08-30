@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template_string, jsonify, request
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 
@@ -1326,6 +1326,7 @@ MAIN_HTML = """<!DOCTYPE html>
     let currentPage = 'dashboard';
     let isLoading = false;
     let chartData = null;
+    let matchesCache = null;  // ← ДОБАВЛЕНО ДЛЯ КЭША МАТЧЕЙ
 
     // ============================================================
     // УВЕДОМЛЕНИЯ
@@ -1415,7 +1416,25 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ЗАГРУЗКА ДАННЫХ
+    // ЗАГРУЗКА МАТЧЕЙ ОТДЕЛЬНО (НОВАЯ ФУНКЦИЯ)
+    // ============================================================
+    async function loadMatches() {
+        try {
+            const response = await fetch(API_BASE + '/api/matches?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                matchesCache = data;
+                return data;
+            }
+            return null;
+        } catch (e) {
+            console.log('Ошибка загрузки матчей:', e);
+            return null;
+        }
+    }
+
+    // ============================================================
+    // ЗАГРУЗКА ДАННЫХ (ИСПРАВЛЕННАЯ)
     // ============================================================
     async function loadPageData(page) {
         if (isLoading) return;
@@ -1436,6 +1455,24 @@ MAIN_HTML = """<!DOCTYPE html>
                 throw new Error('Сервер вернул ошибку: ' + response.status);
             }
             const data = await response.json();
+            
+            // ============================================================
+            // ДОБАВЛЯЕМ ЗАГРУЗКУ МАТЧЕЙ ОТДЕЛЬНО
+            // ============================================================
+            try {
+                const matchesData = await loadMatches();
+                if (matchesData && matchesData.length > 0) {
+                    data.matches = matchesData;
+                    console.log('✅ Загружено матчей:', matchesData.length);
+                } else if (data.matches && data.matches.length > 0) {
+                    console.log('✅ Матчи из all_data:', data.matches.length);
+                } else {
+                    console.log('ℹ️ Нет активных матчей');
+                }
+            } catch (e) {
+                console.log('Матчи не загружены отдельно');
+            }
+            
             cachedData = data;
 
             switch(page) {
@@ -1467,9 +1504,14 @@ MAIN_HTML = """<!DOCTYPE html>
         isLoading = false;
     }
 
+    // ============================================================
+    // ОБНОВЛЕНИЕ ДАННЫХ (ИСПРАВЛЕННОЕ)
+    // ============================================================
     function refreshData() {
         cachedData = null;
+        matchesCache = null;  // ← СБРАСЫВАЕМ КЭШ МАТЧЕЙ
         loadPageData(currentPage);
+        showNotification('🔄 Обновление данных...', '');
     }
 
     // ============================================================
@@ -1630,11 +1672,78 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА
+    // РЕНДЕР ДАШБОРДА (ИСПРАВЛЕННЫЙ)
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats || {};
         const history = data.history || [];
+        const matches = data.matches || [];
+
+        // ОБЪЕДИНЯЕМ ИСТОРИЮ И МАТЧИ
+        let allItems = [];
+
+        // Добавляем активные матчи
+        if (matches && matches.length > 0) {
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
+                allItems.push({
+                    type: 'match',
+                    date: match.match_time || 'Сегодня',
+                    home: match.home || 'Unknown',
+                    away: match.away || 'Unknown',
+                    home_goals: null,
+                    away_goals: null,
+                    score: '-',
+                    bet: bestBet.label || '—',
+                    odds: bestBet.odds || 0,
+                    stake: bestBet.stake || 0,
+                    ev: bestBet.ev || 0,
+                    result: 'pending',
+                    profit: 0,
+                    is_active: true,
+                    xg: match.total_xg || 0,
+                    league: match.league || ''
+                });
+            });
+        }
+
+        // Добавляем историю ставок
+        if (history && history.length > 0) {
+            history.forEach((bet) => {
+                allItems.push({
+                    type: 'history',
+                    date: bet.date || '-',
+                    home: bet.home || 'Unknown',
+                    away: bet.away || 'Unknown',
+                    home_goals: bet.home_goals,
+                    away_goals: bet.away_goals,
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    bet: bet.bet || '—',
+                    odds: bet.odds || 0,
+                    stake: bet.stake || 0,
+                    ev: bet.ev || 0,
+                    result: bet.result || 'pending',
+                    profit: bet.profit || 0,
+                    is_active: false,
+                    xg: 0,
+                    league: bet.league || ''
+                });
+            });
+        }
+
+        // Сортируем: сначала активные матчи, потом история по дате
+        allItems.sort((a, b) => {
+            if (a.is_active && !b.is_active) return -1;
+            if (!a.is_active && b.is_active) return 1;
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
+        });
+
+        // Ограничиваем количество
+        allItems = allItems.slice(0, 50);
+
+        // Подсчет статистики
+        const totalBets = allItems.filter(i => i.type === 'history').length;
+        const activeMatches = allItems.filter(i => i.type === 'match').length;
 
         let html = `
             <div class="stats-grid">
@@ -1648,7 +1757,7 @@ MAIN_HTML = """<!DOCTYPE html>
                 <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets || 0}</span></div>
                 <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate || 0}%</span></div>
                 <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi || 0}%</span></div>
-                <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake || 0}</span></div>
+                <div class="metric-item"><span class="label">📅 Активных матчей</span><span class="value">${activeMatches}</span></div>
             </div>
 
             <div class="card">
@@ -1662,59 +1771,38 @@ MAIN_HTML = """<!DOCTYPE html>
             </div>
 
             <div class="card">
-                <div class="card-header">
-                    <h2>📋 Все ставки</h2>
-                    <span class="count">Всего: ${history.length}</span>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
+                    <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${allItems.length} (активных: ${activeMatches})</span>
                 </div>
                 <div class="table-wrapper">
                     <table>
                         <thead><tr>
-                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
+                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th>
                         </tr></thead>
                         <tbody>
         `;
 
-        if (history.length === 0) {
-            html += `<tr><td colspan="11" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
+        if (allItems.length === 0) {
+            html += `<tr><td colspan="10" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
         } else {
-            history.slice().reverse().forEach((bet, idx) => {
-                const realIdx = history.length - 1 - idx;
-                const profitClass = bet.profit > 0 ? 'profit-positive' : (bet.profit < 0 ? 'profit-negative' : '');
+            allItems.forEach((item, idx) => {
+                const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
+                const isActive = item.is_active;
+                const rowStyle = isActive ? 'background:rgba(167,139,250,0.05);' : '';
+                
                 html += `
-                    <tr>
+                    <tr style="${rowStyle}">
                         <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${bet.date || '-'}</td>
-                        <td><strong>${bet.home || 'Unknown'}</strong> vs <strong>${bet.away || 'Unknown'}</strong></td>
-                        <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                        <td>${bet.bet || '-'}</td>
-                        <td>${bet.odds || 0}</td>
-                        <td>$${bet.stake || 0}</td>
-                        <td>${bet.ev || 0}%</td>
-                        <td><span class="badge ${bet.result || 'pending'}">${bet.result || 'pending'}</span></td>
-                        <td class="${profitClass}">$${bet.profit || 0}</td>
-                        <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
-                    </tr>
-                    <tr id="edit-row-${realIdx}" class="edit-row">
-                        <td colspan="11">
-                            <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-                                <input type="text" id="edit_home_${realIdx}" value="${bet.home || ''}" style="width:70px;">
-                                <input type="text" id="edit_away_${realIdx}" value="${bet.away || ''}" style="width:70px;">
-                                <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
-                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet || ''}" style="width:70px;">
-                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds || 0}" step="0.01" style="width:50px;">
-                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake || 0}" step="0.5" style="width:60px;">
-                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev || 0}" step="0.1" style="width:50px;">
-                                <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
-                                    <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
-                                    <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
-                                    <option value="push" ${bet.result === 'push' ? 'selected' : ''}>push</option>
-                                    <option value="pending" ${bet.result === 'pending' ? 'selected' : ''}>pending</option>
-                                </select>
-                                <button class="btn btn-success" onclick="saveEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">💾</button>
-                                <button class="btn btn-danger" onclick="deleteBet(${realIdx})" style="padding:2px 6px;font-size:9px;background:rgba(248,113,113,0.15);color:#f87171;border-color:rgba(248,113,113,0.1);">🗑️</button>
-                                <button class="btn" onclick="toggleEdit(${realIdx})" style="padding:2px 6px;font-size:9px;">✖</button>
-                            </div>
-                        </td>
+                        <td style="font-size:9px;white-space:nowrap;">${item.date}</td>
+                        <td><strong>${item.home}</strong> vs <strong>${item.away}</strong></td>
+                        <td>${item.score}</td>
+                        <td>${item.bet}${isActive ? ' 🟢' : ''}</td>
+                        <td>${item.odds}</td>
+                        <td>$${item.stake}</td>
+                        <td>${item.ev}%</td>
+                        <td><span class="badge ${item.result}">${item.result}</span></td>
+                        <td class="${profitClass}">${item.profit > 0 ? '+' : ''}$${item.profit}</td>
                     </tr>
                 `;
             });
@@ -1728,7 +1816,7 @@ MAIN_HTML = """<!DOCTYPE html>
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
-        setTimeout(() => renderChart(data.profit_data || { dates: [], profits: [] }), 50);
+        setTimeout(() => renderChart(data.profit_data), 50);
     }
 
     // ============================================================
@@ -1744,16 +1832,15 @@ MAIN_HTML = """<!DOCTYPE html>
         }
 
         const isLight = document.body.classList.contains('light-theme');
-        const dates = profitData.dates || ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-        const profits = profitData.profits || [0,0,0,0,0,0,0];
+        const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
 
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: dates,
+                labels: data.dates,
                 datasets: [{
                     label: 'Прибыль ($)',
-                    data: profits,
+                    data: data.profits,
                     borderColor: '#a78bfa',
                     backgroundColor: 'rgba(167,139,250,0.08)',
                     fill: true,
@@ -2932,7 +3019,6 @@ MAIN_HTML = """<!DOCTYPE html>
 # ============================================================
 
 def check_bot_health():
-    """Проверяет доступность бота"""
     try:
         response = requests.get(f'{BOT_URL}/health', timeout=5)
         if response.status_code == 200:
@@ -2947,7 +3033,7 @@ def check_bot_health():
         return False, None
 
 # ============================================================
-# API МАРШРУТЫ (С ОБРАБОТКОЙ ОШИБОК)
+# API МАРШРУТЫ (ПРОКСИ К БОТУ)
 # ============================================================
 
 @app.route('/')
@@ -2960,84 +3046,62 @@ def api_all_data():
     try:
         logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
         response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
-        
         if response.status_code == 200:
-            try:
-                return jsonify(response.json())
-            except Exception as e:
-                logger.error(f"Ошибка парсинга JSON от бота: {e}")
-                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
+            return jsonify(response.json())
         else:
-            logger.error(f"Бот вернул ошибку: {response.status_code}")
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
-            
-    except requests.exceptions.ConnectionError:
-        logger.error("❌ Не удалось подключиться к боту!")
-        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
-    except requests.exceptions.Timeout:
-        logger.error("❌ Таймаут подключения к боту!")
-        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
     except Exception as e:
-        logger.error(f"Ошибка получения данных: {e}")
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
+        logger.error(f"Ошибка: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/matches')
+def api_matches():
+    """Прокси для получения матчей"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except:
+        return jsonify([])
+
+@app.route('/api/stats')
+def api_stats():
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+    except:
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+
+@app.route('/api/history')
+def api_history():
+    try:
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except:
+        return jsonify([])
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
-    """Прокси для импорта Excel"""
     try:
         data = request.json
-        if not data:
-            return jsonify({'error': 'Нет данных для импорта'}), 400
-            
-        logger.info(f"📡 Отправка Excel на бот: {BOT_URL}/api/import_excel")
         response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
-        
-        if response.status_code == 200:
-            try:
-                return jsonify(response.json())
-            except Exception as e:
-                logger.error(f"Ошибка парсинга JSON от бота: {e}")
-                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
-        else:
-            logger.error(f"Бот вернул ошибку: {response.status_code}")
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
-            
-    except requests.exceptions.ConnectionError:
-        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
-    except requests.exceptions.Timeout:
-        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
+        return jsonify(response.json()), response.status_code
     except Exception as e:
-        logger.error(f"Ошибка импорта Excel: {e}")
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/import_project', methods=['POST'])
 def import_project():
-    """Прокси для импорта проекта"""
     try:
         data = request.json
-        if not data:
-            return jsonify({'error': 'Нет данных для импорта'}), 400
-            
-        logger.info(f"📡 Отправка проекта на бот: {BOT_URL}/api/import_project")
         response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
-        
-        if response.status_code == 200:
-            try:
-                return jsonify(response.json())
-            except Exception as e:
-                logger.error(f"Ошибка парсинга JSON от бота: {e}")
-                return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
-        else:
-            logger.error(f"Бот вернул ошибку: {response.status_code}")
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
-            
-    except requests.exceptions.ConnectionError:
-        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
-    except requests.exceptions.Timeout:
-        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
+        return jsonify(response.json()), response.status_code
     except Exception as e:
-        logger.error(f"Ошибка импорта проекта: {e}")
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
@@ -3086,7 +3150,6 @@ def add_manual_match():
 
 @app.route('/api/health')
 def health():
-    """Проверка здоровья веб-интерфейса и бота"""
     bot_ok, bot_data = check_bot_health()
     return jsonify({
         'status': 'ok',
@@ -3105,7 +3168,6 @@ if __name__ == '__main__':
     logger.info(f"🌐 Запуск веб-интерфейса на порту {port}")
     logger.info(f"📡 Подключение к боту: {BOT_URL}")
     
-    # Проверяем доступность бота
     bot_ok, bot_data = check_bot_health()
     if bot_ok:
         logger.info("✅ Бот доступен")
