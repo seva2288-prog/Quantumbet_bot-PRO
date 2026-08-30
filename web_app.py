@@ -18,9 +18,11 @@ logger = logging.getLogger(__name__)
 # НАСТРОЙКИ
 # ============================================================
 
-BOT_URL = 'http://localhost:5000'  # Бот на порту 5000
-CACHE = {}
-CACHE_TIME = 30  # секунд
+# URL вашего бота на Render
+BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+
+# Проверка при запуске
+print(f"🔗 Бот URL: {BOT_URL}")
 
 # ============================================================
 # HTML ШАБЛОН (ваш полный MAIN_HTML)
