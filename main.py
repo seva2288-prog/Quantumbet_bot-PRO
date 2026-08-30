@@ -5,15 +5,11 @@ import time
 import json
 import logging
 import random
-import asyncio
-import aiohttp
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import threading
-import sqlite3
-from contextlib import contextmanager
 import io
 
 # ============================================================
@@ -64,7 +60,7 @@ FALLBACK_XG = {
 }
 
 # ============================================================
-# КЛАСС FOOTBALL_API С КЭШИРОВАНИЕМ И АСИНХРОННОСТЬЮ
+# КЛАСС FOOTBALL_API (СИНХРОННЫЙ, С КЭШИРОВАНИЕМ)
 # ============================================================
 class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
@@ -74,18 +70,17 @@ class FootballAPI:
         self.cache = {}
         self.last_request_time = 0
         self.min_request_interval = 1.5
-        self.session = None
         self._lock = threading.Lock()
         
         logger.info(f"🔑 API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
     
-    async def _make_request_async(self, endpoint, params=None):
-        """Асинхронный запрос к API"""
+    def _make_request(self, endpoint, params=None):
+        """Синхронный запрос к API"""
         try:
             with self._lock:
                 now = time.time()
                 if now - self.last_request_time < self.min_request_interval:
-                    await asyncio.sleep(self.min_request_interval - (now - self.last_request_time))
+                    time.sleep(self.min_request_interval - (now - self.last_request_time))
                 self.last_request_time = time.time()
             
             headers = {
@@ -94,40 +89,31 @@ class FootballAPI:
             }
             
             url = f"{self.base_url}{endpoint}"
+            logger.info(f"📡 Запрос: {endpoint}")
+            if params:
+                logger.info(f"📡 Параметры: {params}")
             
-            if not self.session:
-                self.session = aiohttp.ClientSession()
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+            logger.info(f"📡 Статус ответа: {response.status_code}")
             
-            async with self.session.get(url, headers=headers, params=params, timeout=15) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get('errors'):
-                        logger.error(f"❌ API ошибка: {data['errors']}")
-                        return None
-                    return data
-                else:
-                    logger.error(f"❌ API ошибка {response.status}: {await response.text()}")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('errors'):
+                    logger.error(f"❌ API ошибка: {data['errors']}")
                     return None
-                    
+                if 'response' in data:
+                    logger.info(f"📡 Получено записей: {len(data['response'])}")
+                return data
+            else:
+                logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
+                return None
+                
         except Exception as e:
             logger.error(f"❌ Ошибка запроса к API: {e}")
             return None
     
-    def _make_request(self, endpoint, params=None):
-        """Синхронная обертка для асинхронного запроса"""
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(self._make_request_async(endpoint, params))
-            loop.close()
-            return result
-        except Exception as e:
-            logger.error(f"❌ Ошибка в синхронной обертке: {e}")
-            return None
-    
     @lru_cache(maxsize=128)
     def get_matches_cached(self, league_id, date):
-        """Кэшированный запрос матчей"""
         return self.get_matches(league_id, date)
     
     def get_matches(self, league_id, date):
@@ -151,7 +137,6 @@ class FootballAPI:
     
     @lru_cache(maxsize=128)
     def get_form_cached(self, team_id):
-        """Кэшированный запрос формы"""
         return self.get_form(team_id)
     
     def get_form(self, team_id):
@@ -242,7 +227,6 @@ class FootballAPI:
     
     @lru_cache(maxsize=128)
     def get_match_statistics_cached(self, fixture_id):
-        """Кэшированный запрос статистики матча"""
         return self.get_match_statistics(fixture_id)
     
     def get_match_statistics(self, fixture_id):
@@ -299,7 +283,6 @@ class FootballAPI:
     
     @lru_cache(maxsize=128)
     def get_head_to_head_cached(self, home_team, away_team):
-        """Кэшированный запрос H2H"""
         return self.get_head_to_head(home_team, away_team)
     
     def get_head_to_head(self, home_team, away_team):
@@ -376,7 +359,6 @@ class FootballAPI:
     
     @lru_cache(maxsize=256)
     def get_team_id_cached(self, team_name):
-        """Кэшированный запрос ID команды"""
         return self.get_team_id(team_name)
     
     def get_team_id(self, team_name):
@@ -403,7 +385,6 @@ class FootballAPI:
     
     @lru_cache(maxsize=64)
     def get_standings_cached(self, league_id):
-        """Кэшированный запрос таблицы"""
         return self.get_standings(league_id)
     
     def get_standings(self, league_id):
@@ -514,7 +495,6 @@ class FootballAPI:
     
     def clear_cache(self):
         self.cache = {}
-        # Очищаем lru_cache
         self.get_matches_cached.cache_clear()
         self.get_form_cached.cache_clear()
         self.get_match_statistics_cached.cache_clear()
@@ -522,10 +502,6 @@ class FootballAPI:
         self.get_team_id_cached.cache_clear()
         self.get_standings_cached.cache_clear()
         logger.info("🧹 Кэш очищен")
-    
-    async def close(self):
-        if self.session:
-            await self.session.close()
 
 # ============================================================
 # СОЗДАЕМ ЭКЗЕМПЛЯР
@@ -548,28 +524,21 @@ class RiskManager:
         self.bankroll = new_bankroll
         
     def calculate_stake(self, ev, odds, prob):
-        """Расчет оптимальной ставки по Келли с ограничениями"""
         if ev < 0:
             return 0
         
-        # Базовая ставка по Келли
         kelly_percent = (prob * odds - 1) / (odds - 1)
-        
-        # Ограничиваем Келли
         kelly_percent = min(kelly_percent, self.max_stake_percent)
         
-        # Корректируем на EV
         if ev < 5:
             kelly_percent *= 0.5
         elif ev < 10:
             kelly_percent *= 0.75
         
-        # Проверка дневного лимита
         if self.daily_loss < -self.max_daily_loss * self.bankroll:
             kelly_percent *= 0.5
             logger.warning("⚠️ Дневной лимит проигрыша близок")
         
-        # Проверка количества ставок за день
         if self.bets_today >= self.max_bets_per_day:
             logger.warning(f"⚠️ Достигнут лимит ставок за день ({self.max_bets_per_day})")
             return 0
@@ -587,8 +556,6 @@ class RiskManager:
 def calculate_under_probability(total_xg, home_goals_avg, away_goals_avg, 
                                 home_conceded_avg, away_conceded_avg,
                                 home_position, away_position):
-    """Улучшенный расчет вероятности ТМ 2.5"""
-    
     # 1. На основе XG
     if total_xg <= 1.5:
         prob_xg = 0.85
@@ -631,11 +598,8 @@ def calculate_under_probability(total_xg, home_goals_avg, away_goals_avg,
     elif home_position >= 15 and away_position >= 15:
         position_factor = 0.10
     
-    # Итоговая вероятность
     final_prob = prob_xg * 0.6 + prob_form * 0.3 + (prob_xg + prob_form) / 2 * 0.1
     final_prob += position_factor
-    
-    # Ограничиваем диапазон
     final_prob = max(0.20, min(0.90, final_prob))
     
     return final_prob
@@ -644,14 +608,10 @@ def calculate_under_probability(total_xg, home_goals_avg, away_goals_avg,
 # УЛУЧШЕНИЕ 3: ДЕТЕКТОР ВАЖНЫХ МАТЧЕЙ
 # ============================================================
 def is_important_match(home, away, home_position, away_position, league_name):
-    """Проверка, является ли матч важным"""
-    
-    # Топ-матчи в топ-лигах
     if league_name in TOP_LEAGUES:
         if home_position <= 6 or away_position <= 6:
             return True, "Топ-матч"
     
-    # Дерби
     derbies = [
         ("Liverpool", "Everton"),
         ("Manchester United", "Manchester City"),
@@ -675,12 +635,9 @@ def is_important_match(home, away, home_position, away_position, league_name):
 # УЛУЧШЕНИЕ 4: АНАЛИЗ ВЫСОКОЙ РЕЗУЛЬТАТИВНОСТИ
 # ============================================================
 def analyze_high_scoring_potential(match_data, h2h_data=None):
-    """Детальный анализ потенциала высокой результативности"""
-    
     factors = []
     score = 0
     
-    # 1. XG
     total_xg = match_data.get('total_xg', 0)
     if total_xg > 3.0:
         factors.append(f"Высокий XG: {total_xg:.2f}")
@@ -689,7 +646,6 @@ def analyze_high_scoring_potential(match_data, h2h_data=None):
         factors.append(f"Средний XG: {total_xg:.2f}")
         score += 20
     
-    # 2. Форма команд
     home_goals_avg = match_data.get('home_goals_avg', 0)
     away_goals_avg = match_data.get('away_goals_avg', 0)
     
@@ -700,7 +656,6 @@ def analyze_high_scoring_potential(match_data, h2h_data=None):
         factors.append(f"В гостях много забивают: {away_goals_avg:.1f}")
         score += 15
     
-    # 3. Турнирное положение
     home_position = match_data.get('standings', {}).get('home_position', 99)
     away_position = match_data.get('standings', {}).get('away_position', 99)
     
@@ -708,7 +663,6 @@ def analyze_high_scoring_potential(match_data, h2h_data=None):
         factors.append("Обе команды в топ-3")
         score += 20
     
-    # 4. История личных встреч
     if h2h_data:
         avg_goals_h2h = h2h_data.get('avg_goals', 0)
         if avg_goals_h2h > 3.0:
@@ -752,11 +706,9 @@ class PerformanceMonitor:
             
             wins = sum(1 for b in history if b.get('result') == 'win')
             losses = sum(1 for b in history if b.get('result') == 'loss')
-            pushes = sum(1 for b in history if b.get('result') == 'push')
             total_profit = sum(b.get('profit', 0) for b in history)
             total_stake = sum(b.get('stake', 0) for b in history)
             
-            # Расчет стриков
             max_win_streak = 0
             max_loss_streak = 0
             current_streak = 0
@@ -797,7 +749,6 @@ performance_monitor = PerformanceMonitor()
 # УЛУЧШЕНИЕ 6: ПОДРОБНОЕ ЛОГИРОВАНИЕ СТАВКИ
 # ============================================================
 def log_bet_analysis(bet_data):
-    """Подробное логирование анализа ставки"""
     logger.info("=" * 60)
     logger.info(f"📊 АНАЛИЗ СТАВКИ: {bet_data.get('match', 'Unknown')}")
     logger.info("-" * 60)
@@ -813,7 +764,7 @@ def log_bet_analysis(bet_data):
     logger.info("=" * 60)
 
 # ============================================================
-# КЛАСС AUTOBET С УЛУЧШЕНИЯМИ
+# КЛАСС AUTOBET
 # ============================================================
 class AutoBet:
     def __init__(self):
@@ -846,7 +797,6 @@ class AutoBet:
         if best_bet.get('odds', 0) < 1.5:
             return None
         
-        # Используем RiskManager для расчета ставки
         if not self.risk_manager:
             self.initialize_risk_manager()
         
@@ -979,7 +929,7 @@ def export_to_excel():
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
 # ============================================================
-# ПОИСК МАТЧЕЙ С УЛУЧШЕНИЯМИ
+# ПОИСК МАТЧЕЙ
 # ============================================================
 
 def get_matches_with_factors():
@@ -992,8 +942,7 @@ def get_matches_with_factors():
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     logger.info(f"📊 Всего соревнований: {len(all_leagues)}")
     
-    def process_league(league_id):
-        league_matches = []
+    for league_id in all_leagues:
         for search_date in dates_to_search:
             try:
                 matches = football_api.get_matches(league_id, search_date)
@@ -1038,8 +987,6 @@ def get_matches_with_factors():
                         
                         home_name = home_team.get("name", "")
                         away_name = away_team.get("name", "")
-                        
-                        # Получаем H2H для анализа
                         h2h_data = football_api.get_head_to_head_cached(home_name, away_name)
                         
                         match["factors"] = {
@@ -1060,7 +1007,7 @@ def get_matches_with_factors():
                         if isinstance(league_data, dict):
                             league_data["name"] = league_name
                         
-                        league_matches.append(match)
+                        all_matches.append(match)
                         
             except Exception as e:
                 error_msg = f"Ошибка {league_name} на {search_date}: {e}"
@@ -1068,18 +1015,6 @@ def get_matches_with_factors():
                 send_error_to_telegram(error_msg)
             
             time.sleep(0.1)
-        
-        return league_matches
-    
-    # Используем ThreadPoolExecutor для параллельной обработки лиг
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [executor.submit(process_league, league_id) for league_id in all_leagues]
-        for future in futures:
-            try:
-                matches = future.result(timeout=30)
-                all_matches.extend(matches)
-            except Exception as e:
-                logger.error(f"❌ Ошибка в потоке: {e}")
     
     # Удаляем дубликаты
     seen_ids = set()
@@ -1095,7 +1030,7 @@ def get_matches_with_factors():
     return unique_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ С УЛУЧШЕНИЯМИ
+# ТОП МАТЧЕЙ
 # ============================================================
 
 def find_top_matches(matches):
@@ -1150,7 +1085,6 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
             
-            # Получаем H2H данные из кэша
             h2h_data = match.get("factors", {}).get("h2h_data")
             
             # ============================================================
@@ -1252,7 +1186,6 @@ def find_top_matches(matches):
             # ============================================================
             odds = 1.95
             commission = 0.05
-            fair_odds = 1 / prob_under
             true_odds = odds * (1 - commission)
             ev = (prob_under * true_odds) - 1
             ev_percent = ev * 100
@@ -1322,7 +1255,7 @@ def find_top_matches(matches):
             }
             
             # ============================================================
-            # 9. ЕСЛИ МАТЧ С "МНОГО ГОЛОВ" - СОХРАНЯЕМ ДЛЯ ИНФОРМАЦИИ
+            # 9. ЕСЛИ МАТЧ С "МНОГО ГОЛОВ"
             # ============================================================
             if is_high_scoring:
                 match_data['high_scoring_reason'] = ', '.join(high_scoring_factors)
@@ -1446,7 +1379,6 @@ def find_top_matches(matches):
                 if bet_result:
                     bets_placed += 1
                     
-                    # Логируем ставку
                     log_bet_analysis(bet_result)
                     
                     msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
@@ -1469,7 +1401,6 @@ def find_top_matches(matches):
         except Exception as e:
             logger.error(f"❌ Ошибка авто-ставки: {e}")
     
-    # Обновляем кэш
     cache = storage.load_cache()
     cache['top_matches'] = [item['match_data'] for item in top_matches]
     cache['high_scoring_matches'] = high_scoring_matches
@@ -1567,8 +1498,6 @@ def recalc_stats():
     stats['roi'] = round((total_profit / total_stake * 100), 1) if total_stake > 0 else 0
     
     storage.save_stats(stats)
-    
-    # Обновляем метрики производительности
     performance_monitor.update_metrics()
     
     logger.info(f"📊 Статистика пересчитана: {stats}")
@@ -1577,7 +1506,6 @@ def recalc_stats():
 # ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ГРАФИКА
 # ============================================================
 def get_profit_data(history):
-    """Получение данных для графика прибыли за последние 7 дней"""
     dates = []
     profits = []
     
@@ -1603,14 +1531,12 @@ def get_profit_data(history):
 
 @app.route('/api/all_data', methods=['GET'])
 def api_all_data():
-    """Получение всех данных для веб-интерфейса"""
     try:
         history = storage.load_history()
         stats = storage.load_stats()
         bank = storage.load_bank()
         cache = storage.load_cache()
         
-        # Рассчитываем дополнительные метрики
         total_bets = len(history)
         wins = sum(1 for b in history if b.get('result') == 'win')
         losses = sum(1 for b in history if b.get('result') == 'loss')
@@ -1650,7 +1576,6 @@ def api_all_data():
 
 @app.route('/api/edit_bet', methods=['POST'])
 def api_edit_bet():
-    """Редактирование ставки"""
     try:
         data = request.json
         index = data.get('index')
@@ -1689,7 +1614,6 @@ def api_edit_bet():
 
 @app.route('/api/delete_bet', methods=['POST'])
 def api_delete_bet():
-    """Удаление ставки"""
     try:
         data = request.json
         index = data.get('index')
@@ -1709,7 +1633,6 @@ def api_delete_bet():
 
 @app.route('/api/bank', methods=['POST'])
 def api_update_bank():
-    """Обновление банка"""
     try:
         data = request.json
         new_bank = data.get('bank')
@@ -1726,7 +1649,6 @@ def api_update_bank():
 
 @app.route('/api/import_excel', methods=['POST'])
 def api_import_excel():
-    """Импорт данных из Excel"""
     try:
         data = request.json
         imported_data = data.get('data', [])
@@ -1804,7 +1726,6 @@ def api_import_excel():
 
 @app.route('/api/import_project', methods=['POST'])
 def api_import_project():
-    """Импорт проекта"""
     try:
         data = request.json
         history_data = data.get('history', [])
@@ -1839,7 +1760,6 @@ def api_import_project():
 
 @app.route('/api/add_manual_match', methods=['POST'])
 def api_add_manual_match():
-    """Ручное добавление матча"""
     try:
         data = request.json
         match = data.get('match', '')
@@ -1903,7 +1823,6 @@ def api_add_manual_match():
 
 @app.route('/api/simulate', methods=['POST'])
 def api_simulate():
-    """Симуляция стратегии"""
     try:
         data = request.json
         count = data.get('count', 1000)
@@ -1949,10 +1868,8 @@ def api_simulate():
             })
         
         profits = [s['profit'] for s in simulations]
-        winrates = [s['winrate'] for s in simulations]
         
         avg_profit = sum(profits) / len(profits)
-        avg_winrate = sum(winrates) / len(winrates)
         
         max_profit = max(profits)
         min_profit = min(profits)
@@ -1969,7 +1886,7 @@ def api_simulate():
         
         return jsonify({
             'profit': round(avg_profit, 2),
-            'winrate': round(avg_winrate, 1),
+            'winrate': round(sum(s['winrate'] for s in simulations) / len(simulations), 1),
             'roi': round(avg_profit / sum(b['stake'] for b in bets) * 100, 1) if sum(b['stake'] for b in bets) > 0 else 0,
             'risk': round(risk, 1),
             'total': len(bets),
@@ -1987,7 +1904,6 @@ def api_simulate():
 
 @app.route('/api/export', methods=['GET'])
 def api_export():
-    """Экспорт данных в Excel"""
     try:
         file, message = export_to_excel()
         if file:
@@ -2005,7 +1921,6 @@ def api_export():
 
 @app.route('/api/metrics', methods=['GET'])
 def api_metrics():
-    """Получение метрик эффективности"""
     try:
         performance_monitor.update_metrics()
         return jsonify(performance_monitor.metrics)
@@ -2015,7 +1930,6 @@ def api_metrics():
 
 @app.route('/api/cache/clear', methods=['POST'])
 def api_clear_cache():
-    """Очистка кэша"""
     try:
         football_api.clear_cache()
         return jsonify({'success': True, 'message': 'Кэш очищен'})
@@ -2024,7 +1938,6 @@ def api_clear_cache():
 
 @app.route('/api/health', methods=['GET'])
 def api_health():
-    """Проверка здоровья бота"""
     return jsonify({
         'status': 'ok',
         'time': datetime.now().isoformat(),
@@ -2171,26 +2084,12 @@ def webhook():
 import signal
 
 def graceful_shutdown(signum, frame):
-    """Graceful shutdown с закрытием всех соединений"""
     logger.info("🛑 Получен сигнал остановки...")
     logger.info("🔄 Закрытие соединений...")
-    
-    # Закрываем сессию API
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(football_api.close())
-        loop.close()
-    except Exception as e:
-        logger.error(f"Ошибка закрытия сессии: {e}")
-    
-    # Очищаем кэш
     football_api.clear_cache()
-    
     logger.info("✅ Бот остановлен корректно")
     sys.exit(0)
 
-# Регистрируем обработчики сигналов
 signal.signal(signal.SIGINT, graceful_shutdown)
 signal.signal(signal.SIGTERM, graceful_shutdown)
 
@@ -2202,7 +2101,6 @@ if __name__ == "__main__":
     setup_logging()
     start_scheduler()
     
-    # Инициализируем RiskManager
     auto_bet.initialize_risk_manager()
     
     port = int(os.environ.get("PORT", 10000))
