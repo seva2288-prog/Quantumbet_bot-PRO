@@ -481,9 +481,149 @@ class FootballAPI:
         logger.info("🧹 Кэш очищен")
 
 # ============================================================
-# СОЗДАЕМ ЭКЗЕМПЛЯР
+# КЛАСС ODD_API (НОВОЕ)
+# ============================================================
+
+class OddsAPIClient:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or Config.ODDS_API_KEY
+        self.base_url = Config.ODDS_API_URL
+        self.cache = {}
+        self.last_request_time = 0
+        self.min_request_interval = 0.5
+        
+        logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
+    
+    def _make_request(self, endpoint, params=None):
+        try:
+            now = time.time()
+            if now - self.last_request_time < self.min_request_interval:
+                time.sleep(self.min_request_interval - (now - self.last_request_time))
+            
+            url = f"{self.base_url}{endpoint}"
+            params['apiKey'] = self.api_key
+            
+            logger.info(f"📡 Запрос Odds API: {endpoint}")
+            
+            response = requests.get(url, params=params, timeout=10)
+            self.last_request_time = time.time()
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"❌ Odds API ошибка {response.status_code}: {response.text[:200]}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка запроса Odds API: {e}")
+            return None
+    
+    def get_odds_for_match(self, home_team, away_team, league, sport="soccer"):
+        """Получает коэффициенты для конкретного матча"""
+        cache_key = f"{home_team}_{away_team}_{league}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            # Получаем события (матчи) с коэффициентами
+            params = {
+                'sport': sport,
+                'region': 'eu',
+                'markets': 'h2h,spreads,totals'
+            }
+            
+            data = self._make_request('/events', params)
+            
+            if data:
+                for event in data:
+                    # Ищем нужный матч
+                    if (event.get('home_team', '').lower() in home_team.lower() or home_team.lower() in event.get('home_team', '').lower()) and \
+                       (event.get('away_team', '').lower() in away_team.lower() or away_team.lower() in event.get('away_team', '').lower()):
+                        
+                        result = self._extract_odds(event)
+                        self.cache[cache_key] = result
+                        return result
+            
+            logger.info(f"⚠️ Матч {home_team} vs {away_team} не найден в Odds API")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения коэффициентов: {e}")
+            return None
+    
+    def _extract_odds(self, event):
+        """Извлекает коэффициенты из события"""
+        result = {
+            'bookmaker': None,
+            'best_odds': 0,
+            'all_odds': [],
+            'bookmaker_name': '—',
+            '1X_odds': 0,
+            'X2_odds': 0,
+            'home_odds': 0,
+            'away_odds': 0,
+            'over_odds': 0,
+            'under_odds': 0,
+            'btts_odds': 0
+        }
+        
+        # Получаем коэффициенты от всех букмекеров
+        for bookmaker in event.get('bookmakers', []):
+            bookmaker_name = bookmaker.get('key', '')
+            for market in bookmaker.get('markets', []):
+                market_key = market.get('key', '')
+                
+                if market_key == 'h2h':
+                    for outcome in market.get('outcomes', []):
+                        name = outcome.get('name', '')
+                        price = outcome.get('price', 0)
+                        
+                        if name == '1X' or name == 'Draw or Team1':
+                            result['1X_odds'] = max(result['1X_odds'], price)
+                        elif name == 'X2' or name == 'Team2 or Draw':
+                            result['X2_odds'] = max(result['X2_odds'], price)
+                        elif name == event.get('home_team', ''):
+                            result['home_odds'] = max(result['home_odds'], price)
+                        elif name == event.get('away_team', ''):
+                            result['away_odds'] = max(result['away_odds'], price)
+                        
+                        if price > result['best_odds']:
+                            result['best_odds'] = price
+                            result['bookmaker'] = bookmaker_name
+                            result['bookmaker_name'] = self._get_bookmaker_name(bookmaker_name)
+                
+                elif market_key == 'totals' and 'over' in str(market):
+                    for outcome in market.get('outcomes', []):
+                        name = outcome.get('name', '')
+                        price = outcome.get('price', 0)
+                        if 'Over' in name or 'Больше' in name:
+                            result['over_odds'] = max(result['over_odds'], price)
+                        elif 'Under' in name or 'Меньше' in name:
+                            result['under_odds'] = max(result['under_odds'], price)
+        
+        return result
+    
+    def _get_bookmaker_name(self, key):
+        """Преобразует ключ букмекера в название"""
+        names = {
+            'bet365': 'bet365',
+            'pinnacle': 'Pinnacle',
+            'betfair': 'Betfair',
+            'unibet': 'Unibet',
+            'draftkings': 'DraftKings',
+            'fanduel': 'FanDuel',
+            '1xbet': '1xBet',
+            'bwin': 'Bwin',
+            'williamhill': 'William Hill',
+            'ladbrokes': 'Ladbrokes',
+        }
+        return names.get(key, key)
+
+# ============================================================
+# СОЗДАЕМ ЭКЗЕМПЛЯРЫ
 # ============================================================
 football_api = FootballAPI()
+odds_api = OddsAPIClient()
 
 # ============================================================
 # КЛАСС AUTOBET
@@ -529,12 +669,13 @@ class AutoBet:
             'stake': stake,
             'ev': best_bet.get('ev', 0),
             'marker_stake': best_bet.get('marker_stake', 0),
-            'xg_total': match_data.get('total_xg', 0),  # ← ИСПРАВЛЕНО!
+            'xg_total': match_data.get('total_xg', 0),
             'prob': best_bet.get('prob', 0),
-            'home_form': match_data.get('home_form', ''),  # ← ИСПРАВЛЕНО
-            'away_form': match_data.get('away_form', ''),  # ← ИСПРАВЛЕНО
-            'home_position': match_data.get('standings', {}).get('home_position', '?'),  # ← ИСПРАВЛЕНО
-            'away_position': match_data.get('standings', {}).get('away_position', '?'),  # ← ИСПРАВЛЕНО
+            'home_form': match_data.get('home_form', ''),
+            'away_form': match_data.get('away_form', ''),
+            'home_position': match_data.get('standings', {}).get('home_position', '?'),
+            'away_position': match_data.get('standings', {}).get('away_position', '?'),
+            'bookmaker': best_bet.get('bookmaker', '—'),
             'bet_type': best_bet.get('type', 'under'),
             'is_over': best_bet.get('is_over', False)
         }
@@ -588,7 +729,7 @@ def export_to_excel():
     ws = wb.active
     ws.title = "Ставки"
     
-    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль"]
+    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Сумма", "Результат", "Прибыль", "Букмекер"]
     ws.append(headers)
     
     header_font = Font(bold=True, color="FFFFFF")
@@ -613,6 +754,7 @@ def export_to_excel():
         stake = bet.get('stake', 0)
         result = bet.get('result', 'pending')
         profit = bet.get('profit', 0)
+        bookmaker = bet.get('bookmaker', '—')
         
         if result == 'win':
             profit = round(stake * (odds - 1), 2) if profit == 0 else profit
@@ -623,10 +765,10 @@ def export_to_excel():
         else:
             profit = 0
         
-        ws.append([date, f"{home} vs {away}", score, bet_type, odds, ev, stake, result, profit])
+        ws.append([date, f"{home} vs {away}", score, bet_type, odds, ev, stake, result, profit, bookmaker])
     
     ws.append([])
-    ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2)])
+    ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2), ""])
     
     for col in range(1, len(headers) + 1):
         column_letter = chr(64 + col)
@@ -949,7 +1091,10 @@ def analyze_match(match_name):
                 best = match.get('best_bet', {})
                 result += f"🎯 <b>ЛУЧШАЯ СТАВКА: {best.get('label', '—')}</b>\n"
                 result += f"📈 EV: <b>{best.get('ev', 0)}%</b> | Вероятность: {best.get('prob', 0)}%\n"
-                result += f"💰 Коэффициент: {best.get('odds', 0)}\n\n"
+                result += f"💰 Коэффициент: {best.get('odds', 0)}\n"
+                if best.get('bookmaker'):
+                    result += f"🏷️ Лучший коэффициент: {best.get('bookmaker')}\n"
+                result += "\n"
                 
                 result += "📊 <b>ВСЕ СТАВКИ:</b>\n"
                 bets = match.get('bets', [])
@@ -978,6 +1123,57 @@ def analyze_match(match_name):
     except Exception as e:
         logger.error(f"Ошибка анализа матча: {e}")
         return f"❌ Ошибка: {e}"
+
+# ============================================================
+# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API (НОВОЕ)
+# ============================================================
+
+def update_odds_for_matches(matches):
+    """
+    Обновляет коэффициенты для отобранных матчей из Odds API
+    """
+    updated_matches = []
+    
+    for match_data in matches:
+        try:
+            home = match_data.get('home')
+            away = match_data.get('away')
+            league = match_data.get('league')
+            
+            # Запрашиваем реальные коэффициенты
+            odds_data = odds_api.get_odds_for_match(home, away, league)
+            
+            if odds_data and odds_data.get('best_odds', 0) > 0:
+                best_bet = match_data.get('best_bet', {})
+                
+                # Обновляем коэффициент
+                old_odds = best_bet.get('odds', 0)
+                new_odds = odds_data['best_odds']
+                
+                # Пересчитываем EV
+                prob = best_bet.get('prob', 0) / 100
+                new_ev = (prob * new_odds) - 1
+                
+                # Сохраняем обновленные данные
+                best_bet['odds'] = new_odds
+                best_bet['ev'] = round(new_ev * 100, 1)
+                best_bet['bookmaker'] = odds_data.get('bookmaker_name', '—')
+                best_bet['bookmaker_key'] = odds_data.get('bookmaker', '')
+                
+                match_data['best_bet'] = best_bet
+                match_data['odds_updated'] = True
+                
+                logger.info(f"✅ Обновлены коэффициенты: {home} vs {away} | {new_odds} ({odds_data['bookmaker_name']}) | EV: {best_bet['ev']}%")
+            else:
+                logger.info(f"ℹ️ Коэффициенты не обновлены для {home} vs {away}")
+            
+            updated_matches.append(match_data)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления коэффициентов {match_data.get('home')}: {e}")
+            updated_matches.append(match_data)  # Оставляем без изменений
+    
+    return updated_matches
 
 # ============================================================
 # ПОИСК МАТЧЕЙ
@@ -1074,7 +1270,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - ВСЕ ЛИГИ С ФИЛЬТРАМИ ДЛЯ 70%+
+# ТОП МАТЧЕЙ - ВСЕ ЛИГИ С ФИЛЬТРАМИ ДЛЯ 70%+ И ODD API
 # ============================================================
 
 def find_top_matches(matches):
@@ -1278,7 +1474,7 @@ def find_top_matches(matches):
                 prob_X2 += 0.05
             
             # ============================================================
-            # 12. КОЭФФИЦИЕНТЫ ДЛЯ СТАВОК
+            # 12. КОЭФФИЦИЕНТЫ ДЛЯ СТАВОК (БУДУТ ОБНОВЛЕНЫ ИЗ ODD API)
             # ============================================================
             
             odds = {
@@ -1462,7 +1658,15 @@ def find_top_matches(matches):
     logger.info(f"📊 Найдено {len(best_matches)} кандидатов (70%+), выбрано {len(top_matches)} лучших")
     
     # ============================================================
-    # 20. ОТПРАВКА В TELEGRAM
+    # 20. ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API (НОВОЕ)
+    # ============================================================
+    
+    if top_matches:
+        logger.info(f"📡 Запрос реальных коэффициентов для {len(top_matches)} матчей из Odds API...")
+        top_matches = update_odds_for_matches(top_matches)
+    
+    # ============================================================
+    # 21. ОТПРАВКА В TELEGRAM
     # ============================================================
     
     if top_matches:
@@ -1476,6 +1680,8 @@ def find_top_matches(matches):
             msg += f"   🏆 {match_data['league']}\n"
             msg += f"   🎯 <b>{best['label']}</b> | КЭФ: {best['odds']}\n"
             msg += f"   📈 EV: <b>{best['ev']}%</b> | Вероятность: {best['prob']}%\n"
+            if best.get('bookmaker'):
+                msg += f"   🏷️ Лучший коэффициент: {best['bookmaker']}\n"
             msg += f"   ⚽ XG: {match_data['total_xg']:.2f}\n"
             msg += f"   📈 Форма: {match_data['home_form']} ({match_data['home_form_quality']}) vs {match_data['away_form']} ({match_data['away_form_quality']})\n"
             msg += f"   🏆 Позиция: #{match_data['standings']['home_position']} vs #{match_data['standings']['away_position']}\n"
@@ -1486,7 +1692,7 @@ def find_top_matches(matches):
         send_telegram(msg)
     
     # ============================================================
-    # 21. РАЗМЕЩЕНИЕ СТАВОК
+    # 22. РАЗМЕЩЕНИЕ СТАВОК
     # ============================================================
     
     for match_data in top_matches:
@@ -1506,6 +1712,8 @@ def find_top_matches(matches):
                     msg += f"📊 Prob: {bet_result.get('prob', 0)}%\n"
                     msg += f"📈 Форма: {bet_result.get('home_form', '')} vs {bet_result.get('away_form', '')}\n"
                     msg += f"🏆 Позиция: #{bet_result.get('home_position', '?')} vs #{bet_result.get('away_position', '?')}"
+                    if bet_result.get('bookmaker'):
+                        msg += f"\n🏷️ Букмекер: {bet_result['bookmaker']}"
                     if bet_result.get('marker_stake'):
                         msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
                     send_telegram(msg)
@@ -1514,7 +1722,7 @@ def find_top_matches(matches):
             logger.error(f"❌ Ошибка авто-ставки: {e}")
     
     # ============================================================
-    # 22. СОХРАНЕНИЕ В КЭШ
+    # 23. СОХРАНЕНИЕ В КЭШ
     # ============================================================
     
     cache = storage.load_cache()
@@ -1874,6 +2082,7 @@ def import_excel():
             result = row.get('Результат', 'pending')
             profit = float(row.get('Прибыль', 0))
             date = row.get('Дата', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
+            bookmaker = row.get('Букмекер', '—')
             
             bet_record = {
                 'home': home or 'Unknown',
@@ -1887,7 +2096,8 @@ def import_excel():
                 'profit': profit,
                 'date': date,
                 'home_goals': home_goals,
-                'away_goals': away_goals
+                'away_goals': away_goals,
+                'bookmaker': bookmaker
             }
             history.append(bet_record)
             imported += 1
@@ -1957,6 +2167,7 @@ def edit_bet():
         history[index]['stake'] = data.get('stake', history[index]['stake'])
         history[index]['ev'] = data.get('ev', history[index]['ev'])
         history[index]['result'] = data.get('result', history[index]['result'])
+        history[index]['bookmaker'] = data.get('bookmaker', history[index].get('bookmaker', '—'))
         
         if history[index]['result'] == 'win':
             history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
@@ -2066,6 +2277,7 @@ def add_manual_match():
         stake = data.get('stake', 0)
         bet_type = data.get('bet', '')
         odds = data.get('odds', 1.85)
+        bookmaker = data.get('bookmaker', 'Ручное добавление')
         
         if not match_name:
             return jsonify({'error': 'Название матча обязательно'}), 400
@@ -2113,7 +2325,8 @@ def add_manual_match():
             'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
             'home_goals': home_goals,
             'away_goals': away_goals,
-            'manual': True
+            'manual': True,
+            'bookmaker': bookmaker
         }
         history.append(bet_record)
         storage.save_history(history)
@@ -2130,7 +2343,7 @@ def health():
 
 @app.route('/', methods=['GET'])
 def index():
-    return f"🤖 Quantum Bot PRO (70%+ Target) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    return f"🤖 Quantum Bot PRO (70%+ Target + Odds API) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 # ============================================================
 # ЗАПУСК
@@ -2140,10 +2353,10 @@ if __name__ == "__main__":
     setup_logging()
     start_scheduler()
     port = int(os.environ.get("PORT", 10000))
-    logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET, ВСЕ ЛИГИ)!")
+    logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET + ODD API)!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
-    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:") 
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:")
     logger.info("   - Все лиги из config.py")
     logger.info("   - EV > 20%")
     logger.info("   - Prob > 60%")
@@ -2152,6 +2365,9 @@ if __name__ == "__main__":
     logger.info("   - Мотивация (не середняки)")
     logger.info("   - Лимит 3 ставки на тип")
     logger.info("   - Лимит 2 ставки на лигу")
+    logger.info("🎯 ODD API:")
+    logger.info("   - Реальные коэффициенты из 40+ БК")
+    logger.info("   - Обновление только для кандидатов")
     logger.info("✅ Команды: /update_results, /result, /analyze")
     logger.info("✅ Кэш матчей сохраняется")
     app.run(host='0.0.0.0', port=port)
