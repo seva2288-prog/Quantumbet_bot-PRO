@@ -1038,9 +1038,15 @@ def find_top_matches(matches):
         except Exception as e:
             logger.error(f"❌ Ошибка авто-ставки: {e}")
     
+    # ============================================================
+    # 12. СОХРАНЯЕМ В КЭШ (ГЛАВНОЕ ИСПРАВЛЕНИЕ!)
+    # ============================================================
+    
     cache = storage.load_cache()
     cache['top_matches'] = [item for item in top_under] + [item for item in top_over]
     storage.save_cache(cache)
+    
+    logger.info(f"💾 Сохранено в кэш: {len(cache['top_matches'])} матчей")
     
     all_matches_data = [item for item in top_under] + [item for item in top_over]
     
@@ -1629,4 +1635,5 @@ if __name__ == "__main__":
     logger.info("✅ Эндпоинт /api/all_data доступен")
     logger.info("✅ Эндпоинт /api/import_excel доступен")
     logger.info("✅ Эндпоинт /api/import_project доступен")
+    logger.info("✅ Кэш матчей сохраняется")
     app.run(host='0.0.0.0', port=port)
