@@ -17,6 +17,7 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
+from app.api.odds_api import OddsAPIClient
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
