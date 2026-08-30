@@ -18,29 +18,32 @@ class OddsAPIClient:
         logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
     
     def _make_request(self, endpoint, params=None):
-        """Выполняет запрос к Odds API"""
-        try:
-            now = time.time()
-            if now - self.last_request_time < self.min_request_interval:
-                time.sleep(self.min_request_interval - (now - self.last_request_time))
+    """Выполняет запрос к Odds API"""
+    try:
+        now = time.time()
+        if now - self.last_request_time < self.min_request_interval:
+            time.sleep(self.min_request_interval - (now - self.last_request_time))
+        
+        # ✅ ПРАВИЛЬНЫЙ URL
+        url = f"{self.base_url}{endpoint}"
+        params = params or {}
+        params['apiKey'] = self.api_key
+        
+        logger.info(f"📡 Запрос Odds API: {url}")
+        logger.info(f"📡 Параметры: {params}")
+        
+        response = requests.get(url, params=params, timeout=10)
+        self.last_request_time = time.time()
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"❌ Odds API ошибка {response.status_code}: {response.text[:200]}")
+            return None
             
-            url = f"{self.base_url}{endpoint}"
-            params = params or {}
-            params['apiKey'] = self.api_key
-            
-            logger.info(f"📡 Запрос Odds API: {endpoint}")
-            logger.info(f"📡 Параметры: {params}")
-            
-            response = requests.get(url, params=params, timeout=10)
-            self.last_request_time = time.time()
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"📡 Получено событий: {len(data) if data else 0}")
-                return data
-            else:
-                logger.error(f"❌ Odds API ошибка {response.status_code}: {response.text[:200]}")
-                return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка запроса Odds API: {e}")
+        return None
                 
         except Exception as e:
             logger.error(f"❌ Ошибка запроса Odds API: {e}")
