@@ -4,24 +4,26 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template_string, jsonify, request
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import logging
 
 app = Flask(__name__)
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# URL бота
-BOT_URL = 'https://quantumbet-bot-pro.onrender.com'
+# ============================================================
+# НАСТРОЙКИ
+# ============================================================
 
-# КЭШ
+BOT_URL = 'http://localhost:5000'  # Бот на порту 5000
 CACHE = {}
 CACHE_TIME = 30  # секунд
 
 # ============================================================
-# ЕДИНЫЙ HTML ШАБЛОН (SPA - ВСЕ СТРАНИЦЫ В ОДНОМ ФАЙЛЕ)
+# HTML ШАБЛОН (ваш полный MAIN_HTML)
 # ============================================================
 
 MAIN_HTML = """
@@ -159,7 +161,7 @@ MAIN_HTML = """
         }
         
         /* ============================================================
-           ОСНОВНЫЕ СТИЛИ
+           ОСНОВНЫЕ СТИЛИ (ваши стили отсюда)
            ============================================================ */
         * {
             margin: 0;
@@ -1190,7 +1192,7 @@ MAIN_HTML = """
 <body>
 
 <!-- ============================================================
-     ЭКРАН ЗАГРУЗКИ С МЛЕЧНЫМ ПУТЁМ
+     ЭКРАН ЗАГРУЗКИ
      ============================================================ -->
 <div id="loadingScreen">
     <div class="milky-way"></div>
@@ -1439,11 +1441,11 @@ MAIN_HTML = """
                 case 'settings': renderSettings(data); break;
             }
             
-            // Скрываем экран загрузки после загрузки данных
             hideLoadingScreen();
         } catch (error) {
-            contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
+            contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки. Проверьте, что бот запущен!</div>';
             hideLoadingScreen();
+            showNotification('❌ Бот не отвечает! Запустите main.py на порту 5000', 'error');
         }
 
         isLoading = false;
@@ -1497,7 +1499,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // ДЕТЕКТОР ДРОБНЫХ СУММ (3+ ЗНАКОВ ПОСЛЕ ЗАПЯТОЙ)
+    // ДЕТЕКТОР ДРОБНЫХ СУММ
     // ============================================================
     function getDecimalPlaces(num) {
         const str = num.toString();
@@ -1913,7 +1915,7 @@ MAIN_HTML = """
             `;
         }
 
-        // ===== БЫСТРАЯ СТАТИСТИКА =====
+        // Быстрая статистика
         html += `
             <div class="card">
                 <div class="card-header">
@@ -2064,7 +2066,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // ФУНКЦИЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
+    // РУЧНОЕ ДОБАВЛЕНИЕ МАТЧА
     // ============================================================
     function addMatchManually(stake, betType) {
         const modal = document.createElement('div');
@@ -2135,9 +2137,6 @@ MAIN_HTML = """
         document.body.appendChild(modal);
     }
 
-    // ============================================================
-    // ФУНКЦИЯ СОХРАНЕНИЯ РУЧНОГО МАТЧА
-    // ============================================================
     function saveManualMatch(stake, betType) {
         const matchName = document.getElementById('matchNameInput').value;
         const score = document.getElementById('scoreInput').value;
@@ -2429,7 +2428,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР СИМУЛЯТОРА
+    // СИМУЛЯТОР
     // ============================================================
     function renderSimulator(data) {
         const history = data.history || [];
@@ -2493,7 +2492,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // РЕНДЕР НАСТРОЕК
+    // НАСТРОЙКИ
     // ============================================================
     function renderSettings(data) {
         const bank = data.stats ? data.stats.bank : 1000;
@@ -2587,7 +2586,7 @@ MAIN_HTML = """
     }
 
     // ============================================================
-    // СОХРАНЕНИЕ И ЗАГРУЗКА ПРОЕКТА
+    // ЭКСПОРТ/ИМПОРТ ПРОЕКТА
     // ============================================================
     function exportProject() {
         const projectData = {
@@ -2913,47 +2912,26 @@ MAIN_HTML = """
 """
 
 # ============================================================
-# API - ВСЕ ДАННЫЕ ЗА ОДИН ЗАПРОС (С КЭШИРОВАНИЕМ)
+# ПРОВЕРКА БОТА
 # ============================================================
 
-# ============================================================
-# ФУНКЦИЯ ПОЛУЧЕНИЯ ДАННЫХ С БОТА (БЕЗ ДЕМО!)
-# ============================================================
-
-def get_data_from_bot():
-    """
-    Получение данных только с бота.
-    НИКАКИХ ДЕМО-ДАННЫХ!
-    Если бот не отвечает - возвращаем пустые данные.
-    """
+def check_bot_health():
+    """Проверяет доступность бота"""
     try:
-        print("📡 Запрос к боту...")
-        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
-        print(f"📡 Статус stats: {stats_response.status_code}")
-        
-        if stats_response.status_code == 200:
-            stats_data = stats_response.json()
+        response = requests.get(f'{BOT_URL}/api/health', timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Бот доступен: {data}")
+            return True, data
         else:
-            stats_data = {}
-        
-        history_response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        print(f"📡 Статус history: {history_response.status_code}")
-        
-        if history_response.status_code == 200:
-            history = history_response.json()
-        else:
-            history = []
-        
-        print(f"✅ Получены данные: {len(history)} ставок")
-        return stats_data, history
-        
+            logger.warning(f"⚠️ Бот вернул код {response.status_code}")
+            return False, None
     except Exception as e:
-        print(f"❌ Ошибка получения данных: {e}")
-        # ВОЗВРАЩАЕМ ПУСТЫЕ ДАННЫЕ, А НЕ ДЕМО!
-        return {'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0, 'winrate': 0, 'roi': 0, 'avg_stake': 0}, []
+        logger.error(f"❌ Бот недоступен: {e}")
+        return False, None
 
 # ============================================================
-# МАРШРУТЫ
+# API МАРШРУТЫ (ПРОКСИ К БОТУ)
 # ============================================================
 
 @app.route('/')
@@ -2961,453 +2939,131 @@ def index():
     return render_template_string(MAIN_HTML)
 
 @app.route('/api/all_data')
-def all_data():
-    if 'all_data' in CACHE:
-        cached_data, timestamp = CACHE['all_data']
-        if (datetime.now() - timestamp).seconds < CACHE_TIME:
-            return jsonify(cached_data)
-    
-    stats_data, history = get_data_from_bot()
-    profit_data = get_profit_data(history)
-    
+def api_all_data():
+    """Прокси к боту для получения всех данных"""
     try:
-        response = requests.get(f'{BOT_URL}/matches', timeout=10)
-        matches = response.json() if response.status_code == 200 else []
-    except:
-        matches = []
-    
-    bank = stats_data.get('bank', 1000)
-    total_bets = stats_data.get('total_bets', len(history))
-    wins = stats_data.get('wins', 0)
-    losses = stats_data.get('losses', 0)
-    total_profit = stats_data.get('profit', 0)
-    winrate = stats_data.get('winrate', 0)
-    roi = stats_data.get('roi', 0)
-    avg_stake = stats_data.get('avg_stake', 0)
-    
-    result = {
-        'stats': {
-            'bank': bank,
-            'total_bets': total_bets,
-            'wins': wins,
-            'losses': losses,
-            'profit': round(total_profit, 2),
-            'winrate': winrate,
-            'roi': roi,
-            'avg_stake': avg_stake
-        },
-        'history': history,
-        'profit_data': profit_data,
-        'matches': matches
-    }
-    
-    CACHE['all_data'] = (result, datetime.now())
-    return jsonify(result)
-
-def get_profit_data(history):
-    profits = []
-    days = 7
-    
-    for i in range(days - 1, -1, -1):
-        day_profit = 0
-        day = datetime.now() - timedelta(days=i)
-        for bet in history:
-            try:
-                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
-                if bet_date.date() == day.date():
-                    stake = bet.get('stake', 0)
-                    if isinstance(stake, str):
-                        try:
-                            stake = float(stake)
-                        except:
-                            stake = 0
-                    odds = bet.get('odds', 1)
-                    if isinstance(odds, str):
-                        try:
-                            odds = float(odds)
-                        except:
-                            odds = 1
-                    
-                    if bet.get('result') == 'win':
-                        day_profit += stake * (odds - 1)
-                    elif bet.get('result') == 'loss':
-                        day_profit -= stake
-            except:
-                pass
-        profits.append(round(day_profit, 2))
-    
-    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
-    return {'dates': dates, 'profits': profits}
-
-# ============================================================
-# API ДЛЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
-# ============================================================
-
-@app.route('/api/add_manual_match', methods=['POST'])
-def add_manual_match():
-    try:
-        data = request.json
-        match_name = data.get('match', '')
-        score = data.get('score', '-')
-        result = data.get('result', 'win')
-        stake = data.get('stake', 0)
-        bet_type = data.get('bet', '')
-        odds = data.get('odds', 1.85)
-        
-        if not match_name:
-            return jsonify({'error': 'Название матча обязательно'}), 400
-        
-        home_goals = None
-        away_goals = None
-        if score and '-' in score:
-            parts = score.split('-')
-            try:
-                home_goals = int(parts[0].strip())
-                away_goals = int(parts[1].strip())
-            except:
-                pass
-        
-        home = 'Unknown'
-        away = 'Unknown'
-        if ' vs ' in match_name:
-            parts = match_name.split(' vs ')
-            home = parts[0].strip()
-            away = parts[1].strip()
-        elif ' - ' in match_name:
-            parts = match_name.split(' - ')
-            home = parts[0].strip()
-            away = parts[1].strip()
-        
-        if result == 'win':
-            profit = round(stake * (odds - 1), 2)
-        elif result == 'loss':
-            profit = -stake
-        else:
-            profit = 0
-        
-        stats_data, history = get_data_from_bot()
-        
-        bet_record = {
-            'home': home or 'Unknown',
-            'away': away or 'Unknown',
-            'league': 'Ручное добавление',
-            'bet': bet_type,
-            'odds': odds,
-            'stake': stake,
-            'ev': 0,
-            'result': result,
-            'profit': profit,
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-            'home_goals': home_goals,
-            'away_goals': away_goals,
-            'manual': True
-        }
-        history.append(bet_record)
-        
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
-        
+        response = requests.get(f'{BOT_URL}/api/all_data', timeout=10)
         if response.status_code == 200:
-            CACHE.pop('all_data', None)
-            return jsonify({'success': True, 'count': 1})
+            return jsonify(response.json())
         else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
-        
+            return jsonify({'error': 'Бот вернул ошибку'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# ============================================================
-# API ДЛЯ ИМПОРТА ПРОЕКТА
-# ============================================================
-
-@app.route('/api/import_project', methods=['POST'])
-def import_project():
-    try:
-        data = request.json
-        history = data.get('history', [])
-        stats = data.get('stats', {})
-        
-        if not history:
-            return jsonify({'error': 'Нет данных для импорта'}), 400
-        
-        _, current_history = get_data_from_bot()
-        
-        if stats and 'bank' in stats:
-            requests.post(f'{BOT_URL}/api/bank', json={'bank': stats['bank']}, timeout=30)
-        
-        existing_keys = set()
-        for bet in current_history:
-            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
-            existing_keys.add(key)
-        
-        imported = 0
-        for bet in history:
-            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
-            if key not in existing_keys:
-                current_history.append(bet)
-                imported += 1
-                existing_keys.add(key)
-        
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': current_history}, timeout=30)
-        
-        if response.status_code == 200:
-            CACHE.pop('all_data', None)
-            return jsonify({'success': True, 'count': imported})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# ============================================================
-# ОСТАЛЬНЫЕ API МАРШРУТЫ
-# ============================================================
-
-@app.route('/api/simulate', methods=['POST'])
-def simulate():
-    try:
-        data = request.json
-        count = data.get('count', 1000)
-        
-        _, history = get_data_from_bot()
-        
-        if len(history) < 5:
-            return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
-        
-        wins = sum(1 for b in history if b.get('result') == 'win')
-        total = len(history)
-        winrate = wins / total if total > 0 else 0
-        
-        avg_stake = sum(float(b.get('stake', 0)) for b in history) / total if total > 0 else 10
-        
-        results = []
-        profit_history = []
-        total_profit = 0
-        
-        for i in range(count):
-            if random.random() < winrate:
-                profit = avg_stake * random.uniform(0.5, 1.5)
-                total_profit += profit
-                results.append('win')
-            else:
-                profit = -avg_stake
-                total_profit += profit
-                results.append('loss')
-            
-            profit_history.append(round(total_profit, 2))
-        
-        wins_sim = results.count('win')
-        losses_sim = results.count('loss')
-        max_profit = max(profit_history) if profit_history else 0
-        min_profit = min(profit_history) if profit_history else 0
-        
-        return jsonify({
-            'total': count,
-            'wins': wins_sim,
-            'losses': losses_sim,
-            'profit': round(total_profit, 2),
-            'winrate': round(wins_sim / count * 100, 1),
-            'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
-            'risk': round((abs(min_profit) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
-            'max_profit': round(max_profit, 2),
-            'min_profit': round(min_profit, 2),
-            'avg_stake': round(avg_stake, 2),
-            'history': profit_history[:100],
-            'labels': list(range(1, min(count, 100) + 1))
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Ошибка получения данных: {e}")
+        return jsonify({'error': f'Бот недоступен: {e}'}), 500
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
+    """Прокси для импорта Excel"""
     try:
         data = request.json
-        excel_data = data.get('data', [])
-        
-        if not excel_data:
-            return jsonify({'error': 'Нет данных'}), 400
-        
-        _, history = get_data_from_bot()
-        
-        imported = 0
-        for row in excel_data:
-            match = row.get('Матч', '') or row.get('Match', '')
-            home = ''
-            away = ''
-            
-            if ' vs ' in match:
-                parts = match.split(' vs ')
-                home = parts[0].strip()
-                away = parts[1].strip()
-            elif ' - ' in match:
-                parts = match.split(' - ')
-                home = parts[0].strip()
-                away = parts[1].strip()
-            
-            score = row.get('Счёт', '') or row.get('Scht', '') or row.get('Score', '')
-            home_goals = None
-            away_goals = None
-            if score and '-' in str(score):
-                parts = str(score).split('-')
-                try:
-                    home_goals = int(parts[0].strip())
-                    away_goals = int(parts[1].strip())
-                except:
-                    pass
-            
-            bet = row.get('Ставка', '') or row.get('Stanka', '') or 'Ручная ставка'
-            
-            odds = 1.85
-            try:
-                odds = float(row.get('Коэф', 1.85) or row.get('Kofy', 1.85) or 1.85)
-            except:
-                odds = 1.85
-            
-            stake = 0
-            try:
-                stake = float(row.get('Сумма', 0) or row.get('Stake', 0) or 0)
-            except:
-                stake = 0
-            
-            ev = 0
-            try:
-                ev = float(row.get('EV%', 0) or row.get('Ev', 0) or 0)
-            except:
-                ev = 0
-            
-            result = row.get('Результат', 'pending') or row.get('Result', 'pending')
-            if result.lower() in ['win', 'выигрыш']:
-                result = 'win'
-            elif result.lower() in ['loss', 'проигрыш']:
-                result = 'loss'
-            elif result.lower() in ['push', 'возврат']:
-                result = 'push'
-            else:
-                result = 'pending'
-            
-            profit = 0
-            try:
-                profit = float(row.get('Прибыль', 0) or row.get('Profit', 0) or 0)
-            except:
-                profit = 0
-            
-            date = row.get('Дата', '') or row.get('Data', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
-            if not date or date == '':
-                date = datetime.now().strftime('%Y-%m-%d %H:%M')
-            
-            bet_record = {
-                'home': home or 'Unknown',
-                'away': away or 'Unknown',
-                'league': 'Импорт из Excel',
-                'bet': bet,
-                'odds': odds,
-                'stake': stake,
-                'ev': ev,
-                'result': result,
-                'profit': profit,
-                'date': date,
-                'home_goals': home_goals,
-                'away_goals': away_goals
-            }
-            history.append(bet_record)
-            imported += 1
-        
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
-        
-        if response.status_code == 200:
-            CACHE.pop('all_data', None)
-            return jsonify({'success': True, 'count': imported})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
-            
+        response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    """Прокси для импорта проекта"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
+    """Прокси для редактирования ставки"""
     try:
         data = request.json
-        index = data.get('index')
-        
-        _, history = get_data_from_bot()
-        
-        if index >= len(history):
-            return jsonify({'error': 'Ставка не найдена'}), 404
-        
-        history[index]['home'] = data.get('home', history[index]['home'])
-        history[index]['away'] = data.get('away', history[index]['away'])
-        history[index]['home_goals'] = data.get('home_goals')
-        history[index]['away_goals'] = data.get('away_goals')
-        history[index]['bet'] = data.get('bet', history[index]['bet'])
-        history[index]['odds'] = data.get('odds', history[index]['odds'])
-        history[index]['stake'] = data.get('stake', history[index]['stake'])
-        history[index]['ev'] = data.get('ev', history[index]['ev'])
-        history[index]['result'] = data.get('result', history[index]['result'])
-        
-        if history[index]['result'] == 'win':
-            history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
-        elif history[index]['result'] == 'loss':
-            history[index]['profit'] = -history[index]['stake']
-        else:
-            history[index]['profit'] = 0
-        
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
-        
-        if response.status_code == 200:
-            CACHE.pop('all_data', None)
-            return jsonify({'success': True})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
-            
+        response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/delete_bet', methods=['POST'])
 def delete_bet():
+    """Прокси для удаления ставки"""
     try:
         data = request.json
-        index = data.get('index')
-        
-        _, history = get_data_from_bot()
-        
-        if index >= len(history):
-            return jsonify({'error': 'Ставка не найдена'}), 404
-        
-        deleted = history.pop(index)
-        
-        response = requests.post(f'{BOT_URL}/api/update_history', json={'history': history}, timeout=30)
-        
-        if response.status_code == 200:
-            CACHE.pop('all_data', None)
-            return jsonify({'success': True, 'deleted': deleted})
-        else:
-            return jsonify({'error': 'Ошибка сохранения'}), 500
-            
+        response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
+    """Прокси для обновления банка"""
     try:
         data = request.json
-        if 'bank' in data:
-            response = requests.post(f'{BOT_URL}/api/bank', json={'bank': data['bank']}, timeout=30)
-            CACHE.pop('all_data', None)
-            return jsonify(response.json())
+        response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    return jsonify({'error': 'No bank value'}), 400
 
-@app.route('/export')
-def export_data():
+@app.route('/api/simulate', methods=['POST'])
+def simulate():
+    """Прокси для симуляции"""
     try:
-        response = requests.get(f'{BOT_URL}/export', timeout=30)
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export', methods=['GET'])
+def export_data():
+    """Прокси для экспорта данных"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/export', timeout=30)
         if response.status_code == 200:
-            return response.content, 200, {'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}
-    except:
-        pass
-    return "Нет данных для экспорта", 404
+            return response.content, 200, {
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition': 'attachment; filename=quantum_bet_history.xlsx'
+            }
+        else:
+            return jsonify({'error': 'Ошибка экспорта'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    """Прокси для ручного добавления матча"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/health')
+def health():
+    """Проверка здоровья веб-интерфейса и бота"""
+    bot_ok, bot_data = check_bot_health()
+    return jsonify({
+        'status': 'ok',
+        'web': 'running',
+        'bot': 'ok' if bot_ok else 'error',
+        'bot_data': bot_data,
+        'bot_url': BOT_URL,
+        'port': 5001
+    })
+
+# ============================================================
+# ЗАПУСК
+# ============================================================
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
+    logger.info(f"🌐 Запуск веб-интерфейса на порту {port}")
+    logger.info(f"📡 Подключение к боту: {BOT_URL}")
+    
+    # Проверяем доступность бота
+    bot_ok, bot_data = check_bot_health()
+    if bot_ok:
+        logger.info("✅ Бот доступен")
+    else:
+        logger.warning("⚠️ Бот недоступен! Запустите main.py на порту 5000")
+        logger.warning("⚠️ Некоторые функции могут не работать")
+    
     app.run(host='0.0.0.0', port=port, debug=False)
