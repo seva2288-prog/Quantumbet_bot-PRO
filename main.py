@@ -16,6 +16,50 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# ⭐ ВСЕ КЛЮЧИ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (RENDER)
+# ============================================================
+
+# Telegram Bot Token (обязательно!)
+BOT_TOKEN = os.environ.get('8884017743:AAEDsDQEV5NZe2x9-XTlZHrsBJ99UtgLHj8', '')
+
+# Ваш Telegram Chat ID (обязательно!)
+CHAT_ID = os.environ.get('228801334', '')
+
+# Секретный ключ для Flask (обязательно!)
+SECRET_KEY = os.environ.get('SECRET_KEY', 'default-secret-key-change-me')
+
+# URL веб-интерфейса (обязательно!)
+WEB_URL = os.environ.get('WEB_URL', 'https://quantumnet-web.onrender.com')
+
+# API ключ для погоды (опционально)
+WEATHER_API_KEY = os.environ.get('7f0cfaed346b0fe364815ab65d627af2', '')
+
+# API ключ для футбольных данных (опционально)
+FOOTBALL_API_KEY = os.environ.get('2c34b71a9086c34f9a59f30c814283f5', '')
+
+# API ключ для коэффициентов (опционально)
+ODDS_API_KEY = os.environ.get('ODDS_API_KEY', '')
+
+# API ключ для новостей (опционально)
+NEWS_API_KEY = os.environ.get('NEWS_API_KEY', '')
+
+# ============================================================
+# ПРОВЕРКА КЛЮЧЕЙ ПРИ ЗАПУСКЕ
+# ============================================================
+
+logger.info("=" * 60)
+logger.info("🔑 ПРОВЕРКА КЛЮЧЕЙ:")
+logger.info(f"  BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'} {BOT_TOKEN[:15] + '...' if BOT_TOKEN else 'НЕ УСТАНОВЛЕН!'}")
+logger.info(f"  CHAT_ID: {'✅' if CHAT_ID else '❌'} {CHAT_ID if CHAT_ID else 'НЕ УСТАНОВЛЕН!'}")
+logger.info(f"  SECRET_KEY: {'✅' if SECRET_KEY else '❌'}")
+logger.info(f"  WEB_URL: {'✅' if WEB_URL else '❌'} {WEB_URL}")
+logger.info(f"  WEATHER_API_KEY: {'✅' if WEATHER_API_KEY else '❌'}")
+logger.info(f"  FOOTBALL_API_KEY: {'✅' if FOOTBALL_API_KEY else '❌'}")
+logger.info(f"  ODDS_API_KEY: {'✅' if ODDS_API_KEY else '❌'}")
+logger.info(f"  NEWS_API_KEY: {'✅' if NEWS_API_KEY else '❌'}")
+logger.info("=" * 60)
+
+# ============================================================
 # ДАННЫЕ
 # ============================================================
 
@@ -110,14 +154,19 @@ def get_profit_data(history):
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(6, -1, -1)]
     return {'dates': dates, 'profits': profits}
 
+# ============================================================
+# ФУНКЦИЯ ОТПРАВКИ СООБЩЕНИЙ В TELEGRAM
+# ============================================================
+
 def send_telegram_message(chat_id, text):
-    """Отправляет сообщение в Telegram"""
+    """Отправляет сообщение в Telegram используя BOT_TOKEN"""
+    global BOT_TOKEN
+    
+    if not BOT_TOKEN:
+        logger.error("❌ BOT_TOKEN не установлен!")
+        return None
+    
     try:
-        BOT_TOKEN = os.environ.get('BOT_TOKEN', '')
-        if not BOT_TOKEN:
-            logger.warning("⚠️ BOT_TOKEN не установлен")
-            return None
-        
         url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
         payload = {
             'chat_id': chat_id,
@@ -125,13 +174,45 @@ def send_telegram_message(chat_id, text):
             'parse_mode': 'HTML'
         }
         response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Сообщение отправлено в chat_id: {chat_id}")
+        else:
+            logger.error(f"❌ Ошибка отправки: {response.text}")
+        
         return response.json()
     except Exception as e:
         logger.error(f"❌ Ошибка отправки сообщения: {e}")
         return None
 
 # ============================================================
-# API МАРШРУТЫ (для веб-интерфейса)
+# ФУНКЦИЯ ПОГОДЫ (если есть WEATHER_API_KEY)
+# ============================================================
+
+def get_weather(city):
+    """Получает погоду для города используя WEATHER_API_KEY"""
+    global WEATHER_API_KEY
+    
+    if not WEATHER_API_KEY:
+        return "❌ WEATHER_API_KEY не установлен"
+    
+    try:
+        url = f'http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={city}&lang=ru'
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            temp = data['current']['temp_c']
+            condition = data['current']['condition']['text']
+            return f"🌤️ Погода в {city}:\nТемпература: {temp}°C\n{condition}"
+        else:
+            return f"❌ Ошибка получения погоды: {response.status_code}"
+    except Exception as e:
+        logger.error(f"❌ Ошибка погоды: {e}")
+        return f"❌ Ошибка: {e}"
+
+# ============================================================
+# API МАРШРУТЫ
 # ============================================================
 
 @app.route('/')
@@ -140,17 +221,15 @@ def index():
         'status': 'ok',
         'service': 'Quantum Bet Bot',
         'version': 'v12 PRO',
-        'endpoints': [
-            '/api/stats',
-            '/api/history',
-            '/api/all_data',
-            '/api/bank',
-            '/api/edit_bet',
-            '/api/delete_bet',
-            '/api/simulate',
-            '/api/export',
-            '/webhook'
-        ]
+        'keys': {
+            'bot_token': bool(BOT_TOKEN),
+            'chat_id': bool(CHAT_ID),
+            'secret_key': bool(SECRET_KEY),
+            'weather': bool(WEATHER_API_KEY),
+            'football': bool(FOOTBALL_API_KEY),
+            'odds': bool(ODDS_API_KEY),
+            'news': bool(NEWS_API_KEY)
+        }
     })
 
 @app.route('/api/health')
@@ -160,7 +239,12 @@ def health():
         'status': 'ok',
         'bank': data.get('bank', 1000),
         'total_bets': len(data.get('history', [])),
-        'data_file_exists': os.path.exists(DATA_FILE)
+        'keys': {
+            'bot_token': bool(BOT_TOKEN),
+            'chat_id': bool(CHAT_ID),
+            'weather': bool(WEATHER_API_KEY),
+            'football': bool(FOOTBALL_API_KEY)
+        }
     })
 
 @app.route('/api/stats')
@@ -172,8 +256,7 @@ def api_stats():
 
 @app.route('/api/history')
 def api_history():
-    data = load_data()
-    return jsonify(data.get('history', []))
+    return jsonify(load_data().get('history', []))
 
 @app.route('/api/all_data')
 def api_all_data():
@@ -181,7 +264,6 @@ def api_all_data():
     history = data.get('history', [])
     stats = get_stats(history)
     stats['bank'] = data.get('bank', 1000)
-    
     return jsonify({
         'stats': stats,
         'history': history,
@@ -191,17 +273,10 @@ def api_all_data():
 
 @app.route('/api/bank', methods=['POST'])
 def api_bank():
-    try:
-        data = load_data()
-        new_bank = request.json.get('bank')
-        if new_bank is None:
-            return jsonify({'error': 'Bank value required'}), 400
-        
-        data['bank'] = float(new_bank)
-        save_data(data)
-        return jsonify({'success': True, 'bank': data['bank']})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    data = load_data()
+    data['bank'] = float(request.json.get('bank', 1000))
+    save_data(data)
+    return jsonify({'success': True, 'bank': data['bank']})
 
 @app.route('/api/edit_bet', methods=['POST'])
 def api_edit_bet():
@@ -211,8 +286,8 @@ def api_edit_bet():
         data = load_data()
         history = data.get('history', [])
         
-        if idx is None or idx >= len(history):
-            return jsonify({'error': 'Ставка не найдена'}), 404
+        if idx >= len(history):
+            return jsonify({'error': 'Not found'}), 404
         
         bet = history[idx]
         for key in ['home', 'away', 'bet', 'result']:
@@ -222,12 +297,6 @@ def api_edit_bet():
             if key in req:
                 bet[key] = float(req[key])
         
-        if 'home_goals' in req:
-            bet['home_goals'] = req['home_goals']
-        if 'away_goals' in req:
-            bet['away_goals'] = req['away_goals']
-        
-        # Пересчет прибыли
         stake = float(bet.get('stake', 0))
         odds = float(bet.get('odds', 1))
         if bet.get('result') == 'win':
@@ -238,7 +307,7 @@ def api_edit_bet():
             bet['profit'] = 0
         
         save_data(data)
-        return jsonify({'success': True, 'message': 'Ставка обновлена'})
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -248,13 +317,11 @@ def api_delete_bet():
         idx = request.json.get('index')
         data = load_data()
         history = data.get('history', [])
-        
-        if idx is None or idx >= len(history):
-            return jsonify({'error': 'Ставка не найдена'}), 404
-        
-        deleted = history.pop(idx)
-        save_data(data)
-        return jsonify({'success': True, 'deleted': deleted})
+        if idx < len(history):
+            history.pop(idx)
+            save_data(data)
+            return jsonify({'success': True})
+        return jsonify({'error': 'Not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -284,9 +351,6 @@ def api_simulate():
                 total_profit -= avg_stake
             profit_history.append(round(total_profit, 2))
         
-        max_profit = max(profit_history) if profit_history else 0
-        min_profit = min(profit_history) if profit_history else 0
-        
         return jsonify({
             'total': count,
             'wins': int(winrate * count),
@@ -294,9 +358,9 @@ def api_simulate():
             'profit': round(total_profit, 2),
             'winrate': round(winrate * 100, 1),
             'roi': round((total_profit / (avg_stake * count)) * 100, 2),
-            'risk': round((abs(min_profit) / (avg_stake * count)) * 100, 2),
-            'max_profit': round(max_profit, 2),
-            'min_profit': round(min_profit, 2),
+            'risk': round((abs(min(profit_history)) / (avg_stake * count)) * 100, 2),
+            'max_profit': round(max(profit_history), 2),
+            'min_profit': round(min(profit_history), 2),
             'avg_stake': round(avg_stake, 2),
             'history': profit_history[:100],
             'labels': list(range(1, min(count, 100) + 1))
@@ -479,32 +543,32 @@ def api_import_project():
         return jsonify({'error': str(e)}), 500
 
 # ============================================================
-# ТЕЛЕГРАМ ВЕБХУК
+# ⭐ ТЕЛЕГРАМ ВЕБХУК (СО ВСЕМИ КОМАНДАМИ)
 # ============================================================
 
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
-    """
-    Обработка вебхука от Telegram
-    GET - проверка работоспособности
-    POST - получение сообщений
-    """
+    """Обработка вебхука от Telegram"""
+    global BOT_TOKEN, CHAT_ID, WEATHER_API_KEY
+    
     if request.method == 'GET':
         return jsonify({
             'status': 'ok',
-            'message': 'Webhook endpoint is working',
-            'bot_token_set': bool(os.environ.get('BOT_TOKEN', ''))
+            'message': 'Webhook endpoint is working!',
+            'keys': {
+                'bot_token': bool(BOT_TOKEN),
+                'chat_id': bool(CHAT_ID),
+                'weather': bool(WEATHER_API_KEY)
+            }
         })
     
     try:
-        # Получаем данные от Telegram
         data = request.get_json()
-        logger.info(f"📩 Получено сообщение: {data}")
+        logger.info(f"📩 Получен вебхук: {data}")
         
         if not data:
             return jsonify({'error': 'No data'}), 400
         
-        # Проверяем наличие сообщения
         if 'message' not in data:
             return jsonify({'status': 'ok', 'message': 'Not a message'})
         
@@ -515,17 +579,25 @@ def webhook():
         
         logger.info(f"📨 Сообщение от @{username} (chat_id: {chat_id}): {text}")
         
-        # Обработка команд
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN не установлен!")
+            return jsonify({'error': 'BOT_TOKEN not set'}), 500
+        
+        # ============================================================
+        # ОБРАБОТКА КОМАНД
+        # ============================================================
+        
         if text == '/start':
             reply = (
                 "🤖 <b>Quantum Bet Bot</b>\n\n"
                 "Привет! Я помогу тебе управлять ставками.\n\n"
-                "<b>Доступные команды:</b>\n"
-                "/stats - 📊 Общая статистика\n"
+                "<b>📋 Команды:</b>\n"
+                "/stats - 📊 Статистика\n"
                 "/bank - 💰 Текущий банк\n"
-                "/help - ℹ️ Помощь\n"
                 "/today - 🔥 ТОП-5 из кэша\n"
-                "/update - 🔄 Поиск матчей"
+                "/update - 🔄 Поиск матчей\n"
+                "/weather [город] - 🌤️ Погода\n"
+                "/help - ℹ️ Помощь"
             )
         
         elif text == '/stats':
@@ -533,11 +605,10 @@ def webhook():
             history = data.get('history', [])
             stats = get_stats(history)
             stats['bank'] = data.get('bank', 1000)
-            
             reply = (
                 f"📊 <b>Статистика</b>\n\n"
                 f"💰 Банк: <b>${stats['bank']}</b>\n"
-                f"📈 Всего ставок: <b>{stats['total_bets']}</b>\n"
+                f"📈 Всего: <b>{stats['total_bets']}</b>\n"
                 f"✅ Выигрыши: <b>{stats['wins']}</b>\n"
                 f"❌ Проигрыши: <b>{stats['losses']}</b>\n"
                 f"🔄 Возвраты: <b>{stats['pushes']}</b>\n"
@@ -562,51 +633,33 @@ def webhook():
             else:
                 reply = "📭 Нет данных о ставках"
         
+        elif text == '/update':
+            reply = (
+                "🔄 <b>Поиск матчей на сегодня...</b>\n\n"
+                "Функция в разработке.\n"
+                "Скоро здесь будут матчи с коэффициентами!"
+            )
+        
         elif text == '/help':
             reply = (
                 "ℹ️ <b>Помощь</b>\n\n"
-                "<b>Команды:</b>\n"
+                "<b>📋 Команды:</b>\n"
                 "/start - Приветствие\n"
-                "/stats - Статистика\n"
-                "/bank - Текущий банк\n"
-                "/today - ТОП-5 из кэша\n"
-                "/update - Поиск матчей\n\n"
-                "<b>Дополнительные команды:</b>\n"
-                "/team [команда] - Статистика по команде\n"
-                "/train - Обучение нейросети\n"
-                "/export - Экспорт в Excel"
+                "/stats - 📊 Статистика\n"
+                "/bank - 💰 Текущий банк\n"
+                "/today - 🔥 ТОП-5 из кэша\n"
+                "/update - 🔄 Поиск матчей\n"
+                "/weather [город] - 🌤️ Погода\n\n"
+                "📱 <b>Веб-интерфейс:</b>\n"
+                f"{WEB_URL}"
             )
         
-        elif text.startswith('/team'):
-            team = text.replace('/team', '').strip()
-            if team:
-                data = load_data()
-                history = data.get('history', [])
-                team_history = [b for b in history if team.lower() in b.get('home', '').lower() or team.lower() in b.get('away', '').lower()]
-                
-                if team_history:
-                    wins = sum(1 for b in team_history if b.get('result') == 'win')
-                    profit = sum(float(b.get('profit', 0)) for b in team_history)
-                    reply = (
-                        f"📊 <b>Статистика по {team}</b>\n\n"
-                        f"📈 Матчей: {len(team_history)}\n"
-                        f"✅ Побед: {wins}\n"
-                        f"🎯 Проходимость: {round(wins/len(team_history)*100, 1)}%\n"
-                        f"📈 Прибыль: ${round(profit, 2)}"
-                    )
-                else:
-                    reply = f"❌ Нет данных по команде {team}"
+        elif text.startswith('/weather'):
+            city = text.replace('/weather', '').strip()
+            if city:
+                reply = get_weather(city)
             else:
-                reply = "❌ Укажите команду: /team Real Madrid"
-        
-        elif text == '/update':
-            reply = "🔄 Ищу матчи на сегодня...\n\nПопробуйте позже, функция в разработке."
-        
-        elif text == '/train':
-            reply = "🧠 Обучение нейросети...\n\nЭто может занять несколько минут."
-        
-        elif text == '/export':
-            reply = "📥 Скачайте данные через веб-интерфейс:\n" + os.environ.get('WEB_URL', 'https://quantumnet-web.onrender.com')
+                reply = "❌ Укажите город: /weather Москва"
         
         else:
             reply = (
@@ -636,11 +689,19 @@ if __name__ == '__main__':
         logger.info("📄 Создаю новый data.json")
         save_data({"bank": 1000, "history": []})
     
-    # Проверяем BOT_TOKEN
-    bot_token = os.environ.get('BOT_TOKEN', '')
-    if bot_token:
-        logger.info(f"✅ BOT_TOKEN установлен")
-    else:
-        logger.warning("⚠️ BOT_TOKEN не установлен! Вебхук не будет работать")
+    # Вывод статуса ключей при запуске
+    logger.info("=" * 60)
+    logger.info("🚀 БОТ ЗАПУЩЕН СО ВСЕМИ КЛЮЧАМИ:")
+    logger.info(f"  BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
+    logger.info(f"  CHAT_ID: {'✅' if CHAT_ID else '❌'}")
+    logger.info(f"  SECRET_KEY: {'✅' if SECRET_KEY else '❌'}")
+    logger.info(f"  WEB_URL: {'✅' if WEB_URL else '❌'}")
+    logger.info(f"  WEATHER_API_KEY: {'✅' if WEATHER_API_KEY else '❌'}")
+    logger.info(f"  FOOTBALL_API_KEY: {'✅' if FOOTBALL_API_KEY else '❌'}")
+    logger.info(f"  ODDS_API_KEY: {'✅' if ODDS_API_KEY else '❌'}")
+    logger.info(f"  NEWS_API_KEY: {'✅' if NEWS_API_KEY else '❌'}")
+    logger.info("=" * 60)
+    
+    logger.info("✅ Маршрут /webhook зарегистрирован")
     
     app.run(host='0.0.0.0', port=port, debug=False)
