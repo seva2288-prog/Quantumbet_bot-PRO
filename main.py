@@ -527,6 +527,42 @@ def export_to_excel():
     
     return output, f"✅ Экспорт завершен! Всего ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
 
+def get_profit_data(history):
+    """Формирует данные для графика прибыли"""
+    profits = []
+    days = 7
+    
+    for i in range(days - 1, -1, -1):
+        day_profit = 0
+        day = datetime.now() - timedelta(days=i)
+        for bet in history:
+            try:
+                bet_date = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
+                if bet_date.date() == day.date():
+                    stake = bet.get('stake', 0)
+                    if isinstance(stake, str):
+                        try:
+                            stake = float(stake)
+                        except:
+                            stake = 0
+                    odds = bet.get('odds', 1)
+                    if isinstance(odds, str):
+                        try:
+                            odds = float(odds)
+                        except:
+                            odds = 1
+                    
+                    if bet.get('result') == 'win':
+                        day_profit += stake * (odds - 1)
+                    elif bet.get('result') == 'loss':
+                        day_profit -= stake
+            except:
+                pass
+        profits.append(round(day_profit, 2))
+    
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
+    return {'dates': dates, 'profits': profits}
+
 # ============================================================
 # ПОИСК МАТЧЕЙ
 # ============================================================
@@ -1233,6 +1269,43 @@ def api_matches():
     cache = storage.load_cache()
     return jsonify(cache.get('top_matches', []))
 
+@app.route('/api/all_data', methods=['GET'])
+def all_data():
+    """Получение всех данных для веб-приложения"""
+    try:
+        logger.info("📡 Запрос всех данных для веб-приложения")
+        
+        stats = storage.load_stats()
+        bank = storage.load_bank()
+        history = storage.load_history()
+        cache = storage.load_cache()
+        
+        # Получаем данные для графика
+        profit_data = get_profit_data(history)
+        
+        result = {
+            'stats': {
+                'bank': bank,
+                'total_bets': stats.get('total', 0),
+                'wins': stats.get('wins', 0),
+                'losses': stats.get('losses', 0),
+                'profit': stats.get('total_profit', 0),
+                'winrate': stats.get('winrate', 0),
+                'roi': stats.get('roi', 0),
+                'avg_stake': stats.get('avg_stake', 0)
+            },
+            'history': history,
+            'profit_data': profit_data,
+            'matches': cache.get('top_matches', [])
+        }
+        
+        logger.info(f"✅ Данные отправлены: {len(history)} ставок, {len(result['matches'])} матчей")
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /api/all_data: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
@@ -1253,4 +1326,5 @@ if __name__ == "__main__":
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("✅ ТМ 2.5 и ТБ 2.5 - раздельный вывод")
+    logger.info("✅ Эндпоинт /api/all_data доступен")
     app.run(host='0.0.0.0', port=port)
