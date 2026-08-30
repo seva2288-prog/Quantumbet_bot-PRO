@@ -4,6 +4,7 @@ import requests
 import time
 import json
 import logging
+import random
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 
@@ -761,7 +762,6 @@ def find_top_matches(matches):
                     home_xg = 1.3
                     away_xg = 1.0
                 
-                import random
                 random.seed(fixture_id)
                 home_xg *= (1 + random.uniform(-0.1, 0.1))
                 away_xg *= (1 + random.uniform(-0.1, 0.1))
@@ -1268,6 +1268,10 @@ def api_history():
 def api_matches():
     cache = storage.load_cache()
     return jsonify(cache.get('top_matches', []))
+
+# ============================================================
+# ГЛАВНЫЙ ЭНДПОИНТ ДЛЯ ВЕБ-ПРИЛОЖЕНИЯ
+# ============================================================
 
 @app.route('/api/all_data', methods=['GET'])
 def all_data():
