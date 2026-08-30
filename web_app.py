@@ -2950,6 +2950,10 @@ def check_bot_health():
 # API МАРШРУТЫ (С ОБРАБОТКОЙ ОШИБОК)
 # ============================================================
 
+@app.route('/')
+def index():
+    return render_template_string(MAIN_HTML)
+
 @app.route('/api/all_data')
 def api_all_data():
     """Прокси к боту для получения всех данных"""
@@ -2960,8 +2964,8 @@ def api_all_data():
         if response.status_code == 200:
             try:
                 return jsonify(response.json())
-            except:
-                logger.error("Бот вернул невалидный JSON")
+            except Exception as e:
+                logger.error(f"Ошибка парсинга JSON от бота: {e}")
                 return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
         else:
             logger.error(f"Бот вернул ошибку: {response.status_code}")
@@ -2971,6 +2975,7 @@ def api_all_data():
         logger.error("❌ Не удалось подключиться к боту!")
         return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
     except requests.exceptions.Timeout:
+        logger.error("❌ Таймаут подключения к боту!")
         return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
     except Exception as e:
         logger.error(f"Ошибка получения данных: {e}")
@@ -2978,46 +2983,58 @@ def api_all_data():
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
+    """Прокси для импорта Excel"""
     try:
         data = request.json
         if not data:
             return jsonify({'error': 'Нет данных для импорта'}), 400
             
+        logger.info(f"📡 Отправка Excel на бот: {BOT_URL}/api/import_excel")
         response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
         
         if response.status_code == 200:
             try:
                 return jsonify(response.json())
-            except:
+            except Exception as e:
+                logger.error(f"Ошибка парсинга JSON от бота: {e}")
                 return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
         else:
+            logger.error(f"Бот вернул ошибку: {response.status_code}")
             return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
             
     except requests.exceptions.ConnectionError:
         return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
     except Exception as e:
         logger.error(f"Ошибка импорта Excel: {e}")
         return jsonify({'error': f'Ошибка: {str(e)}'}), 500
 
 @app.route('/api/import_project', methods=['POST'])
 def import_project():
+    """Прокси для импорта проекта"""
     try:
         data = request.json
         if not data:
             return jsonify({'error': 'Нет данных для импорта'}), 400
             
+        logger.info(f"📡 Отправка проекта на бот: {BOT_URL}/api/import_project")
         response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
         
         if response.status_code == 200:
             try:
                 return jsonify(response.json())
-            except:
+            except Exception as e:
+                logger.error(f"Ошибка парсинга JSON от бота: {e}")
                 return jsonify({'error': 'Бот вернул невалидный JSON'}), 500
         else:
+            logger.error(f"Бот вернул ошибку: {response.status_code}")
             return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), response.status_code
             
     except requests.exceptions.ConnectionError:
         return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Превышено время ожидания ответа от бота'}), 500
     except Exception as e:
         logger.error(f"Ошибка импорта проекта: {e}")
         return jsonify({'error': f'Ошибка: {str(e)}'}), 500
@@ -3069,6 +3086,7 @@ def add_manual_match():
 
 @app.route('/api/health')
 def health():
+    """Проверка здоровья веб-интерфейса и бота"""
     bot_ok, bot_data = check_bot_health()
     return jsonify({
         'status': 'ok',
@@ -3077,6 +3095,7 @@ def health():
         'bot_data': bot_data,
         'bot_url': BOT_URL
     })
+
 # ============================================================
 # ЗАПУСК
 # ============================================================
