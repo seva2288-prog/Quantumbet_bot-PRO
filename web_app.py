@@ -1,34 +1,4 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from flask import Flask, render_template_string, jsonify, request
-import requests
-from datetime import datetime
-import json
-import logging
-
-app = Flask(__name__)
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# ============================================================
-# НАСТРОЙКИ
-# ============================================================
-
-# URL вашего бота на Render
-BOT_URL = os.environ.get('BOT_URL', 'https://quantumbet-bot-pro.onrender.com')
-
-# Проверка при запуске
-print(f"🔗 Бот URL: {BOT_URL}")
-
-# ============================================================
-# HTML ШАБЛОН (ПОЛНЫЙ, 3000+ СТРОК)
-# ============================================================
-
-MAIN_HTML = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
     <title>Quantum Bet Bot</title>
@@ -841,6 +811,10 @@ MAIN_HTML = """<!DOCTYPE html>
             animation: spin 0.8s linear infinite;
             margin: 0 auto 8px;
         }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         
         .page {
             display: none;
@@ -1189,7 +1163,7 @@ MAIN_HTML = """<!DOCTYPE html>
 <body>
 
 <!-- ============================================================
-     ЭКРАН ЗАГРУЗКИ
+     ЭКРАН ЗАГРУЗКИ С МЛЕЧНЫМ ПУТЁМ
      ============================================================ -->
 <div id="loadingScreen">
     <div class="milky-way"></div>
@@ -1252,11 +1226,6 @@ MAIN_HTML = """<!DOCTYPE html>
 
 <script>
     // ============================================================
-    // КОНФИГУРАЦИЯ
-    // ============================================================
-    const API_BASE = window.location.origin;
-    
-    // ============================================================
     // ЗВЁЗДЫ ДЛЯ ЭКРАНА ЗАГРУЗКИ
     // ============================================================
     (function generateLoadingStars() {
@@ -1291,6 +1260,7 @@ MAIN_HTML = """<!DOCTYPE html>
         }
     }
 
+    // Скрыть после загрузки страницы
     window.addEventListener('load', function() {
         setTimeout(hideLoadingScreen, 600);
     });
@@ -1415,7 +1385,45 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ЗАГРУЗКА ДАННЫХ
+    // ЗАГРУЗКА ДАННЫХ - ИСПРАВЛЕННАЯ ФУНКЦИЯ
+    // ============================================================
+    async function loadAllData() {
+        try {
+            console.log('📡 Запрос данных с бота...');
+            const response = await fetch('https://quantumbet-bot-pro.onrender.com/api/all_data?t=' + Date.now());
+            
+            console.log('📡 Статус ответа:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ошибка! статус: ${response.status}`);
+            }
+            
+            const text = await response.text();
+            console.log('📡 Получен текст:', text.substring(0, 200) + '...');
+            
+            // Проверяем, что ответ не пустой
+            if (!text || text.trim() === '') {
+                throw new Error('Пустой ответ от сервера');
+            }
+            
+            // Парсим JSON
+            try {
+                const data = JSON.parse(text);
+                console.log('✅ Данные успешно загружены:', data);
+                return data;
+            } catch (e) {
+                console.error('❌ Ошибка парсинга JSON:', text.substring(0, 200));
+                throw new Error('Невалидный JSON ответ: ' + e.message);
+            }
+        } catch (error) {
+            console.error('❌ Ошибка загрузки данных:', error);
+            showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
+            return null;
+        }
+    }
+
+    // ============================================================
+    // ЗАГРУЗКА СТРАНИЦЫ
     // ============================================================
     async function loadPageData(page) {
         if (isLoading) return;
@@ -1423,19 +1431,19 @@ MAIN_HTML = """<!DOCTYPE html>
         const contentId = page + '-content';
         const contentEl = document.getElementById(contentId);
 
-        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'analytics') {
-            return;
-        }
-
         isLoading = true;
         contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
 
         try {
-            const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
-            if (!response.ok) {
-                throw new Error('Сервер вернул ошибку: ' + response.status);
+            // Используем исправленную функцию загрузки
+            const data = await loadAllData();
+            
+            if (!data) {
+                contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Не удалось загрузить данные</div>';
+                isLoading = false;
+                return;
             }
-            const data = await response.json();
+            
             cachedData = data;
 
             switch(page) {
@@ -1447,21 +1455,9 @@ MAIN_HTML = """<!DOCTYPE html>
             
             hideLoadingScreen();
         } catch (error) {
-            console.error('Ошибка загрузки:', error);
-            contentEl.innerHTML = `
-                <div class="no-data">
-                    <div class="emoji">⚠️</div>
-                    <div>Ошибка загрузки данных!</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">
-                        ${error.message}
-                    </div>
-                    <button onclick="refreshData()" style="margin-top:8px;padding:6px 16px;background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.3);border-radius:6px;color:#a78bfa;cursor:pointer;">
-                        🔄 Повторить
-                    </button>
-                </div>
-            `;
+            console.error('❌ Ошибка:', error);
+            contentEl.innerHTML = '<div class="no-data"><div class="emoji">⚠️</div>Ошибка загрузки</div>';
             hideLoadingScreen();
-            showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
         }
 
         isLoading = false;
@@ -1473,7 +1469,49 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ДЕТЕКТОР ДРОБНЫХ СУММ
+    // ФИКСИРОВАННЫЕ РЕКОМЕНДАЦИИ ДЛЯ ПАТТЕРНОВ
+    // ============================================================
+    function getRecommendation(stake) {
+        const stakeStr = stake.toString();
+        
+        const recommendations = {
+            '45.125': {
+                bet: '1X',
+                icon: '🏠',
+                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
+            },
+            '40.7253125': {
+                bet: 'ОБЗ',
+                icon: '⚽',
+                description: 'Обе команды забьют'
+            },
+            '42.86875000000006': {
+                bet: 'ТМ 2.5',
+                icon: '🔽',
+                description: 'Тотал меньше 2.5 голов'
+            },
+            '42.86875000000001': {
+                bet: 'X2',
+                icon: '✈️',
+                description: 'Гости не проиграют (Победа или ничья гостей)'
+            }
+        };
+        
+        for (const [key, value] of Object.entries(recommendations)) {
+            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
+                return value;
+            }
+        }
+        
+        return {
+            bet: '—',
+            icon: '📌',
+            description: 'Нет рекомендации для этой суммы'
+        };
+    }
+
+    // ============================================================
+    // ДЕТЕКТОР ДРОБНЫХ СУММ (3+ ЗНАКОВ ПОСЛЕ ЗАПЯТОЙ)
     // ============================================================
     function getDecimalPlaces(num) {
         const str = num.toString();
@@ -1590,65 +1628,26 @@ MAIN_HTML = """<!DOCTYPE html>
         return Object.values(skipped).filter(s => s.count >= 2);
     }
 
-    function getRecommendation(stake) {
-        const stakeStr = stake.toString();
-        
-        const recommendations = {
-            '45.125': {
-                bet: '1X',
-                icon: '🏠',
-                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
-            },
-            '40.7253125': {
-                bet: 'ОБЗ',
-                icon: '⚽',
-                description: 'Обе команды забьют'
-            },
-            '42.86875000000006': {
-                bet: 'ТМ 2.5',
-                icon: '🔽',
-                description: 'Тотал меньше 2.5 голов'
-            },
-            '42.86875000000001': {
-                bet: 'X2',
-                icon: '✈️',
-                description: 'Гости не проиграют (Победа или ничья гостей)'
-            }
-        };
-        
-        for (const [key, value] of Object.entries(recommendations)) {
-            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
-                return value;
-            }
-        }
-        
-        return {
-            bet: '—',
-            icon: '📌',
-            description: 'Нет рекомендации для этой суммы'
-        };
-    }
-
     // ============================================================
     // РЕНДЕР ДАШБОРДА
     // ============================================================
     function renderDashboard(data) {
-        const s = data.stats;
+        const s = data.stats || {};
         const history = data.history || [];
 
         let html = `
             <div class="stats-grid">
-                <div class="stat-card"><div class="value">$${s.bank}</div><div class="label">💰 Банк</div></div>
-                <div class="stat-card"><div class="value green">${s.wins}</div><div class="label">✅ Выигрыши</div></div>
-                <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">❌ Проигрыши</div></div>
-                <div class="stat-card"><div class="value gold">$${s.profit}</div><div class="label">📈 Прибыль</div></div>
+                <div class="stat-card"><div class="value">$${s.bank || 1000}</div><div class="label">💰 Банк</div></div>
+                <div class="stat-card"><div class="value green">${s.wins || 0}</div><div class="label">✅ Выигрыши</div></div>
+                <div class="stat-card"><div class="value red">${s.losses || 0}</div><div class="label">❌ Проигрыши</div></div>
+                <div class="stat-card"><div class="value gold">$${s.profit || 0}</div><div class="label">📈 Прибыль</div></div>
             </div>
 
             <div class="metrics-grid">
-                <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets}</span></div>
-                <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate}%</span></div>
-                <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi}%</span></div>
-                <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake}</span></div>
+                <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets || 0}</span></div>
+                <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate || 0}%</span></div>
+                <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi || 0}%</span></div>
+                <div class="metric-item"><span class="label">📅 Средняя ставка</span><span class="value">$${s.avg_stake || 0}</span></div>
             </div>
 
             <div class="card">
@@ -1683,27 +1682,27 @@ MAIN_HTML = """<!DOCTYPE html>
                 html += `
                     <tr>
                         <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${bet.date}</td>
-                        <td><strong>${bet.home}</strong> vs <strong>${bet.away}</strong></td>
+                        <td style="font-size:9px;white-space:nowrap;">${bet.date || '-'}</td>
+                        <td><strong>${bet.home || 'Unknown'}</strong> vs <strong>${bet.away || 'Unknown'}</strong></td>
                         <td>${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + ' - ' + bet.away_goals : '-'}</td>
-                        <td>${bet.bet}</td>
-                        <td>${bet.odds}</td>
-                        <td>$${bet.stake}</td>
-                        <td>${bet.ev}%</td>
-                        <td><span class="badge ${bet.result}">${bet.result}</span></td>
-                        <td class="${profitClass}">$${bet.profit}</td>
+                        <td>${bet.bet || '-'}</td>
+                        <td>${bet.odds || 0}</td>
+                        <td>$${bet.stake || 0}</td>
+                        <td>${bet.ev || 0}%</td>
+                        <td><span class="badge ${bet.result || 'pending'}">${bet.result || 'pending'}</span></td>
+                        <td class="${profitClass}">$${bet.profit || 0}</td>
                         <td><span class="edit-btn" onclick="toggleEdit(${realIdx})">✏️</span></td>
                     </tr>
                     <tr id="edit-row-${realIdx}" class="edit-row">
                         <td colspan="11">
                             <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">
-                                <input type="text" id="edit_home_${realIdx}" value="${bet.home}" style="width:70px;">
-                                <input type="text" id="edit_away_${realIdx}" value="${bet.away}" style="width:70px;">
+                                <input type="text" id="edit_home_${realIdx}" value="${bet.home || ''}" style="width:70px;">
+                                <input type="text" id="edit_away_${realIdx}" value="${bet.away || ''}" style="width:70px;">
                                 <input type="text" id="edit_score_${realIdx}" value="${bet.home_goals !== null && bet.away_goals !== null ? bet.home_goals + '-' + bet.away_goals : ''}" style="width:50px;">
-                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet}" style="width:70px;">
-                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds}" step="0.01" style="width:50px;">
-                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake}" step="0.5" style="width:60px;">
-                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev}" step="0.1" style="width:50px;">
+                                <input type="text" id="edit_bet_${realIdx}" value="${bet.bet || ''}" style="width:70px;">
+                                <input type="number" id="edit_odds_${realIdx}" value="${bet.odds || 0}" step="0.01" style="width:50px;">
+                                <input type="number" id="edit_stake_${realIdx}" value="${bet.stake || 0}" step="0.5" style="width:60px;">
+                                <input type="number" id="edit_ev_${realIdx}" value="${bet.ev || 0}" step="0.1" style="width:50px;">
                                 <select id="edit_result_${realIdx}" style="padding:2px 4px;border-radius:3px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
                                     <option value="win" ${bet.result === 'win' ? 'selected' : ''}>win</option>
                                     <option value="loss" ${bet.result === 'loss' ? 'selected' : ''}>loss</option>
@@ -1728,7 +1727,7 @@ MAIN_HTML = """<!DOCTYPE html>
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
-        setTimeout(() => renderChart(data.profit_data), 50);
+        setTimeout(() => renderChart(data.profit_data || { dates: [], profits: [] }), 50);
     }
 
     // ============================================================
@@ -1744,15 +1743,16 @@ MAIN_HTML = """<!DOCTYPE html>
         }
 
         const isLight = document.body.classList.contains('light-theme');
-        const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
+        const dates = profitData.dates || ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+        const profits = profitData.profits || [0,0,0,0,0,0,0];
 
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.dates,
+                labels: dates,
                 datasets: [{
                     label: 'Прибыль ($)',
-                    data: data.profits,
+                    data: profits,
                     borderColor: '#a78bfa',
                     backgroundColor: 'rgba(167,139,250,0.08)',
                     fill: true,
@@ -1928,6 +1928,7 @@ MAIN_HTML = """<!DOCTYPE html>
             `;
         }
 
+        // ===== БЫСТРАЯ СТАТИСТИКА =====
         html += `
             <div class="card">
                 <div class="card-header">
@@ -1936,15 +1937,15 @@ MAIN_HTML = """<!DOCTYPE html>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">📊 Всего ставок</div>
-                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats.total_bets}</div>
+                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats?.total_bets || 0}</div>
                     </div>
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">🎯 Проходимость</div>
-                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats.winrate}%</div>
+                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats?.winrate || 0}%</div>
                     </div>
                     <div>
                         <div style="color:rgba(255,255,255,0.3);font-size:10px;">📈 ROI</div>
-                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats.roi}%</div>
+                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats?.roi || 0}%</div>
                     </div>
                 </div>
             </div>
@@ -2078,7 +2079,7 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // РУЧНОЕ ДОБАВЛЕНИЕ МАТЧА
+    // ФУНКЦИЯ РУЧНОГО ДОБАВЛЕНИЯ МАТЧА
     // ============================================================
     function addMatchManually(stake, betType) {
         const modal = document.createElement('div');
@@ -2149,6 +2150,9 @@ MAIN_HTML = """<!DOCTYPE html>
         document.body.appendChild(modal);
     }
 
+    // ============================================================
+    // ФУНКЦИЯ СОХРАНЕНИЯ РУЧНОГО МАТЧА
+    // ============================================================
     function saveManualMatch(stake, betType) {
         const matchName = document.getElementById('matchNameInput').value;
         const score = document.getElementById('scoreInput').value;
@@ -2159,7 +2163,7 @@ MAIN_HTML = """<!DOCTYPE html>
             return;
         }
         
-        fetch(API_BASE + '/api/add_manual_match', {
+        fetch('/api/add_manual_match', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2440,7 +2444,7 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // СИМУЛЯТОР
+    // РЕНДЕР СИМУЛЯТОРА
     // ============================================================
     function renderSimulator(data) {
         const history = data.history || [];
@@ -2504,7 +2508,7 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // НАСТРОЙКИ
+    // РЕНДЕР НАСТРОЕК
     // ============================================================
     function renderSettings(data) {
         const bank = data.stats ? data.stats.bank : 1000;
@@ -2598,49 +2602,41 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ЭКСПОРТ/ИМПОРТ ПРОЕКТА
+    // СОХРАНЕНИЕ И ЗАГРУЗКА ПРОЕКТА
     // ============================================================
     function exportProject() {
-        const projectData = {
-            version: '1.0',
-            exportDate: new Date().toISOString(),
-            exportedAt: new Date().toLocaleString(),
-            settings: JSON.parse(localStorage.getItem('bot_settings')) || {},
-            theme: localStorage.getItem('theme') || 'dark',
-            data: cachedData || null
-        };
+        showNotification('⏳ Подготовка данных...', '');
         
-        if (!projectData.data) {
-            showNotification('⏳ Загрузка данных...', '');
-            fetch(API_BASE + '/api/all_data')
-                .then(response => response.json())
-                .then(data => {
-                    projectData.data = data;
-                    downloadProjectFile(projectData);
-                })
-                .catch(error => {
-                    showNotification('❌ Ошибка загрузки данных: ' + error, 'error');
-                });
-            return;
-        }
-        
-        downloadProjectFile(projectData);
-    }
-
-    function downloadProjectFile(projectData) {
-        const json = JSON.stringify(projectData, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `quantum_bet_project_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        showNotification('✅ Проект успешно сохранен!', 'success');
+        // Используем исправленную функцию загрузки
+        loadAllData().then(data => {
+            if (!data) {
+                showNotification('❌ Не удалось загрузить данные', 'error');
+                return;
+            }
+            
+            const projectData = {
+                version: '1.0',
+                exportDate: new Date().toISOString(),
+                exportedAt: new Date().toLocaleString(),
+                settings: JSON.parse(localStorage.getItem('bot_settings')) || {},
+                theme: localStorage.getItem('theme') || 'dark',
+                data: data
+            };
+            
+            const json = JSON.stringify(projectData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `quantum_bet_project_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            showNotification('✅ Проект успешно сохранен!', 'success');
+        });
     }
 
     function importProject(event) {
@@ -2677,7 +2673,7 @@ MAIN_HTML = """<!DOCTYPE html>
                 if (projectData.data && projectData.data.history) {
                     showNotification('⏳ Отправка данных на сервер...', '');
                     
-                    fetch(API_BASE + '/api/import_project', {
+                    fetch('/api/import_project', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2739,7 +2735,7 @@ MAIN_HTML = """<!DOCTYPE html>
             index: index
         };
         try {
-            const response = await fetch(API_BASE + '/api/edit_bet', {
+            const response = await fetch('/api/edit_bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -2759,7 +2755,7 @@ MAIN_HTML = """<!DOCTYPE html>
     async function deleteBet(index) {
         if (!confirm('Удалить эту ставку?')) return;
         try {
-            const response = await fetch(API_BASE + '/api/delete_bet', {
+            const response = await fetch('/api/delete_bet', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ index: index })
@@ -2780,7 +2776,7 @@ MAIN_HTML = """<!DOCTYPE html>
         const count = parseInt(document.getElementById('simCount').value) || 1000;
         document.getElementById('simResults').style.display = 'block';
         try {
-            const response = await fetch(API_BASE + '/api/simulate', {
+            const response = await fetch('/api/simulate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ count: count })
@@ -2845,7 +2841,7 @@ MAIN_HTML = """<!DOCTYPE html>
     async function updateBank() {
         const value = document.getElementById('bankInput').value;
         try {
-            const response = await fetch(API_BASE + '/api/bank', {
+            const response = await fetch('/api/bank', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bank: parseFloat(value) })
@@ -2887,7 +2883,7 @@ MAIN_HTML = """<!DOCTYPE html>
                     return;
                 }
                 statusDiv.textContent = '⏳ Отправка данных на сервер...';
-                fetch(API_BASE + '/api/import_excel', {
+                fetch('/api/import_excel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ data: json })
@@ -2916,7 +2912,7 @@ MAIN_HTML = """<!DOCTYPE html>
     });
 
     // ============================================================
-    // ЗАПУСК
+    // ЗАГРУЗКА ПЕРВОЙ СТРАНИЦЫ
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         loadPageData('dashboard');
@@ -2924,165 +2920,3 @@ MAIN_HTML = """<!DOCTYPE html>
 </script>
 </body>
 </html>
-"""
-
-# ============================================================
-# ПРОВЕРКА БОТА
-# ============================================================
-
-def check_bot_health():
-    """Проверяет доступность бота"""
-    try:
-        response = requests.get(f'{BOT_URL}/api/health', timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            logger.info(f"✅ Бот доступен: {data}")
-            return True, data
-        else:
-            logger.warning(f"⚠️ Бот вернул код {response.status_code}")
-            return False, None
-    except Exception as e:
-        logger.error(f"❌ Бот недоступен: {e}")
-        return False, None
-
-# ============================================================
-# API МАРШРУТЫ (ПРОКСИ К БОТУ)
-# ============================================================
-
-@app.route('/')
-def index():
-    return render_template_string(MAIN_HTML)
-
-@app.route('/api/all_data')
-def api_all_data():
-    """Прокси к боту для получения всех данных"""
-    try:
-        logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
-        response = requests.get(f'{BOT_URL}/api/all_data', timeout=10)
-        if response.status_code == 200:
-            return jsonify(response.json())
-        else:
-            logger.error(f"Бот вернул ошибку: {response.status_code}")
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
-    except requests.exceptions.ConnectionError:
-        logger.error("❌ Не удалось подключиться к боту!")
-        return jsonify({'error': 'Бот недоступен! Проверьте, что он запущен.'}), 500
-    except Exception as e:
-        logger.error(f"Ошибка получения данных: {e}")
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
-
-@app.route('/api/import_excel', methods=['POST'])
-def import_excel():
-    """Прокси для импорта Excel"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/import_project', methods=['POST'])
-def import_project():
-    """Прокси для импорта проекта"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/edit_bet', methods=['POST'])
-def edit_bet():
-    """Прокси для редактирования ставки"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/delete_bet', methods=['POST'])
-def delete_bet():
-    """Прокси для удаления ставки"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/bank', methods=['POST'])
-def update_bank():
-    """Прокси для обновления банка"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/simulate', methods=['POST'])
-def simulate():
-    """Прокси для симуляции"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/export', methods=['GET'])
-def export_data():
-    """Прокси для экспорта данных"""
-    try:
-        response = requests.get(f'{BOT_URL}/api/export', timeout=30)
-        if response.status_code == 200:
-            return response.content, 200, {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': 'attachment; filename=quantum_bet_history.xlsx'
-            }
-        else:
-            return jsonify({'error': 'Ошибка экспорта'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/add_manual_match', methods=['POST'])
-def add_manual_match():
-    """Прокси для ручного добавления матча"""
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/health')
-def health():
-    """Проверка здоровья веб-интерфейса и бота"""
-    bot_ok, bot_data = check_bot_health()
-    return jsonify({
-        'status': 'ok',
-        'web': 'running',
-        'bot': 'ok' if bot_ok else 'error',
-        'bot_data': bot_data,
-        'bot_url': BOT_URL,
-        'port': 5001
-    })
-
-# ============================================================
-# ЗАПУСК
-# ============================================================
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
-    logger.info(f"🌐 Запуск веб-интерфейса на порту {port}")
-    logger.info(f"📡 Подключение к боту: {BOT_URL}")
-    
-    # Проверяем доступность бота
-    bot_ok, bot_data = check_bot_health()
-    if bot_ok:
-        logger.info("✅ Бот доступен")
-    else:
-        logger.warning("⚠️ Бот недоступен! Убедитесь, что бот запущен на Render")
-    
-    app.run(host='0.0.0.0', port=port, debug=False)
