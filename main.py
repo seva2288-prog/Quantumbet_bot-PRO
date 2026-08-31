@@ -1759,36 +1759,51 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# НОВАЯ ФУНКЦИЯ: ПОИСК ТМ 2.5 (МЯГКИЕ ФИЛЬТРЫ) С ОТЛАДКОЙ
+# НОВАЯ ФУНКЦИЯ: ПОИСК ТМ 2.5 С ПРИОРИТЕТАМИ (EV>30, ПОТОМ EV>15)
 # ============================================================
 
 def find_tm25_matches(matches):
-    """Специальный поиск для ТМ 2.5 с мягкими фильтрами"""
+    """Специальный поиск для ТМ 2.5 с двухуровневым приоритетом EV"""
     tm25_candidates = []
     
     # Загружаем настройки из config.py
     from app.config import Config
-    MAX_TM25_BETS = Config.MAX_TM25_BETS
-    MIN_TM25_EV = Config.MIN_TM25_EV / 100  # 0.10
-    MIN_TM25_PROB = Config.MIN_TM25_PROB / 100  # 0.50
-    TM25_XG_MIN = Config.TM25_XG_MIN
-    TM25_XG_MAX = Config.TM25_XG_MAX
-    TOP_LEAGUES = Config.TOP_LEAGUES
-    TM25_TOP_LEAGUE_EV = Config.TM25_TOP_LEAGUE_EV / 100  # 0.15
     
-    logger.info("🔍 Специальный поиск ТМ 2.5 (мягкие фильтры)...")
-    logger.info(f"📊 Настройки: EV>{MIN_TM25_EV*100}%, Prob>{MIN_TM25_PROB*100}%, XG {TM25_XG_MIN}-{TM25_XG_MAX}")
+    # Максимальное количество ставок
+    MAX_TM25_BETS = Config.MAX_TM25_BETS
+    
+    # Параметры для УРОВНЯ 1 (PREMIUM) - EV > 30%
+    PREMIUM_MIN_EV = 30 / 100  # 0.30
+    PREMIUM_MIN_PROB = 60 / 100  # 0.60
+    PREMIUM_XG_MIN = 1.0
+    PREMIUM_XG_MAX = 2.8
+    
+    # Параметры для УРОВНЯ 2 (STANDARD) - EV > 15%
+    STANDARD_MIN_EV = 15 / 100  # 0.15
+    STANDARD_MIN_PROB = 50 / 100  # 0.50
+    STANDARD_XG_MIN = 0.8
+    STANDARD_XG_MAX = 3.0
+    
+    TOP_LEAGUES = Config.TOP_LEAGUES
+    
+    logger.info("🔍 Специальный поиск ТМ 2.5 (двухуровневый)...")
+    logger.info(f"📊 УРОВЕНЬ 1 (PREMIUM): EV>30%, Prob>60%, XG 1.0-2.8")
+    logger.info(f"📊 УРОВЕНЬ 2 (STANDARD): EV>15%, Prob>50%, XG 0.8-3.0")
     logger.info(f"📊 Всего матчей для анализа: {len(matches)}")
     
     # Счетчики для отладки
     stats = {
         'total': 0,
+        'premium_found': 0,
+        'standard_found': 0,
         'xg_fail': 0,
         'ev_fail': 0,
         'prob_fail': 0,
-        'top_league_fail': 0,
-        'success': 0
+        'top_league_fail': 0
     }
+    
+    # Сначала проходим по всем матчам и ищем PREMIUM (EV > 30%)
+    logger.info("🎯 ПОИСК УРОВНЯ 1 (PREMIUM EV>30%)...")
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -1871,28 +1886,22 @@ def find_tm25_matches(matches):
             total_xg = home_xg + away_xg
             
             # ============================================================
-            # МЯГКИЙ ФИЛЬТР XG ДЛЯ ТМ 2.5 (ИЗ КОНФИГА)
+            # ПРОВЕРКА PREMIUM УРОВНЯ (EV > 30%)
             # ============================================================
             
-            if total_xg < TM25_XG_MIN or total_xg > TM25_XG_MAX:
+            # Фильтр XG для PREMIUM
+            if total_xg < PREMIUM_XG_MIN or total_xg > PREMIUM_XG_MAX:
                 stats['xg_fail'] += 1
-                logger.info(f"⏭️ ТМ2.5: XG вне диапазона ({TM25_XG_MIN}-{TM25_XG_MAX}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
             
-            # ============================================================
-            # ПОЛУЧАЕМ ФОРМУ (НЕ ОБЯЗАТЕЛЬНО ХОРОШУЮ)
-            # ============================================================
-            
+            # Получаем форму
             home_form_data = football_api.get_form(home_team.get("id"))
             away_form_data = football_api.get_form(away_team.get("id"))
             
             home_form = home_form_data.get('form', '') if home_form_data else ''
             away_form = away_form_data.get('form', '') if away_form_data else ''
             
-            # ============================================================
-            # ПОЛУЧАЕМ ТУРНИРНУЮ ТАБЛИЦУ (НЕ ОБЯЗАТЕЛЬНО)
-            # ============================================================
-            
+            # Получаем таблицу
             standings = football_api.get_standings(league_id) if league_id else None
             
             home_position = 99
@@ -1904,113 +1913,263 @@ def find_tm25_matches(matches):
                 if away in standings:
                     away_position = standings[away].get('position', 99)
             
-            # ============================================================
-            # ЛИЧНЫЕ ВСТРЕЧИ
-            # ============================================================
-            
+            # H2H
             h2h_data = football_api.get_head_to_head(home, away)
             
-            # ============================================================
-            # АНСАМБЛЬ ВЕРОЯТНОСТЕЙ
-            # ============================================================
-            
+            # Ансамбль вероятностей
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data)
-            
             prob_under_2_5 = probs['under_2_5']
             
-            # ============================================================
-            # РАССЧИТЫВАЕМ EV ДЛЯ ТМ 2.5
-            # ============================================================
-            
+            # Рассчитываем EV
             odds_tm25 = 1.95
             ev_under = (prob_under_2_5 * odds_tm25) - 1
             
             # ============================================================
-            # МЯГКИЙ ФИЛЬТР: EV > MIN_TM25_EV (ИЗ КОНФИГА)
+            # ПРОВЕРКА PREMIUM: EV > 30% И Prob > 60%
             # ============================================================
             
-            if ev_under < MIN_TM25_EV:
-                stats['ev_fail'] += 1
-                logger.info(f"⏭️ ТМ2.5: EV < {MIN_TM25_EV*100}%: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}%")
-                continue
-            
-            # ============================================================
-            # МЯГКИЙ ФИЛЬТР: Prob > MIN_TM25_PROB (ИЗ КОНФИГА)
-            # ============================================================
-            
-            if prob_under_2_5 < MIN_TM25_PROB:
-                stats['prob_fail'] += 1
-                logger.info(f"⏭️ ТМ2.5: Prob < {MIN_TM25_PROB*100}%: {home} vs {away} | Prob: {prob_under_2_5*100:.1f}% | EV: {ev_under*100:.1f}%")
-                continue
-            
-            # ============================================================
-            # ДОПОЛНИТЕЛЬНЫЙ ФИЛЬТР: ТОП-ЛИГИ ТРЕБУЮТ БОЛЕЕ ВЫСОКИЙ EV
-            # ============================================================
-            
-            if league_name in TOP_LEAGUES:
-                if ev_under < TM25_TOP_LEAGUE_EV:
+            if ev_under >= PREMIUM_MIN_EV and prob_under_2_5 >= PREMIUM_MIN_PROB:
+                # Проверка топ-лиг
+                if league_name in TOP_LEAGUES and ev_under < 0.35:
                     stats['top_league_fail'] += 1
-                    logger.info(f"⏭️ ТМ2.5: Топ-лига, EV < {TM25_TOP_LEAGUE_EV*100}%: {home} vs {away}")
                     continue
-            
-            # ============================================================
-            # СОЗДАЕМ МАТЧ ДЛЯ ТМ 2.5
-            # ============================================================
-            
-            best_bet = {
-                'type': 'under',
-                'label': 'ТМ 2.5',
-                'prob': round(prob_under_2_5 * 100, 1),
-                'ev': round(ev_under * 100, 1),
-                'odds': odds_tm25,
-                'stake': round(42.86875, 2)
-            }
-            
-            match_data = {
-                "home": home,
-                "away": away,
-                "league": league_name,
-                "fixture_id": fixture_id,
-                "match_time": match_time,
-                "home_xg": round(home_xg, 2),
-                "away_xg": round(away_xg, 2),
-                "total_xg": round(total_xg, 2),
-                "home_form": home_form,
-                "away_form": away_form,
-                "standings": {
-                    "home_position": home_position,
-                    "away_position": away_position,
-                },
-                "bets": [best_bet],
-                "best_bet": best_bet,
-                "source": "tm25_special",
-                "weather_reason": "🌤️",
-            }
-            
-            tm25_candidates.append(match_data)
-            stats['success'] += 1
-            
-            logger.info(f"✅ ТМ2.5 КАНДИДАТ: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
-            
-            # Ограничиваем количество
-            if len(tm25_candidates) >= MAX_TM25_BETS:
-                logger.info(f"⏹️ Достигнут лимит ТМ2.5 ({MAX_TM25_BETS}), остановка поиска")
-                break
-            
+                
+                # Создаем матч PREMIUM уровня
+                best_bet = {
+                    'type': 'under',
+                    'label': 'ТМ 2.5 🔥',
+                    'prob': round(prob_under_2_5 * 100, 1),
+                    'ev': round(ev_under * 100, 1),
+                    'odds': odds_tm25,
+                    'stake': round(42.86875, 2),
+                    'level': 'PREMIUM'
+                }
+                
+                match_data = {
+                    "home": home,
+                    "away": away,
+                    "league": league_name,
+                    "fixture_id": fixture_id,
+                    "match_time": match_time,
+                    "home_xg": round(home_xg, 2),
+                    "away_xg": round(away_xg, 2),
+                    "total_xg": round(total_xg, 2),
+                    "home_form": home_form,
+                    "away_form": away_form,
+                    "standings": {
+                        "home_position": home_position,
+                        "away_position": away_position,
+                    },
+                    "bets": [best_bet],
+                    "best_bet": best_bet,
+                    "source": "tm25_premium",
+                    "weather_reason": "🌤️",
+                }
+                
+                tm25_candidates.append(match_data)
+                stats['premium_found'] += 1
+                
+                logger.info(f"🔥 PREMIUM ТМ2.5: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
+                
+                if len(tm25_candidates) >= MAX_TM25_BETS:
+                    logger.info(f"⏹️ Достигнут лимит PREMIUM ({MAX_TM25_BETS}), остановка поиска")
+                    break
+                
         except Exception as e:
-            logger.error(f"❌ Ошибка ТМ2.5: {e}")
+            logger.error(f"❌ Ошибка PREMIUM: {e}")
             continue
     
-    # Логируем статистику
-    logger.info(f"📊 СТАТИСТИКА ТМ2.5: Всего: {stats['total']}, XG fail: {stats['xg_fail']}, EV fail: {stats['ev_fail']}, Prob fail: {stats['prob_fail']}, Top league fail: {stats['top_league_fail']}, Успешно: {stats['success']}")
+    # ============================================================
+    # ЕСЛИ PREMIUM НЕ НАЙДЕНО - ИЩЕМ STANDARD (EV > 15%)
+    # ============================================================
     
-    # Сортируем по EV
+    if len(tm25_candidates) < MAX_TM25_BETS:
+        logger.info(f"🎯 PREMIUM найдено: {len(tm25_candidates)}, ищем STANDARD (EV>15%)...")
+        
+        for match in matches:
+            if not match or not isinstance(match, dict):
+                continue
+            
+            # Пропускаем матчи, которые уже есть в PREMIUM
+            existing_keys = [f"{m['home']}_{m['away']}" for m in tm25_candidates]
+            if f"{match.get('teams', {}).get('home', {}).get('name', '')}_{match.get('teams', {}).get('away', {}).get('name', '')}" in existing_keys:
+                continue
+            
+            try:
+                fixture = match.get("fixture")
+                if not fixture or not isinstance(fixture, dict):
+                    continue
+                
+                fixture_id = fixture.get("id")
+                if not fixture_id:
+                    continue
+                
+                teams = match.get("teams")
+                if not teams or not isinstance(teams, dict):
+                    continue
+                
+                home_team = teams.get("home")
+                away_team = teams.get("away")
+                
+                if not isinstance(home_team, dict) or not isinstance(away_team, dict):
+                    continue
+                
+                home = home_team.get("name", "Unknown")
+                away = away_team.get("name", "Unknown")
+                
+                league_data = match.get("league")
+                league_name = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
+                league_id = league_data.get("id") if isinstance(league_data, dict) else None
+                
+                match_time = fixture.get("date", "")
+                if match_time:
+                    try:
+                        dt = datetime.fromisoformat(match_time.replace("Z", "+00:00"))
+                        dt = dt + timedelta(hours=TIMEZONE_OFFSET)
+                        match_time = dt.strftime("%d.%m.%Y %H:%M")
+                    except:
+                        match_time = "Время не указано"
+                
+                # ============================================================
+                # ПОЛУЧАЕМ XG
+                # ============================================================
+                
+                statistics = football_api.get_match_statistics(fixture_id)
+                
+                home_xg = 1.2
+                away_xg = 1.0
+                
+                if statistics:
+                    for team_name, stats_dict in statistics.items():
+                        if home.lower() in team_name.lower() or team_name.lower() in home.lower():
+                            xg_val = stats_dict.get('xG')
+                            if xg_val is not None and xg_val > 0:
+                                home_xg = float(xg_val)
+                        elif away.lower() in team_name.lower() or team_name.lower() in away.lower():
+                            xg_val = stats_dict.get('xG')
+                            if xg_val is not None and xg_val > 0:
+                                away_xg = float(xg_val)
+                
+                if home_xg == 1.2 and away_xg == 1.0:
+                    if league_name in FALLBACK_XG:
+                        home_xg = FALLBACK_XG[league_name]['home']
+                        away_xg = FALLBACK_XG[league_name]['away']
+                    else:
+                        home_xg = 1.3
+                        away_xg = 1.0
+                    
+                    random.seed(fixture_id)
+                    home_xg *= (1 + random.uniform(-0.1, 0.1))
+                    away_xg *= (1 + random.uniform(-0.1, 0.1))
+                
+                # Домашнее преимущество
+                home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+                home_xg *= home_adv
+                away_xg /= home_adv
+                
+                total_xg = home_xg + away_xg
+                
+                # ============================================================
+                # ПРОВЕРКА STANDARD УРОВНЯ (EV > 15%)
+                # ============================================================
+                
+                # Фильтр XG для STANDARD (шире)
+                if total_xg < STANDARD_XG_MIN or total_xg > STANDARD_XG_MAX:
+                    stats['xg_fail'] += 1
+                    continue
+                
+                # Получаем форму
+                home_form_data = football_api.get_form(home_team.get("id"))
+                away_form_data = football_api.get_form(away_team.get("id"))
+                
+                home_form = home_form_data.get('form', '') if home_form_data else ''
+                away_form = away_form_data.get('form', '') if away_form_data else ''
+                
+                # Получаем таблицу
+                standings = football_api.get_standings(league_id) if league_id else None
+                
+                home_position = 99
+                away_position = 99
+                
+                if standings:
+                    if home in standings:
+                        home_position = standings[home].get('position', 99)
+                    if away in standings:
+                        away_position = standings[away].get('position', 99)
+                
+                # H2H
+                h2h_data = football_api.get_head_to_head(home, away)
+                
+                # Ансамбль вероятностей
+                probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data)
+                prob_under_2_5 = probs['under_2_5']
+                
+                # Рассчитываем EV
+                odds_tm25 = 1.95
+                ev_under = (prob_under_2_5 * odds_tm25) - 1
+                
+                # ============================================================
+                # ПРОВЕРКА STANDARD: EV > 15% И Prob > 50%
+                # ============================================================
+                
+                if ev_under >= STANDARD_MIN_EV and prob_under_2_5 >= STANDARD_MIN_PROB:
+                    # Проверка топ-лиг
+                    if league_name in TOP_LEAGUES and ev_under < 0.20:
+                        stats['top_league_fail'] += 1
+                        continue
+                    
+                    # Создаем матч STANDARD уровня
+                    best_bet = {
+                        'type': 'under',
+                        'label': 'ТМ 2.5',
+                        'prob': round(prob_under_2_5 * 100, 1),
+                        'ev': round(ev_under * 100, 1),
+                        'odds': odds_tm25,
+                        'stake': round(42.86875, 2),
+                        'level': 'STANDARD'
+                    }
+                    
+                    match_data = {
+                        "home": home,
+                        "away": away,
+                        "league": league_name,
+                        "fixture_id": fixture_id,
+                        "match_time": match_time,
+                        "home_xg": round(home_xg, 2),
+                        "away_xg": round(away_xg, 2),
+                        "total_xg": round(total_xg, 2),
+                        "home_form": home_form,
+                        "away_form": away_form,
+                        "standings": {
+                            "home_position": home_position,
+                            "away_position": away_position,
+                        },
+                        "bets": [best_bet],
+                        "best_bet": best_bet,
+                        "source": "tm25_standard",
+                        "weather_reason": "🌤️",
+                    }
+                    
+                    tm25_candidates.append(match_data)
+                    stats['standard_found'] += 1
+                    
+                    logger.info(f"✅ STANDARD ТМ2.5: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
+                    
+                    if len(tm25_candidates) >= MAX_TM25_BETS:
+                        logger.info(f"⏹️ Достигнут лимит STANDARD ({MAX_TM25_BETS}), остановка поиска")
+                        break
+                    
+            except Exception as e:
+                logger.error(f"❌ Ошибка STANDARD: {e}")
+                continue
+    
+    # Логируем статистику
+    logger.info(f"📊 СТАТИСТИКА ТМ2.5: Всего: {stats['total']}, PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}")
+    
+    # Сортируем по EV (PREMIUM выше)
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     
-    # Ограничиваем до MAX_TM25_BETS
-    tm25_candidates = tm25_candidates[:MAX_TM25_BETS]
-    
-    logger.info(f"📊 Найдено ТМ2.5 кандидатов: {len(tm25_candidates)}")
+    logger.info(f"📊 Найдено ТМ2.5 кандидатов: {len(tm25_candidates)} (PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']})")
     
     return tm25_candidates
 
@@ -2264,8 +2423,14 @@ def webhook():
                                 matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
                                 if best.get('bookmaker'):
                                     matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
-                                if m.get('source') == 'tm25_special':
-                                    matches_text += f"   🔵 Источник: Спец.поиск ТМ2.5\n"
+                                
+                                # Отображаем уровень
+                                if m.get('source') == 'tm25_premium':
+                                    matches_text += f"   🔥 PREMIUM (EV>30%)\n"
+                                elif m.get('source') == 'tm25_standard':
+                                    matches_text += f"   ⭐ STANDARD (EV>15%)\n"
+                                elif m.get('source') == 'tm25_special':
+                                    matches_text += f"   🔵 Спец.поиск ТМ2.5\n"
                                 matches_text += "\n"
                             
                             send_telegram(
@@ -2747,13 +2912,15 @@ if __name__ == "__main__":
     logger.info("   - Мотивация (не середняки)")
     logger.info("   - Лимит 3 ставки на тип")
     logger.info("   - Лимит 2 ставки на лигу")
-    logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5:")
-    logger.info(f"   - EV > {Config.MIN_TM25_EV}%")
-    logger.info(f"   - Prob > {Config.MIN_TM25_PROB}%")
-    logger.info(f"   - XG {Config.TM25_XG_MIN}-{Config.TM25_XG_MAX}")
-    logger.info("   - Форма любая")
-    logger.info("   - Позиция любая")
-    logger.info(f"   - Топ-лиги: EV > {Config.TM25_TOP_LEAGUE_EV}%")
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5 (ДВУХУРОВНЕВЫЙ):")
+    logger.info("   УРОВЕНЬ 1 (PREMIUM):")
+    logger.info("   - EV > 30%")
+    logger.info("   - Prob > 60%")
+    logger.info("   - XG 1.0-2.8")
+    logger.info("   УРОВЕНЬ 2 (STANDARD):")
+    logger.info("   - EV > 15%")
+    logger.info("   - Prob > 50%")
+    logger.info("   - XG 0.8-3.0")
     logger.info(f"   - Лимит {Config.MAX_TM25_BETS} ставки")
     logger.info("🎯 ODD API:")
     logger.info("   - Реальные коэффициенты из 40+ БК")
