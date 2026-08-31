@@ -2009,6 +2009,38 @@ def recalc_stats():
     logger.info(f"📊 Статистика пересчитана: {stats}")
 
 # ============================================================
+# АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ (КАЖДЫЕ 6 ЧАСОВ)
+# ============================================================
+
+def schedule_updates():
+    """Запускает автоматическое обновление результатов каждые 6 часов"""
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=auto_update_results,
+        trigger='interval',
+        hours=6,
+        id='auto_update',
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("⏰ Авто-обновление результатов запущено (каждые 6 часов)")
+
+def auto_update_results():
+    """Автоматически проверяет и обновляет результаты матчей"""
+    try:
+        logger.info("🔄 Авто-обновление: проверка результатов...")
+        updated = update_pending_bets()
+        
+        if updated > 0:
+            logger.info(f"✅ Авто-обновление: обновлено {updated} результатов")
+            send_telegram(f"🔄 <b>АВТО-ОБНОВЛЕНИЕ</b>\n✅ Обновлено {updated} результатов матчей!")
+        else:
+            logger.info("📭 Авто-обновление: нет новых результатов")
+    except Exception as e:
+        logger.error(f"❌ Ошибка авто-обновления: {e}")
+        send_error_to_telegram(f"Ошибка авто-обновления: {e}")
+        
+# ============================================================
 # FLASK WEBHOOK
 # ============================================================
 
