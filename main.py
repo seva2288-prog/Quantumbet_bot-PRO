@@ -2253,6 +2253,21 @@ def webhook():
                             type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
                             source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
                             
+                            # Формируем сообщение с матчами
+                            matches_text = ""
+                            for i, m in enumerate(top_matches, 1):
+                                best = m['best_bet']
+                                matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
+                                matches_text += f"   🏆 {m['league']}\n"
+                                matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
+                                matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
+                                matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
+                                if best.get('bookmaker'):
+                                    matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
+                                if m.get('source') == 'tm25_special':
+                                    matches_text += f"   🔵 Источник: Спец.поиск ТМ2.5\n"
+                                matches_text += "\n"
+                            
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
@@ -2260,6 +2275,8 @@ def webhook():
                                 f"📈 Типы: {type_stats}\n"
                                 f"📂 Источники: {source_stats}\n"
                                 f"⏱️ Время: {elapsed} сек.\n\n"
+                                f"📋 <b>СПИСОК СТАВОК:</b>\n\n"
+                                f"{matches_text}"
                                 f"🤖 Авто-ставок: {auto_bet.bets_today}"
                             )
                         else:
