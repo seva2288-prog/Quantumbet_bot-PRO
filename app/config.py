@@ -66,229 +66,228 @@ class Config:
     # ============================================================
     
     ODDS_SPORT_MAP = {
-        # === АНГЛИЯ ===
-        'АПЛ': 'soccer_epl',
-        'Premier League': 'soccer_epl',
-        'Чемпионшип': 'soccer_efl_champ',
-        'Championship': 'soccer_efl_champ',
-        'Лига 1': 'soccer_england_league1',
-        'League 1': 'soccer_england_league1',
-        'Лига 2': 'soccer_england_league2',
-        'League 2': 'soccer_england_league2',
-        
-        # === ИСПАНИЯ ===
-        'Ла Лига': 'soccer_spain_la_liga',
-        'La Liga': 'soccer_spain_la_liga',
-        'Сегунда': 'soccer_spain_segunda_division',
-        'La Liga 2': 'soccer_spain_segunda_division',
-Prime        
-        # === ГЕРМАНИЯ ===ira
-        'Бундеслига': ' Ligasoccer_germany_bundesliga',
-':        'Bundesliga': 'soccer_germany_bundesliga',
-        'Вторая Бундеслига': 'soccer_germany_bundesliga2',
-        '2. Bundesliga': 'soccer_germany_bundesliga2',
-        '3. Лига': 'soccer_germany_liga3',
-        '3. Liga': 'soccer_germany_liga3',
-        
-        # === ИТАЛИЯ ===
-        'Серия А': 'soccer_italy_serie_a',
-        'Serie A': 'soccer_italy_serie_a',
-        'Серия B': 'soccer_italy_serie_b',
-        'Serie B': 'soccer_italy_serie_b',
-        
-        # === ФРАНЦИЯ ===
-        'Лига 1': 'soccer_france_ligue_one',
-        'Ligue 1': 'soccer_france_ligue_one',
-        'Лига 2': 'soccer_france_ligue_two',
-        'Ligue 2': 'soccer_france_ligue_two',
-        
-        # === НИДЕРЛАНДЫ ===
-        'Эредивизи': 'soccer_netherlands_eredivisie',
-        'Eredivisie': 'soccer_netherlands_eredivisie',
-        'Эрсте Дивизи': 'soccer_netherlands_eredivisie',
-        
-        # === ПОРТУГАЛИЯ ===
-        'Примейра Лига': 'soccer_portugal_primeira_liga',
-        ' 'soccer_portugal_primeira_liga',
-        'Сегунда Лига': 'soccer_portugal_segunda_liga',
-        
-        # === БЕЛЬГИЯ ===
-        'Про Лига': 'soccer_belgium_first_div',
-        'Челленджер Про Лига': 'soccer_belgium_first_div',
-        
-        # === ТУРЦИЯ ===
-        'Супер Лига': 'soccer_turkey_super_league',
-        'Super Lig': 'soccer_turkey_super_league',
-        'Первая Лига': 'soccer_turkey_super_league',
-        
-        # === ШОТЛАНДИЯ ===
-        'Премьершип': 'soccer_spl',
-        'Чемпионшип': 'soccer_spl',
-        
-        # === ГРЕЦИЯ ===
-        'Супер Лига': 'soccer_greece_super_league',
-        'Супер Лига 2': 'soccer_greece_super_league',
-        
-        # === ЧЕХИЯ ===
-        'Первая Лига': 'soccer_czech_republic_1_liga',
-        'Вторая Лига': 'soccer_czech_republic_1_liga',
-        
-        # === АВСТРИЯ ===
-        'Бундеслига': 'soccer_austria_bundesliga',
-        'Вторая Лига': 'soccer_austria_bundesliga',
-        
-        # === ШВЕЙЦАРИЯ ===
-        'Супер Лига': 'soccer_switzerland_superleague',
-        'Челлендж Лига': 'soccer_switzerland_superleague',
-        
-        # === ДАНИЯ ===
-        'Суперлига': 'soccer_denmark_superliga',
-        'Первая Дивизия': 'soccer_denmark_superliga',
-        
-        # === НОРВЕГИЯ ===
-        'Элитсериен': 'soccer_norway_eliteserien',
-        'Первая Дивизия': 'soccer_norway_eliteserien',
-        
-        # === ШВЕЦИЯ ===
-        'Аллсвенскан': 'soccer_sweden_allsvenskan',
-        'Суперэттан': 'soccer_sweden_allsvenskan',
-        
-        # === ПОЛЬША ===
-        'Экстракласа': 'soccer_poland_ekstraklasa',
-        'Первая Лига': 'soccer_poland_ekstraklasa',
-        
-        # === УКРАИНА ===
-        'Премьер-Лига': 'soccer_ukraine_premier_league',
-        'Первая Лига': 'soccer_ukraine_premier_league',
-        
-        # === РОССИЯ ===
-        'РПЛ': 'soccer_russia_premier_league',
-        'Первая Лига': 'soccer_russia_premier_league',
-        
-        # === ХОРВАТИЯ ===
-        'HNL': 'soccer_croatia_hnl',
-        'Вторая Лига': 'soccer_croatia_hnl',
-        
-        # === СЕРБИЯ ===
-        'Супер Лига': 'soccer_serbia_super_liga',
-        'Первая Лига': 'soccer_serbia_super_liga',
-        
-        # === БОЛГАРИЯ ===
-        'Первая Лига': 'soccer_bulgaria_first_league',
-        'Вторая Лига': 'soccer_bulgaria_first_league',
-        
-        # === РУМЫНИЯ ===
-        'Лига 1': 'soccer_romania_liga1',
-        'Лига 2': 'soccer_romania_liga1',
-        
-        # === СЛОВАКИЯ ===
-        'Супер Лига': 'soccer_slovakia_super_liga',
-        'Вторая Лига': 'soccer_slovakia_super_liga',
-        
-        # === СЛОВЕНИЯ ===
-        'Первая Лига': 'soccer_slovenia_prva_liga',
-        'Вторая Лига': 'soccer_slovenia_prva_liga',
-        
-        # === ВЕНГРИЯ ===
-        'Немзети Байнокшаг': 'soccer_hungary_nb_i',
-        'Вторая Лига': 'soccer_hungary_nb_i',
-        
-        # === ИРЛАНДИЯ ===
-        'Премьер Дивизион': 'soccer_ireland_premier_division',
-        'Первый Дивизион': 'soccer_ireland_premier_division',
-        
-        # === ФИНЛЯНДИЯ ===
-        'Вейккауслиига': 'soccer_finland_veikkausliiga',
-        'Юккёнен': 'soccer_finland_veikkausliiga',
-        
-        # === ИСЛАНДИЯ ===
-        'Урвалсдейлд': 'soccer_iceland_urvalsdeild',
-        'Первая Лига': 'soccer_iceland_urvalsdeild',
-        
-        # === ЕВРОПЕЙСКИЕ КУБКИ ===
-        'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
-        'UEFA Champions League': 'soccer_uefa_champs_league',
-        'Лига Европы УЕФА': 'soccer_uefa_europa_league',
-        'UEFA Europa League': 'soccer_uefa_europa_league',
-        'Лига Конференций УЕФА': 'soccer_uefa_europa_league',
-        
-        # === ЮЖНАЯ АМЕРИКА ===
-        'Бразилия Серия А': 'soccer_brazil_campeonato',
-        'Brasileirão': 'soccer_brazil_campeonato',
-        'Аргентина Примера': 'soccer_argentina_primera_division',
-        'Primera División': 'soccer_argentina_primera_division',
-        'Уругвай Примера': 'soccer_uruguay_primera_division',
-        'Колумбия Примера А': 'soccer_colombia_primera_a',
-        'Чили Примера': 'soccer_chile_campeonato',
-        'Эквадор Серия А': 'soccer_ecuador_serie_a',
-        'Парагвай Примера': 'soccer_paraguay_primera_division',
-        'Перу Лига 1': 'soccer_peru_liga_1',
-        
-        # === СЕВЕРНАЯ АМЕРИКА ===
-        'MLS': 'soccer_usa_mls',
-        'МЛС': 'soccer_usa_mls',
-        'Leagues Cup': 'soccer_concacaf_leagues_cup',
-        'Копа Либертадорес': 'soccer_conmebol_copa_libertadores',
-        'Copa Libertadores': 'soccer_conmebol_copa_libertadores',
-        'Копа Судамерикана': 'soccer_conmebol_copa_sudamericana',
-        'Copa Sudamericana': 'soccer_conmebol_copa_sudamericana',
-        
-        # === АЗИЯ ===
-        'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
-        'Saudi Pro League': 'soccer_saudi_arabia_pro_league',
-        'Япония J1 Лига': 'soccer_japan_j_league',
-        'J1 League': 'soccer_japan_j_league',
-        'Южная Корея K Лига 1': 'soccer_korea_kleague1',
-        'K League 1': 'soccer_korea_kleague1',
-        'Австралия А-Лига': 'soccer_australia_a_league',
-        'Китай Супер Лига': 'soccer_china_super_league',
-        'Иран Про Лига': 'soccer_iran_pro_league',
-        'ОАЭ Про Лига': 'soccer_uae_pro_league',
-        'Катар Звездная Лига': 'soccer_qatar_stars_league',
-        'АФК Чемпионская Лига': 'soccer_afc_champions_league',
-        
-        # === НОВЫЕ ЛИГИ ===
-        'Боливия Nacional B': 'soccer_bolivia_nacional_b',
-        'Ботсвана Premier League': 'soccer_botswana_premier_league',
-        'Гана Division One': 'soccer_ghana_division_one',
-        'Кения FKF Premier': 'soccer_kenya_fkf_premier_league',
-        'Замбия Super League': 'soccer_zambia_super_league',
-        'CAF Super Cup': 'soccer_caf_super_cup',
-        
-        # === ДОПОЛНИТЕЛЬНЫЕ ЛИГИ ===
-        'Косово Супер Лига': 'soccer_kosovo_super_league',
-        'Косово Первая Лига': 'soccer_kosovo_super_league',
-        'Латвия Высшая Лига': 'soccer_latvia_virsliga',
-        'Латвия Первая Лига': 'soccer_latvia_virsliga',
-        'Литва А Лига': 'soccer_lithuania_a_lyga',
-        'Литва Первая Лига': 'soccer_lithuania_a_lyga',
-        'Люксембург Национальная Лига': 'soccer_luxembourg_national_division',
-        'Люксембург Первая Лига': 'soccer_luxembourg_national_division',
-        'Северная Ирландия Премьершип': 'soccer_northern_ireland_premiership',
-        'Северная Ирландия Чемпионшип': 'soccer_northern_ireland_premiership',
-        'Мальта Премьер Лига': 'soccer_malta_premier_league',
-        'Мальта Первая Лига': 'soccer_malta_premier_league',
-        'Молдова Супер Лига': 'soccer_moldova_super_liga',
-        'Молдова Первая Лига': 'soccer_moldova_super_liga',
-        'Черногория Первая Лига': 'soccer_montenegro_first_league',
-        'Черногория Вторая Лига': 'soccer_montenegro_first_league',
-        'Албания Супер Лига': 'soccer_albania_super_league',
-        'Албания Первая Лига': 'soccer_albania_super_league',
-        'Армения Премьер Лига': 'soccer_armenia_premier_league',
-        'Армения Первая Лига': 'soccer_armenia_premier_league',
-        'Азербайджан Премьер Лига': 'soccer_azerbaijan_premier_league',
-        'Азербайджан Первая Лига': 'soccer_azerbaijan_premier_league',
-        'Беларусь Высшая Лига': 'soccer_belarus_premier_league',
-        'Беларусь Первая Лига': 'soccer_belarus_premier_league',
-        'Босния Премьер Лига': 'soccer_bosnia_premier_league',
-        'Босния Первая Лига': 'soccer_bosnia_premier_league',
-        'Эстония Мейстрилига': 'soccer_estonia_meistriliiga',
-        'Эстония Эсилига': 'soccer_estonia_meistriliiga',
-        'Грузия Эровнули Лига': 'soccer_georgia_erovnuli_liga',
-        'Грузия Первая Лига': 'soccer_georgia_erovnuli_liga',
-        'Казахстан Премьер Лига': 'soccer_kazakhstan_premier_league',
-        'Казахстан Первая Лига': 'soccer_kazakhstan_premier_league',
-    }
+    # === АНГЛИЯ ===
+    'АПЛ': 'soccer_epl',
+    'Premier League': 'soccer_epl',
+    'Чемпионшип': 'soccer_efl_champ',
+    'Championship': 'soccer_efl_champ',
+    'Лига 1': 'soccer_england_league1',
+    'League 1': 'soccer_england_league1',
+    'Лига 2': 'soccer_england_league2',
+    'League 2': 'soccer_england_league2',
+
+    # === ИСПАНИЯ ===
+    'Ла Лига': 'soccer_spain_la_liga',
+    'La Liga': 'soccer_spain_la_liga',
+    'Сегунда': 'soccer_spain_segunda_division',
+    'La Liga 2': 'soccer_spain_segunda_division',
+
+    # === ГЕРМАНИЯ ===
+    'Бундеслига': 'soccer_germany_bundesliga',
+    'Bundesliga': 'soccer_germany_bundesliga',
+    'Вторая Бундеслига': 'soccer_germany_bundesliga2',
+    '2. Bundesliga': 'soccer_germany_bundesliga2',
+    '3. Лига': 'soccer_germany_liga3',
+    '3. Liga': 'soccer_germany_liga3',
+
+    # === ИТАЛИЯ ===
+    'Серия А': 'soccer_italy_serie_a',
+    'Serie A': 'soccer_italy_serie_a',
+    'Серия B': 'soccer_italy_serie_b',
+    'Serie B': 'soccer_italy_serie_b',
+
+    # === ФРАНЦИЯ ===
+    'Лига 1': 'soccer_france_ligue_one',
+    'Ligue 1': 'soccer_france_ligue_one',
+    'Лига 2': 'soccer_france_ligue_two',
+    'Ligue 2': 'soccer_france_ligue_two',
+
+    # === НИДЕРЛАНДЫ ===
+    'Эредивизи': 'soccer_netherlands_eredivisie',
+    'Eredivisie': 'soccer_netherlands_eredivisie',
+    'Эрсте Дивизи': 'soccer_netherlands_eredivisie',
+
+    # === ПОРТУГАЛИЯ ===
+    'Примейра Лига': 'soccer_portugal_primeira_liga',
+    'Primeira Liga': 'soccer_portugal_primeira_liga',
+    'Сегунда Лига': 'soccer_portugal_segunda_liga',
+
+    # === БЕЛЬГИЯ ===
+    'Про Лига': 'soccer_belgium_first_div',
+    'Челленджер Про Лига': 'soccer_belgium_first_div',
+
+    # === ТУРЦИЯ ===
+    'Супер Лига': 'soccer_turkey_super_league',
+    'Super Lig': 'soccer_turkey_super_league',
+
+    # === ШОТЛАНДИЯ ===
+    'Премьершип': 'soccer_spl',
+    'Чемпионшип': 'soccer_spl',
+
+    # === ГРЕЦИЯ ===
+    'Супер Лига': 'soccer_greece_super_league',
+    'Супер Лига 2': 'soccer_greece_super_league',
+
+    # === ЧЕХИЯ ===
+    'Первая Лига': 'soccer_czech_republic_1_liga',
+    'Вторая Лига': 'soccer_czech_republic_1_liga',
+
+    # === АВСТРИЯ ===
+    'Бундеслига': 'soccer_austria_bundesliga',
+    'Вторая Лига': 'soccer_austria_bundesliga',
+
+    # === ШВЕЙЦАРИЯ ===
+    'Супер Лига': 'soccer_switzerland_superleague',
+    'Челлендж Лига': 'soccer_switzerland_superleague',
+
+    # === ДАНИЯ ===
+    'Суперлига': 'soccer_denmark_superliga',
+    'Первая Дивизия': 'soccer_denmark_superliga',
+
+    # === НОРВЕГИЯ ===
+    'Элитсериен': 'soccer_norway_eliteserien',
+    'Первая Дивизия': 'soccer_norway_eliteserien',
+
+    # === ШВЕЦИЯ ===
+    'Аллсвенскан': 'soccer_sweden_allsvenskan',
+    'Суперэттан': 'soccer_sweden_allsvenskan',
+
+    # === ПОЛЬША ===
+    'Экстракласа': 'soccer_poland_ekstraklasa',
+    'Первая Лига': 'soccer_poland_ekstraklasa',
+
+    # === УКРАИНА ===
+    'Премьер-Лига': 'soccer_ukraine_premier_league',
+    'Первая Лига': 'soccer_ukraine_premier_league',
+
+    # === РОССИЯ ===
+    'РПЛ': 'soccer_russia_premier_league',
+    'Первая Лига': 'soccer_russia_premier_league',
+
+    # === ХОРВАТИЯ ===
+    'HNL': 'soccer_croatia_hnl',
+    'Вторая Лига': 'soccer_croatia_hnl',
+
+    # === СЕРБИЯ ===
+    'Супер Лига': 'soccer_serbia_super_liga',
+    'Первая Лига': 'soccer_serbia_super_liga',
+
+    # === БОЛГАРИЯ ===
+    'Первая Лига': 'soccer_bulgaria_first_league',
+    'Вторая Лига': 'soccer_bulgaria_first_league',
+
+    # === РУМЫНИЯ ===
+    'Лига 1': 'soccer_romania_liga1',
+    'Лига 2': 'soccer_romania_liga1',
+
+    # === СЛОВАКИЯ ===
+    'Супер Лига': 'soccer_slovakia_super_liga',
+    'Вторая Лига': 'soccer_slovakia_super_liga',
+
+    # === СЛОВЕНИЯ ===
+    'Первая Лига': 'soccer_slovenia_prva_liga',
+    'Вторая Лига': 'soccer_slovenia_prva_liga',
+
+    # === ВЕНГРИЯ ===
+    'Немзети Байнокшаг': 'soccer_hungary_nb_i',
+    'Вторая Лига': 'soccer_hungary_nb_i',
+
+    # === ИРЛАНДИЯ ===
+    'Премьер Дивизион': 'soccer_ireland_premier_division',
+    'Первый Дивизион': 'soccer_ireland_premier_division',
+
+    # === ФИНЛЯНДИЯ ===
+    'Вейккауслиига': 'soccer_finland_veikkausliiga',
+    'Юккёнен': 'soccer_finland_veikkausliiga',
+
+    # === ИСЛАНДИЯ ===
+    'Урвалсдейлд': 'soccer_iceland_urvalsdeild',
+    'Первая Лига': 'soccer_iceland_urvalsdeild',
+
+    # === ЕВРОПЕЙСКИЕ КУБКИ ===
+    'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
+    'UEFA Champions League': 'soccer_uefa_champs_league',
+    'Лига Европы УЕФА': 'soccer_uefa_europa_league',
+    'UEFA Europa League': 'soccer_uefa_europa_league',
+    'Лига Конференций УЕФА': 'soccer_uefa_europa_league',
+
+    # === ЮЖНАЯ АМЕРИКА ===
+    'Бразилия Серия А': 'soccer_brazil_campeonato',
+    'Brasileirão': 'soccer_brazil_campeonato',
+    'Аргентина Примера': 'soccer_argentina_primera_division',
+    'Primera División': 'soccer_argentina_primera_division',
+    'Уругвай Примера': 'soccer_uruguay_primera_division',
+    'Колумбия Примера А': 'soccer_colombia_primera_a',
+    'Чили Примера': 'soccer_chile_campeonato',
+    'Эквадор Серия А': 'soccer_ecuador_serie_a',
+    'Парагвай Примера': 'soccer_paraguay_primera_division',
+    'Перу Лига 1': 'soccer_peru_liga_1',
+
+    # === СЕВЕРНАЯ АМЕРИКА ===
+    'MLS': 'soccer_usa_mls',
+    'МЛС': 'soccer_usa_mls',
+    'Leagues Cup': 'soccer_concacaf_leagues_cup',
+    'Копа Либертадорес': 'soccer_conmebol_copa_libertadores',
+    'Copa Libertadores': 'soccer_conmebol_copa_libertadores',
+    'Копа Судамерикана': 'soccer_conmebol_copa_sudamericana',
+    'Copa Sudamericana': 'soccer_conmebol_copa_sudamericana',
+
+    # === АЗИЯ ===
+    'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
+    'Saudi Pro League': 'soccer_saudi_arabia_pro_league',
+    'Япония J1 Лига': 'soccer_japan_j_league',
+    'J1 League': 'soccer_japan_j_league',
+    'Южная Корея K Лига 1': 'soccer_korea_kleague1',
+    'K League 1': 'soccer_korea_kleague1',
+    'Австралия А-Лига': 'soccer_australia_a_league',
+    'Китай Супер Лига': 'soccer_china_super_league',
+    'Иран Про Лига': 'soccer_iran_pro_league',
+    'ОАЭ Про Лига': 'soccer_uae_pro_league',
+    'Катар Звездная Лига': 'soccer_qatar_stars_league',
+    'АФК Чемпионская Лига': 'soccer_afc_champions_league',
+
+    # === НОВЫЕ ЛИГИ ===
+    'Боливия Nacional B': 'soccer_bolivia_nacional_b',
+    'Ботсвана Premier League': 'soccer_botswana_premier_league',
+    'Гана Division One': 'soccer_ghana_division_one',
+    'Кения FKF Premier': 'soccer_kenya_fkf_premier_league',
+    'Замбия Super League': 'soccer_zambia_super_league',
+    'CAF Super Cup': 'soccer_caf_super_cup',
+
+    # === ДОПОЛНИТЕЛЬНЫЕ ЛИГИ ===
+    'Косово Супер Лига': 'soccer_kosovo_super_league',
+    'Косово Первая Лига': 'soccer_kosovo_super_league',
+    'Латвия Высшая Лига': 'soccer_latvia_virsliga',
+    'Латвия Первая Лига': 'soccer_latvia_virsliga',
+    'Литва А Лига': 'soccer_lithuania_a_lyga',
+    'Литва Первая Лига': 'soccer_lithuania_a_lyga',
+    'Люксембург Национальная Лига': 'soccer_luxembourg_national_division',
+    'Люксембург Первая Лига': 'soccer_luxembourg_national_division',
+    'Северная Ирландия Премьершип': 'soccer_northern_ireland_premiership',
+    'Северная Ирландия Чемпионшип': 'soccer_northern_ireland_premiership',
+    'Мальта Премьер Лига': 'soccer_malta_premier_league',
+    'Мальта Первая Лига': 'soccer_malta_premier_league',
+    'Молдова Супер Лига': 'soccer_moldova_super_liga',
+    'Молдова Первая Лига': 'soccer_moldova_super_liga',
+    'Черногория Первая Лига': 'soccer_montenegro_first_league',
+    'Черногория Вторая Лига': 'soccer_montenegro_first_league',
+    'Албания Супер Лига': 'soccer_albania_super_league',
+    'Албания Первая Лига': 'soccer_albania_super_league',
+    'Армения Премьер Лига': 'soccer_armenia_premier_league',
+    'Армения Первая Лига': 'soccer_armenia_premier_league',
+    'Азербайджан Премьер Лига': 'soccer_azerbaijan_premier_league',
+    'Азербайджан Первая Лига': 'soccer_azerbaijan_premier_league',
+    'Беларусь Высшая Лига': 'soccer_belarus_premier_league',
+    'Беларусь Первая Лига': 'soccer_belarus_premier_league',
+    'Босния Премьер Лига': 'soccer_bosnia_premier_league',
+    'Босния Первая Лига': 'soccer_bosnia_premier_league',
+    'Эстония Мейстрилига': 'soccer_estonia_meistriliiga',
+    'Эстония Эсилига': 'soccer_estonia_meistriliiga',
+    'Грузия Эровнули Лига': 'soccer_georgia_erovnuli_liga',
+    'Грузия Первая Лига': 'soccer_georgia_erovnuli_liga',
+    'Казахстан Премьер Лига': 'soccer_kazakhstan_premier_league',
+    'Казахстан Первая Лига': 'soccer_kazakhstan_premier_league',
+}
     
     # ============================================================
     # ЛИГИ
