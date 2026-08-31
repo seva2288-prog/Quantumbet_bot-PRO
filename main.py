@@ -17,6 +17,7 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
+from app.api.football_api import football_api
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
@@ -68,416 +69,6 @@ FALLBACK_XG = {
     'Süper Lig': {'home': 1.5, 'away': 1.1},
     'Primeira Liga': {'home': 1.4, 'away': 1.1},
 }
-
-# ============================================================
-# КЛАСС FOOTBALL_API
-# ============================================================
-class FootballAPI:
-    def __init__(self, api_key=None, base_url=None):
-        self.api_key = api_key or Config.FOOTBALL_API_KEY
-        self.base_url = base_url or "https://v3.football.api-sports.io"
-        self.cache = {}
-        self.last_request_time = 0
-        self.min_request_interval = 0.3
-        
-        logger.info(f"🔑 API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
-        
-    def _make_request(self, endpoint, params=None):
-        try:
-            now = time.time()
-            if now - self.last_request_time < self.min_request_interval:
-                time.sleep(self.min_request_interval - (now - self.last_request_time))
-            
-            headers = {
-                'x-rapidapi-key': self.api_key,
-                'x-rapidapi-host': 'v3.football.api-sports.io'
-            }
-            
-            url = f"{self.base_url}{endpoint}"
-            logger.info(f"📡 Запрос: {endpoint}")
-            logger.info(f"📡 Параметры: {params}")
-            
-            response = requests.get(url, headers=headers, params=params, timeout=15)
-            self.last_request_time = time.time()
-            
-            logger.info(f"📡 Статус ответа: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('errors'):
-                    logger.error(f"❌ API ошибка: {data['errors']}")
-                    return None
-                if 'response' in data:
-                    logger.info(f"📡 Получено записей: {len(data['response'])}")
-                return data
-            else:
-                logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ Ошибка запроса к API: {e}")
-            return None
-    
-    def get_matches(self, league_id, date):
-        cache_key = f"matches_{league_id}_{date}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        params = {
-            'league': league_id,
-            'season': datetime.now().year,
-            'date': date
-        }
-        data = self._make_request('/fixtures', params)
-        
-        if data and 'response' in data:
-            matches = data['response']
-            self.cache[cache_key] = matches
-            return matches
-        
-        return []
-    
-    def get_form(self, team_id):
-        cache_key = f"form_{team_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {
-                'team': team_id,
-                'last': 5,
-                'status': 'FT'
-            }
-            data = self._make_request('/fixtures', params)
-            
-            if data and 'response' in data:
-                matches = data['response']
-                if matches:
-                    goals_scored = []
-                    goals_conceded = []
-                    wins = 0
-                    draws = 0
-                    losses = 0
-                    
-                    for match in matches:
-                        goals = match.get('goals', {})
-                        teams = match.get('teams', {})
-                        
-                        if teams.get('home', {}).get('id') == team_id:
-                            scored = goals.get('home', 0) or 0
-                            conceded = goals.get('away', 0) or 0
-                        else:
-                            scored = goals.get('away', 0) or 0
-                            conceded = goals.get('home', 0) or 0
-                        
-                        goals_scored.append(scored)
-                        goals_conceded.append(conceded)
-                        
-                        if scored > conceded:
-                            wins += 1
-                        elif scored == conceded:
-                            draws += 1
-                        else:
-                            losses += 1
-                    
-                    if goals_scored:
-                        result = {
-                            'goals_avg': round(sum(goals_scored) / len(goals_scored), 2),
-                            'conceded_avg': round(sum(goals_conceded) / len(goals_conceded), 2),
-                            'wins': wins,
-                            'draws': draws,
-                            'losses': losses,
-                            'matches': len(matches),
-                            'form': self._calculate_form(matches, team_id)
-                        }
-                        self.cache[cache_key] = result
-                        return result
-                        
-        except Exception as e:
-            logger.error(f"Ошибка получения формы команды {team_id}: {e}")
-        
-        return None
-    
-    def _calculate_form(self, matches, team_id):
-        form = []
-        for match in matches:
-            teams = match.get('teams', {})
-            goals = match.get('goals', {})
-            
-            home_score = goals.get('home', 0) or 0
-            away_score = goals.get('away', 0) or 0
-            
-            if teams.get('home', {}).get('id') == team_id:
-                if home_score > away_score:
-                    form.append('W')
-                elif home_score == away_score:
-                    form.append('D')
-                else:
-                    form.append('L')
-            else:
-                if away_score > home_score:
-                    form.append('W')
-                elif away_score == home_score:
-                    form.append('D')
-                else:
-                    form.append('L')
-        return ''.join(form)
-    
-    def get_match_statistics(self, fixture_id):
-        cache_key = f"stats_{fixture_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {'fixture': fixture_id}
-            data = self._make_request('/fixtures/statistics', params)
-            
-            if data and 'response' in data:
-                statistics = {}
-                for team_stats in data['response']:
-                    team_name = team_stats.get('team', {}).get('name', 'Unknown')
-                    stats = {}
-                    
-                    for stat in team_stats.get('statistics', []):
-                        key = stat.get('type', '')
-                        value = stat.get('value', 0)
-                        
-                        if value is None:
-                            value = 0
-                        elif isinstance(value, str):
-                            if '%' in value:
-                                try:
-                                    value = float(value.replace('%', ''))
-                                except:
-                                    value = 0
-                            else:
-                                try:
-                                    value = float(value)
-                                except:
-                                    value = 0
-                        elif isinstance(value, (int, float)):
-                            value = float(value)
-                        else:
-                            value = 0
-                        
-                        stats[key] = value
-                    
-                    statistics[team_name] = stats
-                
-                self.cache[cache_key] = statistics
-                return statistics
-            else:
-                logger.warning(f"⚠️ API вернул пустой ответ для /fixtures/statistics")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ Ошибка получения статистики матча {fixture_id}: {e}")
-        
-        return None
-    
-    def get_standings(self, league_id):
-        cache_key = f"standings_{league_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {
-                'league': league_id,
-                'season': datetime.now().year
-            }
-            data = self._make_request('/standings', params)
-            
-            if data and 'response' in data:
-                standings = {}
-                for league in data['response']:
-                    for standing in league.get('league', {}).get('standings', []):
-                        for team in standing:
-                            team_name = team.get('team', {}).get('name', '')
-                            standings[team_name] = {
-                                'position': team.get('rank', 0),
-                                'points': team.get('points', 0),
-                                'form': team.get('form', ''),
-                                'goals_diff': team.get('goalsDiff', 0)
-                            }
-                self.cache[cache_key] = standings
-                return standings
-                
-        except Exception as e:
-            logger.error(f"Ошибка получения таблицы {league_id}: {e}")
-        
-        return None
-    
-    def get_injuries(self, team_id):
-        cache_key = f"injuries_{team_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {
-                'team': team_id,
-                'season': datetime.now().year
-            }
-            data = self._make_request('/injuries', params)
-            
-            if data and 'response' in data:
-                injuries = data['response']
-                self.cache[cache_key] = injuries
-                return injuries
-                
-        except Exception as e:
-            logger.error(f"Ошибка получения травм команды {team_id}: {e}")
-        
-        return []
-    
-    def get_match_result(self, fixture_id):
-        cache_key = f"result_{fixture_id}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {'id': fixture_id}
-            data = self._make_request('/fixtures', params)
-            
-            if data and 'response' in data:
-                fixtures = data['response']
-                if fixtures:
-                    fixture = fixtures[0]
-                    goals = fixture.get('goals', {})
-                    result = {
-                        'goals': {
-                            'home': goals.get('home'),
-                            'away': goals.get('away')
-                        },
-                        'status': fixture.get('status', {}).get('short', 'FT')
-                    }
-                    self.cache[cache_key] = result
-                    return result
-                    
-        except Exception as e:
-            logger.error(f"Ошибка получения результата {fixture_id}: {e}")
-        
-        return None
-    
-    def find_fixture_by_teams(self, home_team, away_team):
-        try:
-            today = datetime.now().strftime('%Y-%m-%d')
-            params = {
-                'date': today,
-                'status': 'FT'
-            }
-            data = self._make_request('/fixtures', params)
-            
-            if data and 'response' in data:
-                for fixture in data['response']:
-                    teams = fixture.get('teams', {})
-                    home = teams.get('home', {}).get('name', '')
-                    away = teams.get('away', {}).get('name', '')
-                    
-                    if home_team.lower() in home.lower() and away_team.lower() in away.lower():
-                        return fixture.get('fixture', {}).get('id')
-                        
-        except Exception as e:
-            logger.error(f"Ошибка поиска матча {home_team} vs {away_team}: {e}")
-        
-        return None
-    
-    def get_head_to_head(self, home_team, away_team):
-        """Получает историю личных встреч"""
-        cache_key = f"h2h_{home_team}_{away_team}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            home_id = self.get_team_id(home_team)
-            away_id = self.get_team_id(away_team)
-            
-            if home_id and away_id:
-                params = {
-                    'h2h': f"{home_id}-{away_id}",
-                    'last': 5
-                }
-                data = self._make_request('/fixtures/headtohead', params)
-                
-                if data and 'response' in data:
-                    fixtures = data['response']
-                    if fixtures:
-                        result = {
-                            'matches': [],
-                            'home_wins': 0,
-                            'away_wins': 0,
-                            'draws': 0,
-                            'goals_scored': 0,
-                            'goals_conceded': 0
-                        }
-                        
-                        for fixture in fixtures:
-                            teams = fixture.get('teams', {})
-                            goals = fixture.get('goals', {})
-                            
-                            home_score = goals.get('home', 0) or 0
-                            away_score = goals.get('away', 0) or 0
-                            
-                            result['matches'].append({
-                                'home': teams.get('home', {}).get('name', ''),
-                                'away': teams.get('away', {}).get('name', ''),
-                                'home_score': home_score,
-                                'away_score': away_score
-                            })
-                            
-                            if home_score > away_score:
-                                result['home_wins'] += 1
-                            elif home_score < away_score:
-                                result['away_wins'] += 1
-                            else:
-                                result['draws'] += 1
-                            
-                            result['goals_scored'] += home_score
-                            result['goals_conceded'] += away_score
-                        
-                        if result['matches']:
-                            total_matches = len(result['matches'])
-                            result['avg_goals'] = round((result['goals_scored'] + result['goals_conceded']) / total_matches, 2)
-                            result['home_win_rate'] = round((result['home_wins'] / total_matches) * 100, 1)
-                            result['total_matches'] = total_matches
-                            
-                            self.cache[cache_key] = result
-                            return result
-                    else:
-                        logger.warning(f"⚠️ Нет данных H2H для {home_team} vs {away_team}")
-            else:
-                logger.warning(f"⚠️ Не найдены ID команд для H2H")
-                    
-        except Exception as e:
-            logger.error(f"❌ Ошибка получения H2H: {e}")
-        
-        return None
-    
-    def get_team_id(self, team_name):
-        """Получает ID команды по названию"""
-        cache_key = f"team_id_{team_name}"
-        if cache_key in self.cache:
-            return self.cache[cache_key]
-        
-        try:
-            params = {'name': team_name}
-            data = self._make_request('/teams', params)
-            
-            if data and 'response' in data:
-                for team in data['response']:
-                    team_data = team.get('team', {})
-                    if team_data.get('name', '').lower() == team_name.lower():
-                        team_id = team_data.get('id')
-                        self.cache[cache_key] = team_id
-                        return team_id
-                        
-        except Exception as e:
-            logger.error(f"Ошибка получения ID команды {team_name}: {e}")
-        
-        return None
-    
-    def clear_cache(self):
-        self.cache = {}
-        logger.info("🧹 Кэш очищен")
 
 # ============================================================
 # КЛАСС ODD_API
@@ -674,7 +265,9 @@ class OddsAPIClient:
             'bookmaker_name': '—',
             'home_odds': 0,
             'draw_odds': 0,
-            'away_odds': 0
+            'away_odds': 0,
+            'under_odds': 0,
+            'over_odds': 0
         }
         
         for bookmaker in event.get('bookmakers', []):
@@ -723,7 +316,6 @@ class OddsAPIClient:
 # ============================================================
 # СОЗДАЕМ ЭКЗЕМПЛЯРЫ
 # ============================================================
-football_api = FootballAPI()
 odds_api = OddsAPIClient()
 
 # ============================================================
@@ -1227,12 +819,13 @@ def analyze_match(match_name):
         return f"❌ Ошибка: {e}"
 
 # ============================================================
-# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API
+# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API И FOOTBALL API
 # ============================================================
 
 def update_odds_for_matches(matches):
     """
-    Обновляет коэффициенты для отобранных матчей из Odds API
+    Обновляет коэффициенты для отобранных матчей
+    Приоритет: Odds API → Football API → заглушка 1.95
     """
     updated_matches = []
     
@@ -1241,29 +834,105 @@ def update_odds_for_matches(matches):
             home = match_data.get('home')
             away = match_data.get('away')
             league = match_data.get('league')
+            fixture_id = match_data.get('fixture_id')
+            
+            best_bet = match_data.get('best_bet', {})
+            bet_type = best_bet.get('type', 'under')
+            
+            new_odds = None
+            bookmaker = '—'
+            source = None
+            
+            # ============================================================
+            # 1. ПРОБУЕМ ODD API (только топ-лиги)
+            # ============================================================
             
             odds_data = odds_api.get_odds_for_match(home, away, league)
             
             if odds_data and odds_data.get('best_odds', 0) > 0:
-                best_bet = match_data.get('best_bet', {})
+                # Проверяем, есть ли нужный тип ставки
+                if bet_type == 'under' and odds_data.get('under_odds', 0) > 0:
+                    new_odds = odds_data['under_odds']
+                elif bet_type == 'over' and odds_data.get('over_odds', 0) > 0:
+                    new_odds = odds_data['over_odds']
+                elif bet_type in ['1X', 'П1'] and odds_data.get('home_odds', 0) > 0:
+                    new_odds = odds_data['home_odds']
+                elif bet_type in ['X2', 'П2'] and odds_data.get('away_odds', 0) > 0:
+                    new_odds = odds_data['away_odds']
+                else:
+                    # Если нет точного совпадения, берем лучший кэф
+                    new_odds = odds_data.get('best_odds', 0)
                 
-                old_odds = best_bet.get('odds', 0)
-                new_odds = odds_data['best_odds']
-                
+                if new_odds and new_odds > 0:
+                    bookmaker = odds_data.get('bookmaker_name', 'Odds API')
+                    source = 'Odds API'
+                    logger.info(f"✅ Odds API: {home} vs {away} | {new_odds} ({bookmaker})")
+            
+            # ============================================================
+            # 2. ЕСЛИ ODD API НЕ НАШЕЛ → ПРОБУЕМ FOOTBALL API
+            # ============================================================
+            
+            if not new_odds or new_odds <= 0:
+                if fixture_id:
+                    logger.info(f"📡 Odds API не нашел, пробуем Football API для {home} vs {away} (ID: {fixture_id})")
+                    football_odds = football_api.get_match_odds(fixture_id)
+                    
+                    if football_odds:
+                        # Для ТМ 2.5 используем under_odds
+                        if bet_type == 'under' and football_odds.get('under_odds', 0) > 0:
+                            new_odds = football_odds['under_odds']
+                            bookmaker = football_odds.get('bookmaker', 'Football API')
+                            source = 'Football API'
+                        # Для ТБ 2.5 используем over_odds
+                        elif bet_type == 'over' and football_odds.get('over_odds', 0) > 0:
+                            new_odds = football_odds['over_odds']
+                            bookmaker = football_odds.get('bookmaker', 'Football API')
+                            source = 'Football API'
+                        # Для 1X/П1 используем home_odds
+                        elif bet_type in ['1X', 'П1'] and football_odds.get('home_odds', 0) > 0:
+                            new_odds = football_odds['home_odds']
+                            bookmaker = football_odds.get('bookmaker', 'Football API')
+                            source = 'Football API'
+                        # Для X2/П2 используем away_odds
+                        elif bet_type in ['X2', 'П2'] and football_odds.get('away_odds', 0) > 0:
+                            new_odds = football_odds['away_odds']
+                            bookmaker = football_odds.get('bookmaker', 'Football API')
+                            source = 'Football API'
+                        # Для ОБЗ используем btts_yes
+                        elif bet_type == 'btts' and football_odds.get('btts_yes', 0) > 0:
+                            new_odds = football_odds['btts_yes']
+                            bookmaker = football_odds.get('bookmaker', 'Football API')
+                            source = 'Football API'
+                        else:
+                            # Если нет точного совпадения, берем лучший кэф
+                            new_odds = football_odds.get('best_odds', 0)
+                            if new_odds > 0:
+                                bookmaker = football_odds.get('bookmaker', 'Football API')
+                                source = 'Football API'
+                        
+                        if new_odds and new_odds > 0:
+                            logger.info(f"✅ Football API: {home} vs {away} | {new_odds} ({bookmaker})")
+            
+            # ============================================================
+            # 3. ЕСЛИ НИ ОДИН API НЕ НАШЕЛ → ОСТАВЛЯЕМ ЗАГЛУШКУ 1.95
+            # ============================================================
+            
+            if new_odds and new_odds > 0:
+                # Обновляем коэффициенты
                 prob = best_bet.get('prob', 0) / 100
                 new_ev = (prob * new_odds) - 1
                 
-                best_bet['odds'] = new_odds
+                best_bet['odds'] = round(new_odds, 2)
                 best_bet['ev'] = round(new_ev * 100, 1)
-                best_bet['bookmaker'] = odds_data.get('bookmaker_name', '—')
-                best_bet['bookmaker_key'] = odds_data.get('bookmaker', '')
+                best_bet['bookmaker'] = bookmaker
+                best_bet['odds_source'] = source
                 
                 match_data['best_bet'] = best_bet
                 match_data['odds_updated'] = True
                 
-                logger.info(f"✅ Обновлены коэффициенты: {home} vs {away} | {new_odds} ({odds_data['bookmaker_name']}) | EV: {best_bet['ev']}%")
+                logger.info(f"✅ ИТОГ: {home} vs {away} | {best_bet['label']} | КЭФ: {new_odds} | EV: {best_bet['ev']}% | Источник: {source}")
             else:
-                logger.info(f"ℹ️ Коэффициенты не обновлены для {home} vs {away}")
+                logger.info(f"ℹ️ Кэфы не найдены для {home} vs {away}, оставляем 1.95")
             
             updated_matches.append(match_data)
             
@@ -1272,6 +941,7 @@ def update_odds_for_matches(matches):
             updated_matches.append(match_data)
     
     return updated_matches
+
 
 # ============================================================
 # ПОИСК МАТЧЕЙ
@@ -2223,14 +1893,19 @@ def find_top_matches_with_tm25(matches):
     # 4. Сортируем по EV
     combined_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     
-    # 5. Обновляем коэффициенты из Odds API
+    # 5. Обновляем коэффициенты из Odds API и Football API
     if combined_matches:
-        logger.info(f"📡 Запрос реальных коэффициентов для {len(combined_matches)} матчей из Odds API...")
+        logger.info(f"📡 Запрос реальных коэффициентов для {len(combined_matches)} матчей...")
         combined_matches = update_odds_for_matches(combined_matches)
     
     # 6. Ограничиваем общее количество
     max_total = Config.MAX_BETS_PER_RUN + Config.MAX_TM25_BETS
     combined_matches = combined_matches[:max_total]
+    
+    # 7. Сохраняем в кэш
+    cache = storage.load_cache()
+    cache['top_matches'] = combined_matches
+    storage.save_cache(cache)
     
     logger.info("=" * 50)
     logger.info(f"📊 ИТОГО: {len(combined_matches)} матчей (70%+: {len(top_matches_70)}, ТМ2.5: {len(tm25_matches)})")
@@ -2423,6 +2098,8 @@ def webhook():
                                 matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
                                 if best.get('bookmaker'):
                                     matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
+                                if best.get('odds_source'):
+                                    matches_text += f"   📡 Источник кэфа: {best['odds_source']}\n"
                                 
                                 # Отображаем уровень
                                 if m.get('source') == 'tm25_premium':
@@ -2922,9 +2599,10 @@ if __name__ == "__main__":
     logger.info("   - Prob > 50%")
     logger.info("   - XG 0.8-3.0")
     logger.info(f"   - Лимит {Config.MAX_TM25_BETS} ставки")
-    logger.info("🎯 ODD API:")
-    logger.info("   - Реальные коэффициенты из 40+ БК")
-    logger.info("   - Только один маркер: 42.86875000000006")
+    logger.info("🎯 КОЭФФИЦИЕНТЫ (ДВУХЭТАПНЫЙ ПОИСК):")
+    logger.info("   1. Odds API (топ-лиги)")
+    logger.info("   2. Football API (все лиги)")
+    logger.info("   3. Заглушка 1.95 (если не найдены)")
     logger.info("✅ Команды: /update_results, /result, /analyze")
     logger.info("✅ Кэш матчей сохраняется")
     app.run(host='0.0.0.0', port=port)
