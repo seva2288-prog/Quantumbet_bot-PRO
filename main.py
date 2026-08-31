@@ -1766,7 +1766,18 @@ def find_tm25_matches(matches):
     """Специальный поиск для ТМ 2.5 с мягкими фильтрами"""
     tm25_candidates = []
     
+    # Загружаем настройки из config.py
+    from app.config import Config
+    MAX_TM25_BETS = Config.MAX_TM25_BETS
+    MIN_TM25_EV = Config.MIN_TM25_EV / 100  # 0.25
+    MIN_TM25_PROB = Config.MIN_TM25_PROB / 100  # 0.60
+    TM25_XG_MIN = Config.TM25_XG_MIN
+    TM25_XG_MAX = Config.TM25_XG_MAX
+    TOP_LEAGUES = Config.TOP_LEAGUES
+    TM25_TOP_LEAGUE_EV = Config.TM25_TOP_LEAGUE_EV / 100  # 0.35
+    
     logger.info("🔍 Специальный поиск ТМ 2.5 (мягкие фильтры)...")
+    logger.info(f"📊 Настройки: EV>{MIN_TM25_EV*100}%, Prob>{MIN_TM25_PROB*100}%, XG {TM25_XG_MIN}-{TM25_XG_MAX}")
     
     for match in matches:
         if not match or not isinstance(match, dict):
@@ -1847,11 +1858,11 @@ def find_tm25_matches(matches):
             total_xg = home_xg + away_xg
             
             # ============================================================
-            # МЯГКИЙ ФИЛЬТР XG ДЛЯ ТМ 2.5 (1.2 - 2.8)
+            # МЯГКИЙ ФИЛЬТР XG ДЛЯ ТМ 2.5 (ИЗ КОНФИГА)
             # ============================================================
             
-            if total_xg < 1.2 or total_xg > 2.8:
-                logger.info(f"⏭️ ТМ2.5: XG вне диапазона: {home} vs {away} | XG: {total_xg:.2f}")
+            if total_xg < TM25_XG_MIN or total_xg > TM25_XG_MAX:
+                logger.info(f"⏭️ ТМ2.5: XG вне диапазона ({TM25_XG_MIN}-{TM25_XG_MAX}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
             
             # ============================================================
@@ -1901,25 +1912,28 @@ def find_tm25_matches(matches):
             ev_under = (prob_under_2_5 * odds_tm25) - 1
             
             # ============================================================
-            # МЯГКИЙ ФИЛЬТР: EV > 25%, Prob > 60%
+            # МЯГКИЙ ФИЛЬТР: EV > MIN_TM25_EV (ИЗ КОНФИГА)
             # ============================================================
             
-            if ev_under < 0.25:
-                logger.info(f"⏭️ ТМ2.5: EV < 25%: {home} vs {away} | EV: {ev_under*100:.1f}%")
-                continue
-            
-            if prob_under_2_5 < 0.60:
-                logger.info(f"⏭️ ТМ2.5: Prob < 60%: {home} vs {away} | Prob: {prob_under_2_5*100:.1f}%")
+            if ev_under < MIN_TM25_EV:
+                logger.info(f"⏭️ ТМ2.5: EV < {MIN_TM25_EV*100}%: {home} vs {away} | EV: {ev_under*100:.1f}%")
                 continue
             
             # ============================================================
-            # ДОПОЛНИТЕЛЬНЫЙ ФИЛЬТР: НЕ ТОП-ЛИГИ (ТМ 2.5 ЛУЧШЕ В СЕРЕДНЯКАХ)
+            # МЯГКИЙ ФИЛЬТР: Prob > MIN_TM25_PROB (ИЗ КОНФИГА)
             # ============================================================
             
-            if league_name in ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']:
-                # В топ-лигах требуем более высокий EV
-                if ev_under < 0.35:
-                    logger.info(f"⏭️ ТМ2.5: Топ-лига, EV < 35%: {home} vs {away}")
+            if prob_under_2_5 < MIN_TM25_PROB:
+                logger.info(f"⏭️ ТМ2.5: Prob < {MIN_TM25_PROB*100}%: {home} vs {away} | Prob: {prob_under_2_5*100:.1f}%")
+                continue
+            
+            # ============================================================
+            # ДОПОЛНИТЕЛЬНЫЙ ФИЛЬТР: ТОП-ЛИГИ ТРЕБУЮТ БОЛЕЕ ВЫСОКИЙ EV
+            # ============================================================
+            
+            if league_name in TOP_LEAGUES:
+                if ev_under < TM25_TOP_LEAGUE_EV:
+                    logger.info(f"⏭️ ТМ2.5: Топ-лига, EV < {TM25_TOP_LEAGUE_EV*100}%: {home} vs {away}")
                     continue
             
             # ============================================================
@@ -1960,6 +1974,11 @@ def find_tm25_matches(matches):
             
             logger.info(f"✅ ТМ2.5 КАНДИДАТ: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
             
+            # Ограничиваем количество
+            if len(tm25_candidates) >= MAX_TM25_BETS:
+                logger.info(f"⏹️ Достигнут лимит ТМ2.5 ({MAX_TM25_BETS}), остановка поиска")
+                break
+            
         except Exception as e:
             logger.error(f"❌ Ошибка ТМ2.5: {e}")
             continue
@@ -1967,8 +1986,8 @@ def find_tm25_matches(matches):
     # Сортируем по EV
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     
-    # Ограничиваем до 3 ставок ТМ 2.5
-    tm25_candidates = tm25_candidates[:3]
+    # Ограничиваем до MAX_TM25_BETS
+    tm25_candidates = tm25_candidates[:MAX_TM25_BETS]
     
     logger.info(f"📊 Найдено ТМ2.5 кандидатов: {len(tm25_candidates)}")
     
@@ -2030,7 +2049,7 @@ def find_top_matches_with_tm25(matches):
         combined_matches = update_odds_for_matches(combined_matches)
     
     # 6. Ограничиваем общее количество
-    max_total = Config.MAX_BETS_PER_RUN + 3  # +3 для ТМ2.5
+    max_total = Config.MAX_BETS_PER_RUN + Config.MAX_TM25_BETS
     combined_matches = combined_matches[:max_total]
     
     logger.info("=" * 50)
@@ -2691,13 +2710,13 @@ if __name__ == "__main__":
     logger.info("   - Лимит 3 ставки на тип")
     logger.info("   - Лимит 2 ставки на лигу")
     logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5:")
-    logger.info("   - EV > 25%")
-    logger.info("   - Prob > 60%")
-    logger.info("   - XG 1.2-2.8")
+    logger.info(f"   - EV > {Config.MIN_TM25_EV}%")
+    logger.info(f"   - Prob > {Config.MIN_TM25_PROB}%")
+    logger.info(f"   - XG {Config.TM25_XG_MIN}-{Config.TM25_XG_MAX}")
     logger.info("   - Форма любая")
     logger.info("   - Позиция любая")
-    logger.info("   - Топ-лиги: EV > 35%")
-    logger.info("   - Лимит 3 ставки")
+    logger.info(f"   - Топ-лиги: EV > {Config.TM25_TOP_LEAGUE_EV}%")
+    logger.info(f"   - Лимит {Config.MAX_TM25_BETS} ставки")
     logger.info("🎯 ODD API:")
     logger.info("   - Реальные коэффициенты из 40+ БК")
     logger.info("   - Только один маркер: 42.86875000000006")
