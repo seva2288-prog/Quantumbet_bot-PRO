@@ -778,7 +778,8 @@ class AutoBet:
             'away_position': match_data.get('standings', {}).get('away_position', '?'),
             'bookmaker': best_bet.get('bookmaker', '—'),
             'bet_type': best_bet.get('type', 'under'),
-            'is_over': best_bet.get('is_over', False)
+            'is_over': best_bet.get('is_over', False),
+            'source': match_data.get('source', '70_percent')
         }
 
 auto_bet = AutoBet()
@@ -1730,7 +1731,8 @@ def find_top_matches(matches):
                 "bets": bets,
                 "best_bet": best_bet,
                 "weather_reason": "🌤️",
-                "factors": {}
+                "factors": {},
+                "source": "70_percent"
             }
             
             best_matches.append(match_data)
@@ -1753,81 +1755,290 @@ def find_top_matches(matches):
     
     logger.info(f"📊 Найдено {len(best_matches)} кандидатов (70%+), выбрано {len(top_matches)} лучших")
     
-    # ============================================================
-    # 20. ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API
-    # ============================================================
-    
-    if top_matches:
-        logger.info(f"📡 Запрос реальных коэффициентов для {len(top_matches)} матчей из Odds API...")
-        top_matches = update_odds_for_matches(top_matches)
-    
-    # ============================================================
-    # 21. ОТПРАВКА В TELEGRAM
-    # ============================================================
-    
-    if top_matches:
-        msg = f"🎯 <b>ЛУЧШИЕ СТАВКИ (70%+)</b>\n"
-        msg += f"📊 Найдено: {len(top_matches)} матчей\n\n"
-        
-        for i, match_data in enumerate(top_matches, 1):
-            best = match_data['best_bet']
-            msg += f"{i}. <b>{match_data['home']} vs {match_data['away']}</b>\n"
-            msg += f"   📅 {match_data['match_time']}\n"
-            msg += f"   🏆 {match_data['league']}\n"
-            msg += f"   🎯 <b>{best['label']}</b> | КЭФ: {best['odds']}\n"
-            msg += f"   📈 EV: <b>{best['ev']}%</b> | Вероятность: {best['prob']}%\n"
-            if best.get('bookmaker'):
-                msg += f"   🏷️ Лучший коэффициент: {best['bookmaker']}\n"
-            msg += f"   ⚽ XG: {match_data['total_xg']:.2f}\n"
-            msg += f"   📈 Форма: {match_data['home_form']} ({match_data['home_form_quality']}) vs {match_data['away_form']} ({match_data['away_form_quality']})\n"
-            msg += f"   🏆 Позиция: #{match_data['standings']['home_position']} vs #{match_data['standings']['away_position']}\n"
-            msg += f"   🔥 Мотивация: {match_data['standings']['home_motivation']} vs {match_data['standings']['away_motivation']}\n"
-            msg += "\n"
-        
-        msg += "✅ Ставки готовы (цель 70%+)!"
-        send_telegram(msg)
-    
-    # ============================================================
-    # 22. РАЗМЕЩЕНИЕ СТАВОК
-    # ============================================================
-    
-    for match_data in top_matches:
-        try:
-            if auto_bet and hasattr(auto_bet, 'check_and_bet'):
-                bet_result = auto_bet.check_and_bet(match_data)
-                if bet_result:
-                    bets_placed += 1
-                    msg = f"🤖 <b>АВТО-СТАВКА #{bets_placed}</b>\n"
-                    msg += f"🏟️ {bet_result['match']}\n"
-                    if bet_result.get('match_time'):
-                        msg += f"📅 {bet_result['match_time']}\n"
-                    msg += f"📊 {bet_result['bet']} | КЭФ: {bet_result['odds']}\n"
-                    msg += f"💰 Сумма: ${bet_result['stake']}\n"
-                    msg += f"📈 EV: {bet_result['ev']}%\n"
-                    msg += f"⚽ XG: {bet_result.get('xg_total', 0):.2f}\n"
-                    msg += f"📊 Prob: {bet_result.get('prob', 0)}%\n"
-                    msg += f"📈 Форма: {bet_result.get('home_form', '')} vs {bet_result.get('away_form', '')}\n"
-                    msg += f"🏆 Позиция: #{bet_result.get('home_position', '?')} vs #{bet_result.get('away_position', '?')}"
-                    if bet_result.get('bookmaker'):
-                        msg += f"\n🏷️ Букмекер: {bet_result['bookmaker']}"
-                    if bet_result.get('marker_stake'):
-                        msg += f"\n🎯 Маркер: ${bet_result['marker_stake']}"
-                    send_telegram(msg)
-                    logger.info(f"✅ АВТО-СТАВКА #{bets_placed} (70%+)")
-        except Exception as e:
-            logger.error(f"❌ Ошибка авто-ставки: {e}")
-    
-    # ============================================================
-    # 23. СОХРАНЕНИЕ В КЭШ
-    # ============================================================
-    
-    cache = storage.load_cache()
-    cache['top_matches'] = top_matches
-    storage.save_cache(cache)
-    
-    logger.info(f"💾 Сохранено в кэш: {len(top_matches)} матчей (70%+)")
-    
     return top_matches
+
+
+# ============================================================
+# НОВАЯ ФУНКЦИЯ: ПОИСК ТМ 2.5 (МЯГКИЕ ФИЛЬТРЫ)
+# ============================================================
+
+def find_tm25_matches(matches):
+    """Специальный поиск для ТМ 2.5 с мягкими фильтрами"""
+    tm25_candidates = []
+    
+    logger.info("🔍 Специальный поиск ТМ 2.5 (мягкие фильтры)...")
+    
+    for match in matches:
+        if not match or not isinstance(match, dict):
+            continue
+        
+        try:
+            fixture = match.get("fixture")
+            if not fixture or not isinstance(fixture, dict):
+                continue
+            
+            fixture_id = fixture.get("id")
+            if not fixture_id:
+                continue
+            
+            teams = match.get("teams")
+            if not teams or not isinstance(teams, dict):
+                continue
+            
+            home_team = teams.get("home")
+            away_team = teams.get("away")
+            
+            if not isinstance(home_team, dict) or not isinstance(away_team, dict):
+                continue
+            
+            home = home_team.get("name", "Unknown")
+            away = away_team.get("name", "Unknown")
+            
+            league_data = match.get("league")
+            league_name = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
+            league_id = league_data.get("id") if isinstance(league_data, dict) else None
+            
+            match_time = fixture.get("date", "")
+            if match_time:
+                try:
+                    dt = datetime.fromisoformat(match_time.replace("Z", "+00:00"))
+                    dt = dt + timedelta(hours=TIMEZONE_OFFSET)
+                    match_time = dt.strftime("%d.%m.%Y %H:%M")
+                except:
+                    match_time = "Время не указано"
+            
+            # ============================================================
+            # ПОЛУЧАЕМ XG
+            # ============================================================
+            
+            statistics = football_api.get_match_statistics(fixture_id)
+            
+            home_xg = 1.2
+            away_xg = 1.0
+            
+            if statistics:
+                for team_name, stats in statistics.items():
+                    if home.lower() in team_name.lower() or team_name.lower() in home.lower():
+                        xg_val = stats.get('xG')
+                        if xg_val is not None and xg_val > 0:
+                            home_xg = float(xg_val)
+                    elif away.lower() in team_name.lower() or team_name.lower() in away.lower():
+                        xg_val = stats.get('xG')
+                        if xg_val is not None and xg_val > 0:
+                            away_xg = float(xg_val)
+            
+            if home_xg == 1.2 and away_xg == 1.0:
+                if league_name in FALLBACK_XG:
+                    home_xg = FALLBACK_XG[league_name]['home']
+                    away_xg = FALLBACK_XG[league_name]['away']
+                else:
+                    home_xg = 1.3
+                    away_xg = 1.0
+                
+                random.seed(fixture_id)
+                home_xg *= (1 + random.uniform(-0.1, 0.1))
+                away_xg *= (1 + random.uniform(-0.1, 0.1))
+            
+            # Домашнее преимущество
+            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+            home_xg *= home_adv
+            away_xg /= home_adv
+            
+            total_xg = home_xg + away_xg
+            
+            # ============================================================
+            # МЯГКИЙ ФИЛЬТР XG ДЛЯ ТМ 2.5 (1.2 - 2.8)
+            # ============================================================
+            
+            if total_xg < 1.2 or total_xg > 2.8:
+                logger.info(f"⏭️ ТМ2.5: XG вне диапазона: {home} vs {away} | XG: {total_xg:.2f}")
+                continue
+            
+            # ============================================================
+            # ПОЛУЧАЕМ ФОРМУ (НЕ ОБЯЗАТЕЛЬНО ХОРОШУЮ)
+            # ============================================================
+            
+            home_form_data = football_api.get_form(home_team.get("id"))
+            away_form_data = football_api.get_form(away_team.get("id"))
+            
+            home_form = home_form_data.get('form', '') if home_form_data else ''
+            away_form = away_form_data.get('form', '') if away_form_data else ''
+            
+            # ============================================================
+            # ПОЛУЧАЕМ ТУРНИРНУЮ ТАБЛИЦУ (НЕ ОБЯЗАТЕЛЬНО)
+            # ============================================================
+            
+            standings = football_api.get_standings(league_id) if league_id else None
+            
+            home_position = 99
+            away_position = 99
+            
+            if standings:
+                if home in standings:
+                    home_position = standings[home].get('position', 99)
+                if away in standings:
+                    away_position = standings[away].get('position', 99)
+            
+            # ============================================================
+            # ЛИЧНЫЕ ВСТРЕЧИ
+            # ============================================================
+            
+            h2h_data = football_api.get_head_to_head(home, away)
+            
+            # ============================================================
+            # АНСАМБЛЬ ВЕРОЯТНОСТЕЙ
+            # ============================================================
+            
+            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data)
+            
+            prob_under_2_5 = probs['under_2_5']
+            
+            # ============================================================
+            # РАССЧИТЫВАЕМ EV ДЛЯ ТМ 2.5
+            # ============================================================
+            
+            odds_tm25 = 1.95
+            ev_under = (prob_under_2_5 * odds_tm25) - 1
+            
+            # ============================================================
+            # МЯГКИЙ ФИЛЬТР: EV > 25%, Prob > 60%
+            # ============================================================
+            
+            if ev_under < 0.25:
+                logger.info(f"⏭️ ТМ2.5: EV < 25%: {home} vs {away} | EV: {ev_under*100:.1f}%")
+                continue
+            
+            if prob_under_2_5 < 0.60:
+                logger.info(f"⏭️ ТМ2.5: Prob < 60%: {home} vs {away} | Prob: {prob_under_2_5*100:.1f}%")
+                continue
+            
+            # ============================================================
+            # ДОПОЛНИТЕЛЬНЫЙ ФИЛЬТР: НЕ ТОП-ЛИГИ (ТМ 2.5 ЛУЧШЕ В СЕРЕДНЯКАХ)
+            # ============================================================
+            
+            if league_name in ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']:
+                # В топ-лигах требуем более высокий EV
+                if ev_under < 0.35:
+                    logger.info(f"⏭️ ТМ2.5: Топ-лига, EV < 35%: {home} vs {away}")
+                    continue
+            
+            # ============================================================
+            # СОЗДАЕМ МАТЧ ДЛЯ ТМ 2.5
+            # ============================================================
+            
+            best_bet = {
+                'type': 'under',
+                'label': 'ТМ 2.5',
+                'prob': round(prob_under_2_5 * 100, 1),
+                'ev': round(ev_under * 100, 1),
+                'odds': odds_tm25,
+                'stake': round(42.86875, 2)
+            }
+            
+            match_data = {
+                "home": home,
+                "away": away,
+                "league": league_name,
+                "fixture_id": fixture_id,
+                "match_time": match_time,
+                "home_xg": round(home_xg, 2),
+                "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form,
+                "away_form": away_form,
+                "standings": {
+                    "home_position": home_position,
+                    "away_position": away_position,
+                },
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "tm25_special",
+                "weather_reason": "🌤️",
+            }
+            
+            tm25_candidates.append(match_data)
+            
+            logger.info(f"✅ ТМ2.5 КАНДИДАТ: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка ТМ2.5: {e}")
+            continue
+    
+    # Сортируем по EV
+    tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    
+    # Ограничиваем до 3 ставок ТМ 2.5
+    tm25_candidates = tm25_candidates[:3]
+    
+    logger.info(f"📊 Найдено ТМ2.5 кандидатов: {len(tm25_candidates)}")
+    
+    return tm25_candidates
+
+
+# ============================================================
+# ОБЪЕДИНЕННЫЙ ПОИСК: 70%+ И ТМ 2.5
+# ============================================================
+
+def find_top_matches_with_tm25(matches):
+    """Объединенный поиск: 70%+ и ТМ 2.5"""
+    
+    # 1. Обычный поиск 70%+
+    logger.info("=" * 50)
+    logger.info("📊 ПОТОК 1: Поиск 70%+ матчей")
+    logger.info("=" * 50)
+    top_matches_70 = find_top_matches(matches)
+    
+    # 2. Специальный поиск ТМ 2.5
+    logger.info("=" * 50)
+    logger.info("📊 ПОТОК 2: Поиск ТМ 2.5 матчей")
+    logger.info("=" * 50)
+    tm25_matches = find_tm25_matches(matches)
+    
+    # 3. Объединяем результаты
+    combined_matches = []
+    match_keys = set()
+    
+    # Добавляем 70%+ матчи
+    for m in top_matches_70:
+        key = f"{m['home']}_{m['away']}"
+        if key not in match_keys:
+            combined_matches.append(m)
+            match_keys.add(key)
+    
+    # Добавляем ТМ 2.5 матчи (если нет дубликатов)
+    for m in tm25_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in match_keys:
+            combined_matches.append(m)
+            match_keys.add(key)
+            logger.info(f"🔄 Добавлен ТМ2.5 матч (уникальный): {m['home']} vs {m['away']}")
+        else:
+            # Если матч уже есть, проверяем какой лучше
+            existing = next((x for x in combined_matches if f"{x['home']}_{x['away']}" == key), None)
+            if existing and m['best_bet']['ev'] > existing['best_bet']['ev']:
+                # Заменяем на лучший
+                combined_matches.remove(existing)
+                combined_matches.append(m)
+                logger.info(f"🔄 Заменен матч на ТМ2.5 (EV выше): {m['home']} vs {m['away']}")
+    
+    # 4. Сортируем по EV
+    combined_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    
+    # 5. Обновляем коэффициенты из Odds API
+    if combined_matches:
+        logger.info(f"📡 Запрос реальных коэффициентов для {len(combined_matches)} матчей из Odds API...")
+        combined_matches = update_odds_for_matches(combined_matches)
+    
+    # 6. Ограничиваем общее количество
+    max_total = Config.MAX_BETS_PER_RUN + 3  # +3 для ТМ2.5
+    combined_matches = combined_matches[:max_total]
+    
+    logger.info("=" * 50)
+    logger.info(f"📊 ИТОГО: {len(combined_matches)} матчей (70%+: {len(top_matches_70)}, ТМ2.5: {len(tm25_matches)})")
+    logger.info("=" * 50)
+    
+    return combined_matches
+
 
 # ============================================================
 # ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
@@ -1978,23 +2189,41 @@ def webhook():
                 else:
                     search_running = True
                     start_time = datetime.now()
-                    send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах...")
+                    send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
                     
                     matches = get_matches_with_factors()
                     if matches:
                         send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
-                        top_matches = find_top_matches(matches)
+                        
+                        # Используем новую объединенную функцию
+                        top_matches = find_top_matches_with_tm25(matches)
                         
                         if top_matches:
                             elapsed = (datetime.now() - start_time).seconds
+                            
+                            # Подсчет типов ставок и источников
+                            bet_types = {}
+                            sources = {}
+                            for m in top_matches:
+                                bet_type = m['best_bet']['type']
+                                bet_types[bet_type] = bet_types.get(bet_type, 0) + 1
+                                source = m.get('source', 'unknown')
+                                sources[source] = sources.get(source, 0) + 1
+                            
+                            type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
+                            source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
+                            
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}\n"
-                                f"⏱️ Время: {elapsed} сек."
+                                f"🎯 Кандидатов: {len(top_matches)}\n"
+                                f"📈 Типы: {type_stats}\n"
+                                f"📂 Источники: {source_stats}\n"
+                                f"⏱️ Время: {elapsed} сек.\n\n"
+                                f"🤖 Авто-ставок: {auto_bet.bets_today}"
                             )
                         else:
-                            send_telegram("❌ Ставок не найдено (фильтры 70%+)")
+                            send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
                     else:
                         send_telegram("❌ Матчей не найдено")
                     
@@ -2439,7 +2668,7 @@ def health():
 
 @app.route('/', methods=['GET'])
 def index():
-    return f"🤖 Quantum Bot PRO (70%+ Target + Odds API) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    return f"🤖 Quantum Bot PRO (70%+ Target + ТМ 2.5 Special) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 # ============================================================
 # ЗАПУСК
@@ -2449,7 +2678,7 @@ if __name__ == "__main__":
     setup_logging()
     start_scheduler()
     port = int(os.environ.get("PORT", 10000))
-    logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET + ODD API)!")
+    logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET + ТМ 2.5 SPECIAL)!")
     logger.info(f"📊 Сканируется {len(Config.LEAGUES)} лиг")
     logger.info(f"🤖 Максимум ставок: {Config.MAX_BETS_PER_RUN}")
     logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:")
@@ -2461,6 +2690,14 @@ if __name__ == "__main__":
     logger.info("   - Мотивация (не середняки)")
     logger.info("   - Лимит 3 ставки на тип")
     logger.info("   - Лимит 2 ставки на лигу")
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5:")
+    logger.info("   - EV > 25%")
+    logger.info("   - Prob > 60%")
+    logger.info("   - XG 1.2-2.8")
+    logger.info("   - Форма любая")
+    logger.info("   - Позиция любая")
+    logger.info("   - Топ-лиги: EV > 35%")
+    logger.info("   - Лимит 3 ставки")
     logger.info("🎯 ODD API:")
     logger.info("   - Реальные коэффициенты из 40+ БК")
     logger.info("   - Только один маркер: 42.86875000000006")
