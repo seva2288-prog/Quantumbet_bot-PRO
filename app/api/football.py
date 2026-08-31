@@ -118,11 +118,12 @@ class FootballAPI:
                 if matches and len(matches) > 0:
                     goals_scored = []
                     goals_conceded = []
-                    wins = 0
+                    wins:
+ = 0
                     draws = 0
                     losses = 0
                     
-                    for match in matches:
+                    for match in                matches:
                         goals = match.get('goals', {})
                         teams = match.get('teams', {})
                         
@@ -151,8 +152,8 @@ class FootballAPI:
                             'wins': wins,
                             'draws': draws,
                             'losses': losses,
-                            'matches': len(matches),
-                            'form': self._calculate_form(matches, team_id)
+                            'matches': len(matches if),
+                            'form': self._calculate_form home(matches, team_id)
                         }
                         logger.info(f"✅ Форма команды {team_id}: {result['form']}, голы: {result['goals_avg']}")
                         self.cache[cache_key] = result
@@ -181,8 +182,7 @@ class FootballAPI:
             home_score = goals.get('home', 0) or 0
             away_score = goals.get('away', 0) or 0
             
-            if teams.get('home', {}).get('id') == team_id:
-                if home_score > away_score:
+            if teams.get('home', {}).get('id') == team_id_score > away_score:
                     form.append('W')
                 elif home_score == away_score:
                     form.append('D')
@@ -515,6 +515,212 @@ class FootballAPI:
             traceback.print_exc()
         
         return None
+    
+    def get_match_odds(self, fixture_id):
+        """
+        Получает коэффициенты для матча из Football API
+        Возвращает лучшие коэффициенты для разных типов ставок
+        """
+        cache_key = f"odds_{fixture_id}"
+        if cache_key in self.cache:
+            logger.info(f"📊 Коэффициенты для {fixture_id} из кэша")
+            return self.cache[cache_key]
+        
+        try:
+            logger.info(f"📡 Запрос коэффициентов для матча {fixture_id}")
+            params = {'fixture': fixture_id}
+            data = self._make_request('/fixtures/odds', params)
+            
+            if data and 'response' in data:
+                odds_data = data['response']
+                if odds_data:
+                    result = self._extract_best_odds(odds_data)
+                    if result.get('best_odds', 0) > 0:
+                        logger.info(f"✅ Найдены коэффициенты для матча {fixture_id}: best_odds={result['best_odds']}")
+                    else:
+                        logger.warning(f"⚠️ Нет коэффициентов для матча {fixture_id}")
+                    self.cache[cache_key] = result
+                    return result
+                else:
+                    logger.warning(f"⚠️ Нет данных коэффициентов для матча {fixture_id}")
+                    return None
+            else:
+                logger.warning(f"⚠️ Нет ответа коэффициентов для матча {fixture_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения коэффициентов для матча {fixture_id}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return None
+    
+    def _extract_best_odds(self, odds_data):
+        """
+        Извлекает лучшие коэффициенты из данных Football API
+        Возвращает словарь с лучшими кэфами для разных исходов
+        """
+        result = {
+            'best_odds': 0,
+            'bookmaker': '—',
+            'home_odds': 0,
+            'draw_odds': 0,
+            'away_odds': 0,
+            'under_odds': 0,
+            'over_odds': 0
+        }
+        
+        # Словарь для отслеживания лучших кэфов по типам ставок
+        best_odds_by_type = {}
+        
+        for bookmaker in odds_data:
+            bookmaker_name = bookmaker.get('bookmaker', {}).get('name', '—')
+            
+            # Проверяем, есть ли коэффициенты у букмекера
+            bets = bookmaker.get('bets', [])
+            if not bets:
+                continue
+            
+            # Ищем коэффициенты по типам ставок
+            for bet in bets:
+                bet_name = bet.get('name', '').lower()
+                values = bet.get('values', [])
+                
+                if not values:
+                    continue
+                
+                # === КОЭФФИЦИЕНТЫ НА ИСХОДЫ МАТЧА (1X2) ===
+                if 'матч' in bet_name or 'match' in bet_name or 'побед' in bet_name:
+                    for value in values:
+                        value_name = value.get('value', '').lower()
+                        odd = value.get('odd', 0)
+                        
+                        if odd <= 0:
+                            continue
+                        
+                        if '1' in value_name or 'home' in value_name:
+                            if odd > result['home_odds']:
+                                result['home_odds'] = odd
+                        elif '2' in value_name or 'away' in value_name:
+                            if odd > result['away_odds']:
+                                result['away_odds'] = odd
+                        elif 'x' in value_name or 'draw' in value_name:
+                            if odd > result['draw_odds']:
+                                result['draw_odds'] = odd
+                        
+                        if odd > result['best_odds']:
+                            result['best_odds'] = odd
+                            result['bookmaker'] = bookmaker_name
+                
+                # === КОЭФФИЦИЕНТЫ НА ТОТАЛ (OVER/UNDER) ===
+                if 'тотал' in bet_name or 'total' in bet_name:
+                    # Проверяем, что тотал 2.5
+                    is_2_5 = False
+                    for value in values:
+                        if '2.5' in value.get('value', ''):
+                            is_2_5 = True
+                            break
+                    
+                    if not is_2_5:
+                        continue
+                    
+                    for value in values:
+                        value_name = value.get('value', '').lower()
+                        odd = value.get('odd', 0)
+                        
+                        if odd <= 0:
+                            continue
+                        
+                        if 'меньше' in value_name or 'under' in value_name:
+                            if odd > result['under_odds']:
+                                result['under_odds'] = odd
+                        elif 'больше' in value_name or 'over' in value_name:
+                            if odd > result['over_odds']:
+                                result['over_odds'] = odd
+                        
+                        # Обновляем best_odds, если нашли более высокий кэф
+                        if odd > result['best_odds']:
+                            result['best_odds'] = odd
+                            result['bookmaker'] = bookmaker_name
+                
+                # === КОЭФФИЦИЕНТЫ НА ДВОЙНОЙ ШАНС ===
+                if 'двойной' in bet_name or 'double chance' in bet_name:
+                    for value in values:
+                        value_name = value.get('value', '').lower()
+                        odd = value.get('odd', 0)
+                        
+                        if odd <= 0:
+                            continue
+                        
+                        # Сохраняем в отдельный словарь для двойного шанса
+                        key = f"dc_{value_name.replace(' ', '_')}"
+                        if odd > best_odds_by_type.get(key, 0):
+                            best_odds_by_type[key] = odd
+                        
+                        if odd > result['best_odds']:
+                            result['best_odds'] = odd
+                            result['bookmaker'] = bookmaker_name
+                
+                # === КОЭФФИЦИЕНТЫ НА ОБЕ ЗАБЬЮТ (BTTS) ===
+                if 'обе забьют' in bet_name or 'both teams' in bet_name:
+                    for value in values:
+                        value_name = value.get('value', '').lower()
+                        odd = value.get('odd', 0)
+                        
+                        if odd <= 0:
+                            continue
+                        
+                        if 'да' in value_name or 'yes' in value_name:
+                            if odd > best_odds_by_type.get('btts_yes', 0):
+                                best_odds_by_type['btts_yes'] = odd
+                        elif 'нет' in value_name or 'no' in value_name:
+                            if odd > best_odds_by_type.get('btts_no', 0):
+                                best_odds_by_type['btts_no'] = odd
+                        
+                        if odd > result['best_odds']:
+                            result['best_odds'] = odd
+                            result['bookmaker'] = bookmaker_name
+        
+        # Сохраняем все найденные коэффициенты
+        result['all_odds'] = best_odds_by_type
+        
+        logger.info(f"📊 Извлечены кэфы: home={result['home_odds']}, draw={result['draw_odds']}, away={result['away_odds']}, under={result['under_odds']}, over={result['over_odds']}")
+        
+        return result
+    
+    def get_odds_for_bet_type(self, fixture_id, bet_type):
+        """
+        Получает коэффициент для конкретного типа ставки
+        bet_type: '1X', 'X2', 'П1', 'П2', 'under', 'over', 'btts_yes', 'btts_no'
+        """
+        odds_data = self.get_match_odds(fixture_id)
+        if not odds_data:
+            return None
+        
+        mapping = {
+            '1X': 'dc_1_x',
+            'X2': 'dc_x_2',
+            'П1': 'home_odds',
+            'П2': 'away_odds',
+            'under': 'under_odds',
+            'over': 'over_odds',
+            'btts_yes': 'btts_yes',
+            'btts_no': 'btts_no'
+        }
+        
+        # Пробуем получить коэффициент
+        odds_key = mapping.get(bet_type)
+        if odds_key:
+            # Проверяем в основном словаре
+            if odds_key in odds_data and odds_data[odds_key] > 0:
+                return odds_data[odds_key]
+            
+            # Проверяем в all_odds
+            if 'all_odds' in odds_data and odds_key in odds_data['all_odds']:
+                return odds_data['all_odds'][odds_key]
+        
+        # Если не нашли, возвращаем best_odds
+        return odds_data.get('best_odds', 0)
     
     def clear_cache(self):
         """Очищает кэш"""
