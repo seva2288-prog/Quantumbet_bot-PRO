@@ -17,7 +17,6 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
-from app.api.odds_api import OddsAPIClient
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
@@ -29,11 +28,10 @@ search_running = False
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# МАРКЕРЫ
+# МАРКЕРЫ (ТОЛЬКО ОДИН - 000006)
 # ============================================================
 MARKERS = {
     42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
-    42.86875000000001: ('under', 1.95, 'ТМ 2.5'),
 }
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
@@ -482,11 +480,12 @@ class FootballAPI:
         logger.info("🧹 Кэш очищен")
 
 # ============================================================
-# КЛАСС ODD_API (НОВОЕ)
+# КЛАСС ODD_API
 # ============================================================
 
 class OddsAPIClient:
     def __init__(self, api_key=None):
+        from app.config import Config
         self.api_key = api_key or Config.ODDS_API_KEY
         self.base_url = Config.ODDS_API_URL
         self.cache = {}
@@ -496,15 +495,18 @@ class OddsAPIClient:
         logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
     
     def _make_request(self, endpoint, params=None):
+        """Выполняет запрос к Odds API"""
         try:
             now = time.time()
             if now - self.last_request_time < self.min_request_interval:
                 time.sleep(self.min_request_interval - (now - self.last_request_time))
             
             url = f"{self.base_url}{endpoint}"
+            params = params or {}
             params['apiKey'] = self.api_key
             
-            logger.info(f"📡 Запрос Odds API: {endpoint}")
+            logger.info(f"📡 Запрос Odds API: {url}")
+            logger.info(f"📡 Параметры: {params}")
             
             response = requests.get(url, params=params, timeout=10)
             self.last_request_time = time.time()
@@ -519,33 +521,145 @@ class OddsAPIClient:
             logger.error(f"❌ Ошибка запроса Odds API: {e}")
             return None
     
-    def get_odds_for_match(self, home_team, away_team, league, sport="soccer"):
+    def get_odds_for_match(self, home_team, away_team, league):
         """Получает коэффициенты для конкретного матча"""
         cache_key = f"{home_team}_{away_team}_{league}"
         if cache_key in self.cache:
             return self.cache[cache_key]
         
         try:
-            # Получаем события (матчи) с коэффициентами
-            params = {
-                'sport': sport,
-                'region': 'eu',
-                'markets': 'h2h,spreads,totals'
+            sport_map = {
+                'АПЛ': 'soccer_epl',
+                'Premier League': 'soccer_epl',
+                'Чемпионшип': 'soccer_efl_champ',
+                'Championship': 'soccer_efl_champ',
+                'League 1': 'soccer_england_league1',
+                'League 2': 'soccer_england_league2',
+                'Ла Лига': 'soccer_spain_la_liga',
+                'La Liga': 'soccer_spain_la_liga',
+                'Сегунда': 'soccer_spain_segunda_division',
+                'La Liga 2': 'soccer_spain_segunda_division',
+                'Бундеслига': 'soccer_germany_bundesliga',
+                'Bundesliga': 'soccer_germany_bundesliga',
+                'Вторая Бундеслига': 'soccer_germany_bundesliga2',
+                '2. Bundesliga': 'soccer_germany_bundesliga2',
+                '3. Лига': 'soccer_germany_liga3',
+                '3. Liga': 'soccer_germany_liga3',
+                'Кубок Германии': 'soccer_germany_dfb_pokal',
+                'DFB-Pokal': 'soccer_germany_dfb_pokal',
+                'Серия А': 'soccer_italy_serie_a',
+                'Serie A': 'soccer_italy_serie_a',
+                'Серия B': 'soccer_italy_serie_b',
+                'Serie B': 'soccer_italy_serie_b',
+                'Лига 1': 'soccer_france_ligue_one',
+                'Ligue 1': 'soccer_france_ligue_one',
+                'Лига 2': 'soccer_france_ligue_two',
+                'Ligue 2': 'soccer_france_ligue_two',
+                'MLS': 'soccer_usa_mls',
+                'МЛС': 'soccer_usa_mls',
+                'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
+                'UEFA Champions League': 'soccer_uefa_champs_league',
+                'Лига Европы УЕФА': 'soccer_uefa_europa_league',
+                'UEFA Europa League': 'soccer_uefa_europa_league',
+                'Лига Наций УЕФА': 'soccer_uefa_nations_league',
+                'UEFA Nations League': 'soccer_uefa_nations_league',
+                'Копа Либертадорес': 'soccer_conmebol_copa_libertadores',
+                'Copa Libertadores': 'soccer_conmebol_copa_libertadores',
+                'Копа Судамерикана': 'soccer_conmebol_copa_sudamericana',
+                'Copa Sudamericana': 'soccer_conmebol_copa_sudamericana',
+                'Бразилия Серия А': 'soccer_brazil_campeonato',
+                'Brasileirão': 'soccer_brazil_campeonato',
+                'Бразилия Серия B': 'soccer_brazil_serie_b',
+                'Brasileirão Série B': 'soccer_brazil_serie_b',
+                'Аргентина Примера': 'soccer_argentina_primera_division',
+                'Primera División': 'soccer_argentina_primera_division',
+                'Чили Примера': 'soccer_chile_campeonato',
+                'Campeonato Chileno': 'soccer_chile_campeonato',
+                'Leagues Cup': 'soccer_concacaf_leagues_cup',
+                'Эредивизи': 'soccer_netherlands_eredivisie',
+                'Eredivisie': 'soccer_netherlands_eredivisie',
+                'Примейра Лига': 'soccer_portugal_primeira_liga',
+                'Primeira Liga': 'soccer_portugal_primeira_liga',
+                'Супер Лига': 'soccer_turkey_super_league',
+                'Super Lig': 'soccer_turkey_super_league',
+                'РПЛ': 'soccer_russia_premier_league',
+                'Russian Premier League': 'soccer_russia_premier_league',
+                'Австрия Бундеслига': 'soccer_austria_bundesliga',
+                'Austrian Bundesliga': 'soccer_austria_bundesliga',
+                'Бельгия Первый Дивизион': 'soccer_belgium_first_div',
+                'Belgian First Division': 'soccer_belgium_first_div',
+                'Дания Суперлига': 'soccer_denmark_superliga',
+                'Danish Superliga': 'soccer_denmark_superliga',
+                'Финляндия Вейккауслиига': 'soccer_finland_veikkausliiga',
+                'Veikkausliiga': 'soccer_finland_veikkausliiga',
+                'Греция Супер Лига': 'soccer_greece_super_league',
+                'Greek Super League': 'soccer_greece_super_league',
+                'Норвегия Элитсериен': 'soccer_norway_eliteserien',
+                'Eliteserien': 'soccer_norway_eliteserien',
+                'Польша Экстракласа': 'soccer_poland_ekstraklasa',
+                'Ekstraklasa': 'soccer_poland_ekstraklasa',
+                'Шотландия Премьершип': 'soccer_spl',
+                'Scottish Premiership': 'soccer_spl',
+                'Швеция Аллсвенскан': 'soccer_sweden_allsvenskan',
+                'Allsvenskan': 'soccer_sweden_allsvenskan',
+                'Швеция Суперэттан': 'soccer_sweden_superettan',
+                'Superettan': 'soccer_sweden_superettan',
+                'Швейцария Суперлига': 'soccer_switzerland_superleague',
+                'Swiss Super League': 'soccer_switzerland_superleague',
+                'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
+                'Saudi Pro League': 'soccer_saudi_arabia_pro_league',
+                'Япония J1 Лига': 'soccer_japan_j_league',
+                'J1 League': 'soccer_japan_j_league',
+                'Корея K Лига 1': 'soccer_korea_kleague1',
+                'K League 1': 'soccer_korea_kleague1',
+                'Мексика Liga MX': 'soccer_mexico_ligamx',
+                'Liga MX': 'soccer_mexico_ligamx',
             }
             
-            data = self._make_request('/events', params)
+            sport_key = sport_map.get(league, 'soccer_epl')
+            
+            if 'MLS' in league or 'МЛС' in league:
+                region = 'us'
+            elif 'Бразилия' in league or 'Brasileirão' in league:
+                region = 'us'
+            elif 'Аргентина' in league or 'Argentina' in league:
+                region = 'us'
+            elif 'Мексика' in league or 'Mexico' in league:
+                region = 'us'
+            else:
+                region = 'eu'
+            
+            endpoint = f"/sports/{sport_key}/events"
+            params = {
+                'region': region,
+                'markets': 'h2h'
+            }
+            
+            logger.info(f"📡 Запрос Odds API: {endpoint}")
+            logger.info(f"📡 Лига: {league} → {sport_key}, регион: {region}")
+            
+            data = self._make_request(endpoint, params)
             
             if data:
+                logger.info(f"📡 Получено событий: {len(data)}")
                 for event in data:
-                    # Ищем нужный матч
-                    if (event.get('home_team', '').lower() in home_team.lower() or home_team.lower() in event.get('home_team', '').lower()) and \
-                       (event.get('away_team', '').lower() in away_team.lower() or away_team.lower() in event.get('away_team', '').lower()):
+                    event_home = event.get('home_team', '').lower()
+                    event_away = event.get('away_team', '').lower()
+                    home_lower = home_team.lower()
+                    away_lower = away_team.lower()
+                    
+                    if (home_lower in event_home or event_home in home_lower) and \
+                       (away_lower in event_away or event_away in away_lower):
                         
                         result = self._extract_odds(event)
                         self.cache[cache_key] = result
+                        logger.info(f"✅ Найдены коэффициенты для {home_team} vs {away_team}")
                         return result
+                
+                logger.info(f"⚠️ Матч {home_team} vs {away_team} не найден в Odds API")
+            else:
+                logger.info(f"⚠️ Нет данных от Odds API для {league}")
             
-            logger.info(f"⚠️ Матч {home_team} vs {away_team} не найден в Odds API")
             return None
             
         except Exception as e:
@@ -555,57 +669,38 @@ class OddsAPIClient:
     def _extract_odds(self, event):
         """Извлекает коэффициенты из события"""
         result = {
-            'bookmaker': None,
             'best_odds': 0,
-            'all_odds': [],
+            'bookmaker': None,
             'bookmaker_name': '—',
-            '1X_odds': 0,
-            'X2_odds': 0,
             'home_odds': 0,
-            'away_odds': 0,
-            'over_odds': 0,
-            'under_odds': 0,
-            'btts_odds': 0
+            'draw_odds': 0,
+            'away_odds': 0
         }
         
-        # Получаем коэффициенты от всех букмекеров
         for bookmaker in event.get('bookmakers', []):
-            bookmaker_name = bookmaker.get('key', '')
+            bookmaker_key = bookmaker.get('key', '')
+            
             for market in bookmaker.get('markets', []):
-                market_key = market.get('key', '')
-                
-                if market_key == 'h2h':
+                if market.get('key') == 'h2h':
                     for outcome in market.get('outcomes', []):
                         name = outcome.get('name', '')
                         price = outcome.get('price', 0)
                         
-                        if name == '1X' or name == 'Draw or Team1':
-                            result['1X_odds'] = max(result['1X_odds'], price)
-                        elif name == 'X2' or name == 'Team2 or Draw':
-                            result['X2_odds'] = max(result['X2_odds'], price)
-                        elif name == event.get('home_team', ''):
+                        if name == event.get('home_team'):
                             result['home_odds'] = max(result['home_odds'], price)
-                        elif name == event.get('away_team', ''):
+                        elif name == event.get('away_team'):
                             result['away_odds'] = max(result['away_odds'], price)
+                        elif name == 'Draw':
+                            result['draw_odds'] = max(result['draw_odds'], price)
                         
                         if price > result['best_odds']:
                             result['best_odds'] = price
-                            result['bookmaker'] = bookmaker_name
-                            result['bookmaker_name'] = self._get_bookmaker_name(bookmaker_name)
-                
-                elif market_key == 'totals' and 'over' in str(market):
-                    for outcome in market.get('outcomes', []):
-                        name = outcome.get('name', '')
-                        price = outcome.get('price', 0)
-                        if 'Over' in name or 'Больше' in name:
-                            result['over_odds'] = max(result['over_odds'], price)
-                        elif 'Under' in name or 'Меньше' in name:
-                            result['under_odds'] = max(result['under_odds'], price)
+                            result['bookmaker'] = bookmaker_key
+                            result['bookmaker_name'] = self._get_bookmaker_name(bookmaker_key)
         
         return result
     
     def _get_bookmaker_name(self, key):
-        """Преобразует ключ букмекера в название"""
         names = {
             'bet365': 'bet365',
             'pinnacle': 'Pinnacle',
@@ -617,6 +712,11 @@ class OddsAPIClient:
             'bwin': 'Bwin',
             'williamhill': 'William Hill',
             'ladbrokes': 'Ladbrokes',
+            'betway': 'Betway',
+            '888sport': '888sport',
+            'betsson': 'Betsson',
+            'comeon': 'ComeOn',
+            'marathonbet': 'Marathonbet',
         }
         return names.get(key, key)
 
@@ -1126,7 +1226,7 @@ def analyze_match(match_name):
         return f"❌ Ошибка: {e}"
 
 # ============================================================
-# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API (НОВОЕ)
+# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API
 # ============================================================
 
 def update_odds_for_matches(matches):
@@ -1141,21 +1241,17 @@ def update_odds_for_matches(matches):
             away = match_data.get('away')
             league = match_data.get('league')
             
-            # Запрашиваем реальные коэффициенты
             odds_data = odds_api.get_odds_for_match(home, away, league)
             
             if odds_data and odds_data.get('best_odds', 0) > 0:
                 best_bet = match_data.get('best_bet', {})
                 
-                # Обновляем коэффициент
                 old_odds = best_bet.get('odds', 0)
                 new_odds = odds_data['best_odds']
                 
-                # Пересчитываем EV
                 prob = best_bet.get('prob', 0) / 100
                 new_ev = (prob * new_odds) - 1
                 
-                # Сохраняем обновленные данные
                 best_bet['odds'] = new_odds
                 best_bet['ev'] = round(new_ev * 100, 1)
                 best_bet['bookmaker'] = odds_data.get('bookmaker_name', '—')
@@ -1172,7 +1268,7 @@ def update_odds_for_matches(matches):
             
         except Exception as e:
             logger.error(f"❌ Ошибка обновления коэффициентов {match_data.get('home')}: {e}")
-            updated_matches.append(match_data)  # Оставляем без изменений
+            updated_matches.append(match_data)
     
     return updated_matches
 
@@ -1271,7 +1367,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - ВСЕ ЛИГИ С ФИЛЬТРАМИ ДЛЯ 70%+ И ODD API
+# ТОП МАТЧЕЙ - С ФИЛЬТРАМИ 70%+
 # ============================================================
 
 def find_top_matches(matches):
@@ -1423,7 +1519,6 @@ def find_top_matches(matches):
             home_motivation = get_motivation(home_position)
             away_motivation = get_motivation(away_position)
             
-            # Пропускаем матчи без мотивации (середняки)
             if home_motivation == 'mid_table' and away_motivation == 'mid_table':
                 logger.info(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
                 continue
@@ -1475,7 +1570,7 @@ def find_top_matches(matches):
                 prob_X2 += 0.05
             
             # ============================================================
-            # 12. КОЭФФИЦИЕНТЫ ДЛЯ СТАВОК (БУДУТ ОБНОВЛЕНЫ ИЗ ODD API)
+            # 12. КОЭФФИЦИЕНТЫ
             # ============================================================
             
             odds = {
@@ -1489,7 +1584,7 @@ def find_top_matches(matches):
             }
             
             # ============================================================
-            # 13. РАССЧИТЫВАЕМ EV ДЛЯ ВСЕХ СТАВОК
+            # 13. РАССЧИТЫВАЕМ EV
             # ============================================================
             
             bets = []
@@ -1659,7 +1754,7 @@ def find_top_matches(matches):
     logger.info(f"📊 Найдено {len(best_matches)} кандидатов (70%+), выбрано {len(top_matches)} лучших")
     
     # ============================================================
-    # 20. ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API (НОВОЕ)
+    # 20. ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ ИЗ ODD API
     # ============================================================
     
     if top_matches:
@@ -2346,34 +2441,6 @@ def health():
 def index():
     return f"🤖 Quantum Bot PRO (70%+ Target + Odds API) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
-@app.route('/test_odds', methods=['GET'])
-def test_odds():
-    """Тестовый эндпоинт для проверки Odds API"""
-    try:
-        # Пытаемся получить коэффициенты для тестового матча MLS
-        result = odds_api.get_odds_for_match("St. Louis City", "FC Dallas", "MLS")
-        if result and result.get('best_odds', 0) > 0:
-            return jsonify({
-                'status': 'ok',
-                'odds': result.get('best_odds'),
-                'bookmaker': result.get('bookmaker_name'),
-                'data': result
-            })
-        else:
-            # Если не нашли MLS, пробуем найти любой матч из АПЛ
-            result = odds_api.get_odds_for_match("Arsenal", "Chelsea", "Premier League")
-            if result and result.get('best_odds', 0) > 0:
-                return jsonify({
-                    'status': 'ok (from EPL)',
-                    'odds': result.get('best_odds'),
-                    'bookmaker': result.get('bookmaker_name'),
-                    'data': result
-                })
-            else:
-                return jsonify({'status': 'error', 'message': 'No odds found for test matches'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
-
 # ============================================================
 # ЗАПУСК
 # ============================================================
@@ -2396,7 +2463,7 @@ if __name__ == "__main__":
     logger.info("   - Лимит 2 ставки на лигу")
     logger.info("🎯 ODD API:")
     logger.info("   - Реальные коэффициенты из 40+ БК")
-    logger.info("   - Обновление только для кандидатов")
+    logger.info("   - Только один маркер: 42.86875000000006")
     logger.info("✅ Команды: /update_results, /result, /analyze")
     logger.info("✅ Кэш матчей сохраняется")
     app.run(host='0.0.0.0', port=port)
