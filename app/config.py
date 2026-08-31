@@ -608,6 +608,37 @@ class Config:
         218: "Кубок Эмира",
     }
 
+    # ============================================================
+    # НАСТРОЙКИ ФИЛЬТРОВ (можно менять без перезаливки кода)
+    # ============================================================
+    
+    # === 70%+ (ОСНОВНОЙ ПОИСК) ===
+    XG_MIN_70 = 1.8
+    XG_MAX_70 = 3.0
+    EV_MIN_70 = 20          # %
+    PROB_MIN_70 = 60        # %
+    POSITION_MAX_70 = 15    # место в таблице
+    FORM_REQUIRED_70 = ['excellent', 'good']
+    SKIP_MID_TABLE_70 = True
+    LIMIT_BET_TYPE_70 = 3
+    LIMIT_LEAGUE_70 = 2
+    
+    # === ТМ 2.5 PREMIUM (EV > 30%) ===
+    PREMIUM_MIN_EV = 30     # %
+    PREMIUM_MIN_PROB = 60   # %
+    PREMIUM_XG_MIN = 1.0
+    PREMIUM_XG_MAX = 2.8
+    
+    # === ТМ 2.5 STANDARD (EV > 15%) ===
+    STANDARD_MIN_EV = 15    # %
+    STANDARD_MIN_PROB = 50  # %
+    STANDARD_XG_MIN = 0.8
+    STANDARD_XG_MAX = 3.0
+    
+    # === ТОП-ЛИГИ ===
+    TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
+    TM25_TOP_LEAGUE_EV = 35  # %
+    
     @classmethod
     def check(cls):
         """Проверка наличия ключей"""
