@@ -176,7 +176,7 @@ MAIN_HTML = """<!DOCTYPE html>
             color: #e8e8f0;
             min-height: 100vh;
             overflow-x: hidden;
-            padding-bottom: 75px;
+            padding-bottom: 80px;
             position: relative;
             transition: background 0.3s ease, color 0.3s ease;
         }
@@ -439,6 +439,7 @@ MAIN_HTML = """<!DOCTYPE html>
             max-width: 1400px;
             margin: 0 auto;
             padding: 12px;
+            padding-bottom: 80px;
             position: relative;
             z-index: 1;
         }
@@ -624,7 +625,7 @@ MAIN_HTML = """<!DOCTYPE html>
             width: 100%;
             border-collapse: collapse;
             font-size: 11px;
-            min-width: 600px;
+            min-width: 700px;
         }
         th, td {
             padding: 6px 8px;
@@ -678,6 +679,9 @@ MAIN_HTML = """<!DOCTYPE html>
         .profit-positive { color: #34d399; font-weight: 600; }
         .profit-negative { color: #f87171; font-weight: 600; }
         
+        /* ============================================================
+           НИЖНЯЯ НАВИГАЦИЯ (ИСПРАВЛЕНА)
+           ============================================================ */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -751,6 +755,17 @@ MAIN_HTML = """<!DOCTYPE html>
             transform: scale(0.92);
         }
         
+        .page {
+            display: none;
+            animation: fadeIn 0.2s ease;
+            min-height: calc(100vh - 200px);
+        }
+        .page.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -808,6 +823,36 @@ MAIN_HTML = """<!DOCTYPE html>
             border-color: transparent;
             box-shadow: 0 0 30px rgba(16, 185, 129, 0.2);
         }
+        .btn-danger {
+            background: rgba(248, 113, 113, 0.15);
+            color: #f87171;
+            border-color: rgba(248, 113, 113, 0.1);
+        }
+        .btn-danger:hover {
+            background: rgba(248, 113, 113, 0.25);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.2);
+        }
+        .btn-primary:active { transform: scale(0.95); }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.6);
+        }
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.05);
+        }
         
         .no-data {
             text-align: center;
@@ -842,19 +887,9 @@ MAIN_HTML = """<!DOCTYPE html>
             margin: 0 auto 8px;
         }
         
-        .page {
-            display: none;
-            animation: fadeIn 0.2s ease;
-        }
-        .page.active { display: block; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
         .edit-row {
             background: rgba(255, 255, 255, 0.02);
-            padding: 6px;
+            padding: 8px;
             border-radius: 6px;
             display: none;
             margin-top: 4px;
@@ -864,15 +899,121 @@ MAIN_HTML = """<!DOCTYPE html>
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.06);
             color: #e8e8f0;
-            padding: 2px 4px;
+            padding: 4px 6px;
             border-radius: 4px;
-            font-size: 10px;
-            margin-right: 2px;
+            font-size: 11px;
+            margin-right: 4px;
         }
-        .edit-row .btn { padding: 2px 8px; font-size: 10px; }
-        .edit-btn { cursor: pointer; color: rgba(255, 255, 255, 0.3); font-size: 11px; }
-        .edit-btn:hover { color: #a78bfa; }
+        .edit-row .btn { padding: 4px 10px; font-size: 10px; }
+        .edit-btn { 
+            cursor: pointer; 
+            color: rgba(255, 255, 255, 0.3); 
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        .edit-btn:hover { 
+            color: #a78bfa; 
+            background: rgba(124, 58, 237, 0.1);
+        }
         
+        /* ============================================================
+           МОДАЛЬНОЕ ОКНО
+           ============================================================ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: rgba(20,20,35,0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(167,139,250,0.15);
+            padding: 24px;
+            max-width: 450px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-header h3 {
+            color: #a78bfa;
+            margin: 0;
+            font-size: 18px;
+        }
+        .modal-close {
+            background: rgba(255,255,255,0.05);
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .modal-close:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .modal-field {
+            margin-bottom: 12px;
+        }
+        .modal-field label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.3);
+            display: block;
+            margin-bottom: 4px;
+        }
+        .modal-field input, .modal-field select {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 6px;
+            color: #e8e8f0;
+            font-size: 13px;
+        }
+        .modal-field input:focus, .modal-field select:focus {
+            outline: none;
+            border-color: rgba(124,58,237,0.3);
+        }
+        .modal-field .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .modal-actions .btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        /* ============================================================
+           НАСТРОЙКИ
+           ============================================================ */
         .setting-group {
             background: rgba(20, 20, 35, 0.5);
             backdrop-filter: blur(12px);
@@ -998,20 +1139,6 @@ MAIN_HTML = """<!DOCTYPE html>
             cursor: pointer;
             box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white;
-            border: none;
-            padding: 6px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-        .btn-primary:hover {
-            box-shadow: 0 0 30px rgba(124, 58, 237, 0.2);
-        }
-        .btn-primary:active { transform: scale(0.95); }
         
         .chart-controls {
             display: flex;
@@ -1151,7 +1278,7 @@ MAIN_HTML = """<!DOCTYPE html>
         }
         
         @media (max-width: 768px) {
-            .container { padding: 10px; }
+            .container { padding: 10px; padding-bottom: 80px; }
             .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
             .header h1 { font-size: 16px; text-align: center; }
             .header-controls { justify-content: center; }
@@ -1160,7 +1287,7 @@ MAIN_HTML = """<!DOCTYPE html>
             .metrics-grid .metric-item { padding: 6px 10px; }
             .metrics-grid .metric-item .value { font-size: 14px; }
             .card { padding: 10px; }
-            table { font-size: 9px; min-width: 450px; }
+            table { font-size: 9px; min-width: 500px; }
             th, td { padding: 3px 4px; }
             .chart-container { height: 100px; }
             .chart-container-large { height: 250px; }
@@ -1174,6 +1301,9 @@ MAIN_HTML = """<!DOCTYPE html>
             .patterns-table { font-size: 9px; }
             .patterns-table th, .patterns-table td { padding: 4px 6px; }
             .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
+            .modal { padding: 16px; }
+            .modal-field .row { grid-template-columns: 1fr; }
+            .edit-row input, .edit-row select { font-size: 9px; padding: 2px 4px; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1326,7 +1456,8 @@ MAIN_HTML = """<!DOCTYPE html>
     let currentPage = 'dashboard';
     let isLoading = false;
     let chartData = null;
-    let matchesCache = null;  // ← ДОБАВЛЕНО ДЛЯ КЭША МАТЧЕЙ
+    let matchesCache = null;
+    let editingIndex = null;
 
     // ============================================================
     // УВЕДОМЛЕНИЯ
@@ -1416,7 +1547,7 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ЗАГРУЗКА МАТЧЕЙ ОТДЕЛЬНО (НОВАЯ ФУНКЦИЯ)
+    // ЗАГРУЗКА МАТЧЕЙ ОТДЕЛЬНО
     // ============================================================
     async function loadMatches() {
         try {
@@ -1434,7 +1565,7 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // ЗАГРУЗКА ДАННЫХ (ИСПРАВЛЕННАЯ)
+    // ЗАГРУЗКА ДАННЫХ
     // ============================================================
     async function loadPageData(page) {
         if (isLoading) return;
@@ -1456,18 +1587,11 @@ MAIN_HTML = """<!DOCTYPE html>
             }
             const data = await response.json();
             
-            // ============================================================
-            // ДОБАВЛЯЕМ ЗАГРУЗКУ МАТЧЕЙ ОТДЕЛЬНО
-            // ============================================================
             try {
                 const matchesData = await loadMatches();
                 if (matchesData && matchesData.length > 0) {
                     data.matches = matchesData;
                     console.log('✅ Загружено матчей:', matchesData.length);
-                } else if (data.matches && data.matches.length > 0) {
-                    console.log('✅ Матчи из all_data:', data.matches.length);
-                } else {
-                    console.log('ℹ️ Нет активных матчей');
                 }
             } catch (e) {
                 console.log('Матчи не загружены отдельно');
@@ -1504,14 +1628,292 @@ MAIN_HTML = """<!DOCTYPE html>
         isLoading = false;
     }
 
-    // ============================================================
-    // ОБНОВЛЕНИЕ ДАННЫХ (ИСПРАВЛЕННОЕ)
-    // ============================================================
     function refreshData() {
         cachedData = null;
-        matchesCache = null;  // ← СБРАСЫВАЕМ КЭШ МАТЧЕЙ
+        matchesCache = null;
         loadPageData(currentPage);
         showNotification('🔄 Обновление данных...', '');
+    }
+
+    // ============================================================
+    // РЕДАКТИРОВАНИЕ СТАВКИ
+    // ============================================================
+    function toggleEdit(index) {
+        const row = document.getElementById('edit-row-' + index);
+        if (row) {
+            row.classList.toggle('active');
+            if (row.classList.contains('active')) {
+                editingIndex = index;
+                // Заполняем поля текущими данными
+                const item = getItemByIndex(index);
+                if (item) {
+                    document.getElementById('edit_home_' + index).value = item.home || '';
+                    document.getElementById('edit_away_' + index).value = item.away || '';
+                    document.getElementById('edit_score_' + index).value = item.score || '';
+                    document.getElementById('edit_bet_' + index).value = item.bet || '';
+                    document.getElementById('edit_odds_' + index).value = item.odds || 0;
+                    document.getElementById('edit_stake_' + index).value = item.stake || 0;
+                    document.getElementById('edit_ev_' + index).value = item.ev || 0;
+                    document.getElementById('edit_marker_' + index).value = item.marker || '';
+                    document.getElementById('edit_result_' + index).value = item.result || 'pending';
+                }
+            } else {
+                editingIndex = null;
+            }
+        }
+    }
+
+    function getItemByIndex(index) {
+        if (!cachedData) return null;
+        const history = cachedData.history || [];
+        const matches = cachedData.matches || [];
+        let allItems = [];
+        
+        if (matches && matches.length > 0) {
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
+                allItems.push({
+                    type: 'match',
+                    date: match.match_time || 'Сегодня',
+                    home: match.home || 'Unknown',
+                    away: match.away || 'Unknown',
+                    score: '-',
+                    bet: bestBet.label || '—',
+                    odds: bestBet.odds || 0,
+                    stake: bestBet.stake || 0,
+                    ev: bestBet.ev || 0,
+                    result: 'pending',
+                    profit: 0,
+                    marker: bestBet.marker_stake || '',
+                    is_active: true
+                });
+            });
+        }
+        
+        if (history && history.length > 0) {
+            history.forEach((bet) => {
+                allItems.push({
+                    type: 'history',
+                    date: bet.date || '-',
+                    home: bet.home || 'Unknown',
+                    away: bet.away || 'Unknown',
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    bet: bet.bet || '—',
+                    odds: bet.odds || 0,
+                    stake: bet.stake || 0,
+                    ev: bet.ev || 0,
+                    result: bet.result || 'pending',
+                    profit: bet.profit || 0,
+                    marker: bet.marker_stake || '',
+                    is_active: false
+                });
+            });
+        }
+        
+        allItems.sort((a, b) => {
+            if (a.is_active && !b.is_active) return -1;
+            if (!a.is_active && b.is_active) return 1;
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
+        });
+        
+        allItems = allItems.slice(0, 50);
+        
+        if (index < allItems.length) {
+            return allItems[index];
+        }
+        return null;
+    }
+
+    function getHistoryIndex(displayIndex) {
+        if (!cachedData) return null;
+        const history = cachedData.history || [];
+        const matches = cachedData.matches || [];
+        let allItems = [];
+        
+        if (matches && matches.length > 0) {
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
+                allItems.push({
+                    type: 'match',
+                    date: match.match_time || 'Сегодня',
+                    home: match.home || 'Unknown',
+                    away: match.away || 'Unknown',
+                    score: '-',
+                    bet: bestBet.label || '—',
+                    odds: bestBet.odds || 0,
+                    stake: bestBet.stake || 0,
+                    ev: bestBet.ev || 0,
+                    result: 'pending',
+                    profit: 0,
+                    marker: bestBet.marker_stake || '',
+                    is_active: true
+                });
+            });
+        }
+        
+        if (history && history.length > 0) {
+            history.forEach((bet) => {
+                allItems.push({
+                    type: 'history',
+                    date: bet.date || '-',
+                    home: bet.home || 'Unknown',
+                    away: bet.away || 'Unknown',
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    bet: bet.bet || '—',
+                    odds: bet.odds || 0,
+                    stake: bet.stake || 0,
+                    ev: bet.ev || 0,
+                    result: bet.result || 'pending',
+                    profit: bet.profit || 0,
+                    marker: bet.marker_stake || '',
+                    is_active: false
+                });
+            });
+        }
+        
+        allItems.sort((a, b) => {
+            if (a.is_active && !b.is_active) return -1;
+            if (!a.is_active && b.is_active) return 1;
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
+        });
+        
+        allItems = allItems.slice(0, 50);
+        
+        if (displayIndex < allItems.length && allItems[displayIndex].type === 'history') {
+            return history.length - 1 - allItems.slice(0, displayIndex + 1).filter(i => i.type === 'history').length;
+        }
+        return null;
+    }
+
+    async function saveEdit(index) {
+        const score = document.getElementById('edit_score_' + index).value;
+        let home_goals = null, away_goals = null;
+        if (score && score.includes('-')) {
+            const parts = score.split('-');
+            home_goals = parseInt(parts[0].trim());
+            away_goals = parseInt(parts[1].trim());
+        }
+        
+        const data = {
+            home: document.getElementById('edit_home_' + index).value,
+            away: document.getElementById('edit_away_' + index).value,
+            home_goals: home_goals,
+            away_goals: away_goals,
+            bet: document.getElementById('edit_bet_' + index).value,
+            odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
+            stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
+            ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
+            marker: document.getElementById('edit_marker_' + index).value || '',
+            result: document.getElementById('edit_result_' + index).value,
+            index: getHistoryIndex(index)
+        };
+        
+        if (data.index === null) {
+            showNotification('❌ Нельзя редактировать активный матч', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(API_BASE + '/api/edit_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('✅ Ставка обновлена!', 'success');
+                toggleEdit(index);
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + result.error, 'error');
+            }
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
+    }
+
+    async function deleteBet(index) {
+        if (!confirm('Удалить эту ставку?')) return;
+        
+        const historyIndex = getHistoryIndex(index);
+        if (historyIndex === null) {
+            showNotification('❌ Нельзя удалить активный матч', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(API_BASE + '/api/delete_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: historyIndex })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('✅ Ставка удалена!', 'success');
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + result.error, 'error');
+            }
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
+    }
+
+    // ============================================================
+    // ДОБАВЛЕНИЕ МАТЧА
+    // ============================================================
+    function showAddMatchModal() {
+        document.getElementById('addMatchModal').classList.add('active');
+    }
+
+    function hideAddMatchModal() {
+        document.getElementById('addMatchModal').classList.remove('active');
+        document.getElementById('matchNameInput').value = '';
+        document.getElementById('matchScoreInput').value = '';
+        document.getElementById('matchBetInput').value = '';
+        document.getElementById('matchOddsInput').value = '1.85';
+        document.getElementById('matchStakeInput').value = '42.87';
+        document.getElementById('matchResultSelect').value = 'win';
+    }
+
+    async function saveManualMatch() {
+        const matchName = document.getElementById('matchNameInput').value;
+        const score = document.getElementById('matchScoreInput').value;
+        const bet = document.getElementById('matchBetInput').value;
+        const odds = parseFloat(document.getElementById('matchOddsInput').value) || 1.85;
+        const stake = parseFloat(document.getElementById('matchStakeInput').value) || 42.87;
+        const result = document.getElementById('matchResultSelect').value;
+        
+        if (!matchName) {
+            alert('❌ Введите название матча!');
+            return;
+        }
+        
+        try {
+            const response = await fetch(API_BASE + '/api/add_manual_match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    match: matchName,
+                    score: score || '-',
+                    result: result,
+                    stake: stake,
+                    bet: bet || 'Ручная ставка',
+                    odds: odds,
+                    bookmaker: 'Ручное добавление'
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Матч добавлен!', 'success');
+                hideAddMatchModal();
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('❌ Ошибка: ' + error, 'error');
+        }
     }
 
     // ============================================================
@@ -1650,11 +2052,6 @@ MAIN_HTML = """<!DOCTYPE html>
                 bet: 'ТМ 2.5',
                 icon: '🔽',
                 description: 'Тотал меньше 2.5 голов'
-            },
-            '42.86875000000001': {
-                bet: 'X2',
-                icon: '✈️',
-                description: 'Гости не проиграют (Победа или ничья гостей)'
             }
         };
         
@@ -1672,17 +2069,15 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // РЕНДЕР ДАШБОРДА (ИСПРАВЛЕННЫЙ)
+    // РЕНДЕР ДАШБОРДА
     // ============================================================
     function renderDashboard(data) {
         const s = data.stats || {};
         const history = data.history || [];
         const matches = data.matches || [];
 
-        // ОБЪЕДИНЯЕМ ИСТОРИЮ И МАТЧИ
         let allItems = [];
 
-        // Добавляем активные матчи
         if (matches && matches.length > 0) {
             matches.forEach((match) => {
                 const bestBet = match.best_bet || match.bets?.[0] || {};
@@ -1700,6 +2095,7 @@ MAIN_HTML = """<!DOCTYPE html>
                     ev: bestBet.ev || 0,
                     result: 'pending',
                     profit: 0,
+                    marker: bestBet.marker_stake || '',
                     is_active: true,
                     xg: match.total_xg || 0,
                     league: match.league || ''
@@ -1707,7 +2103,6 @@ MAIN_HTML = """<!DOCTYPE html>
             });
         }
 
-        // Добавляем историю ставок
         if (history && history.length > 0) {
             history.forEach((bet) => {
                 allItems.push({
@@ -1724,6 +2119,7 @@ MAIN_HTML = """<!DOCTYPE html>
                     ev: bet.ev || 0,
                     result: bet.result || 'pending',
                     profit: bet.profit || 0,
+                    marker: bet.marker_stake || '',
                     is_active: false,
                     xg: 0,
                     league: bet.league || ''
@@ -1731,17 +2127,14 @@ MAIN_HTML = """<!DOCTYPE html>
             });
         }
 
-        // Сортируем: сначала активные матчи, потом история по дате
         allItems.sort((a, b) => {
             if (a.is_active && !b.is_active) return -1;
             if (!a.is_active && b.is_active) return 1;
             try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
         });
 
-        // Ограничиваем количество
         allItems = allItems.slice(0, 50);
 
-        // Подсчет статистики
         const totalBets = allItems.filter(i => i.type === 'history').length;
         const activeMatches = allItems.filter(i => i.type === 'match').length;
 
@@ -1771,25 +2164,29 @@ MAIN_HTML = """<!DOCTYPE html>
             </div>
 
             <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
                     <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
-                    <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${allItems.length} (активных: ${activeMatches})</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${allItems.length} (активных: ${activeMatches})</span>
+                        <button class="btn btn-primary" onclick="showAddMatchModal()" style="padding:4px 12px;font-size:11px;">➕ Добавить матч</button>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
                         <thead><tr>
-                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>EV</th><th>Результат</th><th>Прибыль</th>
+                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>Маркер</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
                         </tr></thead>
                         <tbody>
         `;
 
         if (allItems.length === 0) {
-            html += `<tr><td colspan="10" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
+            html += `<tr><td colspan="12" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
         } else {
             allItems.forEach((item, idx) => {
                 const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
                 const isActive = item.is_active;
                 const rowStyle = isActive ? 'background:rgba(167,139,250,0.05);' : '';
+                const markerDisplay = item.marker || '-';
                 
                 html += `
                     <tr style="${rowStyle}">
@@ -1800,9 +2197,36 @@ MAIN_HTML = """<!DOCTYPE html>
                         <td>${item.bet}${isActive ? ' 🟢' : ''}</td>
                         <td>${item.odds}</td>
                         <td>$${item.stake}</td>
+                        <td style="font-size:9px;font-family:monospace;color:rgba(167,139,250,0.6);">${markerDisplay}</td>
                         <td>${item.ev}%</td>
                         <td><span class="badge ${item.result}">${item.result}</span></td>
                         <td class="${profitClass}">${item.profit > 0 ? '+' : ''}$${item.profit}</td>
+                        <td>
+                            ${!isActive ? `<span class="edit-btn" onclick="toggleEdit(${idx})">✏️</span>` : '<span style="color:rgba(255,255,255,0.1);font-size:11px;">—</span>'}
+                        </td>
+                    </tr>
+                    <tr id="edit-row-${idx}" class="edit-row">
+                        <td colspan="12">
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                                <input type="text" id="edit_home_${idx}" style="width:70px;" placeholder="Хозяева">
+                                <input type="text" id="edit_away_${idx}" style="width:70px;" placeholder="Гости">
+                                <input type="text" id="edit_score_${idx}" style="width:50px;" placeholder="2-1">
+                                <input type="text" id="edit_bet_${idx}" style="width:70px;" placeholder="Ставка">
+                                <input type="number" id="edit_odds_${idx}" step="0.01" style="width:50px;" placeholder="Кэф">
+                                <input type="number" id="edit_stake_${idx}" step="0.5" style="width:60px;" placeholder="Сумма">
+                                <input type="text" id="edit_marker_${idx}" style="width:100px;" placeholder="Маркер">
+                                <input type="number" id="edit_ev_${idx}" step="0.1" style="width:50px;" placeholder="EV">
+                                <select id="edit_result_${idx}" style="padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
+                                    <option value="win">✅ WIN</option>
+                                    <option value="loss">❌ LOSS</option>
+                                    <option value="push">🔄 PUSH</option>
+                                    <option value="pending">⏳ PENDING</option>
+                                </select>
+                                <button class="btn btn-success" onclick="saveEdit(${idx})" style="padding:2px 8px;font-size:9px;">💾</button>
+                                <button class="btn btn-danger" onclick="deleteBet(${idx})" style="padding:2px 8px;font-size:9px;">🗑️</button>
+                                <button class="btn btn-outline" onclick="toggleEdit(${idx})" style="padding:2px 8px;font-size:9px;">✖</button>
+                            </div>
+                        </td>
                     </tr>
                 `;
             });
@@ -1816,7 +2240,68 @@ MAIN_HTML = """<!DOCTYPE html>
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
+        
+        // Добавляем модальное окно
+        addModalHTML();
+        
         setTimeout(() => renderChart(data.profit_data), 50);
+    }
+
+    // ============================================================
+    // МОДАЛЬНОЕ ОКНО (HTML)
+    // ============================================================
+    function addModalHTML() {
+        if (document.getElementById('addMatchModal')) return;
+        
+        const modalHTML = `
+            <div class="modal-overlay" id="addMatchModal">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>➕ Добавить матч</h3>
+                        <button class="modal-close" onclick="hideAddMatchModal()">✖</button>
+                    </div>
+                    <div class="modal-field">
+                        <label>🏟️ Название матча</label>
+                        <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona">
+                    </div>
+                    <div class="modal-field">
+                        <label>⚽ Счёт</label>
+                        <input type="text" id="matchScoreInput" placeholder="2-1">
+                    </div>
+                    <div class="modal-field">
+                        <label>📊 Ставка</label>
+                        <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
+                    </div>
+                    <div class="modal-field">
+                        <div class="row">
+                            <div>
+                                <label>💰 Коэффициент</label>
+                                <input type="number" id="matchOddsInput" value="1.85" step="0.01">
+                            </div>
+                            <div>
+                                <label>💵 Сумма</label>
+                                <input type="number" id="matchStakeInput" value="42.87" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label>📊 Результат</label>
+                        <select id="matchResultSelect">
+                            <option value="win">✅ WIN (Выигрыш)</option>
+                            <option value="loss">❌ LOSS (Проигрыш)</option>
+                            <option value="push">🔄 PUSH (Возврат)</option>
+                            <option value="pending">⏳ PENDING (Ожидание)</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
+                        <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
     // ============================================================
@@ -2150,127 +2635,12 @@ MAIN_HTML = """<!DOCTYPE html>
                     ${betsHtml}
                 </div>
                 
-                <button onclick="addMatchManually('${pattern.stake}', '${recommendation.bet}')" 
-                        style="width:100%;margin-top:6px;padding:6px;background:rgba(52,211,153,0.08);border:1px dashed rgba(52,211,153,0.2);border-radius:6px;color:#34d399;cursor:pointer;font-size:10px;transition:all 0.3s ease;"
-                        onmouseover="this.style.background='rgba(52,211,153,0.15)'" 
-                        onmouseout="this.style.background='rgba(52,211,153,0.08)'">
-                    ➕ Добавить матч
-                </button>
-                
                 <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
                     💡 ${pattern.recommendation}
                     ${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}
                 </div>
             </div>
         `;
-    }
-
-    // ============================================================
-    // РУЧНОЕ ДОБАВЛЕНИЕ МАТЧА
-    // ============================================================
-    function addMatchManually(stake, betType) {
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        `;
-        
-        modal.innerHTML = `
-            <div style="background:rgba(20,20,35,0.95);border-radius:16px;border:1px solid rgba(167,139,250,0.15);padding:24px;max-width:450px;width:100%;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                    <h3 style="color:#a78bfa;margin:0;">➕ Добавить матч</h3>
-                    <button onclick="this.closest('div[style]').remove()" style="background:rgba(255,255,255,0.05);border:none;border-radius:50%;width:30px;height:30px;font-size:16px;color:rgba(255,255,255,0.5);cursor:pointer;">✖</button>
-                </div>
-                
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-                    <div>
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:2px;">💰 Сумма маркера</div>
-                        <div style="font-size:14px;font-weight:700;color:#a78bfa;">$${stake}</div>
-                    </div>
-                    <div>
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:2px;">🎯 Тип ставки</div>
-                        <div style="font-size:14px;font-weight:600;color:#34d399;">${betType}</div>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom:10px;">
-                    <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">🏟️ Название матча</label>
-                    <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
-                </div>
-                
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-                    <div>
-                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">⚽ Счёт</label>
-                        <input type="text" id="scoreInput" placeholder="2-1" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
-                    </div>
-                    <div>
-                        <label style="font-size:11px;color:rgba(255,255,255,0.3);display:block;margin-bottom:4px;">📊 Результат</label>
-                        <select id="resultSelect" style="width:100%;padding:8px 12px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#e8e8f0;font-size:13px;">
-                            <option value="win">✅ WIN</option>
-                            <option value="loss">❌ LOSS</option>
-                            <option value="push">🔄 PUSH</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div style="display:flex;gap:8px;">
-                    <button onclick="saveManualMatch('${stake}', '${betType}')" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;border-radius:8px;color:white;font-size:14px;font-weight:600;cursor:pointer;">
-                        💾 Сохранить
-                    </button>
-                    <button onclick="this.closest('div[style]').remove()" style="padding:10px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:rgba(255,255,255,0.4);cursor:pointer;font-size:14px;">
-                        Отмена
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-    }
-
-    function saveManualMatch(stake, betType) {
-        const matchName = document.getElementById('matchNameInput').value;
-        const score = document.getElementById('scoreInput').value;
-        const result = document.getElementById('resultSelect').value;
-        
-        if (!matchName) {
-            alert('❌ Введите название матча!');
-            return;
-        }
-        
-        fetch(API_BASE + '/api/add_manual_match', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                match: matchName,
-                score: score || '-',
-                result: result,
-                stake: parseFloat(stake),
-                bet: betType,
-                odds: 1.85
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('✅ Матч добавлен!');
-                location.reload();
-            } else {
-                alert('❌ Ошибка: ' + data.error);
-            }
-        })
-        .catch(error => {
-            alert('❌ Ошибка: ' + error);
-        });
     }
 
     // ============================================================
@@ -2801,69 +3171,6 @@ MAIN_HTML = """<!DOCTYPE html>
     // ============================================================
     // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
     // ============================================================
-    function toggleEdit(index) {
-        const row = document.getElementById('edit-row-' + index);
-        if (row) row.classList.toggle('active');
-    }
-
-    async function saveEdit(index) {
-        const score = document.getElementById('edit_score_' + index).value;
-        let home_goals = null, away_goals = null;
-        if (score && score.includes('-')) {
-            const parts = score.split('-');
-            home_goals = parseInt(parts[0]);
-            away_goals = parseInt(parts[1]);
-        }
-        const data = {
-            home: document.getElementById('edit_home_' + index).value,
-            away: document.getElementById('edit_away_' + index).value,
-            home_goals: home_goals,
-            away_goals: away_goals,
-            bet: document.getElementById('edit_bet_' + index).value,
-            odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
-            stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
-            ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
-            result: document.getElementById('edit_result_' + index).value,
-            index: index
-        };
-        try {
-            const response = await fetch(API_BASE + '/api/edit_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('✅ Ставка обновлена!', 'success');
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
-    async function deleteBet(index) {
-        if (!confirm('Удалить эту ставку?')) return;
-        try {
-            const response = await fetch(API_BASE + '/api/delete_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: index })
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('✅ Ставка удалена!', 'success');
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
     async function runSimulation() {
         const count = parseInt(document.getElementById('simCount').value) || 1000;
         document.getElementById('simResults').style.display = 'block';
@@ -3042,7 +3349,6 @@ def index():
 
 @app.route('/api/all_data')
 def api_all_data():
-    """Прокси к боту для получения всех данных"""
     try:
         logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
         response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
@@ -3056,7 +3362,6 @@ def api_all_data():
 
 @app.route('/api/matches')
 def api_matches():
-    """Прокси для получения матчей"""
     try:
         response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
         if response.status_code == 200:
