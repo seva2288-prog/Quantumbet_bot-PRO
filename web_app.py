@@ -1644,7 +1644,6 @@ MAIN_HTML = """<!DOCTYPE html>
             row.classList.toggle('active');
             if (row.classList.contains('active')) {
                 editingIndex = index;
-                // Заполняем поля текущими данными
                 const item = getItemByIndex(index);
                 if (item) {
                     document.getElementById('edit_home_' + index).value = item.home || '';
@@ -2971,9 +2970,127 @@ MAIN_HTML = """<!DOCTYPE html>
         };
         
         let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Настройки</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Управление ботом</div>
+            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Управление ботом</h2>
+            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Команды и настройки бота</div>
             
+            <!-- ============================================================
+                 КОМАНДЫ ДЛЯ БОТА
+                 ============================================================ -->
+            <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
+                <div class="card-header">
+                    <h2 style="color:#a78bfa;">📱 Команды бота</h2>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">Отправка в Telegram</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;">
+                    <button class="btn-primary" onclick="sendBotCommand('/update')" style="padding:8px 16px;">🔄 Обновить матчи</button>
+                    <button class="btn-primary" onclick="sendBotCommand('/stats')" style="padding:8px 16px;background:linear-gradient(135deg,#059669,#10b981);">📊 Статистика</button>
+                    <button class="btn-primary" onclick="sendBotCommand('/bank')" style="padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);">💰 Банк</button>
+                    <button class="btn-primary" onclick="sendBotCommand('/autobet')" style="padding:8px 16px;background:linear-gradient(135deg,#f472b6,#ec4899);">🤖 Авто-ставка</button>
+                    <button class="btn-primary" onclick="sendBotCommand('/update_results')" style="padding:8px 16px;background:linear-gradient(135deg,#6366f1,#4f46e5);">📋 Обновить результаты</button>
+                    <button class="btn-primary" onclick="sendBotCommand('/export')" style="padding:8px 16px;background:linear-gradient(135deg,#34d399,#059669);">📥 Экспорт Excel</button>
+                    <button class="btn btn-danger" onclick="sendBotCommand('/stop')" style="padding:8px 16px;">⏹️ Остановить поиск</button>
+                </div>
+                <div id="commandStatus" style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.3);">Нажмите кнопку для отправки команды боту</div>
+            </div>
+            
+            <!-- ============================================================
+                 НАСТРОЙКИ БОТА
+                 ============================================================ -->
+            <div class="card" style="border:2px solid rgba(52,211,153,0.15);">
+                <div class="card-header">
+                    <h2 style="color:#34d399;">🎛️ Настройки бота</h2>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">Изменение параметров поиска</span>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <!-- 70%+ настройки -->
+                    <div style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);">
+                        <h3 style="color:rgba(255,255,255,0.5);font-size:11px;margin-bottom:8px;">🎯 70%+ (основной поиск)</h3>
+                        
+                        <div style="margin-bottom:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">Минимальный EV (%)</label>
+                            <input type="number" id="evMin70" value="20" min="5" max="50" 
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                        
+                        <div style="margin-bottom:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">Минимальная вероятность (%)</label>
+                            <input type="number" id="probMin70" value="60" min="40" max="80" 
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                        
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+                            <div>
+                                <label style="font-size:10px;color:rgba(255,255,255,0.3);">XG минимум</label>
+                                <input type="number" id="xgMin70" value="1.8" step="0.1" min="1.0" max="2.5"
+                                       style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                            </div>
+                            <div>
+                                <label style="font-size:10px;color:rgba(255,255,255,0.3);">XG максимум</label>
+                                <input type="number" id="xgMax70" value="3.0" step="0.1" min="2.0" max="4.0"
+                                       style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">Максимальная позиция в таблице</label>
+                            <input type="number" id="positionMax70" value="15" min="5" max="30"
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                    </div>
+                    
+                    <!-- ТМ 2.5 настройки -->
+                    <div style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);">
+                        <h3 style="color:rgba(255,255,255,0.5);font-size:11px;margin-bottom:8px;">🎯 ТМ 2.5 (специальный поиск)</h3>
+                        
+                        <div style="margin-bottom:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">PREMIUM EV (%)</label>
+                            <input type="number" id="premiumEv" value="30" min="10" max="60" 
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                        
+                        <div style="margin-bottom:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">STANDARD EV (%)</label>
+                            <input type="number" id="standardEv" value="15" min="5" max="40" 
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                        
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+                            <div>
+                                <label style="font-size:10px;color:rgba(255,255,255,0.3);">XG минимум</label>
+                                <input type="number" id="xgMinTm25" value="1.0" step="0.1" min="0.5" max="2.0"
+                                       style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                            </div>
+                            <div>
+                                <label style="font-size:10px;color:rgba(255,255,255,0.3);">XG максимум</label>
+                                <input type="number" id="xgMaxTm25" value="3.0" step="0.1" min="2.0" max="4.0"
+                                       style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">Максимум ТМ 2.5 ставок</label>
+                            <input type="number" id="maxTm25Bets" value="5" min="1" max="10"
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                        
+                        <div style="margin-top:6px;">
+                            <label style="font-size:10px;color:rgba(255,255,255,0.3);">Топ-лиги EV (%)</label>
+                            <input type="number" id="topLeagueEv" value="35" min="10" max="60"
+                                   style="width:100%;padding:4px 8px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:4px;color:#e8e8f0;font-size:12px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);">
+                    <button class="btn-success" onclick="saveBotSettings()" style="padding:8px 24px;">💾 Сохранить настройки</button>
+                    <button class="btn btn-outline" onclick="loadBotSettings()" style="padding:8px 24px;">🔄 Загрузить настройки</button>
+                    <button class="btn btn-outline" onclick="resetBotSettings()" style="padding:8px 24px;">↩️ Сбросить</button>
+                </div>
+                <div id="settingsStatus" style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.3);">Настройки загружены</div>
+            </div>
+            
+            <!-- СТАРЫЕ НАСТРОЙКИ (БАНК, ДЕТЕКТОР, ЭКСПОРТ) -->
             <div class="setting-group">
                 <h2>💰 Банк</h2>
                 <div class="setting-item">
@@ -3311,10 +3428,141 @@ MAIN_HTML = """<!DOCTYPE html>
     });
 
     // ============================================================
+    // КОМАНДЫ ДЛЯ БОТА (ВЕБ)
+    // ============================================================
+
+    async function sendBotCommand(command) {
+        const status = document.getElementById('commandStatus');
+        status.textContent = `⏳ Отправка команды ${command}...`;
+        status.style.color = 'rgba(255,255,255,0.6)';
+        
+        try {
+            const response = await fetch('/api/send_command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: command })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                status.textContent = `✅ Команда ${command} отправлена! Бот выполнит ее в Telegram.`;
+                status.style.color = '#34d399';
+            } else {
+                status.textContent = `❌ Ошибка: ${data.error || 'Неизвестная ошибка'}`;
+                status.style.color = '#f87171';
+            }
+        } catch (e) {
+            status.textContent = `❌ Ошибка отправки: ${e.message}`;
+            status.style.color = '#f87171';
+        }
+        
+        setTimeout(() => {
+            status.style.color = 'rgba(255,255,255,0.3)';
+        }, 5000);
+    }
+
+    // ============================================================
+    // НАСТРОЙКИ БОТА (ВЕБ)
+    // ============================================================
+
+    async function saveBotSettings() {
+        const status = document.getElementById('settingsStatus');
+        status.textContent = '⏳ Сохранение настроек...';
+        status.style.color = 'rgba(255,255,255,0.6)';
+        
+        const settings = {
+            ev_min_70: parseInt(document.getElementById('evMin70').value) || 20,
+            prob_min_70: parseInt(document.getElementById('probMin70').value) || 60,
+            xg_min_70: parseFloat(document.getElementById('xgMin70').value) || 1.8,
+            xg_max_70: parseFloat(document.getElementById('xgMax70').value) || 3.0,
+            position_max_70: parseInt(document.getElementById('positionMax70').value) || 15,
+            premium_ev: parseInt(document.getElementById('premiumEv').value) || 30,
+            standard_ev: parseInt(document.getElementById('standardEv').value) || 15,
+            xg_min_tm25: parseFloat(document.getElementById('xgMinTm25').value) || 1.0,
+            xg_max_tm25: parseFloat(document.getElementById('xgMaxTm25').value) || 3.0,
+            max_tm25_bets: parseInt(document.getElementById('maxTm25Bets').value) || 5,
+            top_league_ev: parseInt(document.getElementById('topLeagueEv').value) || 35
+        };
+        
+        try {
+            const response = await fetch('/api/save_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                status.textContent = '✅ Настройки сохранены! Перезапустите поиск для применения.';
+                status.style.color = '#34d399';
+            } else {
+                status.textContent = `❌ Ошибка: ${data.error || 'Неизвестная ошибка'}`;
+                status.style.color = '#f87171';
+            }
+        } catch (e) {
+            status.textContent = `❌ Ошибка: ${e.message}`;
+            status.style.color = '#f87171';
+        }
+    }
+
+    async function loadBotSettings() {
+        const status = document.getElementById('settingsStatus');
+        status.textContent = '⏳ Загрузка настроек...';
+        status.style.color = 'rgba(255,255,255,0.6)';
+        
+        try {
+            const response = await fetch('/api/get_settings');
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('evMin70').value = data.settings.ev_min_70 || 20;
+                document.getElementById('probMin70').value = data.settings.prob_min_70 || 60;
+                document.getElementById('xgMin70').value = data.settings.xg_min_70 || 1.8;
+                document.getElementById('xgMax70').value = data.settings.xg_max_70 || 3.0;
+                document.getElementById('positionMax70').value = data.settings.position_max_70 || 15;
+                document.getElementById('premiumEv').value = data.settings.premium_ev || 30;
+                document.getElementById('standardEv').value = data.settings.standard_ev || 15;
+                document.getElementById('xgMinTm25').value = data.settings.xg_min_tm25 || 1.0;
+                document.getElementById('xgMaxTm25').value = data.settings.xg_max_tm25 || 3.0;
+                document.getElementById('maxTm25Bets').value = data.settings.max_tm25_bets || 5;
+                document.getElementById('topLeagueEv').value = data.settings.top_league_ev || 35;
+                
+                status.textContent = '✅ Настройки загружены!';
+                status.style.color = '#34d399';
+            } else {
+                status.textContent = '⚠️ Используются настройки по умолчанию';
+                status.style.color = '#fbbf24';
+            }
+        } catch (e) {
+            status.textContent = '⚠️ Используются настройки по умолчанию';
+            status.style.color = '#fbbf24';
+        }
+    }
+
+    function resetBotSettings() {
+        document.getElementById('evMin70').value = 20;
+        document.getElementById('probMin70').value = 60;
+        document.getElementById('xgMin70').value = 1.8;
+        document.getElementById('xgMax70').value = 3.0;
+        document.getElementById('positionMax70').value = 15;
+        document.getElementById('premiumEv').value = 30;
+        document.getElementById('standardEv').value = 15;
+        document.getElementById('xgMinTm25').value = 1.0;
+        document.getElementById('xgMaxTm25').value = 3.0;
+        document.getElementById('maxTm25Bets').value = 5;
+        document.getElementById('topLeagueEv').value = 35;
+        
+        const status = document.getElementById('settingsStatus');
+        status.textContent = '🔄 Настройки сброшены к значениям по умолчанию';
+        status.style.color = '#fbbf24';
+    }
+
+    // ============================================================
     // ЗАПУСК
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         loadPageData('dashboard');
+        setTimeout(loadBotSettings, 500);
     });
 </script>
 </body>
@@ -3340,7 +3588,7 @@ def check_bot_health():
         return False, None
 
 # ============================================================
-# API МАРШРУТЫ (ПРОКСИ К БОТУ)
+# API МАРШРУТЫ
 # ============================================================
 
 @app.route('/')
@@ -3350,7 +3598,6 @@ def index():
 @app.route('/api/all_data')
 def api_all_data():
     try:
-        logger.info(f"📡 Запрос к боту: {BOT_URL}/api/all_data")
         response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
         if response.status_code == 200:
             return jsonify(response.json())
@@ -3463,6 +3710,95 @@ def health():
         'bot_data': bot_data,
         'bot_url': BOT_URL
     })
+
+# ============================================================
+# API ДЛЯ КОМАНД И НАСТРОЕК (НОВЫЕ)
+# ============================================================
+
+@app.route('/api/send_command', methods=['POST'])
+def send_command():
+    """Отправляет команду боту"""
+    try:
+        data = request.json
+        command = data.get('command', '')
+        
+        if not command:
+            return jsonify({'success': False, 'error': 'Команда не указана'}), 400
+        
+        # Отправляем команду через Telegram API
+        url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN', '')}/sendMessage"
+        payload = {
+            'chat_id': os.environ.get('ADMIN_CHAT_ID', ''),
+            'text': command,
+            'parse_mode': 'HTML'
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': f'Команда {command} отправлена'})
+        else:
+            return jsonify({'success': False, 'error': f'Ошибка Telegram: {response.status_code}'}), 500
+            
+    except Exception as e:
+        logger.error(f"Ошибка отправки команды: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/save_settings', methods=['POST'])
+def save_settings():
+    """Сохраняет настройки бота"""
+    try:
+        data = request.json
+        
+        # Сохраняем в файл
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        with open(settings_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        # Отправляем настройки в бот
+        try:
+            response = requests.post(f'{BOT_URL}/api/update_settings', json=data, timeout=5)
+            if response.status_code != 200:
+                logger.warning(f"Не удалось обновить настройки в боте: {response.status_code}")
+        except:
+            pass
+        
+        return jsonify({'success': True, 'message': 'Настройки сохранены'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка сохранения настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/get_settings', methods=['GET'])
+def get_settings():
+    """Загружает настройки бота"""
+    try:
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+            return jsonify({'success': True, 'settings': settings})
+        else:
+            # Возвращаем настройки по умолчанию
+            default_settings = {
+                'ev_min_70': 20,
+                'prob_min_70': 60,
+                'xg_min_70': 1.8,
+                'xg_max_70': 3.0,
+                'position_max_70': 15,
+                'premium_ev': 30,
+                'standard_ev': 15,
+                'xg_min_tm25': 1.0,
+                'xg_max_tm25': 3.0,
+                'max_tm25_bets': 5,
+                'top_league_ev': 35
+            }
+            return jsonify({'success': True, 'settings': default_settings})
+            
+    except Exception as e:
+        logger.error(f"Ошибка загрузки настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
 # ЗАПУСК
