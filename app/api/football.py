@@ -349,6 +349,28 @@ class FootballAPI:
             logger.error(f"Ошибка поиска: {e}")
         return None
     
+    def get_injuries(self, team_id):
+        """Получает травмированных игроков команды"""
+        cache_key = f"injuries_{team_id}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        try:
+            params = {
+                'team': team_id,
+                'season': datetime.now().year
+            }
+            data = self._make_request('/injuries', params)
+            
+            if data and 'response' in data:
+                injuries = data['response']
+                self.cache[cache_key] = injuries
+                return injuries
+        except Exception as e:
+            logger.error(f"Ошибка получения травм команды {team_id}: {e}")
+        
+        return []
+    
     def get_match_odds(self, fixture_id):
         cache_key = f"odds_{fixture_id}"
         if cache_key in self.cache:
