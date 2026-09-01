@@ -2162,12 +2162,6 @@ def find_top_matches_with_tm25(matches):
             combined_matches.append(m)
             match_keys.add(key)
             logger.info(f"🔄 Добавлен ТМ2.5 матч (уникальный): {m['home']} vs {m['away']}")
-        else:
-            existing = next((x for x in combined_matches if f"{x['home']}_{x['away']}" == key), None)
-            if existing and m['best_bet']['ev'] > existing['best_bet']['ev']:
-                combined_matches.remove(existing)
-                combined_matches.append(m)
-                logger.info(f"🔄 Заменен матч на ТМ2.5 (EV выше): {m['home']} vs {m['away']}")
     
     combined_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     
@@ -2178,9 +2172,36 @@ def find_top_matches_with_tm25(matches):
     max_total = Config.MAX_BETS_PER_RUN + getattr(Config, 'MAX_TM25_BETS', 5)
     combined_matches = combined_matches[:max_total]
     
+    # ============================================================
+    # СОХРАНЯЕМ В КЭШ
+    # ============================================================
     cache = storage.load_cache()
     cache['top_matches'] = combined_matches
     storage.save_cache(cache)
+    
+    # ============================================================
+    # СОХРАНЯЕМ В ИСТОРИЮ (НОВОЕ!)
+    # ============================================================
+    history = storage.load_history()
+    for match_data in combined_matches:
+        best_bet = match_data.get('best_bet', {})
+        bet_record = {
+            'home': match_data.get('home', 'Unknown'),
+            'away': match_data.get('away', 'Unknown'),
+            'league': match_data.get('league', 'Unknown'),
+            'bet': best_bet.get('label', '—'),
+            'odds': best_bet.get('odds', 0),
+            'stake': best_bet.get('stake', 42.87),
+            'ev': best_bet.get('ev', 0),
+            'result': 'pending',
+            'profit': 0,
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'fixture_id': match_data.get('fixture_id'),
+            'bookmaker': best_bet.get('bookmaker', '—')
+        }
+        history.append(bet_record)
+    storage.save_history(history)
+    logger.info(f"💾 Сохранено {len(combined_matches)} ставок в историю")
     
     logger.info("=" * 50)
     logger.info(f"📊 ИТОГО: {len(combined_matches)} матчей (70%+: {len(top_matches_70)}, ТМ2.5: {len(tm25_matches)})")
