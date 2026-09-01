@@ -33,7 +33,7 @@ class Config:
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
-    LIMIT_BET_TYPE_70 = 3
+    LIMIT_BET_TYPE_70 = 10
     LIMIT_LEAGUE_70 = 2
     
     # ============================================================
