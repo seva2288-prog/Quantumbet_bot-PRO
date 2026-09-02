@@ -3060,10 +3060,41 @@ def webhook():
             elif text == '/help':
                 send_telegram(handlers.handle_help())
             
-            elif text == '/update':
-                if search_running:
-                    send_telegram("⚠️ Поиск уже запущен!")
-                else:
+           elif text == '/update':
+    global search_running
+    
+    # Проверка на зависший поиск
+    if search_running:
+        if hasattr(search_running, 'start_time'):
+            elapsed = (datetime.now() - search_running.start_time).seconds
+            if elapsed > 300:  # 5 минут
+                search_running = False
+                send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
+            else:
+                send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
+                return
+        else:
+            send_telegram("⚠️ Поиск уже запущен! Отправьте /reset_search для сброса.")
+            return
+    
+    # Запускаем поиск
+    search_running = True
+    search_running.start_time = datetime.now()
+    start_time = datetime.now()
+    
+    try:
+        # ... весь код поиска ...
+        
+    finally:
+        search_running = False
+        if hasattr(search_running, 'start_time'):
+            del search_running.start_time
+        send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
+
+elif text == '/reset_search':
+    global search_running
+    search_running = False
+    send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
                     search_running = True
                     start_time = datetime.now()
                     send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
