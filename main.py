@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 app = Flask(__name__)
 
 search_running = False
+search_state = {}  # ← ДОБАВЛЕНО ДЛЯ ХРАНЕНИЯ СОСТОЯНИЯ
 TIMEZONE_OFFSET = 3
 
 # ============================================================
@@ -3017,7 +3018,7 @@ def load_bot_settings():
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global search_running  # ✅ ОБЪЯВЛЯЕМ В САМОМ НАЧАЛЕ
+    global search_running, search_state  # ✅ ОБЪЯВЛЯЕМ В САМОМ НАЧАЛЕ
     
     try:
         data = request.get_json()
@@ -3061,14 +3062,13 @@ def webhook():
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
-                # ❌ НЕ НАДО global search_running ЗДЕСЬ! (уже объявлено в начале функции)
-                
                 # Проверка на зависший поиск
                 if search_running:
-                    if hasattr(search_running, 'start_time'):
-                        elapsed = (datetime.now() - search_running.start_time).seconds
+                    if 'start_time' in search_state:
+                        elapsed = (datetime.now() - search_state['start_time']).seconds
                         if elapsed > 300:  # 5 минут
                             search_running = False
+                            search_state = {}
                             send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
                         else:
                             send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
@@ -3079,7 +3079,7 @@ def webhook():
                 
                 # Запускаем поиск
                 search_running = True
-                search_running.start_time = datetime.now()
+                search_state = {'start_time': datetime.now()}
                 start_time = datetime.now()
                 
                 try:
@@ -3152,13 +3152,12 @@ def webhook():
                 finally:
                     # ✅ ВСЕГДА сбрасываем флаг и отправляем финальное сообщение
                     search_running = False
-                    if hasattr(search_running, 'start_time'):
-                        del search_running.start_time
+                    search_state = {}
                     send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
             
             elif text == '/reset_search':
-                # ❌ НЕ НАДО global search_running ЗДЕСЬ! (уже объявлено в начале функции)
                 search_running = False
+                search_state = {}
                 send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
             
             elif text == '/stats':
@@ -3253,6 +3252,7 @@ def webhook():
             
             elif text == '/stop':
                 search_running = False
+                search_state = {}
                 send_telegram("⏹️ Поиск остановлен")
             
             else:
