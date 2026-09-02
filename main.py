@@ -1395,7 +1395,7 @@ def get_matches_with_factors():
 # ТОП МАТЧЕЙ - С ФИЛЬТРАМИ 70%+
 # ============================================================
 
-def find_top_matches(matches):
+def def find_top_matches(matches):
     bank = storage.load_bank()
     max_bets = Config.MAX_BETS_PER_RUN
 
@@ -1432,8 +1432,17 @@ def find_top_matches(matches):
             away = away_team.get("name", "Unknown")
             
             league_data = match.get("league")
-            league_name = league_data.get("name", "Unknown") if isinstance(league_data, dict) else "Unknown"
-            league_id = league_data.get("id") if isinstance(league_data, dict) else None
+            # ============================================================
+            # БЕРЕМ НАЗВАНИЕ ИЗ API (ПРИОРИТЕТ)
+            # ============================================================
+            league_name = league_data.get('name', 'Unknown') if isinstance(league_data, dict) else "Unknown"
+            # Если API не вернуло — используем из config.py
+            if league_name == 'Unknown':
+                league_id = league_data.get('id') if isinstance(league_data, dict) else None
+                if league_id and league_id in Config.LEAGUE_NAMES:
+                    league_name = Config.LEAGUE_NAMES[league_id]
+            
+            league_id = league_data.get('id') if isinstance(league_data, dict) else None
 
             match_time = fixture.get("date", "")
             if match_time:
