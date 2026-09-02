@@ -3062,7 +3062,7 @@ def webhook():
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
-    if search_running:
+        if search_running:
         send_telegram("⚠️ Поиск уже запущен!")
     else:
         search_running = True
