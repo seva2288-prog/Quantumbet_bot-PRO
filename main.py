@@ -1395,7 +1395,7 @@ def get_matches_with_factors():
 # ТОП МАТЧЕЙ - С ФИЛЬТРАМИ 70%+
 # ============================================================
 
-def def find_top_matches(matches):
+def find_top_matches(matches):
     bank = storage.load_bank()
     max_bets = Config.MAX_BETS_PER_RUN
 
