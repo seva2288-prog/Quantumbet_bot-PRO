@@ -3060,46 +3060,33 @@ def webhook():
             elif text == '/help':
                 send_telegram(handlers.handle_help())
             
-           elif text == '/update':
-    global search_running
-    
-    # Проверка на зависший поиск
-    if search_running:
-        if hasattr(search_running, 'start_time'):
-            elapsed = (datetime.now() - search_running.start_time).seconds
-            if elapsed > 300:  # 5 минут
-                search_running = False
-                send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
-            else:
-                send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
-                return
-        else:
-            send_telegram("⚠️ Поиск уже запущен! Отправьте /reset_search для сброса.")
-            return
-    
-    # Запускаем поиск
-    search_running = True
-    search_running.start_time = datetime.now()
-    start_time = datetime.now()
-    
-    try:
-        # ... весь код поиска ...
-        
-    finally:
-        search_running = False
-        if hasattr(search_running, 'start_time'):
-            del search_running.start_time
-        send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
-
-elif text == '/reset_search':
-    global search_running
-    search_running = False
-    send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
-                    search_running = True
-                    start_time = datetime.now()
+            elif text == '/update':
+                global search_running
+                
+                # Проверка на зависший поиск
+                if search_running:
+                    if hasattr(search_running, 'start_time'):
+                        elapsed = (datetime.now() - search_running.start_time).seconds
+                        if elapsed > 300:  # 5 минут
+                            search_running = False
+                            send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
+                        else:
+                            send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
+                            return
+                    else:
+                        send_telegram("⚠️ Поиск уже запущен! Отправьте /reset_search для сброса.")
+                        return
+                
+                # Запускаем поиск
+                search_running = True
+                search_running.start_time = datetime.now()
+                start_time = datetime.now()
+                
+                try:
                     send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
                     
                     matches = get_matches_with_factors()
+                    
                     if matches:
                         send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
                         
@@ -3120,7 +3107,7 @@ elif text == '/reset_search':
                             source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
                             
                             matches_text = ""
-                            for i, m in enumerate(top_matches, 1):
+                            for i, m in enumerate(top_matches[:10], 1):
                                 best = m['best_bet']
                                 matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
                                 matches_text += f"   🏆 {m['league']}\n"
@@ -3138,6 +3125,9 @@ elif text == '/reset_search':
                                     matches_text += f"   ⭐ STANDARD (EV>15%)\n"
                                 matches_text += "\n"
                             
+                            if len(top_matches) > 10:
+                                matches_text += f"\n... и еще {len(top_matches) - 10} матчей"
+                            
                             send_telegram(
                                 f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
                                 f"📊 Найдено матчей: {len(matches)}\n"
@@ -3152,9 +3142,24 @@ elif text == '/reset_search':
                         else:
                             send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
                     else:
-                        send_telegram("❌ Матчей не найдено")
-                    
+                        send_telegram("❌ Матчей не найдено на сегодня")
+                        
+                except Exception as e:
+                    error_msg = f"❌ КРИТИЧЕСКАЯ ОШИБКА: {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    send_telegram(error_msg)
+                
+                finally:
+                    # ✅ ВСЕГДА сбрасываем флаг и отправляем финальное сообщение
                     search_running = False
+                    if hasattr(search_running, 'start_time'):
+                        del search_running.start_time
+                    send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
+            
+            elif text == '/reset_search':
+                global search_running
+                search_running = False
+                send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
             
             elif text == '/stats':
                 stats = storage.load_stats()
