@@ -3061,74 +3061,74 @@ def webhook():
             elif text == '/help':
                 send_telegram(handlers.handle_help())
             
-            elif text == '/update':
-                if search_running:
-                    send_telegram("⚠️ Поиск уже запущен!")
-                else:
-                    search_running = True
-                    start_time = datetime.now()
-                    send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
+           elif text == '/update':
+    if search_running:
+        send_telegram("⚠️ Поиск уже запущен!")
+    else:
+        search_running = True
+        start_time = datetime.now()
+        send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
+        
+        matches = get_matches_with_factors()
+        if matches:
+            send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
+            
+            top_matches = find_top_matches_with_tm25(matches)
+            
+            if top_matches:
+                elapsed = (datetime.now() - start_time).seconds
+                
+                bet_types = {}
+                sources = {}
+                for m in top_matches:
+                    bet_type = m['best_bet']['type']
+                    bet_types[bet_type] = bet_types.get(bet_type, 0) + 1
+                    source = m.get('source', 'unknown')
+                    sources[source] = sources.get(source, 0) + 1
+                
+                type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
+                source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
+                
+                matches_text = ""
+                for i, m in enumerate(top_matches[:10], 1):
+                    best = m['best_bet']
+                    matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
+                    matches_text += f"   🏆 {m['league']}\n"
+                    matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
+                    matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
+                    matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
+                    if best.get('bookmaker'):
+                        matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
+                    if best.get('odds_source'):
+                        matches_text += f"   📡 Источник кэфа: {best['odds_source']}\n"
                     
-                    matches = get_matches_with_factors()
-                    if matches:
-                        send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
-                        
-                        top_matches = find_top_matches_with_tm25(matches)
-                        
-                        if top_matches:
-                            elapsed = (datetime.now() - start_time).seconds
-                            
-                            bet_types = {}
-                            sources = {}
-                            for m in top_matches:
-                                bet_type = m['best_bet']['type']
-                                bet_types[bet_type] = bet_types.get(bet_type, 0) + 1
-                                source = m.get('source', 'unknown')
-                                sources[source] = sources.get(source, 0) + 1
-                            
-                            type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
-                            source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
-                            
-                            matches_text = ""
-                            for i, m in enumerate(top_matches[:10], 1):
-                                best = m['best_bet']
-                                matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
-                                matches_text += f"   🏆 {m['league']}\n"
-                                matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
-                                matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
-                                matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
-                                if best.get('bookmaker'):
-                                    matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
-                                if best.get('odds_source'):
-                                    matches_text += f"   📡 Источник кэфа: {best['odds_source']}\n"
-                                
-                                if m.get('source') == 'tm25_premium':
-                                    matches_text += f"   🔥 PREMIUM (EV>30%)\n"
-                                elif m.get('source') == 'tm25_standard':
-                                    matches_text += f"   ⭐ STANDARD (EV>15%)\n"
-                                matches_text += "\n"
-                            
-                            if len(top_matches) > 10:
-                                matches_text += f"\n... и еще {len(top_matches) - 10} матчей"
-                            
-                            send_telegram(
-                                f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
-                                f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🎯 Кандидатов: {len(top_matches)}\n"
-                                f"📈 Типы: {type_stats}\n"
-                                f"📂 Источники: {source_stats}\n"
-                                f"⏱️ Время: {elapsed} сек.\n\n"
-                                f"📋 <b>СПИСОК СТАВОК:</b>\n\n"
-                                f"{matches_text}"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}"
-                            )
-                        else:
-                            send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
-                    else:
-                        send_telegram("❌ Матчей не найдено на сегодня")
-                    
-                    search_running = False
-                    send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
+                    if m.get('source') == 'tm25_premium':
+                        matches_text += f"   🔥 PREMIUM (EV>30%)\n"
+                    elif m.get('source') == 'tm25_standard':
+                        matches_text += f"   ⭐ STANDARD (EV>15%)\n"
+                    matches_text += "\n"
+                
+                if len(top_matches) > 10:
+                    matches_text += f"\n... и еще {len(top_matches) - 10} матчей"
+                
+                send_telegram(
+                    f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
+                    f"📊 Найдено матчей: {len(matches)}\n"
+                    f"🎯 Кандидатов: {len(top_matches)}\n"
+                    f"📈 Типы: {type_stats}\n"
+                    f"📂 Источники: {source_stats}\n"
+                    f"⏱️ Время: {elapsed} сек.\n\n"
+                    f"📋 <b>СПИСОК СТАВОК:</b>\n\n"
+                    f"{matches_text}"
+                    f"🤖 Авто-ставок: {auto_bet.bets_today}"
+                )
+            else:
+                send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
+        else:
+            send_telegram("❌ Матчей не найдено на сегодня")
+        
+        search_running = False
+        send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
                 else:
                     search_running = True
                     start_time = datetime.now()
