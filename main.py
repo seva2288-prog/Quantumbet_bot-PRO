@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 app = Flask(__name__)
 
 search_running = False
-search_state = {}  # ← ДОБАВЛЕНО ДЛЯ ХРАНЕНИЯ СОСТОЯНИЯ
+search_state = {}
 TIMEZONE_OFFSET = 3
 
 # ============================================================
@@ -3014,11 +3014,11 @@ def load_bot_settings():
         return False
 
 # ============================================================
-# FLASK WEBHOOK
+# FLASK WEBHOOK (ИСПРАВЛЕННЫЙ)
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global search_running, search_state  # ✅ ОБЪЯВЛЯЕМ В САМОМ НАЧАЛЕ
+    global search_running, search_state
     
     try:
         data = request.get_json()
@@ -3029,6 +3029,7 @@ def webhook():
         logger.info(f"📨 ПОЛУЧЕН ЗАПРОС ОТ TELEGRAM")
         logger.info("=" * 50)
         
+        # Обработка callback_query (нажатие кнопок)
         if 'callback_query' in data:
             callback = data['callback_query']
             callback_data = callback.get('data', '')
@@ -3045,220 +3046,281 @@ def webhook():
             
             return "ok", 200
         
-        if 'message' in data:
-            message = data['message']
-            text = message.get('text', '')
-            chat_id = message.get('chat', {}).get('id')
-            
-            if str(chat_id) != str(Config.ADMIN_CHAT_ID):
-                logger.warning(f"⛔ ДОСТУП ЗАПРЕЩЕН для {chat_id}")
-                send_telegram("⛔ Нет доступа")
-                return "ok", 200
-            
-            if text == '/start':
-                send_telegram(handlers.handle_start())
-            
-            elif text == '/help':
-                send_telegram(handlers.handle_help())
-            
-            elif text == '/update':
-                # Проверка на зависший поиск
-                if search_running:
-                    if 'start_time' in search_state:
-                        elapsed = (datetime.now() - search_state['start_time']).seconds
-                        if elapsed > 300:  # 5 минут
-                            search_running = False
-                            search_state = {}
-                            send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
-                        else:
-                            send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
-                            return
+        # Обработка сообщений
+        if 'message' not in data:
+            return "ok", 200
+        
+        message = data['message']
+        text = message.get('text', '')
+        chat_id = message.get('chat', {}).get('id')
+        
+        # Проверка доступа
+        if str(chat_id) != str(Config.ADMIN_CHAT_ID):
+            logger.warning(f"⛔ ДОСТУП ЗАПРЕЩЕН для {chat_id}")
+            send_telegram("⛔ Нет доступа")
+            return "ok", 200
+        
+        # ============================================================
+        # /start
+        # ============================================================
+        if text == '/start':
+            send_telegram(handlers.handle_start())
+            return "ok", 200
+        
+        # ============================================================
+        # /help
+        # ============================================================
+        if text == '/help':
+            send_telegram(handlers.handle_help())
+            return "ok", 200
+        
+        # ============================================================
+        # /update - ПОИСК МАТЧЕЙ
+        # ============================================================
+        if text == '/update':
+            # Проверка на зависший поиск
+            if search_running:
+                if 'start_time' in search_state:
+                    elapsed = (datetime.now() - search_state['start_time']).seconds
+                    if elapsed > 300:  # 5 минут
+                        search_running = False
+                        search_state = {}
+                        send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
                     else:
-                        send_telegram("⚠️ Поиск уже запущен! Отправьте /reset_search для сброса.")
-                        return
-                
-                # Запускаем поиск
-                search_running = True
-                search_state = {'start_time': datetime.now()}
-                start_time = datetime.now()
-                
-                try:
-                    send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
-                    
-                    matches = get_matches_with_factors()
-                    
-                    if matches:
-                        send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
-                        
-                        top_matches = find_top_matches_with_tm25(matches)
-                        
-                        if top_matches:
-                            elapsed = (datetime.now() - start_time).seconds
-                            
-                            bet_types = {}
-                            sources = {}
-                            for m in top_matches:
-                                bet_type = m['best_bet']['type']
-                                bet_types[bet_type] = bet_types.get(bet_type, 0) + 1
-                                source = m.get('source', 'unknown')
-                                sources[source] = sources.get(source, 0) + 1
-                            
-                            type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
-                            source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
-                            
-                            matches_text = ""
-                            for i, m in enumerate(top_matches[:10], 1):
-                                best = m['best_bet']
-                                matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
-                                matches_text += f"   🏆 {m['league']}\n"
-                                matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
-                                matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
-                                matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
-                                if best.get('bookmaker'):
-                                    matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
-                                if best.get('odds_source'):
-                                    matches_text += f"   📡 Источник кэфа: {best['odds_source']}\n"
-                                
-                                if m.get('source') == 'tm25_premium':
-                                    matches_text += f"   🔥 PREMIUM (EV>30%)\n"
-                                elif m.get('source') == 'tm25_standard':
-                                    matches_text += f"   ⭐ STANDARD (EV>15%)\n"
-                                matches_text += "\n"
-                            
-                            if len(top_matches) > 10:
-                                matches_text += f"\n... и еще {len(top_matches) - 10} матчей"
-                            
-                            send_telegram(
-                                f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
-                                f"📊 Найдено матчей: {len(matches)}\n"
-                                f"🎯 Кандидатов: {len(top_matches)}\n"
-                                f"📈 Типы: {type_stats}\n"
-                                f"📂 Источники: {source_stats}\n"
-                                f"⏱️ Время: {elapsed} сек.\n\n"
-                                f"📋 <b>СПИСОК СТАВОК:</b>\n\n"
-                                f"{matches_text}"
-                                f"🤖 Авто-ставок: {auto_bet.bets_today}"
-                            )
-                        else:
-                            send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
-                    else:
-                        send_telegram("❌ Матчей не найдено на сегодня")
-                        
-                except Exception as e:
-                    error_msg = f"❌ КРИТИЧЕСКАЯ ОШИБКА: {str(e)}"
-                    logger.error(error_msg, exc_info=True)
-                    send_telegram(error_msg)
-                
-                finally:
-                    # ✅ ВСЕГДА сбрасываем флаг и отправляем финальное сообщение
-                    search_running = False
-                    search_state = {}
-                    send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
+                        send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд. Отправьте /reset_search для сброса.")
+                        return "ok", 200
+                else:
+                    send_telegram("⚠️ Поиск уже запущен! Отправьте /reset_search для сброса.")
+                    return "ok", 200
             
-            elif text == '/reset_search':
+            # Запускаем поиск
+            search_running = True
+            search_state = {'start_time': datetime.now()}
+            start_time = datetime.now()
+            
+            try:
+                send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
+                
+                matches = get_matches_with_factors()
+                
+                if matches:
+                    send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
+                    
+                    top_matches = find_top_matches_with_tm25(matches)
+                    
+                    if top_matches:
+                        elapsed = (datetime.now() - start_time).seconds
+                        
+                        bet_types = {}
+                        sources = {}
+                        for m in top_matches:
+                            bet_type = m['best_bet']['type']
+                            bet_types[bet_type] = bet_types.get(bet_type, 0) + 1
+                            source = m.get('source', 'unknown')
+                            sources[source] = sources.get(source, 0) + 1
+                        
+                        type_stats = " | ".join([f"{k}: {v}" for k, v in bet_types.items()])
+                        source_stats = " | ".join([f"{k}: {v}" for k, v in sources.items()])
+                        
+                        matches_text = ""
+                        for i, m in enumerate(top_matches[:10], 1):
+                            best = m['best_bet']
+                            matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
+                            matches_text += f"   🏆 {m['league']}\n"
+                            matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
+                            matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
+                            matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n"
+                            if best.get('bookmaker'):
+                                matches_text += f"   🏷️ Букмекер: {best['bookmaker']}\n"
+                            if best.get('odds_source'):
+                                matches_text += f"   📡 Источник кэфа: {best['odds_source']}\n"
+                            
+                            if m.get('source') == 'tm25_premium':
+                                matches_text += f"   🔥 PREMIUM (EV>30%)\n"
+                            elif m.get('source') == 'tm25_standard':
+                                matches_text += f"   ⭐ STANDARD (EV>15%)\n"
+                            matches_text += "\n"
+                        
+                        if len(top_matches) > 10:
+                            matches_text += f"\n... и еще {len(top_matches) - 10} матчей"
+                        
+                        send_telegram(
+                            f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
+                            f"📊 Найдено матчей: {len(matches)}\n"
+                            f"🎯 Кандидатов: {len(top_matches)}\n"
+                            f"📈 Типы: {type_stats}\n"
+                            f"📂 Источники: {source_stats}\n"
+                            f"⏱️ Время: {elapsed} сек.\n\n"
+                            f"📋 <b>СПИСОК СТАВОК:</b>\n\n"
+                            f"{matches_text}"
+                            f"🤖 Авто-ставок: {auto_bet.bets_today}"
+                        )
+                    else:
+                        send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
+                else:
+                    send_telegram("❌ Матчей не найдено на сегодня")
+                    
+            except Exception as e:
+                error_msg = f"❌ КРИТИЧЕСКАЯ ОШИБКА: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                send_telegram(error_msg)
+            
+            finally:
                 search_running = False
                 search_state = {}
-                send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
+                send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
             
-            elif text == '/stats':
-                stats = storage.load_stats()
-                bank = storage.load_bank()
-                
-                msg = f"📊 <b>СТАТИСТИКА</b>\n\n"
-                msg += f"💰 Банк: ${bank:.2f}\n"
-                msg += f"📊 Всего ставок: {stats.get('total', 0)}\n"
-                msg += f"✅ Побед: {stats.get('wins', 0)}\n"
-                msg += f"❌ Поражений: {stats.get('losses', 0)}\n"
-                msg += f"🤝 Возвратов: {stats.get('pushes', 0)}\n"
-                msg += f"📈 Винрейт: {stats.get('winrate', 0)}%\n"
-                msg += f"💰 Прибыль: ${stats.get('total_profit', 0):.2f}\n"
-                msg += f"📊 ROI: {stats.get('roi', 0)}%\n"
-                
-                # Добавляем сравнение стратегий
-                if strategy_tester:
-                    msg += f"\n{strategy_tester.get_comparison_report()}"
-                
-                send_telegram(msg)
+            return "ok", 200
+        
+        # ============================================================
+        # /reset_search - СБРОС ПОИСКА
+        # ============================================================
+        if text == '/reset_search':
+            search_running = False
+            search_state = {}
+            send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
+            return "ok", 200
+        
+        # ============================================================
+        # /stats - СТАТИСТИКА
+        # ============================================================
+        if text == '/stats':
+            stats = storage.load_stats()
+            bank = storage.load_bank()
             
-            elif text == '/bank':
-                bank = storage.load_bank()
-                send_telegram(f"💰 <b>ТЕКУЩИЙ БАНК</b>\n\n${bank:.2f}")
+            msg = f"📊 <b>СТАТИСТИКА</b>\n\n"
+            msg += f"💰 Банк: ${bank:.2f}\n"
+            msg += f"📊 Всего ставок: {stats.get('total', 0)}\n"
+            msg += f"✅ Побед: {stats.get('wins', 0)}\n"
+            msg += f"❌ Поражений: {stats.get('losses', 0)}\n"
+            msg += f"🤝 Возвратов: {stats.get('pushes', 0)}\n"
+            msg += f"📈 Винрейт: {stats.get('winrate', 0)}%\n"
+            msg += f"💰 Прибыль: ${stats.get('total_profit', 0):.2f}\n"
+            msg += f"📊 ROI: {stats.get('roi', 0)}%\n"
             
-            elif text == '/export':
-                file, message = export_to_excel()
-                if file:
-                    send_telegram(message)
-                    url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
-                    files = {'document': ('history.xlsx', file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
-                    data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
-                    try:
-                        requests.post(url, files=files, data=data, timeout=30)
-                    except Exception as e:
-                        logger.error(f"Ошибка отправки файла: {e}")
-                else:
-                    send_telegram(message)
+            if strategy_tester:
+                msg += f"\n{strategy_tester.get_comparison_report()}"
             
-            elif text == '/autobet':
-                auto_bet.enabled = not auto_bet.enabled
-                send_telegram(f"🤖 AutoBet: {'ВКЛЮЧЕН' if auto_bet.enabled else 'ВЫКЛЮЧЕН'}")
-            
-            elif text == '/update_results':
-                logger.info("🔄 Обработка /update_results")
-                send_telegram("🔄 Проверка результатов матчей...")
-                updated = update_pending_bets()
-                if updated > 0:
-                    send_telegram(f"✅ Обновлено {updated} результатов!")
-                else:
-                    send_telegram("📭 Нет завершённых матчей для обновления")
-            
-            elif text == '/status':
-                status = bot_state.get_status_report()
-                send_telegram(status)
-            
-            elif text == '/strategies':
-                send_telegram(strategy_tester.get_comparison_report())
-            
-            elif text.startswith('/result'):
-                logger.info("🔄 Обработка /result")
-                parts = text.replace('/result', '').strip()
-                if ' vs ' in parts:
-                    match_part = parts.split(' vs ')
-                    if len(match_part) == 2:
-                        match_and_score = match_part[1].split(' ')
-                        if len(match_and_score) >= 2:
-                            away = match_and_score[0]
-                            score = match_and_score[1] if len(match_and_score) > 1 else ''
-                            home = match_part[0].strip()
-                            match = f"{home} vs {away}"
-                            send_telegram(f"🔄 Обновление результата: {match} {score}")
-                            result = update_manual_result(match, score)
-                            send_telegram(result)
-                        else:
-                            send_telegram("⚠️ Используй: /result Aris Thessalonikis vs OFI 2-1")
+            send_telegram(msg)
+            return "ok", 200
+        
+        # ============================================================
+        # /bank - БАНК
+        # ============================================================
+        if text == '/bank':
+            bank = storage.load_bank()
+            send_telegram(f"💰 <b>ТЕКУЩИЙ БАНК</b>\n\n${bank:.2f}")
+            return "ok", 200
+        
+        # ============================================================
+        # /export - ЭКСПОРТ
+        # ============================================================
+        if text == '/export':
+            file, message = export_to_excel()
+            if file:
+                send_telegram(message)
+                url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
+                files = {'document': ('history.xlsx', file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+                data = {'chat_id': Config.ADMIN_CHAT_ID, 'caption': '📊 История ставок'}
+                try:
+                    requests.post(url, files=files, data=data, timeout=30)
+                except Exception as e:
+                    logger.error(f"Ошибка отправки файла: {e}")
+            else:
+                send_telegram(message)
+            return "ok", 200
+        
+        # ============================================================
+        # /autobet - АВТО-СТАВКИ
+        # ============================================================
+        if text == '/autobet':
+            auto_bet.enabled = not auto_bet.enabled
+            send_telegram(f"🤖 AutoBet: {'ВКЛЮЧЕН' if auto_bet.enabled else 'ВЫКЛЮЧЕН'}")
+            return "ok", 200
+        
+        # ============================================================
+        # /update_results - ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
+        # ============================================================
+        if text == '/update_results':
+            logger.info("🔄 Обработка /update_results")
+            send_telegram("🔄 Проверка результатов матчей...")
+            updated = update_pending_bets()
+            if updated > 0:
+                send_telegram(f"✅ Обновлено {updated} результатов!")
+            else:
+                send_telegram("📭 Нет завершённых матчей для обновления")
+            return "ok", 200
+        
+        # ============================================================
+        # /status - СТАТУС БОТА
+        # ============================================================
+        if text == '/status':
+            status = bot_state.get_status_report()
+            send_telegram(status)
+            return "ok", 200
+        
+        # ============================================================
+        # /strategies - СТРАТЕГИИ
+        # ============================================================
+        if text == '/strategies':
+            send_telegram(strategy_tester.get_comparison_report())
+            return "ok", 200
+        
+        # ============================================================
+        # /result - ОБНОВЛЕНИЕ РЕЗУЛЬТАТА
+        # ============================================================
+        if text.startswith('/result'):
+            logger.info("🔄 Обработка /result")
+            parts = text.replace('/result', '').strip()
+            if ' vs ' in parts:
+                match_part = parts.split(' vs ')
+                if len(match_part) == 2:
+                    match_and_score = match_part[1].split(' ')
+                    if len(match_and_score) >= 2:
+                        away = match_and_score[0]
+                        score = match_and_score[1] if len(match_and_score) > 1 else ''
+                        home = match_part[0].strip()
+                        match = f"{home} vs {away}"
+                        send_telegram(f"🔄 Обновление результата: {match} {score}")
+                        result = update_manual_result(match, score)
+                        send_telegram(result)
                     else:
                         send_telegram("⚠️ Используй: /result Aris Thessalonikis vs OFI 2-1")
                 else:
                     send_telegram("⚠️ Используй: /result Aris Thessalonikis vs OFI 2-1")
-            
-            elif text.startswith('/analyze'):
-                logger.info("🔄 Обработка /analyze")
-                match_name = text.replace('/analyze', '').strip()
-                if match_name:
-                    send_telegram("🔍 Анализирую матч...")
-                    result = analyze_match(match_name)
-                    send_telegram(result)
-                else:
-                    send_telegram("⚠️ Используй: /analyze Aris Thessalonikis vs OFI")
-            
-            elif text == '/stop':
-                search_running = False
-                search_state = {}
-                send_telegram("⏹️ Поиск остановлен")
-            
             else:
-                send_telegram("❌ Неизвестная команда. /help")
+                send_telegram("⚠️ Используй: /result Aris Thessalonikis vs OFI 2-1")
+            return "ok", 200
         
+        # ============================================================
+        # /analyze - АНАЛИЗ МАТЧА
+        # ============================================================
+        if text.startswith('/analyze'):
+            logger.info("🔄 Обработка /analyze")
+            match_name = text.replace('/analyze', '').strip()
+            if match_name:
+                send_telegram("🔍 Анализирую матч...")
+                result = analyze_match(match_name)
+                send_telegram(result)
+            else:
+                send_telegram("⚠️ Используй: /analyze Aris Thessalonikis vs OFI")
+            return "ok", 200
+        
+        # ============================================================
+        # /stop - ОСТАНОВКА ПОИСКА
+        # ============================================================
+        if text == '/stop':
+            search_running = False
+            search_state = {}
+            send_telegram("⏹️ Поиск остановлен")
+            return "ok", 200
+        
+        # ============================================================
+        # НЕИЗВЕСТНАЯ КОМАНДА
+        # ============================================================
+        send_telegram("❌ Неизвестная команда. /help")
         return "ok", 200
+        
     except Exception as e:
         error_msg = f"Webhook error: {e}"
         logger.error(f"❌ {error_msg}")
