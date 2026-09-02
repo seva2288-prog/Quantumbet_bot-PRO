@@ -3017,7 +3017,7 @@ def load_bot_settings():
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global search_running
+    global search_running  # ✅ ОБЪЯВЛЯЕМ В САМОМ НАЧАЛЕ
     
     try:
         data = request.get_json()
@@ -3061,7 +3061,7 @@ def webhook():
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
-                global search_running
+                # ❌ НЕ НАДО global search_running ЗДЕСЬ! (уже объявлено в начале функции)
                 
                 # Проверка на зависший поиск
                 if search_running:
@@ -3157,7 +3157,7 @@ def webhook():
                     send_telegram("🏁 Поиск завершен! /update_results для обновления результатов.")
             
             elif text == '/reset_search':
-                global search_running
+                # ❌ НЕ НАДО global search_running ЗДЕСЬ! (уже объявлено в начале функции)
                 search_running = False
                 send_telegram("✅ Поиск сброшен! Теперь можно запускать заново.")
             
