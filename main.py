@@ -3062,9 +3062,10 @@ def webhook():
                 send_telegram(handlers.handle_help())
             
             elif text == '/update':
-        if search_running:
-        send_telegram("⚠️ Поиск уже запущен!")
-    else:
+                if search_running:
+                    send_telegram("⚠️ Поиск уже 
+            запущен!")
+                else:
         search_running = True
         start_time = datetime.now()
         send_telegram(f"🔄 Поиск матчей в {len(Config.LEAGUES)} лигах... (70%+ + ТМ 2.5)")
