@@ -1,7 +1,6 @@
 """Конфигурация бота"""
 import os
 import requests
-import json
 
 class Config:
     # === ТЕЛЕГРАМ ===
@@ -126,43 +125,72 @@ class Config:
     }
     
     # ============================================================
-    # СПИСОК ЛИГ ПО НАЗВАНИЯМ (АВТО-ПОДГРУЗКА ID)
+    # ЛИГИ (ОСНОВНЫЕ ID)
     # ============================================================
     
-    # ⚠️ ВАЖНО: Здесь ты просто перечисляешь НАЗВАНИЯ лиг
-    # ID подгрузятся автоматически при первом запуске!
-    LEAGUE_NAMES_LIST = [
-        'Premier League',
-        'La Liga',
-        'Bundesliga',
-        'Serie A',
-        'Ligue 1',
-        'Championship',
-        'Eredivisie',
-        'Primeira Liga',
-        'Süper Lig',
-        'Scottish Premiership',
-        'Superliga',
-        'Eliteserien',
-        'Allsvenskan',
-        'Ekstraklasa',
-        'Ukraine Premier League',
-        'РПЛ',
-        'HNL',
-        'UEFA Champions League',
-        'UEFA Europa League',
-        'MLS',
-        'Brasileirão',
-        'Argentina Primera División',
-        'Saudi Pro League',
-        'J1 League',
-        'K League 1',
-        'A-League',
-        'Chinese Super League',
+    LEAGUES = [
+        39,   # Premier League
+        40,   # Championship
+        140,  # La Liga
+        141,  # La Liga 2
+        78,   # Bundesliga
+        79,   # 2. Bundesliga
+        135,  # Serie A
+        136,  # Serie B
+        61,   # Ligue 1
+        62,   # Ligue 2
+        88,   # Eredivisie
+        94,   # Primeira Liga
+        203,  # Süper Lig
+        2,    # Champions League
+        3,    # Europa League
+        71,   # Brasileirão
+        128,  # Argentina Primera
+        253,  # MLS
     ]
     
     # ============================================================
-    # АВТОМАТИЧЕСКАЯ ПОДГРУЗКА ID ЛИГ
+    # КУБКИ (ОПЦИОНАЛЬНО)
+    # ============================================================
+    
+    CUP_LEAGUES = [
+        45,   # FA Cup
+        46,   # EFL Cup
+        143,  # Copa del Rey
+        81,   # DFB-Pokal
+        137,  # Coppa Italia
+        66,   # Coupe de France
+        13,   # Copa Libertadores
+        14,   # Copa Sudamericana
+    ]
+    
+    # ============================================================
+    # НАЗВАНИЯ ЛИГ
+    # ============================================================
+    
+    LEAGUE_NAMES = {
+        39: "АПЛ",
+        40: "Чемпионшип",
+        140: "Ла Лига",
+        141: "Сегунда",
+        78: "Бундеслига",
+        79: "Вторая Бундеслига",
+        135: "Серия А",
+        136: "Серия B",
+        61: "Лига 1",
+        62: "Лига 2",
+        88: "Эредивизи",
+        94: "Примейра Лига",
+        203: "Супер Лига",
+        2: "Лига Чемпионов УЕФА",
+        3: "Лига Европы УЕФА",
+        71: "Бразилия Серия А",
+        128: "Аргентина Примера",
+        253: "MLS",
+    }
+    
+    # ============================================================
+    # АВТОМАТИЧЕСКАЯ ПОДГРУЗКА ID ЛИГ ПО НАЗВАНИЯМ
     # ============================================================
     
     @classmethod
@@ -179,7 +207,6 @@ class Config:
         }
         
         try:
-            # Получаем все лиги
             response = requests.get(
                 f"{cls.FOOTBALL_API_URL}/leagues",
                 headers=headers,
@@ -189,14 +216,13 @@ class Config:
             if response.status_code == 200:
                 data = response.json()
                 if data.get('response'):
-                    # Создаем словарь: название -> ID
                     for league in data['response']:
                         league_data = league.get('league', {})
                         name = league_data.get('name', '')
                         if name:
                             league_ids[name] = league_data.get('id')
                             
-                            # Добавляем русские названия для удобства
+                            # Добавляем русские названия
                             if name == 'Premier League':
                                 league_ids['АПЛ'] = league_data.get('id')
                             elif name == 'La Liga':
@@ -224,79 +250,36 @@ class Config:
             print(f"❌ Ошибка загрузки лиг: {e}")
             return {}
     
-    @classmethod
-    def get_league_ids_from_names(cls):
-        """Возвращает ID лиг по названиям из LEAGUE_NAMES_LIST"""
-        if not hasattr(cls, '_cached_league_ids'):
-            cls._cached_league_ids = cls.fetch_league_ids()
-        
-        ids = []
-        for name in cls.LEAGUE_NAMES_LIST:
-            league_id = cls._cached_league_ids.get(name)
-            if league_id:
-                ids.append(league_id)
-                print(f"✅ {name} → ID: {league_id}")
-            else:
-                print(f"⚠️ Лига не найдена: {name}")
-        
-        return ids
+    # ============================================================
+    # ПРОВЕРКА КОНФИГУРАЦИИ
+    # ============================================================
     
     @classmethod
-    def refresh_league_ids(cls):
-        """Принудительное обновление ID лиг"""
-        cls._cached_league_ids = cls.fetch_league_ids()
-        return cls.get_league_ids_from_names()
-
-# ============================================================
-# АВТОМАТИЧЕСКОЕ ЗАПОЛНЕНИЕ LEAGUES ПРИ ЗАПУСКЕ
-# ============================================================
-
-# При загрузке модуля автоматически подгружаем ID лиг
-if not hasattr(Config, '_leagues_initialized'):
-    try:
-        Config._leagues_initialized = True
-        # Получаем ID лиг по названиям
-        Config._cached_league_ids = Config.fetch_league_ids()
+    def check(cls):
+        missing = []
+        if not cls.TELEGRAM_TOKEN:
+            missing.append("TELEGRAM_TOKEN")
+        if not cls.ADMIN_CHAT_ID:
+            missing.append("ADMIN_CHAT_ID")
+        if not cls.FOOTBALL_API_KEY:
+            missing.append("FOOTBALL_API_KEY")
+        if not cls.ODDS_API_KEY:
+            missing.append("ODDS_API_KEY")
         
-        # Заполняем LEAGUES на основе названий
-        Config.LEAGUES = Config.get_league_ids_from_names()
+        if missing:
+            print(f"⚠️ ВНИМАНИЕ: Отсутствуют: {', '.join(missing)}")
+        else:
+            print("✅ Все ключи загружены!")
         
-        # Дополнительные ID для кубков оставляем как есть
-        # (их можно добавлять отдельно)
+        print(f"📊 Лиг: {len(cls.LEAGUES)}")
+        print(f"🏆 Кубков: {len(cls.CUP_LEAGUES)}")
+        print(f"📋 Всего: {len(cls.LEAGUES) + len(cls.CUP_LEAGUES)}")
+        print(f"🎯 Odds API маппинг: {len(cls.ODDS_SPORT_MAP)} лиг")
         
-        print(f"✅ Автоматически загружено {len(Config.LEAGUES)} лиг")
-    except Exception as e:
-        print(f"⚠️ Ошибка авто-загрузки лиг: {e}")
+        return True
 
 # ============================================================
-# ПРОВЕРКА КОНФИГУРАЦИИ
+# АВТОМАТИЧЕСКАЯ ПРОВЕРКА ПРИ ЗАПУСКЕ
 # ============================================================
 
-@classmethod
-def check_config(cls):
-    missing = []
-    if not cls.TELEGRAM_TOKEN:
-        missing.append("TELEGRAM_TOKEN")
-    if not cls.ADMIN_CHAT_ID:
-        missing.append("ADMIN_CHAT_ID")
-    if not cls.FOOTBALL_API_KEY:
-        missing.append("FOOTBALL_API_KEY")
-    if not cls.ODDS_API_KEY:
-        missing.append("ODDS_API_KEY")
-    
-    if missing:
-        print(f"⚠️ ВНИМАНИЕ: Отсутствуют: {', '.join(missing)}")
-    else:
-        print("✅ Все ключи загружены!")
-    
-    print(f"📊 Лиг: {len(cls.LEAGUES)}")
-    print(f"🏆 Кубков: {len(cls.CUP_LEAGUES)}")
-    print(f"📋 Всего: {len(cls.LEAGUES) + len(cls.CUP_LEAGUES)}")
-    print(f"🎯 Odds API маппинг: {len(cls.ODDS_SPORT_MAP)} лиг")
-    
-    return True
-
-Config.check = check_config
-
-# Запускаем проверку
 Config.check()
