@@ -2993,4 +2993,4 @@ if __name__ == "__main__":
     logger.info("✅ Команды: /update_results, /result, /analyze")
     logger.info("✅ Кэш матчей сохраняется")
     logger.info("⏰ Авто-обновление результатов: каждые 6 часов")
-    app.run(host='0.0.0.0', port=port
+    app.run(host='0.0.0.0', port=port)
