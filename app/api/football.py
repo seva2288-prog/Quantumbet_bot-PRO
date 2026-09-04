@@ -12,27 +12,12 @@ class FootballAPI:
         self.base_url = base_url or "https://v3.football.api-sports.io"
         self.cache = {}
         self.last_request_time = 0
-        # БЫЛО 1.5 -> Стало 0.2 (5 запросов в секунду, безопасно для тарифа Pro 300/мин)
-        self.min_request_interval = 0.2  
-        self.max_requests_per_min = 250  # Запас от лимита 300
-        self.request_times = []
+        self.min_request_interval = 1.5
         
         logger.info(f"🔑 API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
-
-    def _wait_for_rate_limit(self):
-        """Проверка и ожидание лимита запросов в минуту"""
-        now = time.time()
-        self.request_times = [t for t in self.request_times if now - t < 60]
-        if len(self.request_times) >= self.max_requests_per_min:
-            sleep_time = 60 - (now - self.request_times[0])
-            logger.warning(f"⏳ Лимит {self.max_requests_per_min}/мин, ждем {sleep_time:.1f} сек")
-            time.sleep(sleep_time)
-        self.request_times.append(now)
-
+    
     def _make_request(self, endpoint, params=None):
         try:
-            self._wait_for_rate_limit()
-            
             now = time.time()
             if now - self.last_request_time < self.min_request_interval:
                 time.sleep(self.min_request_interval - (now - self.last_request_time))
@@ -45,30 +30,13 @@ class FootballAPI:
             url = f"{self.base_url}{endpoint}"
             response = requests.get(url, headers=headers, params=params, timeout=15)
             self.last_request_time = time.time()
-
-            # Логирование реального остатка лимитов
-            try:
-                rem_min = response.headers.get('x-ratelimit-remaining')
-                lim_min = response.headers.get('x-ratelimit-limit')
-                rem_day = response.headers.get('x-ratelimit-requests-remaining')
-                lim_day = response.headers.get('x-ratelimit-requests-limit')
-                logger.info(f"📊 Лимиты API: {rem_min}/{lim_min} в минуту | {rem_day}/{lim_day} в день")
-            except:
-                pass
-
+            
             if response.status_code == 200:
                 data = response.json()
                 if data.get('errors'):
-                    if 'rate limit' in str(data['errors']).lower():
-                        time.sleep(60)
                     logger.error(f"❌ API ошибка: {data['errors']}")
                     return None
                 return data
-            elif response.status_code == 429:
-                retry_after = int(response.headers.get('Retry-After', 60))
-                logger.warning(f"⏳ Получен 429, ждем {retry_after} сек")
-                time.sleep(retry_after)
-                return None
             else:
                 logger.error(f"❌ API ошибка {response.status_code}")
                 return None
