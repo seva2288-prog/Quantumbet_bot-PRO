@@ -14,6 +14,7 @@ from threading import Lock
 from collections import defaultdict
 from flask import Flask, request, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
+from threading import Thread
 
 # ============================================================
 # ИМПОРТЫ ИЗ ПРОЕКТА (С app.)
@@ -279,8 +280,8 @@ class FootballAPI:
         self.base_url = base_url or "https://v3.football.api-sports.io"
         self.cache = SmartCache(max_size=500)
         self.last_request_time = 0
-        self.min_request_interval = 1.5
-        self.rate_limiter = APIRateLimiter(max_requests=30, time_window=60)
+        self.min_request_interval = 0.2  # БЫЛО 1.5! Теперь 5 запросов в секунду
+        self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60) # БЫЛО 30! Под ваш тариф Pro
         self.retry_manager = RetryManager(max_retries=3, base_delay=1)
         self.error_stats = defaultdict(int)
         logger.info(f"🔑 API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
@@ -316,6 +317,17 @@ class FootballAPI:
             response = requests.get(url, headers=headers, params=params, timeout=15)
             self.last_request_time = time.time()
             logger.info(f"📡 Статус ответа: {response.status_code}")
+            
+            # Логирование остатка лимитов API
+            try:
+                rem_min = response.headers.get('x-ratelimit-remaining')
+                lim_min = response.headers.get('x-ratelimit-limit')
+                rem_day = response.headers.get('x-ratelimit-requests-remaining')
+                lim_day = response.headers.get('x-ratelimit-requests-limit')
+                logger.info(f"📊 Лимиты API: {rem_min}/{lim_min} в минуту | {rem_day}/{lim_day} в день")
+            except:
+                pass
+
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
                 logger.warning(f"⏳ Rate limit 429, ждем {retry_after}с")
@@ -2947,16 +2959,69 @@ def webhook():
             if search_running:
                 if 'start_time' in search_state:
                     elapsed = (datetime.now() - search_state['start_time']).seconds
-                    if elapsed > 300:
+                    if elapsed > 900:  # Таймаут увеличен до 15 минут
                         search_running = False
                         search_state = {}
-                        send_telegram("⏰ Поиск был принудительно сброшен (таймаут 5 мин)")
+                        send_telegram("⏰ Поиск был принудительно сброшен (таймаут 15 мин)")
                     else:
                         send_telegram(f"⚠️ Поиск уже запущен! Идет {elapsed} секунд.")
                         return "ok", 200
                 else:
                     send_telegram("⚠️ Поиск уже запущен!")
                     return "ok", 200
+            else:
+                search_running = True
+                search_state = {'start_time': datetime.now()}
+                
+                # МГНОВЕННЫЙ ОТВЕТ (чтобы Telegram не отключил бота)
+                send_telegram("🔎 Запущен полный анализ ВСЕХ лиг. Это может занять 10-20 минут. Я пришлю результат, когда закончу.")
+
+                def run_full_search():
+                    global search_running, search_state
+                    try:
+                        start_time = datetime.now()
+                        matches = get_matches_with_factors()
+                        
+                        if matches:
+                            send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую каждую игру...")
+                            top_matches = find_top_matches_with_tm25(matches)
+                            
+                            if top_matches:
+                                elapsed = (datetime.now() - start_time).seconds
+                                minutes = elapsed // 60
+                                seconds = elapsed % 60
+                                
+                                # Формируем сообщение
+                                matches_text = ""
+                                for i, m in enumerate(top_matches[:10], 1):
+                                    best = m['best_bet']
+                                    matches_text += f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
+                                    matches_text += f"   🏆 {m['league']}\n"
+                                    matches_text += f"   🎯 {best['label']} | КЭФ: {best['odds']}\n"
+                                    matches_text += f"   📈 EV: <b>{best['ev']}%</b> | Prob: {best['prob']}%\n"
+                                    matches_text += f"   ⚽ XG: {m['total_xg']:.2f}\n\n"
+                                
+                                send_telegram(
+                                    f"✅ <b>ПОИСК ЗАВЕРШЕН!</b>\n"
+                                    f"🎯 Кандидатов: {len(top_matches)}\n"
+                                    f"⏱️ Время: {minutes} мин {seconds} сек.\n\n"
+                                    f"📋 <b>СПИСОК СТАВОК:</b>\n\n{matches_text}"
+                                )
+                            else:
+                                send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5).")
+                        else:
+                            send_telegram("❌ Матчей не найдено на сегодня.")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка фонового поиска: {e}", exc_info=True)
+                        send_error_to_telegram(f"Ошибка фонового поиска: {e}")
+                    finally:
+                        search_running = False
+                        search_state = {}
+                
+                # Запускаем в фоновом потоке
+                t = Thread(target=run_full_search)
+                t.daemon = True
+                t.start()
             else:
                 search_running = True
                 search_state = {'start_time': datetime.now()}
