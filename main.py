@@ -3022,6 +3022,7 @@ def webhook():
                 t = Thread(target=run_full_search)
                 t.daemon = True
                 t.start()
+                
             else:
                 search_running = True
                 search_state = {'start_time': datetime.now()}
