@@ -1412,6 +1412,7 @@ def get_matches_with_factors():
             try:
                 matches = football_api.get_matches(league_id, search_date)
                 league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
+                send_telegram(f"✅ Лига <b>{league_name}</b> обработана. Всего найдено матчей: {len(all_matches)}")
                 if not matches or not isinstance(matches, list):
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
                     continue
