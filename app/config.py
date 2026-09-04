@@ -8,7 +8,7 @@ class Config:
     ADMIN_CHAT_ID = 228801334  
     
     # === API ===
-    FOOTBALL_API_KEY = "2c34b71a9086c34f9a59f30c814283f5"
+    FOOTBALL_API_KEY = "a24b5e4f38e197977c773284022904ea"
     FOOTBALL_API_URL = "https://v3.football.api-sports.io"
     WEATHER_API_KEY = "7f0cfaced346b0fe364815ab65d627af"
     WEATHER_API_URL = "https://api.openweathermap.org/data/2.5"
