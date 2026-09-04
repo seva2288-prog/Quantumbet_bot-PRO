@@ -4,7 +4,7 @@ import requests
 
 class Config:
     # === ТЕЛЕГРАМ ===
-    TELEGRAM_TOKEN = "8884017743:AAEDsDQEV5NZe2x9-XTlZHrsBJ99UtgLHj8"
+    TELEGRAM_TOKEN = "8884017743:AAGD40tW3nHC5V9BtVM0lg-T6ix_WTckp9g"
     ADMIN_CHAT_ID = 228801334  
     
     # === API ===
