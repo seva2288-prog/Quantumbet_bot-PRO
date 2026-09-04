@@ -2435,6 +2435,8 @@ def webhook():
                     matches = get_matches_with_factors()
                     if matches:
                         send_telegram(f"📊 Найдено {len(matches)} матчей. Анализирую...")
+
+
                         
                         top_matches = find_top_matches_with_tm25(matches)
                         
@@ -2482,6 +2484,39 @@ def webhook():
                                 f"{matches_text}"
                                 f"🤖 Авто-ставок: {auto_bet.bets_today}"
                             )
+
+                         # ============================================================
+    # ДОБАВЛЯЕМ СРАВНЕНИЕ КОМАНД (ВНУТРЕННЕЕ, НЕ ПОКАЗЫВАЕТСЯ)
+    # ============================================================
+    for match_data in top_matches:
+        try:
+            comparison = get_team_comparison(
+                {'name': match_data['home'], 'id': match_data.get('home_id')},
+                {'name': match_data['away'], 'id': match_data.get('away_id')},
+                match_data.get('league_id'),
+                match_data.get('fixture_id')
+            )
+            
+            if comparison:
+                adjustment = comparison.get('total_adjustment', 0)
+                for bet in match_data.get('bets', []):
+                    if bet.get('type') == '1X':
+                        bet['ev'] = round(bet['ev'] + adjustment * 100, 1)
+                        bet['prob'] = round(bet['prob'] + adjustment * 100, 1)
+                    elif bet.get('type') == 'X2':
+                        bet['ev'] = round(bet['ev'] - adjustment * 100, 1)
+                        bet['prob'] = round(bet['prob'] - adjustment * 100, 1)
+                    elif bet.get('type') == 'П1':
+                        bet['ev'] = round(bet['ev'] + adjustment * 100, 1)
+                    elif bet.get('type') == 'П2':
+                        bet['ev'] = round(bet['ev'] - adjustment * 100, 1)
+                
+                match_data['bets'].sort(key=lambda x: x['ev'], reverse=True)
+                match_data['best_bet'] = match_data['bets'][0] if match_data['bets'] else {}
+                match_data['comparison'] = comparison
+                
+        except Exception as e:
+            logger.error(f"Ошибка сравнения для {match_data.get('home')}: {e}")
                         else:
                             send_telegram("❌ Ставок не найдено (70%+ и ТМ2.5)")
                     else:
@@ -2961,6 +2996,354 @@ def index():
 # ============================================================
 # ЗАПУСК
 # ============================================================
+
+# ============================================================
+# РАСШИРЕННОЕ СРАВНЕНИЕ КОМАНД (ДЛЯ ВНУТРЕННЕГО ИСПОЛЬЗОВАНИЯ)
+# ============================================================
+
+def get_team_comparison(home_team, away_team, league_id, fixture_id):
+    """Сравнение команд по 12 параметрам (НЕ ПОКАЗЫВАЕТСЯ ПОЛЬЗОВАТЕЛЮ)"""
+    try:
+        home_name = home_team.get('name') if isinstance(home_team, dict) else str(home_team)
+        away_name = away_team.get('name') if isinstance(away_team, dict) else str(away_team)
+        home_id = home_team.get('id') if isinstance(home_team, dict) else None
+        away_id = away_team.get('id') if isinstance(away_team, dict) else None
+        
+        # 1. Получаем все данные
+        standings = football_api.get_standings(league_id) if league_id else None
+        home_stats = football_api.get_form(home_id) if home_id else None
+        away_stats = football_api.get_form(away_id) if away_id else None
+        h2h = football_api.get_head_to_head(home_name, away_name)
+        injuries_home = football_api.get_injuries(home_id) if home_id else []
+        injuries_away = football_api.get_injuries(away_id) if away_id else []
+        
+        # 2. XG (из статистики)
+        home_xg = 1.2
+        away_xg = 1.0
+        if fixture_id:
+            stats = football_api.get_match_statistics(fixture_id)
+            if stats:
+                for team_name, team_stats in stats.items():
+                    if home_name.lower() in team_name.lower():
+                        home_xg = team_stats.get('xG', 1.2)
+                    elif away_name.lower() in team_name.lower():
+                        away_xg = team_stats.get('xG', 1.0)
+        
+        # 3. Турнирная таблица
+        home_position = 99
+        away_position = 99
+        home_points = 0
+        away_points = 0
+        home_goals_for = 0
+        home_goals_against = 0
+        away_goals_for = 0
+        away_goals_against = 0
+        
+        if standings:
+            if home_name in standings:
+                home_position = standings[home_name].get('position', 99)
+                home_points = standings[home_name].get('points', 0)
+                home_goals_for = standings[home_name].get('goals_for', 0)
+                home_goals_against = standings[home_name].get('goals_against', 0)
+            if away_name in standings:
+                away_position = standings[away_name].get('position', 99)
+                away_points = standings[away_name].get('points', 0)
+                away_goals_for = standings[away_name].get('goals_for', 0)
+                away_goals_against = standings[away_name].get('goals_against', 0)
+        
+        # 4. Домашняя/выездная статистика
+        home_home_wins = 0
+        home_home_losses = 0
+        away_away_wins = 0
+        away_away_losses = 0
+        
+        if home_stats:
+            home_home_wins = home_stats.get('home_wins', 0)
+            home_home_losses = home_stats.get('home_losses', 0)
+        if away_stats:
+            away_away_wins = away_stats.get('away_wins', 0)
+            away_away_losses = away_stats.get('away_losses', 0)
+        
+        # 5. Форма
+        home_form = home_stats.get('form', '') if home_stats else ''
+        away_form = away_stats.get('form', '') if away_stats else ''
+        home_goals_avg = home_stats.get('goals_avg', 1.2) if home_stats else 1.2
+        away_goals_avg = away_stats.get('goals_avg', 1.0) if away_stats else 1.0
+        home_conceded_avg = home_stats.get('conceded_avg', 1.0) if home_stats else 1.0
+        away_conceded_avg = away_stats.get('conceded_avg', 1.2) if away_stats else 1.2
+        
+        # 6. Мотивация
+        home_motivation = get_motivation(home_position)
+        away_motivation = get_motivation(away_position)
+        
+        # 7. H2H
+        h2h_wins = 0
+        h2h_losses = 0
+        h2h_draws = 0
+        h2h_goals_scored = 0
+        h2h_goals_conceded = 0
+        if h2h and h2h.get('total_matches', 0) > 0:
+            h2h_wins = h2h.get('home_wins', 0)
+            h2h_losses = h2h.get('away_wins', 0)
+            h2h_draws = h2h.get('draws', 0)
+            h2h_goals_scored = h2h.get('goals_scored', 0)
+            h2h_goals_conceded = h2h.get('goals_conceded', 0)
+        
+        # 8. Травмы
+        home_injuries_count = len(injuries_home) if injuries_home else 0
+        away_injuries_count = len(injuries_away) if injuries_away else 0
+        home_key_injuries = [i for i in injuries_home if i.get('player', {}).get('status') == 'injured'] if injuries_home else []
+        away_key_injuries = [i for i in injuries_away if i.get('player', {}).get('status') == 'injured'] if injuries_away else []
+        home_injuries_names = [i.get('player', {}).get('name', '') for i in home_key_injuries]
+        away_injuries_names = [i.get('player', {}).get('name', '') for i in away_key_injuries]
+        
+        # 9. Тренды (серии)
+        home_win_streak = 0
+        home_loss_streak = 0
+        away_win_streak = 0
+        away_loss_streak = 0
+        
+        if home_form:
+            for char in home_form:
+                if char == 'W':
+                    home_win_streak += 1
+                elif char == 'L':
+                    home_loss_streak += 1
+                else:
+                    break
+        if away_form:
+            for char in away_form:
+                if char == 'W':
+                    away_win_streak += 1
+                elif char == 'L':
+                    away_loss_streak += 1
+                else:
+                    break
+        
+        # 10. Бомбардиры
+        home_top_scorer = None
+        away_top_scorer = None
+        if standings:
+            try:
+                home_top_scorer = standings.get(home_name, {}).get('top_scorer', None)
+                away_top_scorer = standings.get(away_name, {}).get('top_scorer', None)
+            except:
+                pass
+        
+        # 11. Плотность календаря
+        home_matches_in_week = 0
+        away_matches_in_week = 0
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            home_fixtures = football_api.get_matches(league_id, today) if league_id else []
+            if home_fixtures:
+                home_matches_in_week = len([m for m in home_fixtures if home_name in str(m)])
+        except:
+            pass
+        
+        # 12. Букмекерские коэффициенты
+        home_odds = 0
+        draw_odds = 0
+        away_odds = 0
+        if fixture_id:
+            odds_data = football_api.get_match_odds(fixture_id)
+            if odds_data:
+                home_odds = odds_data.get('home_odds', 0)
+                draw_odds = odds_data.get('draw_odds', 0)
+                away_odds = odds_data.get('away_odds', 0)
+        
+        # ============================================================
+        # РАСЧЕТ КОРРЕКТИРОВКИ
+        # ============================================================
+        
+        adjustment = 0
+        home_advantage = 0
+        
+        # 1. XG корректировка
+        if home_xg > away_xg + 0.5:
+            adjustment += 0.05
+            home_advantage += 0.03
+        elif home_xg < away_xg - 0.5:
+            adjustment -= 0.05
+            home_advantage -= 0.03
+        
+        # 2. Форма
+        home_form_wins = home_form.count('W') if home_form else 0
+        away_form_wins = away_form.count('W') if away_form else 0
+        
+        if home_form_wins >= 4:
+            adjustment += 0.05
+            home_advantage += 0.03
+        elif home_form_wins <= 1:
+            adjustment -= 0.03
+        
+        if away_form_wins >= 4:
+            adjustment -= 0.05
+            home_advantage -= 0.03
+        elif away_form_wins <= 1:
+            adjustment += 0.03
+            home_advantage += 0.02
+        
+        # 3. Мотивация
+        if home_motivation == 'champions_league':
+            adjustment += 0.05
+            home_advantage += 0.05
+        elif home_motivation == 'relegation':
+            adjustment += 0.03
+            home_advantage += 0.03
+        elif home_motivation == 'mid_table':
+            adjustment -= 0.02
+        
+        if away_motivation == 'champions_league':
+            adjustment -= 0.05
+            home_advantage -= 0.05
+        elif away_motivation == 'relegation':
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        elif away_motivation == 'mid_table':
+            adjustment += 0.02
+        
+        # 4. H2H
+        if h2h_wins > h2h_losses + 1:
+            adjustment += 0.03
+            home_advantage += 0.03
+        elif h2h_wins < h2h_losses - 1:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        
+        # 5. Домашняя/выездная статистика
+        if home_home_wins > home_home_losses:
+            adjustment += 0.03
+            home_advantage += 0.03
+        if away_away_wins > away_away_losses:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        
+        # 6. Тренды (серии)
+        if home_win_streak >= 3:
+            adjustment += 0.03
+            home_advantage += 0.03
+        if home_loss_streak >= 3:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        if away_win_streak >= 3:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        if away_loss_streak >= 3:
+            adjustment += 0.03
+            home_advantage += 0.03
+        
+        # 7. Травмы
+        if home_injuries_count >= 3:
+            adjustment -= 0.05
+            home_advantage -= 0.05
+        if away_injuries_count >= 3:
+            adjustment += 0.05
+            home_advantage += 0.05
+        
+        # 8. Позиция в таблице
+        if home_position < away_position - 5:
+            adjustment += 0.05
+            home_advantage += 0.05
+        elif home_position > away_position + 5:
+            adjustment -= 0.05
+            home_advantage -= 0.05
+        
+        # 9. Разница мячей
+        home_gd = home_goals_for - home_goals_against
+        away_gd = away_goals_for - away_goals_against
+        
+        if home_gd > away_gd + 5:
+            adjustment += 0.03
+            home_advantage += 0.03
+        elif home_gd < away_gd - 5:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        
+        # 10. Бомбардиры
+        if home_top_scorer:
+            adjustment += 0.02
+            home_advantage += 0.02
+        if away_top_scorer:
+            adjustment -= 0.02
+            home_advantage -= 0.02
+        
+        # 11. Плотность календаря
+        if home_matches_in_week >= 3:
+            adjustment -= 0.03
+            home_advantage -= 0.03
+        if away_matches_in_week >= 3:
+            adjustment += 0.03
+            home_advantage += 0.03
+        
+        # 12. Букмекерские кэфы
+        if home_odds > 0 and away_odds > 0:
+            if home_odds < away_odds:
+                adjustment += 0.03
+                home_advantage += 0.03
+            elif home_odds > away_odds:
+                adjustment -= 0.03
+                home_advantage -= 0.03
+        
+        # Ограничиваем корректировку
+        adjustment = max(-0.20, min(0.20, adjustment))
+        home_advantage = max(-0.15, min(0.15, home_advantage))
+        
+        # ============================================================
+        # ВОЗВРАЩАЕМ ВСЕ ДАННЫЕ
+        # ============================================================
+        
+        return {
+            'home_name': home_name,
+            'away_name': away_name,
+            'home_xg': home_xg,
+            'away_xg': away_xg,
+            'home_position': home_position,
+            'away_position': away_position,
+            'home_points': home_points,
+            'away_points': away_points,
+            'home_form': home_form,
+            'away_form': away_form,
+            'home_goals_avg': home_goals_avg,
+            'away_goals_avg': away_goals_avg,
+            'home_conceded_avg': home_conceded_avg,
+            'away_conceded_avg': away_conceded_avg,
+            'home_motivation': home_motivation,
+            'away_motivation': away_motivation,
+            'h2h_wins': h2h_wins,
+            'h2h_losses': h2h_losses,
+            'h2h_draws': h2h_draws,
+            'home_injuries_count': home_injuries_count,
+            'away_injuries_count': away_injuries_count,
+            'home_injuries_names': home_injuries_names,
+            'away_injuries_names': away_injuries_names,
+            'home_win_streak': home_win_streak,
+            'home_loss_streak': home_loss_streak,
+            'away_win_streak': away_win_streak,
+            'away_loss_streak': away_loss_streak,
+            'home_goals_for': home_goals_for,
+            'home_goals_against': home_goals_against,
+            'away_goals_for': away_goals_for,
+            'away_goals_against': away_goals_against,
+            'home_top_scorer': home_top_scorer,
+            'away_top_scorer': away_top_scorer,
+            'home_matches_in_week': home_matches_in_week,
+            'away_matches_in_week': away_matches_in_week,
+            'home_odds': home_odds,
+            'draw_odds': draw_odds,
+            'away_odds': away_odds,
+            'home_home_wins': home_home_wins,
+            'home_home_losses': home_home_losses,
+            'away_away_wins': away_away_wins,
+            'away_away_losses': away_away_losses,
+            'adjustment': adjustment,
+            'home_advantage': home_advantage,
+            'total_adjustment': adjustment + home_advantage
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка сравнения команд: {e}")
+        return None
 
 if __name__ == "__main__":
     setup_logging()
