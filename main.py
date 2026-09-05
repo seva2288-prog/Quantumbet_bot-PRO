@@ -211,6 +211,23 @@ class CacheManager:
 
 cache_manager = CacheManager()
     
+    class SmartCache:
+    def __init__(self, max_size=500):
+        self.cache = {}
+        self.cache_timestamps = {}
+        self.hit_count = {}
+        self.last_access = {}
+        self.max_size = max_size
+        self.default_ttl = 3600
+        self.ttl_by_type = {
+            'form': 300,
+            'odds': 60,
+            'statistics': 300,
+            'standings': 1800,
+            'matches': 3600,
+            'h2h': 7200
+        }
+    
     def get(self, key, data_type='default'):
         if key in self.cache:
             ttl = self.ttl_by_type.get(data_type, self.default_ttl)
