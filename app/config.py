@@ -42,22 +42,22 @@ class Config:
     # ============================================================
     
     MAX_TM25_BETS = 0
-    MIN_TM25_EV = 30
-    MIN_TM25_PROB = 50
-    TM25_XG_MIN = 1.0
-    TM25_XG_MAX = 3.0
+    MIN_TM25_EV = 99
+    MIN_TM25_PROB = 99
+    TM25_XG_MIN = 0.99
+    TM25_XG_MAX = 0.99
     
     # PREMIUM (EV > 30%)
-    PREMIUM_MIN_EV = 30
-    PREMIUM_MIN_PROB = 70
-    PREMIUM_XG_MIN = 1.0
-    PREMIUM_XG_MAX = 2.8
+    PREMIUM_MIN_EV = 99
+    PREMIUM_MIN_PROB = 99
+    PREMIUM_XG_MIN = 0.99
+    PREMIUM_XG_MAX = 0.99
     
     # STANDARD (EV > 15%)
-    STANDARD_MIN_EV = 30
-    STANDARD_MIN_PROB = 70
-    STANDARD_XG_MIN = 0.8
-    STANDARD_XG_MAX = 3.0
+    STANDARD_MIN_EV = 99
+    STANDARD_MIN_PROB = 99
+    STANDARD_XG_MIN = 0.99
+    STANDARD_XG_MAX = 0.99
     
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
     TM25_TOP_LEAGUE_EV = 35
