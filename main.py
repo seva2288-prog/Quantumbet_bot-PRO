@@ -210,8 +210,7 @@ class CacheManager:
         return {}
 
 cache_manager = CacheManager()
-    
-    class SmartCache:
+      class SmartCache:
     def __init__(self, max_size=500):
         self.cache = {}
         self.cache_timestamps = {}
