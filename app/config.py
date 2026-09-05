@@ -30,8 +30,8 @@ class Config:
     XG_MIN_70 = 1.8
     XG_MAX_70 = 3.0
     EV_MIN_70 = 20
-    PROB_MIN_70 = 60
-    POSITION_MAX_70 = 15
+    PROB_MIN_70 = 70
+    POSITION_MAX_70 = 18
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
     LIMIT_BET_TYPE_70 = 10
@@ -42,20 +42,20 @@ class Config:
     # ============================================================
     
     MAX_TM25_BETS = 5
-    MIN_TM25_EV = 10
+    MIN_TM25_EV = 30
     MIN_TM25_PROB = 50
     TM25_XG_MIN = 1.0
     TM25_XG_MAX = 3.0
     
     # PREMIUM (EV > 30%)
     PREMIUM_MIN_EV = 30
-    PREMIUM_MIN_PROB = 60
+    PREMIUM_MIN_PROB = 70
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
     
     # STANDARD (EV > 15%)
-    STANDARD_MIN_EV = 15
-    STANDARD_MIN_PROB = 50
+    STANDARD_MIN_EV = 30
+    STANDARD_MIN_PROB = 70
     STANDARD_XG_MIN = 0.8
     STANDARD_XG_MAX = 3.0
     
