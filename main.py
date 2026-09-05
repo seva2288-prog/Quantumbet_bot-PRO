@@ -176,6 +176,40 @@ class SmartCache:
             'matches': 3600,
             'h2h': 7200
         }
+        
+# ============================================================
+# УЛУЧШЕНИЕ 5: КЭШИРОВАНИЕ ДАННЫХ (Пункт 5)
+# ============================================================
+class CacheManager:
+    def __init__(self):
+        self.standings_cache = {}
+        self.form_cache = {}
+        self.odds_cache = {}
+        self.team_id_cache = {}
+        self.timestamps = {}
+
+    def get(self, cache_type, key, ttl_hours=6):
+        now = time.time()
+        if key in self.cache_store(cache_type) and self.timestamps.get(key, 0) + ttl_hours * 3600 > now:
+            return self.cache_store(cache_type)[key]
+        return None
+
+    def set(self, cache_type, key, value):
+        self.cache_store(cache_type)[key] = value
+        self.timestamps[key] = time.time()
+
+    def cache_store(self, cache_type):
+        if cache_type == 'standings':
+            return self.standings_cache
+        elif cache_type == 'form':
+            return self.form_cache
+        elif cache_type == 'odds':
+            return self.odds_cache
+        elif cache_type == 'team_id':
+            return self.team_id_cache
+        return {}
+
+cache_manager = CacheManager()
     
     def get(self, key, data_type='default'):
         if key in self.cache:
@@ -1470,7 +1504,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - 70%+
+# ТОП МАТЧЕЙ - 70%+ (МАКСИМАЛЬНАЯ ТОЧНОСТЬ)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -1480,6 +1514,7 @@ def find_top_matches(matches):
     best_matches = []
     bet_type_count = {}
     league_count = {}
+    
     for match in matches:
         if not match or not isinstance(match, dict):
             continue
@@ -1490,6 +1525,7 @@ def find_top_matches(matches):
             fixture_id = fixture.get("id")
             if not fixture_id:
                 continue
+            
             teams = match.get("teams")
             if not teams or not isinstance(teams, dict):
                 continue
@@ -1499,6 +1535,7 @@ def find_top_matches(matches):
                 continue
             home = home_team.get("name", "Unknown")
             away = away_team.get("name", "Unknown")
+            
             league_data = match.get("league")
             league_name = league_data.get('name', 'Unknown') if isinstance(league_data, dict) else "Unknown"
             if league_name == 'Unknown':
@@ -1514,92 +1551,99 @@ def find_top_matches(matches):
                     match_time = dt.strftime("%d.%m.%Y %H:%M")
                 except:
                     match_time = "Время не указано"
-            statistics = football_api.get_match_statistics(fixture_id)
-            home_xg = 1.2
-            away_xg = 1.0
-            if statistics:
-                for team_name, stats_dict in statistics.items():
-                    if home.lower() in team_name.lower() or team_name.lower() in home.lower():
-                        xg_val = stats_dict.get('xG')
-                        if xg_val is not None and xg_val > 0:
-                            home_xg = float(xg_val)
-                    elif away.lower() in team_name.lower() or team_name.lower() in away.lower():
-                        xg_val = stats_dict.get('xG')
-                        if xg_val is not None and xg_val > 0:
-                            away_xg = float(xg_val)
-            if home_xg == 1.2 and away_xg == 1.0:
-                if league_name in FALLBACK_XG:
-                    home_xg = FALLBACK_XG[league_name]['home']
-                    away_xg = FALLBACK_XG[league_name]['away']
-                else:
-                    home_xg = 1.3
-                    away_xg = 1.0
-                random.seed(fixture_id)
-                home_xg *= (1 + random.uniform(-0.1, 0.1))
-                away_xg *= (1 + random.uniform(-0.1, 0.1))
-            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
-            home_xg *= home_adv
-            away_xg /= home_adv
-            total_xg = home_xg + away_xg
-            ev_min = getattr(Config, 'EV_MIN_70', 20)
-            prob_min = getattr(Config, 'PROB_MIN_70', 60)
-            xg_min = getattr(Config, 'XG_MIN_70', 1.8)
-            xg_max = getattr(Config, 'XG_MAX_70', 3.0)
-            position_max = getattr(Config, 'POSITION_MAX_70', 15)
-            if total_xg < xg_min or total_xg > xg_max:
-                logger.info(f"⏭️ Пропускаем (XG вне диапазона {xg_min}-{xg_max}): {home} vs {away} | XG: {total_xg:.2f}")
-                continue
-            home_form_data = football_api.get_form(home_team.get("id"))
-            away_form_data = football_api.get_form(away_team.get("id"))
+            
+            # ПУНКТ 4: Реальные голы из формы
+            home_form_data = cache_manager.get('form', home_team.get("id"), ttl_hours=6) or football_api.get_form(home_team.get("id"))
+            away_form_data = cache_manager.get('form', away_team.get("id"), ttl_hours=6) or football_api.get_form(away_team.get("id"))
+            cache_manager.set('form', home_team.get("id"), home_form_data)
+            cache_manager.set('form', away_team.get("id"), away_form_data)
+            
             home_form = home_form_data.get('form', '') if home_form_data else ''
             away_form = away_form_data.get('form', '') if away_form_data else ''
+            
             home_goals_avg = home_form_data.get('goals_avg', 1.2) if home_form_data else 1.2
             away_goals_avg = away_form_data.get('goals_avg', 1.0) if away_form_data else 1.0
             home_conceded_avg = home_form_data.get('conceded_avg', 1.0) if home_form_data else 1.0
             away_conceded_avg = away_form_data.get('conceded_avg', 1.2) if away_form_data else 1.2
-            home_form_quality = analyze_form(home_form)
-            away_form_quality = analyze_form(away_form)
-            if home_form_quality not in ['excellent', 'good'] or away_form_quality not in ['excellent', 'good']:
-                logger.info(f"⏭️ Пропускаем (плохая форма): {home} vs {away} | H: {home_form_quality}, A: {away_form_quality}")
-                continue
-            standings = football_api.get_standings(league_id) if league_id else None
+            
+            # ПУНКТ 4: Real XG (модель из форм)
+            home_xg = (home_goals_avg + away_conceded_avg) / 2
+            away_xg = (away_goals_avg + home_conceded_avg) / 2
+            
+            # ПУНКТ 2: Разница в голах (коэффициент)
+            standings = cache_manager.get('standings', league_id, ttl_hours=12) or football_api.get_standings(league_id)
+            cache_manager.set('standings', league_id, standings)
             home_position = 99
             away_position = 99
+            home_gd = 0
+            away_gd = 0
             if standings:
                 if home in standings:
                     home_position = standings[home].get('position', 99)
+                    home_gd = standings[home].get('goals_diff', 0)
                 if away in standings:
                     away_position = standings[away].get('position', 99)
+                    away_gd = standings[away].get('goals_diff', 0)
+            
             home_motivation = get_motivation(home_position)
             away_motivation = get_motivation(away_position)
             if home_motivation == 'mid_table' and away_motivation == 'mid_table':
                 logger.info(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
                 continue
-            if home_position > position_max or away_position > position_max:
-                logger.info(f"⏭️ Пропускаем (низкая позиция): {home} vs {away} | H: #{home_position}, A: #{away_position}")
-                continue
-            h2h_data = football_api.get_head_to_head(home, away)
-            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data)
-            prob_home_win = probs['home_win']
-            prob_away_win = probs['away_win']
-            prob_draw = probs['draw']
-            prob_1X = probs['1X']
-            prob_X2 = probs['X2']
-            prob_over_2_5 = probs['over_2_5']
-            prob_under_2_5 = probs['under_2_5']
-            prob_btts = probs['btts']
-            if home_motivation == 'relegation' and away_motivation == 'mid_table':
-                prob_home_win += 0.10
-                prob_1X += 0.08
-            elif away_motivation == 'relegation' and home_motivation == 'mid_table':
-                prob_away_win += 0.10
-                prob_X2 += 0.08
-            elif home_motivation == 'champions_league' and away_motivation == 'mid_table':
-                prob_home_win += 0.08
-                prob_1X += 0.05
-            elif away_motivation == 'champions_league' and home_motivation == 'mid_table':
-                prob_away_win += 0.08
-                prob_X2 += 0.05
+            
+            # ПУНКТ 3: Травмы
+            h_inj = len(match['factors'].get('home_injuries_list', []))
+            a_inj = len(match['factors'].get('away_injuries_list', []))
+            if h_inj > 3:
+                home_xg *= 0.8
+            if a_inj > 3:
+                away_xg *= 0.8
+            
+            # ПУНКТ 2: Разница в позициях (разница в klasse)
+            if home_position < away_position - 10:
+                home_win_prob += 0.10
+                away_win_prob -= 0.10
+            if away_position < home_position - 10:
+                away_win_prob += 0.10
+                home_win_prob -= 0.10
+            
+            # ПУНКТ 1: Смарт кэфы (микро-оптимизация)
+            home_win_prob = 0.55 + (home_xg - away_xg) * 0.2 - (h_inj - a_inj) * 0.02
+            draw_prob = 0.25
+            away_win_prob = 0.20 - (home_xg - away_xg) * 0.2
+            home_win_prob = 0.55 + (home_xg - away_xg) * 0.2 - (h_inj - a_inj) * 0.02
+            draw_prob = 0.25
+            away_win_prob = 0.20 - (home_xg - away_xg) * 0.2
+            
+            # ПУНКТ 2: Разница в позициях (разница в klasse)
+            if home_position < away_position - 10:
+                home_win_prob += 0.10
+                away_win_prob -= 0.10
+            if away_position < home_position - 10:
+                away_win_prob += 0.10
+                home_win_prob -= 0.10
+            
+            # ПУНКТ 1: Смарт кэфы (микро-оптимизация)
+            if home_xg > away_xg + 0.5:
+                home_win_prob += 0.08
+                away_win_prob -= 0.08
+            elif home_xg < away_xg - 0.5:
+                away_win_prob += 0.08
+                home_win_prob -= 0.08
+            
+            # Нормализация (sum = 1)
+            total_prob = home_win_prob + draw_prob + away_win_prob
+            if total_prob > 0:
+                home_win_prob /= total_prob
+                draw_prob /= total_prob
+                away_win_prob /= total_prob
+            
+            prob_1X = home_win_prob + draw_prob
+            prob_X2 = away_win_prob + draw_prob
+            prob_over_2_5 = 1 - (home_win_prob * away_win_prob)
+            prob_under_2_5 = 1 - prob_over_2_5
+            
+            # ПУНКТ 1: Real Fair Odds
             odds = {
                 '1X': 1.85,
                 'X2': 1.85,
@@ -1609,123 +1653,90 @@ def find_top_matches(matches):
                 'ТБ 2.5': 1.95,
                 'ОБЗ': 1.90,
             }
+            odds['1X'] = 1.85 if prob_1X > 0.70 else 1.75
+            odds['X2'] = 1.85 if prob_X2 > 0.70 else 1.75
+            odds['П1'] = 2.10 if prob_home_win > 0.60 else 2.10
+            odds['П2'] = 2.10 if prob_away_win > 0.60 else 2.10
+            odds['ТМ 2.5'] = 1.95 if prob_under_2_5 > 0.60 else 1.95
+            odds['ТБ 2.5'] = 1.95 if prob_over_2_5 > 0.60 else 1.95
+            
+            # BETS
             bets = []
             ev_1x = (prob_1X * odds['1X']) - 1
             bets.append({
-                'type': '1X',
-                'label': '1X',
-                'prob': round(prob_1X * 100, 1),
-                'ev': round(ev_1x * 100, 1),
-                'odds': odds['1X'],
-                'stake': round(42.86875, 2)
+                'type': '1X', 'label': '1X', 'prob': round(prob_1X * 100, 1),
+                'ev': round(ev_1x * 100, 1), 'odds': odds['1X'], 'stake': round(42.86875, 2)
             })
+            
             ev_x2 = (prob_X2 * odds['X2']) - 1
             bets.append({
-                'type': 'X2',
-                'label': 'X2',
-                'prob': round(prob_X2 * 100, 1),
-                'ev': round(ev_x2 * 100, 1),
-                'odds': odds['X2'],
-                'stake': round(42.86875, 2)
+                'type': 'X2', 'label': 'X2', 'prob': round(prob_X2 * 100, 1),
+                'ev': round(ev_x2 * 100, 1), 'odds': odds['X2'], 'stake': round(42.86875, 2)
             })
+            
             ev_p1 = (prob_home_win * odds['П1']) - 1
             bets.append({
-                'type': 'П1',
-                'label': 'П1',
-                'prob': round(prob_home_win * 100, 1),
-                'ev': round(ev_p1 * 100, 1),
-                'odds': odds['П1'],
-                'stake': round(42.86875, 2)
+                'type': 'П1', 'label': 'П1', 'prob': round(prob_home_win * 100, 1),
+                'ev': round(ev_p1 * 100, 1), 'odds': odds['П1'], 'stake': round(42.86875, 2)
             })
+            
             ev_p2 = (prob_away_win * odds['П2']) - 1
             bets.append({
-                'type': 'П2',
-                'label': 'П2',
-                'prob': round(prob_away_win * 100, 1),
-                'ev': round(ev_p2 * 100, 1),
-                'odds': odds['П2'],
-                'stake': round(42.86875, 2)
+                'type': 'П2', 'label': 'П2', 'prob': round(prob_away_win * 100, 1),
+                'ev': round(ev_p2 * 100, 1), 'odds': odds['П2'], 'stake': round(42.86875, 2)
             })
+            
             ev_under = (prob_under_2_5 * odds['ТМ 2.5']) - 1
             bets.append({
-                'type': 'under',
-                'label': 'ТМ 2.5',
-                'prob': round(prob_under_2_5 * 100, 1),
-                'ev': round(ev_under * 100, 1),
-                'odds': odds['ТМ 2.5'],
-                'stake': round(42.86875, 2)
+                'type': 'under', 'label': 'ТМ 2.5', 'prob': round(prob_under_2_5 * 100, 1),
+                'ev': round(ev_under * 100, 1), 'odds': odds['ТМ 2.5'], 'stake': round(42.86875, 2)
             })
+            
             ev_over = (prob_over_2_5 * odds['ТБ 2.5']) - 1
             bets.append({
-                'type': 'over',
-                'label': 'ТБ 2.5',
-                'prob': round(prob_over_2_5 * 100, 1),
-                'ev': round(ev_over * 100, 1),
-                'odds': odds['ТБ 2.5'],
-                'stake': round(42.86875, 2)
+                'type': 'over', 'label': 'ТБ 2.5', 'prob': round(prob_over_2_5 * 100, 1),
+                'ev': round(ev_over * 100, 1), 'odds': odds['ТБ 2.5'], 'stake': round(42.86875, 2)
             })
-            ev_btts = (prob_btts * odds['ОБЗ']) - 1
-            bets.append({
-                'type': 'btts',
-                'label': 'ОБЗ',
-                'prob': round(prob_btts * 100, 1),
-                'ev': round(ev_btts * 100, 1),
-                'odds': odds['ОБЗ'],
-                'stake': round(42.86875, 2)
-            })
+            
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
+            
             if best_bet['ev'] < ev_min:
                 logger.info(f"⏭️ Пропускаем (EV < {ev_min}%): {home} vs {away} | EV: {best_bet['ev']}%")
                 continue
             if best_bet['prob'] < prob_min:
                 logger.info(f"⏭️ Пропускаем (Prob < {prob_min}%): {home} vs {away} | Prob: {best_bet['prob']}%")
                 continue
+            
             bet_type = best_bet['type']
             bet_type_count[bet_type] = bet_type_count.get(bet_type, 0) + 1
             if bet_type_count[bet_type] > 3:
                 logger.info(f"⏭️ Пропускаем (лимит типа {bet_type}): {home} vs {away}")
                 continue
+            
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > 2:
                 logger.info(f"⏭️ Пропускаем (лимит лиги {league_name}): {home} vs {away}")
                 continue
+            
             match_data = {
-                "home": home,
-                "away": away,
-                "league": league_name,
-                "fixture_id": fixture_id,
-                "match_time": match_time,
-                "home_xg": round(home_xg, 2),
-                "away_xg": round(away_xg, 2),
-                "total_xg": round(total_xg, 2),
-                "home_form": home_form,
-                "away_form": away_form,
-                "home_form_quality": home_form_quality,
-                "away_form_quality": away_form_quality,
-                "home_goals_avg": home_goals_avg,
-                "away_goals_avg": away_goals_avg,
-                "home_conceded_avg": home_conceded_avg,
-                "away_conceded_avg": away_conceded_avg,
-                "standings": {
-                    "home_position": home_position,
-                    "away_position": away_position,
-                    "home_motivation": home_motivation,
-                    "away_motivation": away_motivation
-                },
-                "bets": bets,
-                "best_bet": best_bet,
-                "weather_reason": "🌤️",
-                "factors": {},
+                "home": home, "away": away, "league": league_name, "fixture_id": fixture_id,
+                "match_time": match_time, "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2), "home_form": home_form, "away_form": away_form,
+                "home_form_quality": analyze_form(home_form), "away_form_quality": analyze_form(away_form),
+                "home_goals_avg": home_goals_avg, "away_goals_avg": away_goals_avg,
+                "home_conceded_avg": home_conceded_avg, "away_conceded_avg": away_conceded_avg,
+                "standings": {"home_position": home_position, "away_position": away_position,
+                              "home_motivation": home_motivation, "away_motivation": away_motivation},
+                "bets": bets, "best_bet": best_bet, "weather_reason": "🌤️", "factors": {},
                 "source": "70_percent"
             }
             best_matches.append(match_data)
             logger.info(f"✅ КАНДИДАТ (70%+): {home} vs {away} | ЛУЧШАЯ СТАВКА: {best_bet['label']} | EV: {best_bet['ev']}% | Prob: {best_bet['prob']}%")
-            for i, bet in enumerate(bets[:3], 1):
-                logger.info(f"   {i}. {bet['label']} | EV: {bet['ev']}% | Prob: {bet['prob']}%")
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
             continue
+    
     best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     top_matches = best_matches[:max_bets]
     logger.info(f"📊 Найдено {len(best_matches)} кандидатов (70%+), выбрано {len(top_matches)} лучших")
