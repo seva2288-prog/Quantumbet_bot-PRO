@@ -1726,7 +1726,7 @@ def find_top_matches(matches):
             
             bet_type = best_bet['type']
             bet_type_count[bet_type] = bet_type_count.get(bet_type, 0) + 1
-            if bet_type_count[bet_type] > 3:
+            if bet_type_count[bet_type] > 15:
                 logger.info(f"⏭️ Пропускаем (лимит типа {bet_type}): {home} vs {away}")
                 continue
             
