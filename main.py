@@ -783,6 +783,7 @@ class OddsAPIClient:
         self.min_request_interval = 0.5
         self.rate_limiter = APIRateLimiter(max_requests=50, time_window=60)
         self.retry_manager = RetryManager(max_retries=2, base_delay=0.5)
+        self.top_leagues_only = []  # Теперь ищем кэфы для всех лиг
         logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
     
     def _make_request(self, endpoint, params=None):
@@ -1347,7 +1348,16 @@ def update_odds_for_matches(matches):
                     bookmaker = odds_data.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
                     logger.info(f"✅ Odds API: {home} vs {away} | {new_odds} ({bookmaker})")
-            if not new_odds or new_odds <= 0:
+           # Если кэфы не подтянулись для этого матча, ставим "справедливый кэф"
+if not new_odds or new_odds <= 0:
+    prob = best_bet.get('prob', 0) / 100
+    if prob > 0:
+        fair_odds = 1 / prob
+        # Добавляем 5% маржу букмекера (нужна для реальности)
+        new_odds = round(fair_odds * 0.95, 2)
+        bookmaker = 'Расчетный (Fair Odds)'
+        source = 'Calculated'
+        logger.info(f"ℹ️ Кэфы не найдены. Используем расчетный кэф: {new_odds} для {home} vs {away}")
                 if fixture_id:
                     logger.info(f"📡 Odds API не нашел, пробуем Football API для {home} vs {away} (ID: {fixture_id})")
                     football_odds = football_api.get_match_odds(fixture_id)
