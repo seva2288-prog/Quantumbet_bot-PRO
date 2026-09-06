@@ -1,1 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Bet Bot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0a1a;
+            color: #e8e8f0;
+            padding: 15px;
+            min-height: 100vh;
+        }
+        .header {
+            background: rgba(20,20,35,0.8);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid rgba(167,139,250,0.15);
+        }
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        .status.online {
+            background: rgba(52,211,153,0.15);
+            color: #34d399;
+            border: 1px solid rgba(52,211,153,0.2);
+        }
+        .status.offline {
+            background: rgba(248,113,113,0.15);
+            color: #f87171;
+            border: 1px solid rgba(248,113,113,0.2);
+        }
+        .card {
+            background: rgba(20,20,35,0.6);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card h2 {
+            color: rgba(255,255,255,0.4);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .stat {
+            background: rgba(255,255,255,0.03);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .stat .value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #a78bfa;
+        }
+        .stat .label {
+            color: rgba(255,255,255,0.3);
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        .stat .green { color: #34d399; }
+        .stat .red { color: #f87171; }
+        .stat .gold { color: #fbbf24; }
+        .loader {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #a78bfa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        th {
+            color: rgba(255,255,255,0.3);
+            font-weight: 400;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.win {
+            background: rgba(52,211,153,0.15);
+            color: #34d399;
+        }
+        .badge.loss {
+            background: rgba(248,113,113,0.15);
+            color: #f87171;
+        }
+        .badge.pending {
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.3);
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.6);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: rgba(124,58,237,0.2);
+            color: #fff;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 20px rgba(124,58,237,0.3);
+        }
+        .flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.08);
+            padding: 20px;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.03);
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .grid { grid-template-columns: 1fr 1fr; }
+            table { font-size: 11px; }
+            th, td { padding: 6px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 Quantum Bet Bot</h1>
+        <div class="status online" id="statusBadge">🟢 Онлайн</div>
+        <div style="margin-top:8px; font-size:12px; color:rgba(255,255,255,0.2);">
+            Веб-интерфейс v1.0
+        </div>
+    </div>
 
+    <div id="content">
+        <div class="loader">
+            <div class="spinner"></div>
+            Загрузка данных...
+        </div>
+    </div>
+
+    <div class="footer">Quantum Bet Bot © 2026</div>
+
+    <script>
+        async function loadData() {
+            try {
+                const response = await fetch('/api/all_data?t=' + Date.now());
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                renderDashboard(data);
+                document.getElementById('statusBadge').textContent = '🟢 Онлайн';
+                document.getElementById('statusBadge').className = 'status online';
+            } catch(error) {
+                document.getElementById('content').innerHTML = `
+                    <div class="card">
+                        <div style="text-align:center;padding:20px;">
+                            <div style="font-size:40px;margin-bottom:10px;">⚠️</div>
+                            <div style="color:#f87171;font-weight:600;">Ошибка загрузки данных</div>
+                            <div style="color:rgba(255,255,255,0.3);font-size:13px;margin-top:5px;">${error.message}</div>
+                            <button class="btn btn-primary" onclick="loadData()" style="margin-top:10px;">
+                                🔄 Повторить
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('statusBadge').textContent = '🔴 Офлайн';
+                document.getElementById('statusBadge').className = 'status offline';
+            }
+        }
+
+        function renderDashboard(data) {
+            const stats = data.stats || {};
+            const history = data.history || [];
+            const matches = data.matches || [];
+
+            let html = `
+                <div class="card">
+                    <h2>📊 Статистика</h2>
+                    <div class="grid">
+                        <div class="stat">
+                            <div class="value gold">$${stats.bank || 1000}</div>
+                            <div class="label">💰 Банк</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value green">${stats.wins || 0}</div>
+                            <div class="label">✅ Выигрыши</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value red">${stats.losses || 0}</div>
+                            <div class="label">❌ Проигрыши</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value gold">${(stats.profit || 0) > 0 ? '+' : ''}$${stats.profit || 0}</div>
+                            <div class="label">📈 Прибыль</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value">${stats.total_bets || 0}</div>
+                            <div class="label">📊 Всего ставок</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value green">${stats.winrate || 0}%</div>
+                            <div class="label">🎯 Проходимость</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value gold">${stats.roi || 0}%</div>
+                            <div class="label">📈 ROI</div>
+                        </div>
+                        <div class="stat">
+                            <div class="value">${matches.length}</div>
+                            <div class="label">📅 Активных матчей</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (history.length > 0) {
+                const recent = history.slice(-5).reverse();
+                html += `
+                    <div class="card">
+                        <div class="flex">
+                            <h2>📋 Последние ставки</h2>
+                            <span style="color:rgba(255,255,255,0.2);font-size:12px;">Всего: ${history.length}</span>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Дата</th>
+                                        <th>Матч</th>
+                                        <th>Ставка</th>
+                                        <th>Кэф</th>
+                                        <th>Результат</th>
+                                        <th>Прибыль</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recent.map(bet => `
+                                        <tr>
+                                            <td>${bet.date || '-'}</td>
+                                            <td>${bet.home} vs ${bet.away}</td>
+                                            <td>${bet.bet}</td>
+                                            <td>${bet.odds}</td>
+                                            <td><span class="badge ${bet.result || 'pending'}">${bet.result || 'pending'}</span></td>
+                                            <td style="color:${(bet.profit || 0) > 0 ? '#34d399' : '#f87171'};">
+                                                ${(bet.profit || 0) > 0 ? '+' : ''}$${bet.profit || 0}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (matches.length > 0) {
+                html += `
+                    <div class="card" style="border:1px solid rgba(167,139,250,0.2);">
+                        <div class="flex">
+                            <h2 style="color:#a78bfa;">🎯 Активные матчи (${matches.length})</h2>
+                            <button class="btn btn-primary" onclick="updateMatches()">🔄 Обновить</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Время</th>
+                                        <th>Матч</th>
+                                        <th>Лига</th>
+                                        <th>Ставка</th>
+                                        <th>Кэф</th>
+                                        <th>EV</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${matches.map(match => {
+                                        const bet = match.best_bet || match.bets?.[0] || {};
+                                        return `
+                                            <tr>
+                                                <td>${match.match_time || 'Сегодня'}</td>
+                                                <td><strong>${match.home}</strong> vs <strong>${match.away}</strong></td>
+                                                <td style="color:rgba(255,255,255,0.3);">${match.league || '-'}</td>
+                                                <td>${bet.label || '—'}</td>
+                                                <td>${bet.odds || 0}</td>
+                                                <td style="color:#fbbf24;">${bet.ev || 0}%</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('content').innerHTML = html;
+        }
+
+        async function updateMatches() {
+            const btn = event?.target;
+            if (btn) {
+                btn.textContent = '⏳...';
+                btn.disabled = true;
+            }
+            try {
+                const response = await fetch('/api/update_matches');
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Матчи обновлены');
+                    loadData();
+                } else {
+                    showNotification('❌ Ошибка: ' + (data.error || 'Неизвестно'));
+                }
+            } catch(e) {
+                showNotification('❌ Ошибка: ' + e.message);
+            }
+            if (btn) {
+                btn.textContent = '🔄 Обновить';
+                btn.disabled = false;
+            }
+        }
+
+        function showNotification(msg) {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+                background: rgba(20,20,35,0.95); padding: 12px 24px;
+                border-radius: 10px; border: 1px solid rgba(167,139,250,0.2);
+                color: #e8e8f0; font-size: 14px; z-index: 9999;
+                backdrop-filter: blur(10px); max-width: 90%;
+                text-align: center;
+                animation: fadeIn 0.3s ease;
+            `;
+            div.textContent = msg;
+            document.body.appendChild(div);
+            setTimeout(() => {
+                div.style.opacity = '0';
+                div.style.transition = 'opacity 0.3s';
+                setTimeout(() => div.remove(), 300);
+            }, 3000);
+        }
+
+        // Добавляем стиль анимации
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
