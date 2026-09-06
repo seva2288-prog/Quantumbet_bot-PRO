@@ -1323,10 +1323,18 @@ body.light-theme .bottom-nav::before {
         </div>
     </div>
 
-    <div id="page-dashboard" class="page active"><div id="dashboard-content"></div></div>
-    <div id="page-analytics" class="page"><div id="analytics-content"></div></div>
-    <div id="page-simulator" class="page"><div id="simulator-content"></div></div>
-    <div id="page-settings" class="page"><div id="settings-content"></div></div>
+    <div id="page-dashboard" class="page active">
+    <div id="dashboard-content"></div>
+</div>
+<div id="page-analytics" class="page" style="display:none;">
+    <div id="analytics-content"></div>
+</div>
+<div id="page-simulator" class="page" style="display:none;">
+    <div id="simulator-content"></div>
+</div>
+<div id="page-settings" class="page" style="display:none;">
+    <div id="settings-content"></div>
+</div>
 
     <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
 </div>
@@ -1505,17 +1513,32 @@ body.light-theme .bottom-nav::before {
     });
 
     function switchPage(page) {
-        if (page === currentPage && document.getElementById('page-' + page).classList.contains('active')) return;
+    if (page === currentPage) return;
 
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-        document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
+    // Обновляем кнопки навигации
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
 
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById('page-' + page).classList.add('active');
+    // Прячем все страницы
+    document.querySelectorAll('.page').forEach(p => {
+        p.style.display = 'none';
+        p.classList.remove('active');
+    });
 
-        currentPage = page;
+    // Показываем нужную страницу
+    const targetPage = document.getElementById('page-' + page);
+    if (targetPage) {
+        targetPage.style.display = 'block';
+        targetPage.classList.add('active');
+    }
+
+    currentPage = page;
+    
+    // Загружаем данные для страницы
+    if (typeof loadPageData === 'function') {
         loadPageData(page);
     }
+}
 
     // ============================================================
     // ЗАГРУЗКА МАТЧЕЙ ОТДЕЛЬНО
