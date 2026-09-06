@@ -1348,7 +1348,6 @@ def update_odds_for_matches(matches):
                     bookmaker = odds_data.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
                     logger.info(f"✅ Odds API: {home} vs {away} | {new_odds} ({bookmaker})")
-           # Если кэфы не подтянулись для этого матча, ставим "справедливый кэф"
 if not new_odds or new_odds <= 0:
     prob = best_bet.get('prob', 0) / 100
     if prob > 0:
