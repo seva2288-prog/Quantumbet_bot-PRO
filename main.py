@@ -1480,6 +1480,20 @@ def find_top_matches(matches):
     best_matches = []
     bet_type_count = {}
     league_count = {}
+    
+    # ВАЖНО! Объявляем переменные ДО цикла, чтобы они не были "не связаны"
+    home_win_prob = 0.0
+    away_win_prob = 0.0
+    draw_prob = 0.0
+    prob_home_win = 0.0
+    prob_away_win = 0.0
+    prob_draw = 0.0
+    prob_1X = 0.0
+    prob_X2 = 0.0
+    prob_over_2_5 = 0.0
+    prob_under_2_5 = 0.0
+    prob_btts = 0.0
+    
     for match in matches:
         if not match or not isinstance(match, dict):
             continue
