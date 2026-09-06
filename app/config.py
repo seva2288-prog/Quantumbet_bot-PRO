@@ -29,7 +29,7 @@ class Config:
     
     XG_MIN_70 = 1.8
     XG_MAX_70 = 3.0
-    EV_MIN_70 = 30
+    EV_MIN_70 = 20
     PROB_MIN_70 = 70
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
