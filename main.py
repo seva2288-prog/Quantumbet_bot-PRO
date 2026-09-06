@@ -1554,7 +1554,7 @@ def find_top_matches(matches):
                 logger.info(f"⏭️ Пропускаем (XG вне диапазона {xg_min}-{xg_max}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
 
-            # ПУНКТ 2: Получаем таблицу и позиции (ЗДЕСЬ ДОЛЖНЫ БЫТЬ ДАННЫЕ!)
+            # ПУНКТ 2: Получаем таблицу и позиции
             standings = football_api.get_standings(league_id) if league_id else None
             home_position = 99
             away_position = 99
