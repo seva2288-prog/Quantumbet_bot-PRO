@@ -1319,6 +1319,9 @@ def analyze_match(match_name):
         logger.error(f"Ошибка анализа матча: {e}")
         return f"❌ Ошибка: {e}"
 
+# ============================================================
+# ОБНОВЛЕНИЕ РЕАЛЬНЫХ КОЭФФИЦИЕНТОВ
+# ============================================================
 def update_odds_for_matches(matches):
     updated_matches = []
     for match_data in matches:
@@ -1332,6 +1335,8 @@ def update_odds_for_matches(matches):
             new_odds = None
             bookmaker = '—'
             source = None
+
+            # 1. ПОЛУЧАЕМ КЭФЫ ЧЕРЕЗ ODDS API (The Odds API)
             odds_data = odds_api.get_odds_for_match(home, away, league)
             if odds_data and odds_data.get('best_odds', 0) > 0:
                 if bet_type == 'under' and odds_data.get('under_odds', 0) > 0:
@@ -1348,15 +1353,9 @@ def update_odds_for_matches(matches):
                     bookmaker = odds_data.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
                     logger.info(f"✅ Odds API: {home} vs {away} | {new_odds} ({bookmaker})")
-if not new_odds or new_odds <= 0:
-    prob = best_bet.get('prob', 0) / 100
-    if prob > 0:
-        fair_odds = 1 / prob
-        # Добавляем 5% маржу букмекера (нужна для реальности)
-        new_odds = round(fair_odds * 0.95, 2)
-        bookmaker = 'Расчетный (Fair Odds)'
-        source = 'Calculated'
-        logger.info(f"ℹ️ Кэфы не найдены. Используем расчетный кэф: {new_odds} для {home} vs {away}")
+
+            # 2. ЕСЛИ НЕ НАШЛИ, ПРОБУЕМ FOOTBALL API
+            if not new_odds or new_odds <= 0:
                 if fixture_id:
                     logger.info(f"📡 Odds API не нашел, пробуем Football API для {home} vs {away} (ID: {fixture_id})")
                     football_odds = football_api.get_match_odds(fixture_id)
@@ -1388,6 +1387,18 @@ if not new_odds or new_odds <= 0:
                                 source = 'Football API'
                         if new_odds and new_odds > 0:
                             logger.info(f"✅ Football API: {home} vs {away} | {new_odds} ({bookmaker})")
+
+            # 3. ФИНАЛЬНАЯ ЗАГЛУШКА (СПРАВЕДЛИВЫЙ КЭФ)
+            if not new_odds or new_odds <= 0:
+                prob = best_bet.get('prob', 0) / 100
+                if prob > 0:
+                    fair_odds = 1 / prob
+                    new_odds = round(fair_odds * 0.95, 2)
+                    bookmaker = 'Расчетный (Fair Odds)'
+                    source = 'Calculated'
+                    logger.info(f"ℹ️ Кэфы не найдены. Используем расчетный кэф: {new_odds} для {home} vs {away}")
+
+            # 4. ОБНОВЛЯЕМ СТАВКУ
             if new_odds and new_odds > 0:
                 prob = best_bet.get('prob', 0) / 100
                 new_ev = (prob * new_odds) - 1
@@ -1400,6 +1411,7 @@ if not new_odds or new_odds <= 0:
                 logger.info(f"✅ ИТОГ: {home} vs {away} | {best_bet['label']} | КЭФ: {new_odds} | EV: {best_bet['ev']}% | Источник: {source}")
             else:
                 logger.info(f"ℹ️ Кэфы не найдены для {home} vs {away}, оставляем 1.95")
+            
             updated_matches.append(match_data)
         except Exception as e:
             logger.error(f"❌ Ошибка обновления коэффициентов {match_data.get('home')}: {e}")
