@@ -1549,19 +1549,56 @@ def find_top_matches(matches):
             if total_xg < xg_min or total_xg > xg_max:
                 logger.info(f"⏭️ Пропускаем (XG вне диапазона {xg_min}-{xg_max}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
+            # ПУНКТ 4: Реальные голы из формы (Real XG)
             home_form_data = football_api.get_form(home_team.get("id"))
             away_form_data = football_api.get_form(away_team.get("id"))
             home_form = home_form_data.get('form', '') if home_form_data else ''
             away_form = away_form_data.get('form', '') if away_form_data else ''
+
             home_goals_avg = home_form_data.get('goals_avg', 1.2) if home_form_data else 1.2
             away_goals_avg = away_form_data.get('goals_avg', 1.0) if away_form_data else 1.0
             home_conceded_avg = home_form_data.get('conceded_avg', 1.0) if home_form_data else 1.0
             away_conceded_avg = away_form_data.get('conceded_avg', 1.2) if away_form_data else 1.2
-            home_form_quality = analyze_form(home_form)
-            away_form_quality = analyze_form(away_form)
-            if home_form_quality not in ['excellent', 'good'] or away_form_quality not in ['excellent', 'good']:
-                logger.info(f"⏭️ Пропускаем (плохая форма): {home} vs {away} | H: {home_form_quality}, A: {away_form_quality}")
-                continue
+
+            # Real XG (ожидаемые голы) из голосов формы
+            home_xg = (home_goals_avg + away_conceded_avg) / 2
+            away_xg = (away_goals_avg + home_conceded_avg) / 2
+
+            # ПУНКТ 3: Учитываем травмы
+            h_inj = len(match['factors'].get('home_injuries_list', []))
+            a_inj = len(match['factors'].get('away_injuries_list', []))
+            if h_inj > 3:
+                home_xg *= 0.8
+            if a_inj > 3:
+                away_xg *= 0.8
+
+            # Нормализация вероятностей (это критически важно! Добавляем значения по умолчанию)
+            home_win_prob = 0.55 + (home_xg - away_xg) * 0.2 - (h_inj - a_inj) * 0.02
+            draw_prob = 0.25
+            away_win_prob = 0.20 - (home_xg - away_xg) * 0.2
+
+            # ПУНКТ 2: Учитываем разницу в голах (Goal Difference)
+            if home_position > away_position - 10:
+                home_win_prob += 0.10
+                away_win_prob -= 0.10
+            if away_position > home_position - 10:
+                away_win_prob += 0.10
+                home_win_prob -= 0.10
+
+            # ПУНКТ 1: Добавляем домашнее преимущество
+            if home_xg > away_xg + 0.5:
+                home_win_prob += 0.08
+                away_win_prob -= 0.08
+            elif home_xg < away_xg - 0.5:
+                away_win_prob += 0.08
+                home_win_prob -= 0.08
+
+            # Нормализация (сумма вероятностей должна быть 1)
+            total_prob = home_win_prob + draw_prob + away_win_prob
+            if total_prob > 0:
+                home_win_prob /= total_prob
+                draw_prob /= total_prob
+                away_win_prob /= total_prob
             standings = football_api.get_standings(league_id) if league_id else None
             home_position = 99
             away_position = 99
