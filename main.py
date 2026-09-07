@@ -1636,7 +1636,7 @@ def find_top_matches(matches):
                 away_win_prob /= total_prob
 
             prob_1X = home_win_prob + draw_prob
-            prob_X2 = away_win_prob + draw_prob
+            prob_X2 = away_win_prob + draw_prob + 0.15
             prob_over_2_5 = 1 - (home_win_prob * away_win_prob)
             prob_under_2_5 = 1 - prob_over_2_5
             prob_btts = 1 - (prob_under_2_5 * prob_over_2_5)
