@@ -29,13 +29,14 @@ class Config:
     
     XG_MIN_70 = 1.8
     XG_MAX_70 = 3.0
-    EV_MIN_70 = 30
-    PROB_MIN_70 = 70
+    EV_MIN_70 = 15
+    PROB_MIN_70 = 55
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
     LIMIT_BET_TYPE_70 = 15
     LIMIT_LEAGUE_70 = 2
+    MIN_ODD_70 = 1.65
     
     # ============================================================
     # НАСТРОЙКИ ТМ 2.5
