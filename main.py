@@ -1491,7 +1491,7 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - 70%+
+# ТОП МАТЧЕЙ - 70%+ (ГИБРИДНЫЙ РЕЖИМ: 1X + X2)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -1696,10 +1696,10 @@ def find_top_matches(matches):
             bets.append({
                 'type': 'X2', 'label': 'X2', 'prob': round(prob_X2 * 100, 1),
                 'ev': round(ev_x2 * 100, 1), 'odds': odds['X2'], 'stake': round(42.86875, 2)
-            })
+           100 })
             ev_p1 = (prob_home_win * odds['П1']) - 1
             bets.append({
-                'type': 'П1', 'label': 'П1', 'prob': round(prob_home_win * 100, 1),
+                'type': 'П1', 'label': 'П1', 'prob': round(prob_home_win * , 1),
                 'ev': round(ev_p1 * 100, 1), 'odds': odds['П1'], 'stake': round(42.86875, 2)
             })
             ev_p2 = (prob_away_win * odds['П2']) - 1
@@ -1731,11 +1731,6 @@ def find_top_matches(matches):
                 continue
             if best_bet['prob'] < prob_min:
                 logger.info(f"⏭️ Пропускаем (Prob < {prob_min}%): {home} vs {away} | Prob: {best_bet['prob']}%")
-                continue
-                
-            # НОВЫЙ ФИЛЬТР: Если кэф слишком низкий, ставка убыточная! Это спасет ваш банк.
-            if best_bet['odds'] < 1.80:
-                logger.info(f"⏭️ Пропускаем (кэф < 1.80): {home} vs {away} | КЭФ: {best_bet['odds']}")
                 continue
 
             bet_type = best_bet['type']
