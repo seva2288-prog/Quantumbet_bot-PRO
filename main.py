@@ -1732,6 +1732,11 @@ def find_top_matches(matches):
             if best_bet['prob'] < prob_min:
                 logger.info(f"⏭️ Пропускаем (Prob < {prob_min}%): {home} vs {away} | Prob: {best_bet['prob']}%")
                 continue
+                
+            # НОВЫЙ ФИЛЬТР: Если кэф слишком низкий, ставка убыточная! Это спасет ваш банк.
+            if best_bet['odds'] < 1.80:
+                logger.info(f"⏭️ Пропускаем (кэф < 1.80): {home} vs {away} | КЭФ: {best_bet['odds']}")
+                continue
 
             bet_type = best_bet['type']
             bet_type_count[bet_type] = bet_type_count.get(bet_type, 0) + 1
