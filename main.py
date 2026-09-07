@@ -1491,18 +1491,18 @@ def get_matches_with_factors():
     return all_matches
 
 # ============================================================
-# ТОП МАТЧЕЙ - 70%+ (ГИБРИДНЫЙ РЕЖИМ: 1X + X2)
+# ТОП МАТЧЕЙ - 70%+ (HYBRID MODE: 1X + X2)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
     max_bets = Config.MAX_BETS_PER_RUN
-    logger.info(f"🔍 Анализ {len(matches)} матчей из всех лиг с фильтрами для 70%+...")
+    logger.info(f"🔍 Анализ {len(matches)} матчей из всех лиг с фильтрами für 70%+...")
     best_matches = []
     bet_type_count = {}
     league_count = {}
     
-    # ВАЖНО! Объявляем переменные ДО цикла, чтобы они не были "не связаны"
+    # WICHTIG! Variablen VOR der Schleife deklarieren
     home_win_prob = 0.0
     away_win_prob = 0.0
     draw_prob = 0.0
@@ -1696,10 +1696,10 @@ def find_top_matches(matches):
             bets.append({
                 'type': 'X2', 'label': 'X2', 'prob': round(prob_X2 * 100, 1),
                 'ev': round(ev_x2 * 100, 1), 'odds': odds['X2'], 'stake': round(42.86875, 2)
-           100 })
+            })
             ev_p1 = (prob_home_win * odds['П1']) - 1
             bets.append({
-                'type': 'П1', 'label': 'П1', 'prob': round(prob_home_win * , 1),
+                'type': 'П1', 'label': 'П1', 'prob': round(prob_home_win * 100, 1),
                 'ev': round(ev_p1 * 100, 1), 'odds': odds['П1'], 'stake': round(42.86875, 2)
             })
             ev_p2 = (prob_away_win * odds['П2']) - 1
