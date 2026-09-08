@@ -1,3198 +1,478 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <title>Quantum Bet Tracker</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: #050510;
-            color: #e8e8f0;
-            min-height: 100vh;
-            overflow-x: hidden;
-            padding-bottom: 90px;
-            position: relative;
-            transition: background 0.3s ease, color 0.3s ease;
-        }
-        
-        body.light-theme {
-            background: #f0f0f5;
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
-        }
-        
-        body.light-theme .header {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
-        }
-        
-        body.light-theme .stat-card {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .stat-card .label {
-            color: rgba(0, 0, 0, 0.5);
-        }
-        
-        body.light-theme .metrics-grid .metric-item {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .metrics-grid .metric-item .label {
-            color: rgba(0, 0, 0, 0.5);
-        }
-        
-        body.light-theme .metrics-grid .metric-item .value {
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .card-header h2 {
-            color: rgba(0, 0, 0, 0.5);
-        }
-        
-        body.light-theme .bottom-nav {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px);
-            border-top: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .bottom-nav .nav-item {
-            color: rgba(0, 0, 0, 0.4);
-        }
-        
-        body.light-theme .bottom-nav .nav-item.active {
-            color: #7c3aed;
-        }
-        
-        body.light-theme .setting-group {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .setting-group h2 {
-            color: rgba(0, 0, 0, 0.5);
-        }
-        
-        body.light-theme .setting-item .label {
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .setting-item .desc {
-            color: rgba(0, 0, 0, 0.4);
-        }
-        
-        body.light-theme .input-group input {
-            background: rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .no-data {
-            color: rgba(0, 0, 0, 0.4);
-        }
-        
-        body.light-theme .footer {
-            color: rgba(0, 0, 0, 0.2);
-            border-top: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        
-        body.light-theme table {
-            color: #1a1a2e;
-        }
-        
-        body.light-theme th {
-            color: rgba(0, 0, 0, 0.5);
-            background: rgba(0, 0, 0, 0.02);
-        }
-        
-        body.light-theme td {
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        
-        body.light-theme tr:hover td {
-            background: rgba(0, 0, 0, 0.02);
-        }
-        
-        body.light-theme .edit-row {
-            background: rgba(0, 0, 0, 0.03);
-        }
-        
-        body.light-theme .edit-row input,
-        body.light-theme .edit-row select {
-            background: rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .edit-btn {
-            color: rgba(0, 0, 0, 0.3);
-        }
-        
-        body.light-theme .edit-btn:hover {
-            color: #7c3aed;
-        }
-        
-        body.light-theme .stars-container {
-            background: radial-gradient(ellipse at 30% 50%, #e8e8f0 0%, #d0d0dd 100%);
-            opacity: 0.3;
-        }
-        
-        body.light-theme .milky-way {
-            background: radial-gradient(ellipse at 40% 50%,
-                rgba(100, 80, 180, 0.1) 0%,
-                rgba(60, 40, 120, 0.06) 20%,
-                rgba(30, 20, 80, 0.03) 50%,
-                transparent 80%);
-        }
-        
-        body.light-theme .star {
-            background: #7c3aed;
-            opacity: 0.2 !important;
-        }
-        
-        body.light-theme .badge.win {
-            background: rgba(52, 211, 153, 0.15);
-            color: #059669;
-            border: 1px solid rgba(52, 211, 153, 0.15);
-        }
-        
-        body.light-theme .badge.loss {
-            background: rgba(248, 113, 113, 0.15);
-            color: #dc2626;
-            border: 1px solid rgba(248, 113, 113, 0.15);
-        }
-        
-        body.light-theme .badge.push {
-            background: rgba(251, 191, 36, 0.15);
-            color: #d97706;
-            border: 1px solid rgba(251, 191, 36, 0.15);
-        }
-        
-        body.light-theme .badge.pending {
-            background: rgba(0, 0, 0, 0.04);
-            color: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        
-        body.light-theme .chart-controls select {
-            background: rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            color: #1a1a2e;
-        }
-        
-        body.light-theme .chart-details {
-            background: rgba(0, 0, 0, 0.03);
-        }
-        
-        body.light-theme .sim-stat {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        body.light-theme .x2-card {
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        
-        .stars-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
-            background: radial-gradient(ellipse at 30% 50%, #0a0a20 0%, #04040e 100%);
-            transition: background 0.3s ease;
-        }
-        
-        .milky-way {
-            position: absolute;
-            top: -20%;
-            left: -10%;
-            width: 120%;
-            height: 140%;
-            background: radial-gradient(ellipse at 40% 50%,
-                rgba(100, 80, 180, 0.06) 0%,
-                rgba(60, 40, 120, 0.04) 20%,
-                rgba(30, 20, 80, 0.02) 50%,
-                transparent 80%);
-            transform: rotate(-15deg);
-            filter: blur(60px);
-            animation: milkyPulse 12s ease-in-out infinite alternate;
-        }
-        
-        .milky-way-2 {
-            position: absolute;
-            bottom: -10%;
-            right: -10%;
-            width: 100%;
-            height: 120%;
-            background: radial-gradient(ellipse at 60% 40%,
-                rgba(140, 100, 200, 0.04) 0%,
-                rgba(80, 50, 150, 0.03) 30%,
-                transparent 70%);
-            transform: rotate(25deg);
-            filter: blur(80px);
-            animation: milkyPulse2 15s ease-in-out infinite alternate;
-        }
-        
-        @keyframes milkyPulse {
-            0% { opacity: 0.6; transform: rotate(-15deg) scale(1); }
-            100% { opacity: 1; transform: rotate(-10deg) scale(1.05); }
-        }
-        @keyframes milkyPulse2 {
-            0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
-            100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); }
-        }
-        
-        .star {
-            position: absolute;
-            border-radius: 50%;
-            background: white;
-            animation: twinkle var(--duration) ease-in-out infinite alternate;
-            transition: background 0.3s ease;
-        }
-        
-        @keyframes twinkle {
-            0% { opacity: 0.2; transform: scale(0.8); }
-            100% { opacity: 1; transform: scale(1.2); }
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 12px;
-            padding-bottom: 90px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 14px;
-            padding: 12px 16px;
-            background: rgba(20, 20, 35, 0.7);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
-        }
-        .header h1 {
-            font-size: 18px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-shadow: 0 0 30px rgba(124, 58, 237, 0.15);
-        }
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #34d399;
-            font-size: 10px;
-            font-weight: 500;
-        }
-        .status-dot {
-            width: 7px;
-            height: 7px;
-            background: #34d399;
-            border-radius: 50%;
-            animation: pulse-dot 2s ease-in-out infinite;
-            box-shadow: 0 0 12px rgba(52, 211, 153, 0.3);
-        }
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-        }
-        
-        .theme-toggle {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: #e8e8f0;
-        }
-        .theme-toggle:hover {
-            transform: scale(1.1);
-            border-color: #7c3aed;
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
-        }
-        
-        .card {
-            background: rgba(20, 20, 35, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 14px;
-            padding: 14px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            transition: all 0.4s ease;
-        }
-        .card:hover {
-            border-color: rgba(124, 58, 237, 0.15);
-            box-shadow: 0 4px 40px rgba(124, 58, 237, 0.05);
-        }
-        
-        .x2-card {
-            background: rgba(20, 20, 35, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(167, 139, 250, 0.15);
-            border-radius: 14px;
-            padding: 14px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            transition: all 0.4s ease;
-        }
-        .x2-card:hover {
-            border-color: rgba(124, 58, 237, 0.25);
-            box-shadow: 0 4px 40px rgba(124, 58, 237, 0.08);
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-        .stat-card {
-            padding: 12px 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            text-align: center;
-            transition: all 0.4s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        }
-        .stat-card:hover {
-            border-color: rgba(124, 58, 237, 0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-        }
-        .stat-card .value {
-            font-size: 20px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #c4b5fd, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.green {
-            background: linear-gradient(135deg, #34d399, #6ee7b7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.red {
-            background: linear-gradient(135deg, #f87171, #fca5a5);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .value.gold {
-            background: linear-gradient(135deg, #fbbf24, #fcd34d);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-card .label {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 10px;
-            margin-top: 4px;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-        }
-        
-        .stats-grid-x2 {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .stat-card-x2 {
-            padding: 10px 8px;
-            border-radius: 10px;
-            background: rgba(167, 139, 250, 0.05);
-            border: 1px solid rgba(167, 139, 250, 0.08);
-            text-align: center;
-            transition: all 0.4s ease;
-        }
-        .stat-card-x2:hover {
-            border-color: rgba(124, 58, 237, 0.3);
-            transform: translateY(-2px);
-        }
-        .stat-card-x2 .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #a78bfa;
-        }
-        .stat-card-x2 .value.green { color: #34d399; }
-        .stat-card-x2 .value.red { color: #f87171; }
-        .stat-card-x2 .value.gold { color: #fbbf24; }
-        .stat-card-x2 .label {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 9px;
-            margin-top: 3px;
-            font-weight: 500;
-        }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-        .metrics-grid .metric-item {
-            background: rgba(255, 255, 255, 0.03);
-            padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-            transition: all 0.4s ease;
-        }
-        .metrics-grid .metric-item:hover {
-            border-color: rgba(124, 58, 237, 0.15);
-            background: rgba(255, 255, 255, 0.05);
-        }
-        .metrics-grid .metric-item .label {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .metrics-grid .metric-item .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #e8e8f0;
-        }
-        .metrics-grid .metric-item .value.green { color: #34d399; }
-        .metrics-grid .metric-item .value.gold { color: #fbbf24; }
-        .metrics-grid .metric-item .value.red { color: #f87171; }
-        
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            min-width: 700px;
-        }
-        th, td {
-            padding: 6px 8px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        }
-        th {
-            color: rgba(255, 255, 255, 0.4);
-            font-weight: 600;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: rgba(255, 255, 255, 0.02);
-            position: sticky;
-            top: 0;
-        }
-        tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 1px 8px;
-            border-radius: 10px;
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .badge.win {
-            background: rgba(52, 211, 153, 0.12);
-            color: #34d399;
-            border: 1px solid rgba(52, 211, 153, 0.1);
-        }
-        .badge.loss {
-            background: rgba(248, 113, 113, 0.12);
-            color: #f87171;
-            border: 1px solid rgba(248, 113, 113, 0.1);
-        }
-        .badge.push {
-            background: rgba(251, 191, 36, 0.12);
-            color: #fbbf24;
-            border: 1px solid rgba(251, 191, 36, 0.1);
-        }
-        .badge.pending {
-            background: rgba(255, 255, 255, 0.04);
-            color: rgba(255, 255, 255, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .badge.x2-win { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.15); }
-        .badge.x2-loss { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.15); }
-        .badge.x2-push { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.15); }
-        .badge.x2-pending { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); }
-        
-        .profit-positive { color: #34d399; font-weight: 600; }
-        .profit-negative { color: #f87171; font-weight: 600; }
-        
-        .bottom-nav {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 92%;
-            max-width: 480px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(30px) saturate(180%);
-            -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border-radius: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 10px 8px;
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-        
-        body:not(.light-theme) .bottom-nav {
-            background: rgba(20, 20, 35, 0.5);
-            backdrop-filter: blur(30px) saturate(180%);
-            -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        }
-        
-        body.light-theme .bottom-nav {
-            background: rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(30px) saturate(180%);
-            -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-        }
-        
-        .bottom-nav .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 11px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 8px 18px;
-            border-radius: 18px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            min-width: 64px;
-            position: relative;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-            gap: 4px;
-        }
-        
-        .bottom-nav .nav-item .icon {
-            font-size: 26px;
-            line-height: 1.2;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .bottom-nav .nav-item .label {
-            font-size: 10px;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 0.6;
-        }
-        
-        .bottom-nav .nav-item.active {
-            color: #a78bfa;
-            background: rgba(167, 139, 250, 0.12);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-        
-        .bottom-nav .nav-item.active .icon {
-            transform: scale(1.05);
-            text-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
-        }
-        
-        .bottom-nav .nav-item.active .label {
-            opacity: 1;
-            color: #a78bfa;
-        }
-        
-        body.light-theme .bottom-nav .nav-item.active {
-            background: rgba(124, 58, 237, 0.08);
-            color: #7c3aed;
-        }
-        
-        body.light-theme .bottom-nav .nav-item.active .label {
-            color: #7c3aed;
-        }
-        
-        .bottom-nav .nav-item.active::before {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 20px;
-            height: 3px;
-            background: linear-gradient(90deg, #7c3aed, #a78bfa);
-            border-radius: 4px;
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-        }
-        
-        body.light-theme .bottom-nav .nav-item.active::before {
-            background: linear-gradient(90deg, #6d28d9, #7c3aed);
-        }
-        
-        .bottom-nav .nav-item:active {
-            transform: scale(0.88);
-            transition: transform 0.1s;
-        }
-        
-        .bottom-nav .nav-item:hover {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        body.light-theme .bottom-nav .nav-item:hover {
-            color: rgba(0, 0, 0, 0.6);
-        }
-        
-        .bottom-nav::after {
-            content: '';
-            position: absolute;
-            top: 1px;
-            left: 15%;
-            right: 15%;
-            height: 30%;
-            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
-            border-radius: 50%;
-            pointer-events: none;
-            opacity: 0.5;
-        }
-        
-        body.light-theme .bottom-nav::after {
-            background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%);
-        }
-        
-        .bottom-nav::before {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 10%;
-            right: 10%;
-            height: 20px;
-            background: radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.2) 0%, transparent 70%);
-            border-radius: 50%;
-            filter: blur(10px);
-            pointer-events: none;
-            opacity: 0.3;
-        }
-        
-        body.light-theme .bottom-nav::before {
-            opacity: 0.1;
-        }
-        
-        @media (max-width: 768px) {
-            .bottom-nav {
-                bottom: 16px;
-                width: 94%;
-                padding: 8px 6px;
-                border-radius: 24px;
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from flask import Flask, render_template, jsonify, request
+import requests
+from datetime import datetime, timedelta
+import json
+import logging
+from collections import defaultdict
+import re
+import time
+
+# Импорт анализатора матчей
+from match_analyzer import MatchAnalyzer
+
+app = Flask(__name__)
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ============================================================
+# НАСТРОЙКИ
+# ============================================================
+
+BOT_URL = os.environ.get('BOT_URL', 'https://quantumbet-bot-pro.onrender.com')
+print(f"🔗 Бот URL: {BOT_URL}")
+
+# ============================================================
+# ПРОВЕРКА БОТА
+# ============================================================
+
+def check_bot_health():
+    try:
+        response = requests.get(f'{BOT_URL}/health', timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Бот доступен: {data}")
+            return True, data
+        else:
+            logger.warning(f"⚠️ Бот вернул код {response.status_code}")
+            return False, None
+    except Exception as e:
+        logger.error(f"❌ Бот недоступен: {e}")
+        return False, None
+
+def get_bot_status():
+    try:
+        response = requests.get(f'{BOT_URL}/health', timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        return {'status': 'error', 'code': response.status_code}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
+# ============================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ============================================================
+
+def safe_parse_float(value, default=0.0):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_parse_int(value, default=0):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+# ============================================================
+# ГЛАВНАЯ СТРАНИЦА
+# ============================================================
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# ============================================================
+# API МАРШРУТЫ
+# ============================================================
+
+@app.route('/api/all_data')
+def api_all_data():
+    try:
+        response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/matches')
+def api_matches():
+    try:
+        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except Exception as e:
+        logger.error(f"Ошибка получения матчей: {e}")
+        return jsonify([])
+
+@app.route('/api/stats')
+def api_stats():
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}")
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+
+@app.route('/api/history')
+def api_history():
+    try:
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except Exception as e:
+        logger.error(f"Ошибка получения истории: {e}")
+        return jsonify([])
+
+@app.route('/api/bank', methods=['POST'])
+def update_bank():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка обновления банка: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/simulate', methods=['POST'])
+def simulate():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка симуляции: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_excel', methods=['POST'])
+def import_excel():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка импорта Excel: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка импорта проекта: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/edit_bet', methods=['POST'])
+def edit_bet():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка редактирования ставки: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete_bet', methods=['POST'])
+def delete_bet():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка удаления ставки: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка добавления матча: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/send_command', methods=['POST'])
+def send_command():
+    try:
+        data = request.json
+        command = data.get('command', '')
+        
+        if not command:
+            return jsonify({'success': False, 'error': 'Команда не указана'}), 400
+        
+        telegram_token = os.environ.get('TELEGRAM_TOKEN', '')
+        admin_chat_id = os.environ.get('ADMIN_CHAT_ID', '')
+        
+        if not telegram_token or not admin_chat_id:
+            response = requests.post(f'{BOT_URL}/api/command', json={'command': command}, timeout=10)
+            if response.status_code == 200:
+                return jsonify({'success': True, 'message': f'Команда {command} отправлена боту'})
+            else:
+                return jsonify({'success': False, 'error': f'Ошибка бота: {response.status_code}'}), 500
+        
+        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        payload = {
+            'chat_id': admin_chat_id,
+            'text': command,
+            'parse_mode': 'HTML'
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': f'Команда {command} отправлена в Telegram'})
+        else:
+            return jsonify({'success': False, 'error': f'Ошибка Telegram: {response.status_code}'}), 500
+            
+    except Exception as e:
+        logger.error(f"Ошибка отправки команды: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/save_settings', methods=['POST'])
+def save_settings():
+    try:
+        data = request.json
+        
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        with open(settings_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        try:
+            response = requests.post(f'{BOT_URL}/api/update_settings', json=data, timeout=5)
+            if response.status_code != 200:
+                logger.warning(f"Не удалось обновить настройки в боте: {response.status_code}")
+        except Exception as e:
+            logger.warning(f"Ошибка отправки настроек в бот: {e}")
+        
+        return jsonify({'success': True, 'message': 'Настройки сохранены'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка сохранения настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/get_settings', methods=['GET'])
+def get_settings():
+    try:
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+            return jsonify({'success': True, 'settings': settings})
+        else:
+            default_settings = {
+                'ev_min_70': 20,
+                'prob_min_70': 60,
+                'xg_min_70': 1.8,
+                'xg_max_70': 3.0,
+                'position_max_70': 15,
+                'premium_ev': 30,
+                'standard_ev': 15,
+                'xg_min_tm25': 1.0,
+                'xg_max_tm25': 3.0,
+                'max_tm25_bets': 5,
+                'top_league_ev': 35
             }
-            .bottom-nav .nav-item {
-                padding: 6px 12px;
-                min-width: 50px;
-            }
-            .bottom-nav .nav-item .icon {
-                font-size: 22px;
-            }
-            .bottom-nav .nav-item .label {
-                font-size: 9px;
-            }
-        }
+            return jsonify({'success': True, 'settings': default_settings})
+            
+    except Exception as e:
+        logger.error(f"Ошибка загрузки настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================
+# API ДЛЯ АНАЛИЗА МАТЧЕЙ
+# ============================================================
+
+@app.route('/api/analyze_matches', methods=['POST'])
+def analyze_matches():
+    try:
+        data = request.json
+        log_text = data.get('log', '')
         
-        @media (max-width: 480px) {
-            .bottom-nav {
-                bottom: 12px;
-                width: 96%;
-                padding: 6px 4px;
-                border-radius: 20px;
-            }
-            .bottom-nav .nav-item {
-                padding: 4px 8px;
-                min-width: 42px;
-            }
-            .bottom-nav .nav-item .icon {
-                font-size: 18px;
-            }
-            .bottom-nav .nav-item .label {
-                font-size: 8px;
-            }
-        }
+        if not log_text:
+            return jsonify({
+                'success': False,
+                'error': 'Лог не предоставлен'
+            }), 400
         
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        .modal-overlay.active { display: flex; }
-        .modal {
-            background: rgba(20,20,35,0.95);
-            border-radius: 16px;
-            border: 1px solid rgba(167,139,250,0.15);
-            padding: 24px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-        .modal-header h3 {
-            color: #a78bfa;
-            margin: 0;
-            font-size: 18px;
-        }
-        .modal-close {
-            background: rgba(255,255,255,0.05);
-            border: none;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            font-size: 16px;
-            color: rgba(255,255,255,0.5);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .modal-close:hover {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-        }
-        .modal-field {
-            margin-bottom: 12px;
-        }
-        .modal-field label {
-            font-size: 11px;
-            color: rgba(255,255,255,0.3);
-            display: block;
-            margin-bottom: 4px;
-        }
-        .modal-field input, .modal-field select {
-            width: 100%;
-            padding: 8px 12px;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 6px;
-            color: #e8e8f0;
-            font-size: 13px;
-        }
-        .modal-field input:focus, .modal-field select:focus {
-            outline: none;
-            border-color: rgba(124,58,237,0.3);
-        }
-        .modal-field .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-        }
-        .modal-actions .btn {
-            flex: 1;
-            padding: 10px;
-            text-align: center;
-            font-size: 13px;
-        }
+        stats = MatchAnalyzer.analyze_logs(log_text)
+        recommendations = MatchAnalyzer.get_recommendations(stats)
         
-        .setting-group {
-            background: rgba(20, 20, 35, 0.5);
-            backdrop-filter: blur(12px);
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            margin-bottom: 8px;
-        }
-        .setting-group h2 {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            letter-spacing: 0.3px;
-        }
-        .setting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-        .setting-item:last-child { border-bottom: none; }
-        .setting-item .label { font-size: 12px; color: #e8e8f0; }
-        .setting-item .desc { color: rgba(255, 255, 255, 0.3); font-size: 10px; }
-        .input-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-        .input-group input {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            color: #e8e8f0;
-            padding: 4px 6px;
-            border-radius: 4px;
-            width: 80px;
-            font-size: 11px;
-        }
-        .input-group button {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white;
-            border: none;
-            padding: 4px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.3s ease;
-        }
-        .input-group button:hover {
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
-        }
-        .toggle {
-            width: 36px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 10px;
-            cursor: pointer;
-            position: relative;
-            transition: 0.3s ease;
-        }
-        .toggle.active { background: rgba(124, 58, 237, 0.5); }
-        .toggle .dot {
-            width: 14px;
-            height: 14px;
-            background: #fff;
-            border-radius: 50%;
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            transition: 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
-        .toggle.active .dot { left: 19px; }
-        .file-input-label {
-            display: inline-block;
-            padding: 4px 10px;
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.3s ease;
-        }
-        .file-input-label:hover {
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
-        }
-        .import-status { color: rgba(255, 255, 255, 0.3); font-size: 10px; margin-top: 4px; }
+        stats['analysis_time'] = datetime.now().isoformat()
+        stats['log_length'] = len(log_text)
+        stats['lines_analyzed'] = len([line for line in log_text.split('\n') if 'Пропускаем' in line])
         
-        .sim-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .sim-stat {
-            background: rgba(255, 255, 255, 0.02);
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-        }
-        .sim-stat .value { font-size: 18px; font-weight: 700; }
-        .sim-stat .value.green { color: #34d399; }
-        .sim-stat .value.red { color: #f87171; }
-        .sim-stat .value.gold { color: #fbbf24; }
-        .sim-stat .label { color: rgba(255, 255, 255, 0.35); font-size: 10px; margin-top: 4px; }
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'recommendations': recommendations
+        })
         
-        .slider-container { margin: 10px 0; }
-        .slider-container input[type="range"] {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 2px;
-            outline: none;
-            -webkit-appearance: none;
-        }
-        .slider-container input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            cursor: pointer;
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
-        }
+    except Exception as e:
+        logger.error(f"Ошибка анализа матчей: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/matches_log')
+def get_matches_log():
+    try:
+        # Пробуем получить лог от бота
+        try:
+            response = requests.get(f'{BOT_URL}/api/log', timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                log_text = data.get('log', '')
+                if log_text and len(log_text) > 100:
+                    return jsonify({
+                        'log': log_text,
+                        'source': 'bot_api',
+                        'timestamp': datetime.now().isoformat()
+                    })
+        except Exception as e:
+            logger.warning(f"Не удалось получить лог через API: {e}")
         
-        .chart-controls {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .chart-controls select {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            color: #e8e8f0;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .chart-controls select:hover {
-            border-color: rgba(124, 58, 237, 0.3);
-        }
-        .chart-controls select option {
-            background: #1a1a2e;
-            color: #e8e8f0;
-        }
+        # Пробуем получить лог из локального файла
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                log_text = f.read()
+            if log_text and len(log_text) > 100:
+                return jsonify({
+                    'log': log_text,
+                    'source': 'local_file',
+                    'timestamp': datetime.fromtimestamp(os.path.getmtime(log_file)).isoformat()
+                })
         
-        .chart-details {
-            margin-top: 10px;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            display: none;
-        }
-        .chart-details.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
+        # Пробуем создать лог из матчей
+        try:
+            matches_response = requests.get(f'{BOT_URL}/api/matches', timeout=5)
+            if matches_response.status_code == 200:
+                matches = matches_response.json()
+                if matches and len(matches) > 0:
+                    log_lines = []
+                    for match in matches:
+                        xg = match.get('total_xg', 0)
+                        home = match.get('home', 'Unknown')
+                        away = match.get('away', 'Unknown')
+                        skip_reason = match.get('skip_reason', '')
+                        
+                        if skip_reason:
+                            if 'xg' in skip_reason.lower() or 'XG' in skip_reason:
+                                log_lines.append(f"⏭️ Пропускаем (XG вне диапазона 1.8-3.0): {home} vs {away} | XG: {xg}")
+                            elif 'позици' in skip_reason.lower():
+                                log_lines.append(f"⏭️ Пропускаем (низкая позиция): {home} vs {away}")
+                            elif 'мотиваци' in skip_reason.lower():
+                                log_lines.append(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
+                    
+                    if log_lines:
+                        log_text = '\n'.join(log_lines)
+                        try:
+                            with open(log_file, 'w', encoding='utf-8') as f:
+                                f.write(log_text)
+                        except:
+                            pass
+                        return jsonify({
+                            'log': log_text,
+                            'source': 'generated_from_matches',
+                            'timestamp': datetime.now().isoformat(),
+                            'match_count': len(matches)
+                        })
+        except:
+            pass
         
-        .chart-details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .chart-details-item {
-            padding: 6px;
-        }
-        .chart-details-item .label {
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .chart-details-item .value {
-            font-size: 13px;
-            font-weight: 600;
-            margin-top: 2px;
-        }
+        # Тестовый лог
+        test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Cowdenbeath vs Kilmarnock II | XG: 4.39
+2026-09-08T04:38:19.667 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Gala Fairydean Rovers vs Hearts U21 | XG: 4.75
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Watford vs Preston | H: #17, A: #23
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Blackburn vs Sheffield Utd"""
         
-        .chart-actions {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
+        return jsonify({
+            'log': test_log,
+            'source': 'test_data',
+            'timestamp': datetime.now().isoformat()
+        })
         
-        .patterns-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }
-        .patterns-table th {
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            padding: 6px 8px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .patterns-table td {
-            padding: 6px 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-        }
-        .patterns-table tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
-        }
+    except Exception as e:
+        logger.error(f"Ошибка получения лога: {e}")
+        return jsonify({'log': '', 'source': 'error', 'error': str(e)})
+
+@app.route('/api/test_analysis')
+def test_analysis():
+    test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Cowdenbeath vs Kilmarnock II | XG: 4.39
+2026-09-08T04:38:19.667 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Gala Fairydean Rovers vs Hearts U21 | XG: 4.75
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): AEK Athens FC vs Lask Linz | XG: 3.66
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Watford vs Preston | H: #17, A: #23
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Blackburn vs Sheffield Utd"""
+    
+    stats = MatchAnalyzer.analyze_logs(test_log)
+    recommendations = MatchAnalyzer.get_recommendations(stats)
+    
+    return jsonify({
+        'success': True,
+        'stats': stats,
+        'recommendations': recommendations,
+        'test_mode': True
+    })
+
+@app.route('/api/save_bot_log', methods=['POST'])
+def save_bot_log():
+    try:
+        data = request.json
+        log_text = data.get('log', '')
         
-        .pattern-metrics {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin: 6px 0;
-            padding: 6px;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 6px;
-        }
-        .pattern-metrics .metric {
-            text-align: center;
-        }
-        .pattern-metrics .metric .label {
-            font-size: 8px;
-            color: rgba(255, 255, 255, 0.3);
-            text-transform: uppercase;
-        }
-        .pattern-metrics .metric .value {
-            font-size: 12px;
-            font-weight: 600;
-            margin-top: 1px;
-        }
+        if not log_text:
+            return jsonify({'success': False, 'error': 'Лог пуст'}), 400
         
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            background: rgba(20, 20, 35, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 10px;
-            color: #e8e8f0;
-            font-size: 13px;
-            z-index: 9999;
-            animation: slideIn 0.3s ease;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-            max-width: 400px;
-        }
-        .notification.success { border-color: rgba(52, 211, 153, 0.3); }
-        .notification.error { border-color: rgba(248, 113, 113, 0.3); }
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(log_text)
         
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(100px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideOut {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100px); }
-        }
+        return jsonify({
+            'success': True,
+            'message': 'Лог сохранен',
+            'file': log_file,
+            'size': len(log_text)
+        })
         
-        .btn {
-            padding: 6px 16px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: #e8e8f0;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.3s ease;
-        }
-        .btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(124, 58, 237, 0.3);
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            border: none;
-            color: white;
-        }
-        .btn-primary:hover {
-            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-            transform: translateY(-1px);
-        }
-        .btn-success {
-            background: linear-gradient(135deg, #34d399, #059669);
-            border: none;
-            color: white;
-        }
-        .btn-success:hover {
-            box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
-            transform: translateY(-1px);
-        }
-        .btn-danger {
-            background: linear-gradient(135deg, #f87171, #dc2626);
-            border: none;
-            color: white;
-        }
-        .btn-danger:hover {
-            box-shadow: 0 0 20px rgba(248, 113, 113, 0.3);
-            transform: translateY(-1px);
-        }
-        .btn-outline {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-        .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        .btn-gold {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            border: none;
-            color: #1a1a2e;
-        }
-        .btn-gold:hover {
-            box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
-            transform: translateY(-1px);
-        }
-        .btn-purple {
-            background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            border: none;
-            color: white;
-        }
-        .btn-purple:hover {
-            box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
-            transform: translateY(-1px);
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 30px 0;
-            color: rgba(255, 255, 255, 0.3);
-        }
-        .no-data .emoji {
-            font-size: 40px;
-            margin-bottom: 10px;
-        }
-        
-        .loader {
-            text-align: center;
-            padding: 40px 0;
-        }
-        .loader .spinner {
-            width: 32px;
-            height: 32px;
-            margin: 0 auto 10px;
-            border: 2px solid rgba(167, 139, 250, 0.08);
-            border-top: 2px solid #a78bfa;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
-        .edit-row {
-            display: none;
-        }
-        .edit-row.active {
-            display: table-row;
-        }
-        .edit-row td {
-            padding: 6px 8px;
-            background: rgba(167, 139, 250, 0.05);
-        }
-        .edit-row input, .edit-row select {
-            padding: 2px 6px;
-            border-radius: 4px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(0, 0, 0, 0.4);
-            color: #e8e8f0;
-            font-size: 10px;
-            height: 26px;
-        }
-        .edit-row input:focus, .edit-row select:focus {
-            outline: none;
-            border-color: rgba(124, 58, 237, 0.3);
-        }
-        .edit-btn {
-            cursor: pointer;
-            color: rgba(255, 255, 255, 0.3);
-            transition: all 0.3s ease;
-        }
-        .edit-btn:hover {
-            color: #a78bfa;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 20px 0 10px;
-            color: rgba(255, 255, 255, 0.15);
-            font-size: 10px;
-            border-top: 1px solid rgba(255, 255, 255, 0.03);
-            margin-top: 10px;
-        }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-        .card-header h2 {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 13px;
-            font-weight: 600;
-        }
-        .card-header h2.x2-title {
-            color: #a78bfa;
-        }
-        .chart-container {
-            height: 150px;
-        }
-        .chart-container-large {
-            height: 350px;
-        }
-        
-        @media (max-width: 768px) {
-            .chart-container-large {
-                height: 250px;
-            }
-            .stats-grid-x2 {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        
-        /* X2 секция */
-        .x2-badge {
-            background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            color: white;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 700;
-        }
-        
-        .x2-status-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 4px;
-        }
-        .x2-status-dot.win { background: #34d399; }
-        .x2-status-dot.loss { background: #f87171; }
-        .x2-status-dot.push { background: #fbbf24; }
-        .x2-status-dot.pending { background: rgba(255,255,255,0.2); }
-        
-        .filter-group {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-        }
-        .filter-group .filter-btn {
-            padding: 4px 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(255, 255, 255, 0.03);
-            color: rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            font-size: 10px;
-            transition: all 0.3s ease;
-        }
-        .filter-group .filter-btn:hover {
-            border-color: rgba(124, 58, 237, 0.3);
-        }
-        .filter-group .filter-btn.active {
-            background: rgba(124, 58, 237, 0.15);
-            border-color: rgba(124, 58, 237, 0.3);
-            color: #a78bfa;
-        }
-        
-        body.light-theme .filter-group .filter-btn {
-            color: rgba(0, 0, 0, 0.4);
-        }
-        body.light-theme .filter-group .filter-btn.active {
-            background: rgba(124, 58, 237, 0.1);
-            color: #7c3aed;
-        }
-        
-        .x2-top-matches {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .x2-top-match {
-            background: rgba(167, 139, 250, 0.05);
-            border: 1px solid rgba(167, 139, 250, 0.08);
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-        .x2-top-match:hover {
-            border-color: rgba(124, 58, 237, 0.3);
-            transform: translateY(-2px);
-        }
-        .x2-top-match .position {
-            font-size: 20px;
-            font-weight: 700;
-            color: #fbbf24;
-        }
-        .x2-top-match .match-name {
-            font-size: 11px;
-            font-weight: 600;
-            margin: 4px 0;
-        }
-        .x2-top-match .profit {
-            font-size: 14px;
-            font-weight: 700;
-            color: #34d399;
-        }
-        
-        @media (max-width: 768px) {
-            .x2-top-matches {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-
-<!-- ЗВЕЗДЫ -->
-<div class="stars-container" id="starsContainer">
-    <div class="milky-way"></div>
-    <div class="milky-way-2"></div>
-</div>
-
-<div class="container">
-    <div class="header">
-        <h1>🤖 Quantum Bet Tracker</h1>
-        <div class="header-controls">
-            <div class="status">
-                <span class="status-dot"></span>
-                <span>Система активна</span>
-                <span style="color:rgba(255,255,255,0.2);">|</span>
-                <span style="color:rgba(255,255,255,0.2);">v13 X2</span>
-            </div>
-            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
-            <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
-        </div>
-    </div>
-
-    <div id="page-dashboard" class="page active">
-        <div id="dashboard-content"></div>
-    </div>
-    <div id="page-x2" class="page" style="display:none;">
-        <div id="x2-content"></div>
-    </div>
-    <div id="page-analytics" class="page" style="display:none;">
-        <div id="analytics-content"></div>
-    </div>
-    <div id="page-simulator" class="page" style="display:none;">
-        <div id="simulator-content"></div>
-    </div>
-    <div id="page-settings" class="page" style="display:none;">
-        <div id="settings-content"></div>
-    </div>
-
-    <div class="footer">Quantum Bet Tracker v13 X2 © 2026</div>
-</div>
-
-<!-- НАВИГАЦИЯ -->
-<nav class="bottom-nav" role="navigation">
-    <button class="nav-item active" data-page="dashboard">
-        <span class="icon">📊</span>
-        <span class="label">Главная</span>
-    </button>
-    <button class="nav-item" data-page="x2">
-        <span class="icon">🔥</span>
-        <span class="label">X2</span>
-    </button>
-    <button class="nav-item" data-page="analytics">
-        <span class="icon">📈</span>
-        <span class="label">Аналитика</span>
-    </button>
-    <button class="nav-item" data-page="simulator">
-        <span class="icon">🎲</span>
-        <span class="label">Симулятор</span>
-    </button>
-    <button class="nav-item" data-page="settings">
-        <span class="icon">⚙️</span>
-        <span class="label">Настройки</span>
-    </button>
-</nav>
-
-<!-- МОДАЛЬНОЕ ОКНО ДЛЯ X2 -->
-<div class="modal-overlay" id="x2Modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="x2ModalTitle">➕ Добавить X2 матч</h3>
-            <button class="modal-close" onclick="closeX2Modal()">✖</button>
-        </div>
-        <div id="x2ModalBody">
-            <div class="modal-field">
-                <label>📅 Дата</label>
-                <input type="date" id="x2Date">
-            </div>
-            <div class="modal-field">
-                <label>🏟️ Матч</label>
-                <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
-            </div>
-            <div class="modal-field">
-                <div class="row">
-                    <div>
-                        <label>🏆 Фаворит</label>
-                        <input type="text" id="x2Favorite" placeholder="Al-Ettifaq">
-                    </div>
-                    <div>
-                        <label>📉 Аутсайдер</label>
-                        <input type="text" id="x2Underdog" placeholder="Al-Faisaly">
-                    </div>
-                </div>
-            </div>
-            <div class="modal-field">
-                <div class="row">
-                    <div>
-                        <label>📊 Коэффициент X2</label>
-                        <input type="number" id="x2Odds" step="0.01" placeholder="2.00">
-                    </div>
-                    <div>
-                        <label>💰 Сумма</label>
-                        <input type="number" id="x2Stake" step="0.5" placeholder="100">
-                    </div>
-                </div>
-            </div>
-            <div class="modal-field">
-                <div class="row">
-                    <div>
-                        <label>⚽ Счёт</label>
-                        <input type="text" id="x2Score" placeholder="0:0">
-                    </div>
-                    <div>
-                        <label>📊 Результат</label>
-                        <select id="x2Result">
-                            <option value="pending">⏳ PENDING</option>
-                            <option value="win">✅ WIN</option>
-                            <option value="loss">❌ LOSS</option>
-                            <option value="push">🔄 PUSH</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-field">
-                <label>📝 Примечание</label>
-                <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
-                <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    // ============================================================
-    // ЗВЕЗДЫ
-    // ============================================================
-    (function generateStars() {
-        const container = document.getElementById('starsContainer');
-        const count = 250;
-        for (let i = 0; i < count; i++) {
-            const star = document.createElement('div');
-            star.className = 'star';
-            const size = 0.5 + Math.random() * 2.5;
-            star.style.width = size + 'px';
-            star.style.height = size + 'px';
-            star.style.left = Math.random() * 100 + '%';
-            star.style.top = Math.random() * 100 + '%';
-            star.style.setProperty('--duration', (2 + Math.random() * 4) + 's');
-            star.style.animationDelay = (Math.random() * 5) + 's';
-            star.style.opacity = 0.3 + Math.random() * 0.7;
-            container.appendChild(star);
-        }
-    })();
-
-    // ============================================================
-    // ПЕРЕМЕННЫЕ
-    // ============================================================
-    let cachedData = null;
-    let chartInstance = null;
-    let interactiveChartInstance = null;
-    let simChartInstance = null;
-    let x2ChartInstance = null;
-    let currentPage = 'dashboard';
-    let isLoading = false;
-    let chartData = null;
-    let x2Data = [];
-    let editingX2Index = null;
-    let currentFilter = 'all';
-
-    // Загружаем X2 данные из localStorage
-    function loadX2Data() {
-        try {
-            const saved = localStorage.getItem('x2_matches');
-            if (saved) {
-                x2Data = JSON.parse(saved);
-            } else {
-                // Добавляем два примера
-                x2Data = [
-                    {
-                        id: Date.now(),
-                        date: '2026-09-08',
-                        match: 'Al-Ettifaq vs Al-Faisaly',
-                        favorite: 'Al-Ettifaq',
-                        underdog: 'Al-Faisaly',
-                        odds: 2.00,
-                        stake: 100,
-                        score: '0:0',
-                        result: 'win',
-                        profit: 100,
-                        note: 'Нет мотивации у фаворита'
-                    },
-                    {
-                        id: Date.now() + 1,
-                        date: '2026-09-08',
-                        match: 'Al-Hazm vs Al Taawon',
-                        favorite: 'Al-Taawon',
-                        underdog: 'Al-Hazm',
-                        odds: 1.80,
-                        stake: 100,
-                        score: '1:0',
-                        result: 'win',
-                        profit: 80,
-                        note: 'Аутсайдер дома'
-                    }
-                ];
-                saveX2Data();
-            }
-        } catch (e) {
-            x2Data = [];
-        }
-    }
-
-    function saveX2Data() {
-        localStorage.setItem('x2_matches', JSON.stringify(x2Data));
-    }
-
-    // ============================================================
-    // ТЕМА
-    // ============================================================
-    function toggleTheme() {
-        const body = document.body;
-        const btn = document.getElementById('themeBtn');
-        if (body.classList.contains('light-theme')) {
-            body.classList.remove('light-theme');
-            btn.textContent = '🌙';
-            localStorage.setItem('theme', 'dark');
-            updateAllCharts(false);
-        } else {
-            body.classList.add('light-theme');
-            btn.textContent = '☀️';
-            localStorage.setItem('theme', 'light');
-            updateAllCharts(true);
-        }
-    }
-
-    function updateAllCharts(isLight) {
-        const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
-        const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        [chartInstance, interactiveChartInstance, simChartInstance, x2ChartInstance].forEach(chart => {
-            if (chart) {
-                chart.options.plugins.legend.labels.color = color;
-                chart.options.scales.x.ticks.color = color;
-                chart.options.scales.y.ticks.color = color;
-                chart.options.scales.x.grid.color = gridColor;
-                chart.options.scales.y.grid.color = gridColor;
-                chart.update();
-            }
-        });
-    }
-
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-theme');
-        document.getElementById('themeBtn').textContent = '☀️';
-    }
-
-    // ============================================================
-    // НАВИГАЦИЯ
-    // ============================================================
-    document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const page = this.dataset.page;
-            switchPage(page);
-        });
-    });
-
-    function switchPage(page) {
-        if (page === currentPage) return;
-
-        document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-        document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
-
-        document.querySelectorAll('.page').forEach(p => {
-            p.style.display = 'none';
-            p.classList.remove('active');
-        });
-
-        const targetPage = document.getElementById('page-' + page);
-        if (targetPage) {
-            targetPage.style.display = 'block';
-            targetPage.classList.add('active');
-        }
-
-        currentPage = page;
-        loadPageData(page);
-    }
-
-    // ============================================================
-    // ЗАГРУЗКА ДАННЫХ
-    // ============================================================
-    async function loadPageData(page) {
-        if (isLoading) return;
-
-        const contentId = page + '-content';
-        const contentEl = document.getElementById(contentId);
-
-        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'analytics' && page !== 'x2') {
-            return;
-        }
-
-        isLoading = true;
-        if (page !== 'x2') {
-            contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
-        }
-
-        try {
-            const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
-            if (!response.ok) throw new Error('Ошибка: ' + response.status);
-            const data = await response.json();
-            cachedData = data;
-
-            switch(page) {
-                case 'dashboard': renderDashboard(data); break;
-                case 'x2': renderX2Page(); break;
-                case 'analytics': renderAnalytics(data); break;
-                case 'simulator': renderSimulator(data); break;
-                case 'settings': renderSettings(data); break;
-            }
-        } catch (error) {
-            console.error('Ошибка:', error);
-            if (page !== 'x2') {
-                contentEl.innerHTML = `<div class="no-data"><div class="emoji">⚠️</div><div>Ошибка загрузки!</div></div>`;
-            }
-            showNotification('❌ Ошибка: ' + error.message, 'error');
-        }
-        isLoading = false;
-    }
-
-    function refreshData() {
-        cachedData = null;
-        loadPageData(currentPage);
-        showNotification('🔄 Обновление...', '');
-    }
-
-    const API_BASE = window.location.origin;
-
-    // ============================================================
-    // УВЕДОМЛЕНИЯ
-    // ============================================================
-    function showNotification(message, type) {
-        const notification = document.createElement('div');
-        notification.className = 'notification' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => { if (notification.parentNode) notification.remove(); }, 300);
-        }, 3000);
-    }
-
-    // ============================================================
-    // ДАШБОРД
-    // ============================================================
-    function renderDashboard(data) {
-        const s = data.stats || {};
-        const history = data.history || [];
-        const matches = data.matches || [];
-
-        let allItems = [];
-        if (matches && matches.length > 0) {
-            matches.forEach((match) => {
-                const bestBet = match.best_bet || match.bets?.[0] || {};
-                allItems.push({
-                    type: 'match',
-                    date: match.match_time || 'Сегодня',
-                    home: match.home || 'Unknown',
-                    away: match.away || 'Unknown',
-                    score: '-',
-                    bet: bestBet.label || '—',
-                    odds: bestBet.odds || 0,
-                    stake: bestBet.stake || 0,
-                    ev: bestBet.ev || 0,
-                    result: 'pending',
-                    profit: 0,
-                    marker: bestBet.marker_stake || '',
-                    is_active: true
-                });
-            });
-        }
-        if (history && history.length > 0) {
-            history.forEach((bet) => {
-                allItems.push({
-                    type: 'history',
-                    date: bet.date || '-',
-                    home: bet.home || 'Unknown',
-                    away: bet.away || 'Unknown',
-                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
-                    bet: bet.bet || '—',
-                    odds: bet.odds || 0,
-                    stake: bet.stake || 0,
-                    ev: bet.ev || 0,
-                    result: bet.result || 'pending',
-                    profit: bet.profit || 0,
-                    marker: bet.marker_stake || '',
-                    is_active: false
-                });
-            });
-        }
-        allItems.sort((a, b) => {
-            if (a.is_active && !b.is_active) return -1;
-            if (!a.is_active && b.is_active) return 1;
-            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
-        });
-        allItems = allItems.slice(0, 50);
-        const activeMatches = allItems.filter(i => i.type === 'match').length;
-
-        // X2 статистика
-        const x2Stats = calcX2Stats();
-
-        let html = `
-            <div class="stats-grid">
-                <div class="stat-card"><div class="value">$${s.bank || 1000}</div><div class="label">💰 Банк</div></div>
-                <div class="stat-card"><div class="value green">${s.wins || 0}</div><div class="label">✅ Выигрыши</div></div>
-                <div class="stat-card"><div class="value red">${s.losses || 0}</div><div class="label">❌ Проигрыши</div></div>
-                <div class="stat-card"><div class="value gold">$${s.profit || 0}</div><div class="label">📈 Прибыль</div></div>
-            </div>
-
-            <div class="metrics-grid">
-                <div class="metric-item"><span class="label">📊 Всего ставок</span><span class="value">${s.total_bets || 0}</span></div>
-                <div class="metric-item"><span class="label">🎯 Проходимость</span><span class="value green">${s.winrate || 0}%</span></div>
-                <div class="metric-item"><span class="label">📈 ROI</span><span class="value gold">${s.roi || 0}%</span></div>
-                <div class="metric-item"><span class="label">📅 Активных матчей</span><span class="value">${activeMatches}</span></div>
-            </div>
-
-            <!-- X2 ВИДЖЕТ -->
-            <div class="x2-card">
-                <div class="card-header">
-                    <h2 class="x2-title">🔥 X2 Стратегия <span class="x2-badge">Аутсайдер не проиграет</span></h2>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:10px;">${x2Stats.total} матчей</span>
-                        <button class="btn btn-purple" onclick="switchPage('x2')" style="padding:3px 10px;font-size:9px;">📋 Подробнее</button>
-                    </div>
-                </div>
-                <div class="stats-grid-x2">
-                    <div class="stat-card-x2"><div class="value">${x2Stats.total}</div><div class="label">📊 Всего</div></div>
-                    <div class="stat-card-x2"><div class="value green">${x2Stats.wins}</div><div class="label">✅ WIN</div></div>
-                    <div class="stat-card-x2"><div class="value red">${x2Stats.losses}</div><div class="label">❌ LOSS</div></div>
-                    <div class="stat-card-x2"><div class="value gold">${x2Stats.winrate}%</div><div class="label">🎯 Проход</div></div>
-                    <div class="stat-card-x2"><div class="value ${x2Stats.totalProfit >= 0 ? 'green' : 'red'}">${x2Stats.totalProfit >= 0 ? '+' : ''}$${x2Stats.totalProfit}</div><div class="label">💰 Прибыль</div></div>
-                    <div class="stat-card-x2"><div class="value gold">${x2Stats.roi}%</div><div class="label">📈 ROI</div></div>
-                </div>
-                ${x2Data.length > 0 ? `
-                <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:4px 0;border-top:1px solid rgba(167,139,250,0.06);margin-top:4px;">
-                    ${x2Data.slice(-3).reverse().map(m => {
-                        const icon = m.result === 'win' ? '✅' : m.result === 'loss' ? '❌' : m.result === 'push' ? '🔄' : '⏳';
-                        const profitStr = m.result === 'win' ? `+$${m.profit}` : m.result === 'loss' ? `-$${m.stake}` : '$0';
-                        return `${icon} ${m.match} → ${profitStr}`;
-                    }).join(' • ')}
-                </div>
-                ` : ''}
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>📈 График прибыли</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">За последние 7 дней</span>
-                </div>
-                <div class="chart-container">
-                    <canvas id="profitChart"></canvas>
-                </div>
-            </div>
-
-            <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-                    <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${allItems.length} (активных: ${activeMatches})</span>
-                        <button class="btn btn-primary" onclick="showAddMatchModal()" style="padding:4px 12px;font-size:11px;">➕ Добавить матч</button>
-                    </div>
-                </div>
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr>
-                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>Маркер</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
-                        </tr></thead>
-                        <tbody>
-        `;
-        if (allItems.length === 0) {
-            html += `<tr><td colspan="12" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
-        } else {
-            allItems.forEach((item, idx) => {
-                const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
-                const isActive = item.is_active;
-                const rowStyle = isActive ? 'background:rgba(167,139,250,0.05);' : '';
-                html += `
-                    <tr style="${rowStyle}">
-                        <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${item.date}</td>
-                        <td><strong>${item.home}</strong> vs <strong>${item.away}</strong></td>
-                        <td>${item.score}</td>
-                        <td>${item.bet}${isActive ? ' 🟢' : ''}</td>
-                        <td>${item.odds}</td>
-                        <td>$${item.stake}</td>
-                        <td style="font-size:9px;font-family:monospace;color:rgba(167,139,250,0.6);">${item.marker || '-'}</td>
-                        <td>${item.ev}%</td>
-                        <td><span class="badge ${item.result}">${item.result}</span></td>
-                        <td class="${profitClass}">${item.profit > 0 ? '+' : ''}$${item.profit}</td>
-                        <td>${!isActive ? `<span class="edit-btn" onclick="toggleEdit(${idx})">✏️</span>` : '<span style="color:rgba(255,255,255,0.1);font-size:11px;">—</span>'}</td>
-                    </tr>
-                    <tr id="edit-row-${idx}" class="edit-row">
-                        <td colspan="12">
-                            <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
-                                <input type="text" id="edit_home_${idx}" style="width:70px;" placeholder="Хозяева">
-                                <input type="text" id="edit_away_${idx}" style="width:70px;" placeholder="Гости">
-                                <input type="text" id="edit_score_${idx}" style="width:50px;" placeholder="2-1">
-                                <input type="text" id="edit_bet_${idx}" style="width:70px;" placeholder="Ставка">
-                                <input type="number" id="edit_odds_${idx}" step="0.01" style="width:50px;" placeholder="Кэф">
-                                <input type="number" id="edit_stake_${idx}" step="0.5" style="width:60px;" placeholder="Сумма">
-                                <input type="text" id="edit_marker_${idx}" style="width:100px;" placeholder="Маркер">
-                                <input type="number" id="edit_ev_${idx}" step="0.1" style="width:50px;" placeholder="EV">
-                                <select id="edit_result_${idx}" style="padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
-                                    <option value="win">✅ WIN</option>
-                                    <option value="loss">❌ LOSS</option>
-                                    <option value="push">🔄 PUSH</option>
-                                    <option value="pending">⏳ PENDING</option>
-                                </select>
-                                <button class="btn btn-success" onclick="saveEdit(${idx})" style="padding:2px 8px;font-size:9px;">💾</button>
-                                <button class="btn btn-danger" onclick="deleteBet(${idx})" style="padding:2px 8px;font-size:9px;">🗑️</button>
-                                <button class="btn btn-outline" onclick="toggleEdit(${idx})" style="padding:2px 8px;font-size:9px;">✖</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-        html += `</tbody></table></div></div>`;
-        document.getElementById('dashboard-content').innerHTML = html;
-        addModalHTML();
-        setTimeout(() => renderChart(data.profit_data), 50);
-    }
-
-    // ============================================================
-    // ГРАФИК
-    // ============================================================
-    function renderChart(profitData) {
-        const ctx = document.getElementById('profitChart');
-        if (!ctx) return;
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-        const isLight = document.body.classList.contains('light-theme');
-        const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-        chartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.dates,
-                datasets: [{
-                    label: 'Прибыль ($)',
-                    data: data.profits,
-                    borderColor: '#a78bfa',
-                    backgroundColor: 'rgba(167,139,250,0.08)',
-                    fill: true,
-                    tension: 0.4,
-                    pointBackgroundColor: '#a78bfa',
-                    pointBorderColor: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(20,20,35,0.8)',
-                    pointBorderWidth: 2,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
-                },
-                scales: {
-                    x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
-                    y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
-                }
-            }
-        });
-    }
-
-    // ============================================================
-    // X2 СТРАНИЦА
-    // ============================================================
-    function renderX2Page() {
-        loadX2Data();
-        const stats = calcX2Stats();
-        const filtered = getFilteredX2();
-
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🔥 X2 Стратегия</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Аутсайдер не проиграет (X2) — ставка на команду, которая ниже в таблице</div>
-
-            <div class="x2-card">
-                <div class="stats-grid-x2">
-                    <div class="stat-card-x2"><div class="value">${stats.total}</div><div class="label">📊 Всего</div></div>
-                    <div class="stat-card-x2"><div class="value green">${stats.wins}</div><div class="label">✅ WIN</div></div>
-                    <div class="stat-card-x2"><div class="value red">${stats.losses}</div><div class="label">❌ LOSS</div></div>
-                    <div class="stat-card-x2"><div class="value gold">${stats.winrate}%</div><div class="label">🎯 Проход</div></div>
-                    <div class="stat-card-x2"><div class="value ${stats.totalProfit >= 0 ? 'green' : 'red'}">${stats.totalProfit >= 0 ? '+' : ''}$${stats.totalProfit}</div><div class="label">💰 Прибыль</div></div>
-                    <div class="stat-card-x2"><div class="value gold">${stats.roi}%</div><div class="label">📈 ROI</div></div>
-                </div>
-            </div>
-
-            <!-- ТОП-3 матча -->
-            ${x2Data.filter(m => m.result === 'win').length > 0 ? `
-            <div class="card">
-                <div class="card-header">
-                    <h2>🏆 Топ-3 прибыльных X2 матча</h2>
-                </div>
-                <div class="x2-top-matches">
-                    ${x2Data.filter(m => m.result === 'win').sort((a,b) => b.profit - a.profit).slice(0,3).map((m, i) => `
-                        <div class="x2-top-match">
-                            <div class="position">#${i + 1}</div>
-                            <div class="match-name">${m.match}</div>
-                            <div style="font-size:9px;color:rgba(255,255,255,0.3);">${m.date} | Кэф: ${m.odds}</div>
-                            <div class="profit">+$${m.profit}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            ` : ''}
-
-            <div class="x2-card">
-                <div class="card-header">
-                    <h2 class="x2-title">📋 Таблица X2 матчей</h2>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn btn-purple" onclick="openX2Modal()" style="padding:4px 12px;font-size:10px;">➕ Добавить</button>
-                        <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setX2Filter('all')">Все</button>
-                    <button class="filter-btn ${currentFilter === 'win' ? 'active' : ''}" onclick="setX2Filter('win')">✅ WIN</button>
-                    <button class="filter-btn ${currentFilter === 'loss' ? 'active' : ''}" onclick="setX2Filter('loss')">❌ LOSS</button>
-                    <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
-                    <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
-                </div>
-
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr>
-                            <th>#</th><th>Дата</th><th>Матч</th><th>Фаворит</th><th>Аутсайдер</th>
-                            <th>Кэф X2</th><th>Сумма</th><th>Счёт</th><th>Результат</th><th>Прибыль</th><th>Примечание</th><th>✏️</th>
-                        </tr></thead>
-                        <tbody>
-        `;
-
-        if (filtered.length === 0) {
-            html += `<tr><td colspan="12" class="no-data"><div class="emoji">📭</div>Нет X2 матчей</td></tr>`;
-        } else {
-            filtered.forEach((m, idx) => {
-                const realIdx = x2Data.indexOf(m);
-                const profitClass = m.profit > 0 ? 'profit-positive' : (m.profit < 0 ? 'profit-negative' : '');
-                const profitStr = m.result === 'win' ? `+$${m.profit}` : m.result === 'loss' ? `-$${m.stake}` : '$0';
-                html += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td style="font-size:9px;white-space:nowrap;">${m.date}</td>
-                        <td><strong>${m.match}</strong></td>
-                        <td>${m.favorite}</td>
-                        <td>${m.underdog}</td>
-                        <td>${m.odds}</td>
-                        <td>$${m.stake}</td>
-                        <td>${m.score || '-'}</td>
-                        <td><span class="badge x2-${m.result}">${m.result.toUpperCase()}</span></td>
-                        <td class="${profitClass}">${profitStr}</td>
-                        <td style="font-size:9px;color:rgba(255,255,255,0.3);">${m.note || '-'}</td>
-                        <td>
-                            <span class="edit-btn" onclick="editX2Match(${realIdx})">✏️</span>
-                            <span class="edit-btn" onclick="deleteX2Match(${realIdx})" style="color:rgba(255,255,255,0.2);">🗑️</span>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        html += `</tbody></table></div></div>`;
-        document.getElementById('x2-content').innerHTML = html;
-    }
-
-    // ============================================================
-    // X2 ФУНКЦИИ
-    // ============================================================
-    function calcX2Stats() {
-        const total = x2Data.length;
-        const wins = x2Data.filter(m => m.result === 'win').length;
-        const losses = x2Data.filter(m => m.result === 'loss').length;
-        const pushes = x2Data.filter(m => m.result === 'push').length;
-        const pending = x2Data.filter(m => m.result === 'pending').length;
-        const totalProfit = x2Data.reduce((sum, m) => sum + (m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0), 0);
-        const totalStake = x2Data.reduce((sum, m) => sum + m.stake, 0);
-        const winrate = total > 0 ? Math.round((wins / total) * 100) : 0;
-        const roi = totalStake > 0 ? Math.round((totalProfit / totalStake) * 100) : 0;
-        return { total, wins, losses, pushes, pending, totalProfit, winrate, roi };
-    }
-
-    function getFilteredX2() {
-        if (currentFilter === 'all') return [...x2Data];
-        return x2Data.filter(m => m.result === currentFilter);
-    }
-
-    function setX2Filter(filter) {
-        currentFilter = filter;
-        renderX2Page();
-    }
-
-    function openX2Modal(data) {
-        const modal = document.getElementById('x2Modal');
-        const title = document.getElementById('x2ModalTitle');
-        if (data) {
-            title.textContent = '✏️ Редактировать X2 матч';
-            document.getElementById('x2Date').value = data.date || '';
-            document.getElementById('x2Match').value = data.match || '';
-            document.getElementById('x2Favorite').value = data.favorite || '';
-            document.getElementById('x2Underdog').value = data.underdog || '';
-            document.getElementById('x2Odds').value = data.odds || '';
-            document.getElementById('x2Stake').value = data.stake || '';
-            document.getElementById('x2Score').value = data.score || '';
-            document.getElementById('x2Result').value = data.result || 'pending';
-            document.getElementById('x2Note').value = data.note || '';
-            editingX2Index = x2Data.indexOf(data);
-        } else {
-            title.textContent = '➕ Добавить X2 матч';
-            document.getElementById('x2Date').value = new Date().toISOString().slice(0,10);
-            document.getElementById('x2Match').value = '';
-            document.getElementById('x2Favorite').value = '';
-            document.getElementById('x2Underdog').value = '';
-            document.getElementById('x2Odds').value = '';
-            document.getElementById('x2Stake').value = '';
-            document.getElementById('x2Score').value = '';
-            document.getElementById('x2Result').value = 'pending';
-            document.getElementById('x2Note').value = '';
-            editingX2Index = null;
-        }
-        modal.classList.add('active');
-    }
-
-    function closeX2Modal() {
-        document.getElementById('x2Modal').classList.remove('active');
-        editingX2Index = null;
-    }
-
-    function saveX2Match() {
-        const date = document.getElementById('x2Date').value;
-        const match = document.getElementById('x2Match').value.trim();
-        const favorite = document.getElementById('x2Favorite').value.trim();
-        const underdog = document.getElementById('x2Underdog').value.trim();
-        const odds = parseFloat(document.getElementById('x2Odds').value);
-        const stake = parseFloat(document.getElementById('x2Stake').value);
-        const score = document.getElementById('x2Score').value.trim();
-        const result = document.getElementById('x2Result').value;
-        const note = document.getElementById('x2Note').value.trim();
-
-        if (!match || !favorite || !underdog || !odds || !stake) {
-            showNotification('❌ Заполните все обязательные поля!', 'error');
-            return;
-        }
-
-        let profit = 0;
-        if (result === 'win') profit = Math.round((stake * odds - stake) * 100) / 100;
-        else if (result === 'loss') profit = -stake;
-        else if (result === 'push') profit = 0;
-
-        const data = { date, match, favorite, underdog, odds, stake, score, result, profit, note };
-
-        if (editingX2Index !== null && editingX2Index >= 0 && editingX2Index < x2Data.length) {
-            x2Data[editingX2Index] = { ...x2Data[editingX2Index], ...data };
-            showNotification('✅ X2 матч обновлен!', 'success');
-        } else {
-            data.id = Date.now();
-            x2Data.push(data);
-            showNotification('✅ X2 матч добавлен!', 'success');
-        }
-
-        saveX2Data();
-        closeX2Modal();
-        renderX2Page();
-        if (currentPage === 'dashboard') loadPageData('dashboard');
-    }
-
-    function editX2Match(index) {
-        if (index >= 0 && index < x2Data.length) {
-            openX2Modal(x2Data[index]);
-        }
-    }
-
-    function deleteX2Match(index) {
-        if (index >= 0 && index < x2Data.length) {
-            if (confirm(`Удалить X2 матч: ${x2Data[index].match}?`)) {
-                x2Data.splice(index, 1);
-                saveX2Data();
-                renderX2Page();
-                if (currentPage === 'dashboard') loadPageData('dashboard');
-                showNotification('🗑️ X2 матч удален', '');
-            }
-        }
-    }
-
-    function exportX2Excel() {
-        if (x2Data.length === 0) {
-            showNotification('❌ Нет данных для экспорта', 'error');
-            return;
-        }
-        const data = x2Data.map((m, i) => ({
-            '#': i + 1,
-            'Дата': m.date,
-            'Матч': m.match,
-            'Фаворит': m.favorite,
-            'Аутсайдер': m.underdog,
-            'Кэф X2': m.odds,
-            'Сумма': m.stake,
-            'Счёт': m.score || '-',
-            'Результат': m.result.toUpperCase(),
-            'Прибыль': m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0,
-            'Примечание': m.note || ''
-        }));
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, 'X2 Стратегия');
-        XLSX.writeFile(wb, `x2_strategy_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showNotification('✅ X2 экспортирован в Excel!', 'success');
-    }
-
-    // ============================================================
-    // МОДАЛЬНОЕ ОКНО ДЛЯ МАТЧЕЙ (из дашборда)
-    // ============================================================
-    function addModalHTML() {
-        if (document.getElementById('addMatchModal')) return;
-        const modalHTML = `
-            <div class="modal-overlay" id="addMatchModal">
-                <div class="modal">
-                    <div class="modal-header">
-                        <h3>➕ Добавить матч</h3>
-                        <button class="modal-close" onclick="hideAddMatchModal()">✖</button>
-                    </div>
-                    <div class="modal-field">
-                        <label>🏟️ Название матча</label>
-                        <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona">
-                    </div>
-                    <div class="modal-field">
-                        <label>⚽ Счёт</label>
-                        <input type="text" id="matchScoreInput" placeholder="2-1">
-                    </div>
-                    <div class="modal-field">
-                        <label>📊 Ставка</label>
-                        <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
-                    </div>
-                    <div class="modal-field">
-                        <div class="row">
-                            <div>
-                                <label>💰 Коэффициент</label>
-                                <input type="number" id="matchOddsInput" value="1.85" step="0.01">
-                            </div>
-                            <div>
-                                <label>💵 Сумма</label>
-                                <input type="number" id="matchStakeInput" value="42.87" step="0.01">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-field">
-                        <label>📊 Результат</label>
-                        <select id="matchResultSelect">
-                            <option value="win">✅ WIN</option>
-                            <option value="loss">❌ LOSS</option>
-                            <option value="push">🔄 PUSH</option>
-                            <option value="pending">⏳ PENDING</option>
-                        </select>
-                    </div>
-                    <div class="modal-actions">
-                        <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
-                        <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-    }
-
-    function showAddMatchModal() {
-        document.getElementById('addMatchModal').classList.add('active');
-    }
-
-    function hideAddMatchModal() {
-        document.getElementById('addMatchModal').classList.remove('active');
-    }
-
-    async function saveManualMatch() {
-        const matchName = document.getElementById('matchNameInput').value;
-        const score = document.getElementById('matchScoreInput').value;
-        const bet = document.getElementById('matchBetInput').value;
-        const odds = parseFloat(document.getElementById('matchOddsInput').value) || 1.85;
-        const stake = parseFloat(document.getElementById('matchStakeInput').value) || 42.87;
-        const result = document.getElementById('matchResultSelect').value;
-
-        if (!matchName) { alert('❌ Введите название матча!'); return; }
-
-        try {
-            const response = await fetch(API_BASE + '/api/add_manual_match', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ match: matchName, score: score || '-', result, stake, bet: bet || 'Ручная ставка', odds, bookmaker: 'Ручное добавление' })
-            });
-            const data = await response.json();
-            if (data.success) {
-                showNotification('✅ Матч добавлен!', 'success');
-                hideAddMatchModal();
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + data.error, 'error');
-            }
-        } catch (error) {
-            showNotification('❌ Ошибка: ' + error, 'error');
-        }
-    }
-
-    // ============================================================
-    // РЕДАКТИРОВАНИЕ СТАВОК (из дашборда)
-    // ============================================================
-    function toggleEdit(index) {
-        const row = document.getElementById('edit-row-' + index);
-        if (row) row.classList.toggle('active');
-    }
-
-    function getItemByIndex(index) {
-        if (!cachedData) return null;
-        const history = cachedData.history || [];
-        const matches = cachedData.matches || [];
-        let allItems = [];
-        if (matches && matches.length > 0) {
-            matches.forEach((match) => {
-                const bestBet = match.best_bet || match.bets?.[0] || {};
-                allItems.push({
-                    type: 'match',
-                    date: match.match_time || 'Сегодня',
-                    home: match.home || 'Unknown',
-                    away: match.away || 'Unknown',
-                    score: '-',
-                    bet: bestBet.label || '—',
-                    odds: bestBet.odds || 0,
-                    stake: bestBet.stake || 0,
-                    ev: bestBet.ev || 0,
-                    result: 'pending',
-                    profit: 0,
-                    marker: bestBet.marker_stake || '',
-                    is_active: true
-                });
-            });
-        }
-        if (history && history.length > 0) {
-            history.forEach((bet) => {
-                allItems.push({
-                    type: 'history',
-                    date: bet.date || '-',
-                    home: bet.home || 'Unknown',
-                    away: bet.away || 'Unknown',
-                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
-                    bet: bet.bet || '—',
-                    odds: bet.odds || 0,
-                    stake: bet.stake || 0,
-                    ev: bet.ev || 0,
-                    result: bet.result || 'pending',
-                    profit: bet.profit || 0,
-                    marker: bet.marker_stake || '',
-                    is_active: false
-                });
-            });
-        }
-        allItems.sort((a, b) => {
-            if (a.is_active && !b.is_active) return -1;
-            if (!a.is_active && b.is_active) return 1;
-            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
-        });
-        allItems = allItems.slice(0, 50);
-        return index < allItems.length ? allItems[index] : null;
-    }
-
-    function getHistoryIndex(displayIndex) {
-        if (!cachedData) return null;
-        const history = cachedData.history || [];
-        const matches = cachedData.matches || [];
-        let allItems = [];
-        if (matches && matches.length > 0) {
-            matches.forEach((match) => {
-                const bestBet = match.best_bet || match.bets?.[0] || {};
-                allItems.push({
-                    type: 'match',
-                    date: match.match_time || 'Сегодня',
-                    home: match.home || 'Unknown',
-                    away: match.away || 'Unknown',
-                    score: '-',
-                    bet: bestBet.label || '—',
-                    odds: bestBet.odds || 0,
-                    stake: bestBet.stake || 0,
-                    ev: bestBet.ev || 0,
-                    result: 'pending',
-                    profit: 0,
-                    marker: bestBet.marker_stake || '',
-                    is_active: true
-                });
-            });
-        }
-        if (history && history.length > 0) {
-            history.forEach((bet) => {
-                allItems.push({
-                    type: 'history',
-                    date: bet.date || '-',
-                    home: bet.home || 'Unknown',
-                    away: bet.away || 'Unknown',
-                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
-                    bet: bet.bet || '—',
-                    odds: bet.odds || 0,
-                    stake: bet.stake || 0,
-                    ev: bet.ev || 0,
-                    result: bet.result || 'pending',
-                    profit: bet.profit || 0,
-                    marker: bet.marker_stake || '',
-                    is_active: false
-                });
-            });
-        }
-        allItems.sort((a, b) => {
-            if (a.is_active && !b.is_active) return -1;
-            if (!a.is_active && b.is_active) return 1;
-            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
-        });
-        allItems = allItems.slice(0, 50);
-        if (displayIndex < allItems.length && allItems[displayIndex].type === 'history') {
-            return history.length - 1 - allItems.slice(0, displayIndex + 1).filter(i => i.type === 'history').length;
-        }
-        return null;
-    }
-
-    async function saveEdit(index) {
-        const score = document.getElementById('edit_score_' + index).value;
-        let home_goals = null, away_goals = null;
-        if (score && score.includes('-')) {
-            const parts = score.split('-');
-            home_goals = parseInt(parts[0].trim());
-            away_goals = parseInt(parts[1].trim());
-        }
-        const data = {
-            home: document.getElementById('edit_home_' + index).value,
-            away: document.getElementById('edit_away_' + index).value,
-            home_goals, away_goals,
-            bet: document.getElementById('edit_bet_' + index).value,
-            odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
-            stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
-            ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
-            marker: document.getElementById('edit_marker_' + index).value || '',
-            result: document.getElementById('edit_result_' + index).value,
-            index: getHistoryIndex(index)
-        };
-        if (data.index === null) { showNotification('❌ Нельзя редактировать активный матч', 'error'); return; }
-        try {
-            const response = await fetch(API_BASE + '/api/edit_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('✅ Ставка обновлена!', 'success');
-                toggleEdit(index);
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
-    async function deleteBet(index) {
-        if (!confirm('Удалить эту ставку?')) return;
-        const historyIndex = getHistoryIndex(index);
-        if (historyIndex === null) { showNotification('❌ Нельзя удалить активный матч', 'error'); return; }
-        try {
-            const response = await fetch(API_BASE + '/api/delete_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: historyIndex })
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('✅ Ставка удалена!', 'success');
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
-    // ============================================================
-    // АНАЛИТИКА
-    // ============================================================
-    function renderAnalytics(data) {
-        const history = data.history || [];
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        window._historyData = history;
-
-        const patterns = detectDecimalPatterns(history);
-        const hasPatterns = patterns.length > 0;
-        const skippedSums = getSkippedSums(history);
-
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">📈 Интерактивная аналитика</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Исследуйте свои ставки в деталях</div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>📊 Интерактивный график</h2>
-                    <div class="chart-controls">
-                        <select id="chartPeriod" onchange="updateInteractiveChart()">
-                            <option value="7">7 дней</option>
-                            <option value="14">14 дней</option>
-                            <option value="30" selected>30 дней</option>
-                            <option value="90">90 дней</option>
-                            <option value="all">Всё время</option>
-                        </select>
-                        <select id="chartType" onchange="updateInteractiveChart()">
-                            <option value="profit">Прибыль</option>
-                            <option value="bank">Банк</option>
-                            <option value="winrate">Проходимость</option>
-                        </select>
-                        <button class="btn" onclick="resetInteractiveChart()">🔄 Сбросить</button>
-                        <button class="btn" onclick="exportChart()">💾 PNG</button>
-                    </div>
-                </div>
-                <div class="chart-container-large">
-                    <canvas id="interactiveChart"></canvas>
-                </div>
-                <div class="chart-details" id="chartDetails">
-                    <div class="chart-details-grid" id="chartDetailsContent"></div>
-                    <div class="chart-actions">
-                        <button class="btn" onclick="document.getElementById('chartDetails').classList.remove('active')">✖ Закрыть</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        if (settings.anomaly_detection) {
-            html += `
-            <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
-                <div class="card-header">
-                    <h2 style="color:#a78bfa;">🕵️ Детектор дробных сумм (3+ знаков)</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">${patterns.length} паттернов</span>
-                </div>
-                <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:8px;">
-                    ⚡ Анализируются только суммы с 3+ знаками после запятой
-                </div>
-                ${hasPatterns ? `
-                <div style="overflow-x:auto;margin-bottom:12px;">
-                    <table class="patterns-table">
-                        <thead><tr><th>Сумма</th><th>Ставок</th><th>WIN</th><th>LOSS</th><th>PUSH</th><th>Проход</th><th>Прибыль</th><th>ROI</th><th>Рекомендация</th></tr></thead>
-                        <tbody>
-                            ${patterns.map(p => `
-                                <tr>
-                                    <td><strong>$${p.stake.toString()}</strong></td>
-                                    <td>${p.count}</td>
-                                    <td style="color:#34d399;">${p.wins}</td>
-                                    <td style="color:#f87171;">${p.losses}</td>
-                                    <td style="color:#fbbf24;">${p.pushes}</td>
-                                    <td style="color:${p.winrate >= 60 ? '#34d399' : (p.winrate >= 40 ? '#fbbf24' : '#f87171')};font-weight:600;">${p.winrate.toFixed(1)}%</td>
-                                    <td style="color:${p.totalProfit >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${p.totalProfit >= 0 ? '+' : ''}$${p.totalProfit.toFixed(2)}</td>
-                                    <td style="color:${p.roi >= 0 ? '#34d399' : '#f87171'};">${p.roi.toFixed(1)}%</td>
-                                    <td>${getRecommendation(p.stake).icon} ${getRecommendation(p.stake).bet}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    ${patterns.map((pattern, idx) => renderPatternCard(pattern, idx)).join('')}
-                </div>
-                ${skippedSums.length > 0 ? `
-                <div style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size:10px;color:rgba(255,255,255,0.3);">
-                        ⏭️ Пропущенные суммы (1-2 знака):
-                        ${skippedSums.map(s => `$${s.stake.toFixed(2)} (${s.count} ставки)`).join(' • ')}
-                    </div>
-                </div>
-                ` : ''}
-                ` : `
-                <div class="no-data" style="padding:20px 0;">
-                    <div class="emoji">📭</div>
-                    <div>Нет повторяющихся дробных сумм (3+ знаков)</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">Сделайте ставки с одинаковыми дробными суммами</div>
-                </div>
-                `}
-            </div>
-            `;
-        } else {
-            html += `
-            <div class="card" style="border:1px solid rgba(255,255,255,0.05);">
-                <div class="card-header">
-                    <h2 style="color:rgba(255,255,255,0.3);">🕵️ Детектор дробных сумм</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.2);">🔒 Отключен</span>
-                </div>
-                <div style="font-size:12px;color:rgba(255,255,255,0.3);text-align:center;padding:20px 0;">
-                    Включите детектор в <a href="#" onclick="switchPage('settings')" style="color:#a78bfa;text-decoration:none;">Настройках</a>
-                </div>
-            </div>
-            `;
-        }
-
-        html += `
-            <div class="card">
-                <div class="card-header"><h2>📊 Быстрая статистика</h2></div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
-                    <div><div style="color:rgba(255,255,255,0.3);font-size:10px;">📊 Всего ставок</div><div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats?.total_bets || 0}</div></div>
-                    <div><div style="color:rgba(255,255,255,0.3);font-size:10px;">🎯 Проходимость</div><div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats?.winrate || 0}%</div></div>
-                    <div><div style="color:rgba(255,255,255,0.3);font-size:10px;">📈 ROI</div><div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats?.roi || 0}%</div></div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('analytics-content').innerHTML = html;
-        setTimeout(() => initInteractiveChart(history), 100);
-    }
-
-    // ============================================================
-    // ДЕТЕКТОР ДРОБНЫХ СУММ (упрощенный)
-    // ============================================================
-    function getDecimalPlaces(num) {
-        const str = num.toString();
-        const decimalIndex = str.indexOf('.');
-        if (decimalIndex === -1) return 0;
-        return str.length - decimalIndex - 1;
-    }
-
-    function shouldAnalyzeStake(stake) {
-        return getDecimalPlaces(stake) >= 3;
-    }
-
-    function detectDecimalPatterns(history) {
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        if (!settings.anomaly_detection) return [];
-        const patterns = [];
-        const stakeGroups = {};
-        history.forEach((bet, index) => {
-            const stake = parseFloat(bet.stake) || 0;
-            if (stake > 0 && shouldAnalyzeStake(stake)) {
-                const key = stake.toString();
-                if (!stakeGroups[key]) stakeGroups[key] = { stake, bets: [] };
-                stakeGroups[key].bets.push({
-                    index, bet, match: `${bet.home} vs ${bet.away}`,
-                    score: bet.home_goals !== null && bet.away_goals !== null ? `${bet.home_goals}-${bet.away_goals}` : '-',
-                    result: bet.result, profit: bet.profit, date: bet.date, odds: bet.odds, ev: bet.ev
-                });
-            }
-        });
-        Object.values(stakeGroups).forEach(group => {
-            if (group.bets.length >= 2) {
-                const wins = group.bets.filter(b => b.result === 'win').length;
-                const losses = group.bets.filter(b => b.result === 'loss').length;
-                const pushes = group.bets.filter(b => b.result === 'push').length;
-                const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
-                const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
-                const profits = group.bets.map(b => b.profit || 0);
-                const avgProfit = profits.reduce((a, b) => a + b, 0) / profits.length || 0;
-                const maxProfit = Math.max(...profits) || 0;
-                const minProfit = Math.min(...profits) || 0;
-                const totalStakes = group.bets.reduce((sum, b) => sum + (b.bet.stake || 0), 0);
-                const roi = totalStakes > 0 ? (totalProfit / totalStakes * 100) : 0;
-                let status = '📌', recommendation = '';
-                if (winrate >= 70 && group.bets.length >= 3) { status = '🟢'; recommendation = '🔥 Отличная рабочая сумма! Продолжайте использовать.'; }
-                else if (winrate >= 50 && group.bets.length >= 3) { status = '🟢'; recommendation = '👍 Хорошая сумма, стабильный результат.'; }
-                else if (winrate < 40 && group.bets.length >= 3) { status = '🔴'; recommendation = '⚠️ Неудачная сумма! Рекомендуем изменить размер.'; }
-                else if (group.bets.length >= 4) { status = '🟡'; recommendation = 'Часто используемая сумма. Анализируйте результаты.'; }
-                else { status = '🟡'; recommendation = 'Повторяющаяся сумма. Следите за статистикой.'; }
-                patterns.push({ stake: group.stake, count: group.bets.length, wins, losses, pushes, winrate, totalProfit, avgProfit, maxProfit, minProfit, roi, status, recommendation, bets: group.bets });
-            }
-        });
-        patterns.sort((a, b) => b.count - a.count);
-        return patterns;
-    }
-
-    function getSkippedSums(history) {
-        const skipped = {};
-        history.forEach(bet => {
-            const stake = parseFloat(bet.stake) || 0;
-            if (stake > 0 && !shouldAnalyzeStake(stake)) {
-                const key = stake.toFixed(2);
-                if (!skipped[key]) skipped[key] = { stake, count: 0 };
-                skipped[key].count++;
-            }
-        });
-        return Object.values(skipped).filter(s => s.count >= 2);
-    }
-
-    function getRecommendation(stake) {
-        const stakeStr = stake.toString();
-        const recommendations = {
-            '45.125': { bet: '1X', icon: '🏠', description: 'Хозяева не проиграют (Победа или ничья хозяев)' },
-            '40.7253125': { bet: 'ОБЗ', icon: '⚽', description: 'Обе команды забьют' },
-            '42.86875000000006': { bet: 'ТМ 2.5', icon: '🔽', description: 'Тотал меньше 2.5 голов' }
-        };
-        for (const [key, value] of Object.entries(recommendations)) {
-            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) return value;
-        }
-        return { bet: '—', icon: '📌', description: 'Нет рекомендации для этой суммы' };
-    }
-
-    function renderPatternCard(pattern, idx) {
-        let statusColor, statusIcon, glowEffect = '';
-        if (pattern.winrate === 100) { statusColor = '#34d399'; statusIcon = '🌟'; glowEffect = 'box-shadow: 0 0 30px rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.2);'; }
-        else if (pattern.winrate >= 60) { statusColor = '#34d399'; statusIcon = '🟢'; }
-        else if (pattern.winrate >= 40) { statusColor = '#fbbf24'; statusIcon = '🟡'; }
-        else { statusColor = '#f87171'; statusIcon = '🔴'; }
-        const recommendation = getRecommendation(pattern.stake);
-        const isPerfect = pattern.winrate === 100;
-        const perfectBadge = isPerfect ? `<span style="background:rgba(52,211,153,0.15);color:#34d399;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;border:1px solid rgba(52,211,153,0.2);">🏆 100% ПРОХОДИМОСТЬ</span>` : '';
-        const betsHtml = pattern.bets.map(b => {
-            const resultColor = b.result === 'win' ? '#34d399' : (b.result === 'loss' ? '#f87171' : '#fbbf24');
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.02);">
-                <span style="color:rgba(255,255,255,0.6);">${b.match}</span>
-                <div style="display:flex;gap:6px;align-items:center;">
-                    <span style="color:rgba(255,255,255,0.3);">${b.score}</span>
-                    <span style="color:${resultColor};font-weight:600;">${b.result.toUpperCase()}</span>
-                    <span style="color:${b.profit > 0 ? '#34d399' : '#f87171'};font-weight:600;">${b.profit > 0 ? '+' : ''}$${b.profit.toFixed(2)}</span>
-                </div>
-            </div>`;
-        }).join('');
-        return `<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};${glowEffect}">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                    <span style="font-size:16px;">${statusIcon}</span>
-                    <span style="font-size:14px;font-weight:700;color:${statusColor};">$${pattern.stake.toString()}</span>
-                    <span style="font-size:10px;color:rgba(255,255,255,0.3);">${pattern.count} ставки</span>
-                    ${perfectBadge}
-                </div>
-                <div style="text-align:right;">
-                    <div style="font-size:12px;font-weight:600;color:${pattern.totalProfit >= 0 ? '#34d399' : '#f87171'};">${pattern.totalProfit >= 0 ? '+' : ''}$${pattern.totalProfit.toFixed(2)}</div>
-                    <div style="font-size:9px;color:${statusColor};font-weight:600;">${pattern.winrate.toFixed(1)}% (${pattern.wins}/${pattern.count})${pattern.winrate === 100 ? ' 🏆' : ''}</div>
-                </div>
-            </div>
-            <div class="pattern-metrics">
-                <div class="metric"><div class="label">Средняя прибыль</div><div class="value" style="color:${pattern.avgProfit >= 0 ? '#34d399' : '#f87171'};">${pattern.avgProfit >= 0 ? '+' : ''}$${pattern.avgProfit.toFixed(2)}</div></div>
-                <div class="metric"><div class="label">Макс. прибыль</div><div class="value" style="color:#34d399;">+$${pattern.maxProfit.toFixed(2)}</div></div>
-                <div class="metric"><div class="label">Мин. прибыль</div><div class="value" style="color:#f87171;">$${pattern.minProfit.toFixed(2)}</div></div>
-                <div class="metric"><div class="label">ROI</div><div class="value" style="color:${pattern.roi >= 0 ? '#34d399' : '#f87171'};">${pattern.roi.toFixed(1)}%</div></div>
-            </div>
-            <div style="background:${pattern.winrate === 100 ? 'rgba(52,211,153,0.08)' : 'rgba(167,139,250,0.08)'};border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid ${pattern.winrate === 100 ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.15)'};">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
-                    <div><span style="font-size:10px;color:rgba(255,255,255,0.3);">🎯 Рекомендация:</span><span style="font-size:14px;font-weight:700;color:#a78bfa;">${recommendation.icon} ${recommendation.bet}</span></div>
-                    <div style="font-size:10px;color:${pattern.winrate === 100 ? '#34d399' : 'rgba(255,255,255,0.3)'};font-weight:${pattern.winrate === 100 ? '700' : '400'};">🎯 ${pattern.winrate.toFixed(1)}% сыгранных матчей${pattern.winrate === 100 ? ' ✅ ИДЕАЛЬНО!' : ''}</div>
-                </div>
-                <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">${recommendation.description}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">${betsHtml}</div>
-            <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">💡 ${pattern.recommendation}${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}</div>
-        </div>`;
-    }
-
-    // ============================================================
-    // ИНТЕРАКТИВНЫЙ ГРАФИК
-    // ============================================================
-    function initInteractiveChart(history) {
-        const ctx = document.getElementById('interactiveChart');
-        if (!ctx) return;
-        if (interactiveChartInstance) { interactiveChartInstance.destroy(); interactiveChartInstance = null; }
-        window._historyData = history;
-        const isLight = document.body.classList.contains('light-theme');
-        const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
-        const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        interactiveChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Прибыль ($)', data: [], borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)', fill: true, tension: 0.4, pointRadius: 4, pointHoverRadius: 8, pointBackgroundColor: '#a78bfa', pointBorderColor: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(20,20,35,0.8)', pointBorderWidth: 2 }] },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { labels: { color, font: { size: 11 } } },
-                    tooltip: {
-                        backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
-                        titleColor: isLight ? '#1a1a2e' : '#fff',
-                        bodyColor: isLight ? '#1a1a2e' : '#fff',
-                        borderColor: 'rgba(167,139,250,0.3)', borderWidth: 1, padding: 12,
-                        callbacks: {
-                            label: function(context) { return (context.dataset.label || '') + ': $' + context.parsed.y.toFixed(2); },
-                            afterBody: function(tooltipItems) {
-                                if (chartData && chartData[tooltipItems[0].dataIndex]) {
-                                    const bet = chartData[tooltipItems[0].dataIndex];
-                                    return ['Матч: ' + bet.home + ' vs ' + bet.away, 'Ставка: ' + bet.bet, 'Кэф: ' + bet.odds, 'Результат: ' + bet.result];
-                                }
-                                return [];
-                            }
-                        }
-                    },
-                    zoom: { limits: { x: { min: 'original', max: 'original' } }, pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x' } }
-                },
-                scales: {
-                    x: { ticks: { color, font: { size: 9 }, maxTicksLimit: 20 }, grid: { color: gridColor } },
-                    y: { ticks: { color, font: { size: 9 }, callback: function(value) { return '$' + value; } }, grid: { color: gridColor } }
-                },
-                onClick: function(event, elements) { if (elements.length > 0) showChartDetails(elements[0].index); }
-            }
-        });
-        updateInteractiveChart();
-    }
-
-    function updateInteractiveChart() {
-        if (!interactiveChartInstance) return;
-        const period = document.getElementById('chartPeriod').value;
-        const type = document.getElementById('chartType').value;
-        const history = window._historyData || [];
-        let filtered = [...history];
-        if (period !== 'all') {
-            const days = parseInt(period);
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - days);
-            filtered = filtered.filter(bet => { try { return new Date(bet.date.split(' ')[0]) >= cutoff; } catch { return false; } });
-        }
-        filtered.sort((a, b) => { try { return new Date(a.date) - new Date(b.date); } catch { return 0; } });
-        const labels = [], values = [];
-        let cumulative = 0, bank = 1000;
-        filtered.forEach((bet, index) => {
-            labels.push(bet.date);
-            if (type === 'profit') { cumulative += bet.profit || 0; values.push(Math.round(cumulative * 100) / 100); }
-            else if (type === 'bank') { bank += bet.profit || 0; values.push(Math.round(bank * 100) / 100); }
-            else { const wins = filtered.slice(0, index + 1).filter(b => b.result === 'win').length; values.push(Math.round((wins / (index + 1)) * 1000) / 10); }
-        });
-        chartData = filtered;
-        const labelsMap = { 'profit': 'Прибыль ($)', 'bank': 'Банк ($)', 'winrate': 'Проходимость (%)' };
-        interactiveChartInstance.data.labels = labels;
-        interactiveChartInstance.data.datasets[0].data = values;
-        interactiveChartInstance.data.datasets[0].label = labelsMap[type] || 'Прибыль ($)';
-        interactiveChartInstance.update();
-    }
-
-    function showChartDetails(index) {
-        const details = document.getElementById('chartDetails');
-        const content = document.getElementById('chartDetailsContent');
-        const bet = chartData[index];
-        if (bet) {
-            details.classList.add('active');
-            const isLight = document.body.classList.contains('light-theme');
-            const color = isLight ? '#1a1a2e' : '#e8e8f0';
-            content.innerHTML = `
-                <div class="chart-details-item"><div class="label">Матч</div><div class="value" style="color:${color};">${bet.home} vs ${bet.away}</div></div>
-                <div class="chart-details-item"><div class="label">Дата</div><div class="value" style="color:${color};">${bet.date}</div></div>
-                <div class="chart-details-item"><div class="label">Ставка</div><div class="value" style="color:${color};">${bet.bet} (Кэф: ${bet.odds})</div></div>
-                <div class="chart-details-item"><div class="label">Результат</div><div class="value"><span class="badge ${bet.result}">${bet.result}</span></div></div>
-                <div class="chart-details-item"><div class="label">Сумма</div><div class="value" style="color:${color};">$${bet.stake}</div></div>
-                <div class="chart-details-item"><div class="label">Прибыль</div><div class="value" style="color:${bet.profit > 0 ? '#34d399' : '#f87171'};font-weight:700;">${bet.profit > 0 ? '+' : ''}$${bet.profit}</div></div>
-            `;
-        }
-    }
-
-    function resetInteractiveChart() {
-        document.getElementById('chartPeriod').value = '30';
-        document.getElementById('chartType').value = 'profit';
-        document.getElementById('chartDetails').classList.remove('active');
-        updateInteractiveChart();
-    }
-
-    function exportChart() {
-        const canvas = document.getElementById('interactiveChart');
-        const link = document.createElement('a');
-        link.download = 'chart_' + new Date().toISOString().slice(0,10) + '.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    }
-
-    // ============================================================
-    // СИМУЛЯТОР
-    // ============================================================
-    function renderSimulator(data) {
-        const history = data.history || [];
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🎲 Симулятор</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
-        `;
-        if (history.length < 5) {
-            html += `<div class="card"><div class="no-data"><div class="emoji">📭</div><div>Нет данных для симуляции</div><div style="font-size:11px;color:rgba(255,255,255,0.3);">Сначала сделайте хотя бы 5 ставок!</div></div></div>`;
-        } else {
-            html += `
-                <div class="card">
-                    <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📊 Параметры симуляции</h2>
-                    <div class="slider-container">
-                        <label style="color:rgba(255,255,255,0.4);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
-                        <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
-                    </div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-                        <button class="btn btn-outline" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
-                    </div>
-                </div>
-                <div id="simResults" style="display:none;">
-                    <div class="sim-stats" id="simStats">
-                        <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
-                        <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
-                        <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
-                        <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
-                    </div>
-                    <div class="card"><h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📈 График симуляции</h2><div class="chart-container"><canvas id="simChart"></canvas></div></div>
-                    <div class="card">
-                        <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📋 Результаты</h2>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;" id="simDetails">
-                            <div style="color:rgba(255,255,255,0.4);">Всего: <span id="simTotal" style="color:#e8e8f0;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Выигрышей: <span id="simWins" style="color:#34d399;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Проигрышей: <span id="simLosses" style="color:#f87171;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Макс. прибыль: <span id="simMaxProfit" style="color:#fbbf24;">$0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Мин. прибыль: <span id="simMinProfit" style="color:#f87171;">$0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Средняя ставка: <span id="simAvgStake" style="color:#e8e8f0;">$0</span></div>
-                        </div>
-                    </div>
-                    <div class="card" style="background:rgba(124,58,237,0.05);border-color:rgba(124,58,237,0.1);">
-                        <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">💡 Рекомендация</h2>
-                        <div id="simRecommendation" style="font-size:13px;line-height:1.5;color:rgba(255,255,255,0.6);">Запустите симуляцию, чтобы получить рекомендацию!</div>
-                    </div>
-                </div>
-            `;
-        }
-        document.getElementById('simulator-content').innerHTML = html;
-    }
-
-    async function runSimulation() {
-        const count = parseInt(document.getElementById('simCount').value) || 1000;
-        document.getElementById('simResults').style.display = 'block';
-        try {
-            const response = await fetch(API_BASE + '/api/simulate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ count })
-            });
-            const data = await response.json();
-            if (data.error) { showNotification('❌ Ошибка: ' + data.error, 'error'); return; }
-            document.getElementById('simProfit').textContent = '$' + data.profit;
-            document.getElementById('simWinrate').textContent = data.winrate + '%';
-            document.getElementById('simROI').textContent = data.roi + '%';
-            document.getElementById('simRisk').textContent = data.risk + '%';
-            document.getElementById('simTotal').textContent = data.total;
-            document.getElementById('simWins').textContent = data.wins;
-            document.getElementById('simLosses').textContent = data.losses;
-            document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
-            document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
-            document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-            const rec = document.getElementById('simRecommendation');
-            if (data.profit > 0) {
-                rec.innerHTML = '✅ <b style="color:#34d399;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
-            } else {
-                rec.innerHTML = '⚠️ <b style="color:#f87171;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
-            }
-            const ctx = document.getElementById('simChart');
-            if (ctx) {
-                if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
-                const isLight = document.body.classList.contains('light-theme');
-                simChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: { labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1), datasets: [{ label: 'Прибыль ($)', data: data.history || [], borderColor: data.profit > 0 ? '#34d399' : '#f87171', backgroundColor: data.profit > 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)', fill: true, tension: 0.4, pointRadius: 2 }] },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } } },
-                        scales: {
-                            x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
-                            y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
-                        }
-                    }
-                });
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
-    // ============================================================
-    // НАСТРОЙКИ
-    // ============================================================
-    function renderSettings(data) {
-        const bank = data.stats ? data.stats.bank : 1000;
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || { anomaly_detection: false };
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Настройки</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Управление приложением</div>
-
-            <div class="setting-group">
-                <h2>💰 Банк</h2>
-                <div class="setting-item">
-                    <div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div>
-                    <div class="input-group">
-                        <input type="number" id="bankInput" value="${bank}" step="10">
-                        <button onclick="updateBank()">Сохранить</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="setting-group" style="border:1px solid rgba(167,139,250,0.15);">
-                <h2>🕵️ Детектор дробных сумм</h2>
-                <div class="setting-item">
-                    <div>
-                        <div class="label" style="font-size:13px;font-weight:600;">Включить детектор</div>
-                        <div class="desc">Анализирует суммы с 3+ знаками после запятой</div>
-                    </div>
-                    <div class="toggle ${settings.anomaly_detection ? 'active' : ''}" onclick="toggleSetting('anomaly_detection', this)">
-                        <div class="dot"></div>
-                    </div>
-                </div>
-                <div style="font-size:9px;color:rgba(255,255,255,0.3);padding:6px 0;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px;">
-                    📌 Анализируются: 45.125, 40.7253125, 42.86875<br>
-                    ⏭️ Пропускаются: 50, 47.5, 45.12
-                </div>
-            </div>
-
-            <div class="setting-group">
-                <h2>💾 Проект</h2>
-                <div class="setting-item">
-                    <div><div class="label">Сохранить проект</div><div class="desc">Скачать все данные и настройки в JSON</div></div>
-                    <button class="btn btn-success" onclick="exportProject()" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:#34d399;">💾 Сохранить</button>
-                </div>
-                <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Загрузить проект</div><div class="desc">Восстановить данные из сохраненного файла</div></div>
-                    <div class="input-group">
-                        <label class="file-input-label" for="projectFileInput" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.2);">📂 Загрузить</label>
-                        <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
-                    </div>
-                </div>
-            </div>
-
-            <div class="setting-group">
-                <h2>📊 Экспорт / Импорт</h2>
-                <div class="setting-item">
-                    <div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div>
-                    <button class="btn btn-primary" onclick="window.location.href='/export'">📥 Скачать</button>
-                </div>
-                <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div>
-                    <div class="input-group">
-                        <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
-                        <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
-                        <span id="fileName" style="color:rgba(255,255,255,0.3);font-size:10px;">Файл не выбран</span>
-                    </div>
-                </div>
-                <div id="importStatus" class="import-status"></div>
-            </div>
-
-            <div class="setting-group" style="border:2px solid rgba(167,139,250,0.15);">
-                <h2 style="color:#a78bfa;">🔥 X2 Стратегия</h2>
-                <div class="setting-item">
-                    <div><div class="label">Всего X2 матчей</div><div class="desc">Собрано в таблице X2</div></div>
-                    <span style="color:#a78bfa;font-weight:700;">${x2Data.length}</span>
-                </div>
-                <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Очистить все X2 данные</div><div class="desc">Удалить все матчи из X2 таблицы</div></div>
-                    <button class="btn btn-danger" onclick="clearAllX2()" style="padding:4px 12px;font-size:11px;">🗑️ Очистить</button>
-                </div>
-            </div>
-        `;
-        document.getElementById('settings-content').innerHTML = html;
-    }
-
-    function clearAllX2() {
-        if (confirm('⚠️ Удалить все X2 матчи?')) {
-            x2Data = [];
-            saveX2Data();
-            renderX2Page();
-            if (currentPage === 'dashboard') loadPageData('dashboard');
-            showNotification('🗑️ Все X2 матчи удалены', '');
-        }
-    }
-
-    // ============================================================
-    // ЭКСПОРТ/ИМПОРТ ПРОЕКТА
-    // ============================================================
-    function exportProject() {
-        const projectData = {
-            version: '1.0',
-            exportDate: new Date().toISOString(),
-            settings: JSON.parse(localStorage.getItem('bot_settings')) || {},
-            theme: localStorage.getItem('theme') || 'dark',
-            data: cachedData || null,
-            x2Data: x2Data
-        };
-        if (!projectData.data) {
-            showNotification('⏳ Загрузка данных...', '');
-            fetch(API_BASE + '/api/all_data').then(response => response.json()).then(data => {
-                projectData.data = data;
-                downloadProjectFile(projectData);
-            }).catch(error => { showNotification('❌ Ошибка: ' + error, 'error'); });
-            return;
-        }
-        downloadProjectFile(projectData);
-    }
-
-    function downloadProjectFile(projectData) {
-        const json = JSON.stringify(projectData, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `quantum_bet_project_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        showNotification('✅ Проект сохранен!', 'success');
-    }
-
-    function importProject(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        showNotification('⏳ Загрузка...', '');
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const projectData = JSON.parse(e.target.result);
-                if (!projectData.version) { showNotification('❌ Неверный формат!', 'error'); return; }
-                if (projectData.settings) localStorage.setItem('bot_settings', JSON.stringify(projectData.settings));
-                if (projectData.theme) {
-                    localStorage.setItem('theme', projectData.theme);
-                    if (projectData.theme === 'light') {
-                        document.body.classList.add('light-theme');
-                        document.getElementById('themeBtn').textContent = '☀️';
-                    } else {
-                        document.body.classList.remove('light-theme');
-                        document.getElementById('themeBtn').textContent = '🌙';
-                    }
-                }
-                if (projectData.x2Data) {
-                    x2Data = projectData.x2Data;
-                    saveX2Data();
-                }
-                if (projectData.data && projectData.data.history) {
-                    fetch(API_BASE + '/api/import_project', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ history: projectData.data.history, stats: projectData.data.stats })
-                    }).then(response => response.json()).then(result => {
-                        if (result.success) showNotification(`✅ Загружено ${result.count || 0} ставок!`, 'success');
-                        else showNotification('❌ ' + result.error, 'error');
-                        refreshData();
-                    }).catch(error => { showNotification('❌ Ошибка: ' + error, 'error'); });
-                } else {
-                    showNotification('✅ Настройки загружены!', 'success');
-                    refreshData();
-                }
-            } catch (error) { showNotification('❌ Ошибка: ' + error, 'error'); }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    }
-
-    // ============================================================
-    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-    // ============================================================
-    async function updateBank() {
-        const value = document.getElementById('bankInput').value;
-        try {
-            const response = await fetch(API_BASE + '/api/bank', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bank: parseFloat(value) })
-            });
-            const data = await response.json();
-            if (data.success) {
-                showNotification('✅ Банк обновлен: $' + data.bank, 'success');
-                refreshData();
-            }
-        } catch (e) { showNotification('❌ Ошибка: ' + e, 'error'); }
-    }
-
-    function toggleSetting(key, element) {
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        element.classList.toggle('active');
-        settings[key] = element.classList.contains('active');
-        localStorage.setItem('bot_settings', JSON.stringify(settings));
-        refreshData();
-    }
-
-    function importExcel(event) {
-        const file = event.target.files[0];
-        const statusDiv = document.getElementById('importStatus');
-        const fileNameSpan = document.getElementById('fileName');
-        if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
-        fileNameSpan.textContent = '📄 ' + file.name;
-        statusDiv.textContent = '⏳ Загрузка...';
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                if (json.length === 0) { statusDiv.textContent = '❌ Файл пуст'; return; }
-                statusDiv.textContent = '⏳ Отправка...';
-                fetch(API_BASE + '/api/import_excel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: json })
-                }).then(response => response.json()).then(data => {
-                    if (data.success) {
-                        statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок!';
-                        setTimeout(() => refreshData(), 1500);
-                    } else { statusDiv.textContent = '❌ ' + data.error; }
-                }).catch(error => { statusDiv.textContent = '❌ ' + error; });
-            } catch (error) { statusDiv.textContent = '❌ ' + error; }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        loadX2Data();
-        loadPageData('dashboard');
-    });
-</script>
-</body>
-</html>
+    except Exception as e:
+        logger.error(f"Ошибка сохранения лога: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/health')
+def health():
+    bot_ok, bot_data = check_bot_health()
+    return jsonify({
+        'status': 'ok',
+        'web': 'running',
+        'bot': 'ok' if bot_ok else 'error',
+        'bot_data': bot_data,
+        'bot_url': BOT_URL,
+        'timestamp': datetime.now().isoformat()
+    })
+
+# ============================================================
+# ЗАПУСК
+# ============================================================
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5001))
+    logger.info(f"🌐 Запуск веб-интерфейса на порту {port}")
+    logger.info(f"📡 Подключение к боту: {BOT_URL}")
+    
+    bot_ok, bot_data = check_bot_health()
+    if bot_ok:
+        logger.info("✅ Бот доступен")
+    else:
+        logger.warning("⚠️ Бот недоступен! Убедитесь, что бот запущен на Render")
+    
+    app.run(host='0.0.0.0', port=port, debug=False)
