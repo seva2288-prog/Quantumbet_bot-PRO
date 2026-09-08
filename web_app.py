@@ -7,6 +7,12 @@ import requests
 from datetime import datetime, timedelta
 import json
 import logging
+from collections import defaultdict
+import re
+import time
+
+# Импорт анализатора матчей
+from match_analyzer import MatchAnalyzer
 
 app = Flask(__name__)
 
@@ -25,8 +31,584 @@ BOT_URL = os.environ.get('BOT_URL', 'https://quantumbet-bot-pro.onrender.com')
 print(f"🔗 Бот URL: {BOT_URL}")
 
 # ============================================================
-# HTML ШАБЛОН (ПОЛНЫЙ, 3000+ СТРОК)
+# ПРОВЕРКА БОТА
 # ============================================================
+
+def check_bot_health():
+    """Проверяет доступность бота"""
+    try:
+        response = requests.get(f'{BOT_URL}/health', timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Бот доступен: {data}")
+            return True, data
+        else:
+            logger.warning(f"⚠️ Бот вернул код {response.status_code}")
+            return False, None
+    except Exception as e:
+        logger.error(f"❌ Бот недоступен: {e}")
+        return False, None
+
+def get_bot_status():
+    """Возвращает статус бота с деталями"""
+    try:
+        response = requests.get(f'{BOT_URL}/health', timeout=5)
+        if response.status_code == 200:
+            return response.json()
+        return {'status': 'error', 'code': response.status_code}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
+# ============================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ============================================================
+
+def format_currency(amount):
+    """Форматирует число как валюту"""
+    return f"${amount:,.2f}"
+
+def calculate_winrate(wins, total):
+    """Рассчитывает процент побед"""
+    if total == 0:
+        return 0
+    return round((wins / total) * 100, 1)
+
+def safe_parse_float(value, default=0.0):
+    """Безопасно парсит float"""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_parse_int(value, default=0):
+    """Безопасно парсит int"""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+# ============================================================
+# API МАРШРУТЫ (ОСНОВНЫЕ)
+# ============================================================
+
+@app.route('/')
+def index():
+    """Главная страница"""
+    return render_template_string(MAIN_HTML)
+
+@app.route('/api/all_data')
+def api_all_data():
+    """Получает все данные от бота"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/matches')
+def api_matches():
+    """Получает список матчей от бота"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except Exception as e:
+        logger.error(f"Ошибка получения матчей: {e}")
+        return jsonify([])
+
+@app.route('/api/stats')
+def api_stats():
+    """Получает статистику от бота"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}")
+        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
+
+@app.route('/api/history')
+def api_history():
+    """Получает историю ставок от бота"""
+    try:
+        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        return jsonify([])
+    except Exception as e:
+        logger.error(f"Ошибка получения истории: {e}")
+        return jsonify([])
+
+@app.route('/api/bank', methods=['POST'])
+def update_bank():
+    """Обновляет банк в боте"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка обновления банка: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/simulate', methods=['POST'])
+def simulate():
+    """Запускает симуляцию в боте"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка симуляции: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================
+# API ДЛЯ ИМПОРТА/ЭКСПОРТА
+# ============================================================
+
+@app.route('/api/import_excel', methods=['POST'])
+def import_excel():
+    """Импортирует данные из Excel"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка импорта Excel: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    """Импортирует проект из JSON"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка импорта проекта: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/edit_bet', methods=['POST'])
+def edit_bet():
+    """Редактирует ставку в боте"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка редактирования ставки: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/delete_bet', methods=['POST'])
+def delete_bet():
+    """Удаляет ставку в боте"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка удаления ставки: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    """Добавляет ручной матч в бот"""
+    try:
+        data = request.json
+        response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        logger.error(f"Ошибка добавления матча: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================
+# API ДЛЯ КОМАНД И НАСТРОЕК
+# ============================================================
+
+@app.route('/api/send_command', methods=['POST'])
+def send_command():
+    """Отправляет команду боту через Telegram"""
+    try:
+        data = request.json
+        command = data.get('command', '')
+        
+        if not command:
+            return jsonify({'success': False, 'error': 'Команда не указана'}), 400
+        
+        # Отправляем команду через Telegram API
+        telegram_token = os.environ.get('TELEGRAM_TOKEN', '')
+        admin_chat_id = os.environ.get('ADMIN_CHAT_ID', '')
+        
+        if not telegram_token or not admin_chat_id:
+            # Если нет Telegram, отправляем через API бота
+            response = requests.post(f'{BOT_URL}/api/command', json={'command': command}, timeout=10)
+            if response.status_code == 200:
+                return jsonify({'success': True, 'message': f'Команда {command} отправлена боту'})
+            else:
+                return jsonify({'success': False, 'error': f'Ошибка бота: {response.status_code}'}), 500
+        
+        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        payload = {
+            'chat_id': admin_chat_id,
+            'text': command,
+            'parse_mode': 'HTML'
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': f'Команда {command} отправлена в Telegram'})
+        else:
+            return jsonify({'success': False, 'error': f'Ошибка Telegram: {response.status_code}'}), 500
+            
+    except Exception as e:
+        logger.error(f"Ошибка отправки команды: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/save_settings', methods=['POST'])
+def save_settings():
+    """Сохраняет настройки бота"""
+    try:
+        data = request.json
+        
+        # Сохраняем в файл
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        with open(settings_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        # Отправляем настройки в бот
+        try:
+            response = requests.post(f'{BOT_URL}/api/update_settings', json=data, timeout=5)
+            if response.status_code != 200:
+                logger.warning(f"Не удалось обновить настройки в боте: {response.status_code}")
+        except Exception as e:
+            logger.warning(f"Ошибка отправки настроек в бот: {e}")
+        
+        return jsonify({'success': True, 'message': 'Настройки сохранены'})
+        
+    except Exception as e:
+        logger.error(f"Ошибка сохранения настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/get_settings', methods=['GET'])
+def get_settings():
+    """Загружает настройки бота"""
+    try:
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+        
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+            return jsonify({'success': True, 'settings': settings})
+        else:
+            # Возвращаем настройки по умолчанию
+            default_settings = {
+                'ev_min_70': 20,
+                'prob_min_70': 60,
+                'xg_min_70': 1.8,
+                'xg_max_70': 3.0,
+                'position_max_70': 15,
+                'premium_ev': 30,
+                'standard_ev': 15,
+                'xg_min_tm25': 1.0,
+                'xg_max_tm25': 3.0,
+                'max_tm25_bets': 5,
+                'top_league_ev': 35
+            }
+            return jsonify({'success': True, 'settings': default_settings})
+            
+    except Exception as e:
+        logger.error(f"Ошибка загрузки настроек: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================
+# API ДЛЯ АНАЛИЗА МАТЧЕЙ (НОВЫЕ)
+# ============================================================
+
+@app.route('/api/analyze_matches', methods=['POST'])
+def analyze_matches():
+    """Анализирует лог матчей и возвращает статистику"""
+    try:
+        data = request.json
+        log_text = data.get('log', '')
+        
+        if not log_text:
+            return jsonify({
+                'success': False,
+                'error': 'Лог не предоставлен'
+            }), 400
+        
+        # Анализируем лог
+        stats = MatchAnalyzer.analyze_logs(log_text)
+        recommendations = MatchAnalyzer.get_recommendations(stats)
+        
+        # Добавляем дополнительную статистику
+        stats['analysis_time'] = datetime.now().isoformat()
+        stats['log_length'] = len(log_text)
+        stats['lines_analyzed'] = len([line for line in log_text.split('\n') if 'Пропускаем' in line])
+        
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'recommendations': recommendations
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка анализа матчей: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/matches_log')
+def get_matches_log():
+    """Возвращает лог матчей от бота"""
+    try:
+        # Пробуем получить лог от бота
+        response = requests.get(f'{BOT_URL}/api/log', timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            log_text = data.get('log', '')
+            if log_text:
+                return jsonify({
+                    'log': log_text,
+                    'source': 'bot',
+                    'timestamp': datetime.now().isoformat()
+                })
+        
+        # Если не получилось, ищем сохраненный лог
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                log_text = f.read()
+            if log_text:
+                return jsonify({
+                    'log': log_text,
+                    'source': 'file',
+                    'timestamp': datetime.fromtimestamp(os.path.getmtime(log_file)).isoformat()
+                })
+        
+        # Если ничего нет, возвращаем пустой лог
+        return jsonify({
+            'log': '',
+            'source': 'none',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения лога: {e}")
+        return jsonify({'log': '', 'source': 'error', 'error': str(e)})
+
+@app.route('/api/match_stats')
+def get_match_stats():
+    """Возвращает агрегированную статистику по матчам"""
+    try:
+        # Получаем данные от бота
+        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
+        if response.status_code != 200:
+            return jsonify({'error': 'Не удалось получить данные'}), 500
+        
+        matches = response.json()
+        
+        if not matches:
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'total': 0,
+                    'filtered': {
+                        'no_motivation': 0,
+                        'low_position': 0,
+                        'xg_out_of_range': 0,
+                        'passed': 0
+                    },
+                    'by_league': {},
+                    'xg_distribution': {
+                        'low': 0,
+                        'normal': 0,
+                        'high': 0
+                    }
+                }
+            })
+        
+        # Анализируем матчи
+        stats = {
+            'total': len(matches),
+            'filtered': {
+                'no_motivation': 0,
+                'low_position': 0,
+                'xg_out_of_range': 0,
+                'passed': 0
+            },
+            'by_league': defaultdict(int),
+            'xg_distribution': {
+                'low': 0,  # < 1.8
+                'normal': 0,  # 1.8-3.0
+                'high': 0  # > 3.0
+            },
+            'avg_xg': 0,
+            'total_xg': 0
+        }
+        
+        for match in matches:
+            league = match.get('league', 'Unknown')
+            stats['by_league'][league] += 1
+            
+            xg = safe_parse_float(match.get('total_xg', 0))
+            stats['total_xg'] += xg
+            
+            if xg < 1.8:
+                stats['xg_distribution']['low'] += 1
+            elif xg <= 3.0:
+                stats['xg_distribution']['normal'] += 1
+            else:
+                stats['xg_distribution']['high'] += 1
+            
+            # Определяем причину пропуска (если есть)
+            skip_reason = match.get('skip_reason', '')
+            if skip_reason:
+                if 'мотиваци' in skip_reason.lower():
+                    stats['filtered']['no_motivation'] += 1
+                elif 'позици' in skip_reason.lower():
+                    stats['filtered']['low_position'] += 1
+                elif 'xg' in skip_reason.lower() or 'XG' in skip_reason:
+                    stats['filtered']['xg_out_of_range'] += 1
+                else:
+                    stats['filtered']['passed'] += 1
+            else:
+                stats['filtered']['passed'] += 1
+        
+        # Вычисляем средний XG
+        if stats['total'] > 0:
+            stats['avg_xg'] = round(stats['total_xg'] / stats['total'], 2)
+        
+        # Добавляем процент прохода
+        if stats['total'] > 0:
+            stats['pass_rate'] = round((stats['filtered']['passed'] / stats['total']) * 100, 1)
+        else:
+            stats['pass_rate'] = 0
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total': stats['total'],
+                'filtered': stats['filtered'],
+                'by_league': dict(stats['by_league']),
+                'xg_distribution': stats['xg_distribution'],
+                'avg_xg': stats['avg_xg'],
+                'pass_rate': stats['pass_rate']
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/save_matches_log', methods=['POST'])
+def save_matches_log():
+    """Сохраняет лог матчей в файл"""
+    try:
+        data = request.json
+        log_text = data.get('log', '')
+        
+        if not log_text:
+            return jsonify({'success': False, 'error': 'Лог пуст'}), 400
+        
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(log_text)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Лог сохранен',
+            'file': log_file,
+            'size': len(log_text)
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка сохранения лога: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================
+# API ДЛЯ ЗДОРОВЬЯ И СТАТУСА
+# ============================================================
+
+@app.route('/api/health')
+def health():
+    """Проверка здоровья приложения"""
+    bot_ok, bot_data = check_bot_health()
+    
+    # Проверяем наличие файлов
+    settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+    
+    return jsonify({
+        'status': 'ok',
+        'web': 'running',
+        'bot': 'ok' if bot_ok else 'error',
+        'bot_data': bot_data,
+        'bot_url': BOT_URL,
+        'files': {
+            'settings': os.path.exists(settings_file),
+            'log': os.path.exists(log_file)
+        },
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/api/status')
+def api_status():
+    """Детальный статус системы"""
+    bot_status = get_bot_status()
+    
+    # Получаем статистику
+    try:
+        stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
+        if stats_response.status_code == 200:
+            stats = stats_response.json()
+        else:
+            stats = {'error': 'Не удалось получить статистику'}
+    except Exception as e:
+        stats = {'error': str(e)}
+    
+    return jsonify({
+        'web': {
+            'status': 'running',
+            'started': datetime.now().isoformat(),
+            'uptime': str(datetime.now() - app_start_time) if 'app_start_time' in globals() else 'unknown'
+        },
+        'bot': bot_status,
+        'stats': stats,
+        'environment': {
+            'python_version': sys.version,
+            'flask_version': Flask.__version__
+        }
+    })
+
+# ============================================================
+# ОБРАБОТКА ОШИБОК
+# ============================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    """Обработка 404 ошибки"""
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Обработка 500 ошибки"""
+    logger.error(f"Внутренняя ошибка: {error}")
+    return jsonify({'error': 'Internal server error'}), 500
+
+# ============================================================
+# HTML ШАБЛОН
+# ============================================================
+
+# Время запуска приложения
+app_start_time = datetime.now()
 
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="ru" data-theme="dark">
@@ -679,214 +1261,214 @@ MAIN_HTML = """<!DOCTYPE html>
         .profit-positive { color: #34d399; font-weight: 600; }
         .profit-negative { color: #f87171; font-weight: 600; }
         
-/* ============================================================
-   IOS GLASS NAVIGATION
-   ============================================================ */
-.bottom-nav {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 92%;
-    max-width: 450px;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 8px 6px;
-    z-index: 1000;
-    transition: all 0.3s ease;
-}
-
-body:not(.light-theme) .bottom-nav {
-    background: rgba(20, 20, 35, 0.4);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-body.light-theme .bottom-nav {
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.bottom-nav .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 10px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 6px 14px;
-    border-radius: 16px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    min-width: 56px;
-    position: relative;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    gap: 2px;
-}
-
-.bottom-nav .nav-item .icon {
-    font-size: 22px;
-    line-height: 1.1;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.bottom-nav .nav-item .label {
-    font-size: 9px;
-    font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0.6;
-}
-
-.bottom-nav .nav-item.active {
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.12);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-
-.bottom-nav .nav-item.active .icon {
-    transform: scale(1.05);
-    text-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
-}
-
-.bottom-nav .nav-item.active .label {
-    opacity: 1;
-    color: #a78bfa;
-}
-
-body.light-theme .bottom-nav .nav-item.active {
-    background: rgba(124, 58, 237, 0.08);
-    color: #7c3aed;
-}
-
-body.light-theme .bottom-nav .nav-item.active .label {
-    color: #7c3aed;
-}
-
-.bottom-nav .nav-item.active::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 20px;
-    height: 3px;
-    background: linear-gradient(90deg, #7c3aed, #a78bfa);
-    border-radius: 4px;
-    box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
-}
-
-body.light-theme .bottom-nav .nav-item.active::before {
-    background: linear-gradient(90deg, #6d28d9, #7c3aed);
-}
-
-.bottom-nav .nav-item:active {
-    transform: scale(0.88);
-    transition: transform 0.1s;
-}
-
-.bottom-nav .nav-item:hover {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-body.light-theme .bottom-nav .nav-item:hover {
-    color: rgba(0, 0, 0, 0.6);
-}
-
-.bottom-nav::after {
-    content: '';
-    position: absolute;
-    top: 1px;
-    left: 15%;
-    right: 15%;
-    height: 30%;
-    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
-    border-radius: 50%;
-    pointer-events: none;
-    opacity: 0.5;
-}
-
-body.light-theme .bottom-nav::after {
-    background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%);
-}
-
-.bottom-nav::before {
-    content: '';
-    position: absolute;
-    bottom: -8px;
-    left: 10%;
-    right: 10%;
-    height: 20px;
-    background: radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.2) 0%, transparent 70%);
-    border-radius: 50%;
-    filter: blur(10px);
-    pointer-events: none;
-    opacity: 0.3;
-}
-
-body.light-theme .bottom-nav::before {
-    opacity: 0.1;
-}
-
-@media (max-width: 768px) {
-    .bottom-nav {
-        bottom: 16px;
-        width: 94%;
-        padding: 6px 4px;
-        border-radius: 20px;
-    }
-    .bottom-nav .nav-item {
-        padding: 4px 10px;
-        min-width: 44px;
-    }
-    .bottom-nav .nav-item .icon {
-        font-size: 18px;
-    }
-    .bottom-nav .nav-item .label {
-        font-size: 8px;
-    }
-}
-
-@media (max-width: 480px) {
-    .bottom-nav {
-        bottom: 12px;
-        width: 96%;
-        padding: 4px 2px;
-        border-radius: 16px;
-    }
-    .bottom-nav .nav-item {
-        padding: 3px 6px;
-        min-width: 36px;
-    }
-    .bottom-nav .nav-item .icon {
-        font-size: 16px;
-    }
-    .bottom-nav .nav-item .label {
-        font-size: 7px;
-    }
-}
+        /* ============================================================
+           IOS GLASS NAVIGATION
+           ============================================================ */
+        .bottom-nav {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 450px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 8px 6px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        body:not(.light-theme) .bottom-nav {
+            background: rgba(20, 20, 35, 0.4);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        
+        body.light-theme .bottom-nav {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        
+        .bottom-nav .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 10px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 6px 14px;
+            border-radius: 16px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            min-width: 56px;
+            position: relative;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            gap: 2px;
+        }
+        
+        .bottom-nav .nav-item .icon {
+            font-size: 22px;
+            line-height: 1.1;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .bottom-nav .nav-item .label {
+            font-size: 9px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0.6;
+        }
+        
+        .bottom-nav .nav-item.active {
+            color: #a78bfa;
+            background: rgba(167, 139, 250, 0.12);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .bottom-nav .nav-item.active .icon {
+            transform: scale(1.05);
+            text-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+        }
+        
+        .bottom-nav .nav-item.active .label {
+            opacity: 1;
+            color: #a78bfa;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active {
+            background: rgba(124, 58, 237, 0.08);
+            color: #7c3aed;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active .label {
+            color: #7c3aed;
+        }
+        
+        .bottom-nav .nav-item.active::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 3px;
+            background: linear-gradient(90deg, #7c3aed, #a78bfa);
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active::before {
+            background: linear-gradient(90deg, #6d28d9, #7c3aed);
+        }
+        
+        .bottom-nav .nav-item:active {
+            transform: scale(0.88);
+            transition: transform 0.1s;
+        }
+        
+        .bottom-nav .nav-item:hover {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        body.light-theme .bottom-nav .nav-item:hover {
+            color: rgba(0, 0, 0, 0.6);
+        }
+        
+        .bottom-nav::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 15%;
+            right: 15%;
+            height: 30%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+        
+        body.light-theme .bottom-nav::after {
+            background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%);
+        }
+        
+        .bottom-nav::before {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 10%;
+            right: 10%;
+            height: 20px;
+            background: radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(10px);
+            pointer-events: none;
+            opacity: 0.3;
+        }
+        
+        body.light-theme .bottom-nav::before {
+            opacity: 0.1;
+        }
+        
+        @media (max-width: 768px) {
+            .bottom-nav {
+                bottom: 16px;
+                width: 94%;
+                padding: 6px 4px;
+                border-radius: 20px;
+            }
+            .bottom-nav .nav-item {
+                padding: 4px 10px;
+                min-width: 44px;
+            }
+            .bottom-nav .nav-item .icon {
+                font-size: 18px;
+            }
+            .bottom-nav .nav-item .label {
+                font-size: 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .bottom-nav {
+                bottom: 12px;
+                width: 96%;
+                padding: 4px 2px;
+                border-radius: 16px;
+            }
+            .bottom-nav .nav-item {
+                padding: 3px 6px;
+                min-width: 36px;
+            }
+            .bottom-nav .nav-item .icon {
+                font-size: 16px;
+            }
+            .bottom-nav .nav-item .label {
+                font-size: 7px;
+            }
+        }
         
         /* ============================================================
            МОДАЛЬНОЕ ОКНО
@@ -1284,6 +1866,211 @@ body.light-theme .bottom-nav::before {
             .bottom-nav .nav-item .icon { font-size: 14px; }
             .pattern-metrics { grid-template-columns: 1fr 1fr; }
         }
+        
+        /* Дополнительные стили для анализа матчей */
+        .match-analysis-card {
+            border: 2px solid rgba(167, 139, 250, 0.15);
+            margin-top: 12px;
+        }
+        .match-analysis-card .stat-item {
+            text-align: center;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+        }
+        .match-analysis-card .stat-item .number {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .match-analysis-card .stat-item .label {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .match-analysis-card .reason-item {
+            padding: 8px;
+            border-radius: 8px;
+            border-left: 3px solid;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .match-analysis-card .reason-item .count {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .match-analysis-card .reason-item .label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .match-analysis-card .recommendations {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(167, 139, 250, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(167, 139, 250, 0.1);
+        }
+        .match-analysis-card .recommendations .title {
+            font-size: 11px;
+            color: #a78bfa;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .match-analysis-card .recommendations .list {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        body.light-theme .match-analysis-card .stat-item {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        body.light-theme .match-analysis-card .reason-item {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        body.light-theme .match-analysis-card .recommendations {
+            background: rgba(124, 58, 237, 0.05);
+            border-color: rgba(124, 58, 237, 0.15);
+        }
+        body.light-theme .match-analysis-card .recommendations .list {
+            color: rgba(0, 0, 0, 0.6);
+        }
+        
+        .btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e8e8f0;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            color: white;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #34d399, #059669);
+            border: none;
+            color: white;
+        }
+        .btn-success:hover {
+            box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f87171, #dc2626);
+            border: none;
+            color: white;
+        }
+        .btn-danger:hover {
+            box-shadow: 0 0 20px rgba(248, 113, 113, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 30px 0;
+            color: rgba(255, 255, 255, 0.3);
+        }
+        .no-data .emoji {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        
+        .loader {
+            text-align: center;
+            padding: 40px 0;
+        }
+        .loader .spinner {
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 10px;
+            border: 2px solid rgba(167, 139, 250, 0.08);
+            border-top: 2px solid #a78bfa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        .edit-row {
+            display: none;
+        }
+        .edit-row.active {
+            display: table-row;
+        }
+        .edit-row td {
+            padding: 6px 8px;
+            background: rgba(167, 139, 250, 0.05);
+        }
+        .edit-row input, .edit-row select {
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(0, 0, 0, 0.4);
+            color: #e8e8f0;
+            font-size: 10px;
+            height: 26px;
+        }
+        .edit-row input:focus, .edit-row select:focus {
+            outline: none;
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .edit-btn {
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        .edit-btn:hover {
+            color: #a78bfa;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px 0 10px;
+            color: rgba(255, 255, 255, 0.15);
+            font-size: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.03);
+            margin-top: 10px;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-header h2 {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .chart-container {
+            height: 150px;
+        }
+        .chart-container-large {
+            height: 350px;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container-large {
+                height: 250px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1324,17 +2111,17 @@ body.light-theme .bottom-nav::before {
     </div>
 
     <div id="page-dashboard" class="page active">
-    <div id="dashboard-content"></div>
-</div>
-<div id="page-analytics" class="page" style="display:none;">
-    <div id="analytics-content"></div>
-</div>
-<div id="page-simulator" class="page" style="display:none;">
-    <div id="simulator-content"></div>
-</div>
-<div id="page-settings" class="page" style="display:none;">
-    <div id="settings-content"></div>
-</div>
+        <div id="dashboard-content"></div>
+    </div>
+    <div id="page-analytics" class="page" style="display:none;">
+        <div id="analytics-content"></div>
+    </div>
+    <div id="page-simulator" class="page" style="display:none;">
+        <div id="simulator-content"></div>
+    </div>
+    <div id="page-settings" class="page" style="display:none;">
+        <div id="settings-content"></div>
+    </div>
 
     <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
 </div>
@@ -1402,6 +2189,7 @@ body.light-theme .bottom-nav::before {
 
     window.addEventListener('load', function() {
         setTimeout(hideLoadingScreen, 600);
+        loadPageData('dashboard');
     });
 
     // ============================================================
@@ -1513,49 +2301,24 @@ body.light-theme .bottom-nav::before {
     });
 
     function switchPage(page) {
-    if (page === currentPage) return;
+        if (page === currentPage) return;
 
-    // Обновляем кнопки навигации
-    document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
+        document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
 
-    // Прячем все страницы
-    document.querySelectorAll('.page').forEach(p => {
-        p.style.display = 'none';
-        p.classList.remove('active');
-    });
+        document.querySelectorAll('.page').forEach(p => {
+            p.style.display = 'none';
+            p.classList.remove('active');
+        });
 
-    // Показываем нужную страницу
-    const targetPage = document.getElementById('page-' + page);
-    if (targetPage) {
-        targetPage.style.display = 'block';
-        targetPage.classList.add('active');
-    }
-
-    currentPage = page;
-    
-    // Загружаем данные для страницы
-    if (typeof loadPageData === 'function') {
-        loadPageData(page);
-    }
-}
-
-    // ============================================================
-    // ЗАГРУЗКА МАТЧЕЙ ОТДЕЛЬНО
-    // ============================================================
-    async function loadMatches() {
-        try {
-            const response = await fetch(API_BASE + '/api/matches?t=' + Date.now());
-            if (response.ok) {
-                const data = await response.json();
-                matchesCache = data;
-                return data;
-            }
-            return null;
-        } catch (e) {
-            console.log('Ошибка загрузки матчей:', e);
-            return null;
+        const targetPage = document.getElementById('page-' + page);
+        if (targetPage) {
+            targetPage.style.display = 'block';
+            targetPage.classList.add('active');
         }
+
+        currentPage = page;
+        loadPageData(page);
     }
 
     // ============================================================
@@ -1627,6 +2390,21 @@ body.light-theme .bottom-nav::before {
         matchesCache = null;
         loadPageData(currentPage);
         showNotification('🔄 Обновление данных...', '');
+    }
+
+    async function loadMatches() {
+        try {
+            const response = await fetch(API_BASE + '/api/matches?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                matchesCache = data;
+                return data;
+            }
+            return null;
+        } catch (e) {
+            console.log('Ошибка загрузки матчей:', e);
+            return null;
+        }
     }
 
     // ============================================================
@@ -2156,6 +2934,55 @@ body.light-theme .bottom-nav::before {
                 </div>
             </div>
 
+            <!-- БЛОК АНАЛИЗА МАТЧЕЙ -->
+            <div class="card match-analysis-card">
+                <div class="card-header">
+                    <h2 style="color:#a78bfa;">📊 Анализ пропущенных матчей</h2>
+                    <button onclick="loadMatchAnalysis()" style="background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);border-radius:6px;padding:4px 12px;color:#a78bfa;cursor:pointer;font-size:11px;">
+                        🔄 Обновить
+                    </button>
+                </div>
+                
+                <div id="matchAnalysisStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+                    <div class="stat-item">
+                        <div class="number" style="color:#a78bfa;" id="maTotal">0</div>
+                        <div class="label">Всего матчей</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="number" style="color:#34d399;" id="maPassed">0</div>
+                        <div class="label">✅ Пройдено</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="number" style="color:#f87171;" id="maSkipped">0</div>
+                        <div class="label">⏭️ Пропущено</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="number" style="color:#fbbf24;" id="maRate">0%</div>
+                        <div class="label">📊 Проход</div>
+                    </div>
+                </div>
+                
+                <div id="matchAnalysisReasons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+                    <div class="reason-item" style="border-left-color:#f87171;">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">🚫 Нет мотивации</div>
+                        <div class="count" style="color:#f87171;" id="maNoMotivation">0</div>
+                    </div>
+                    <div class="reason-item" style="border-left-color:#fbbf24;">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📉 Низкая позиция</div>
+                        <div class="count" style="color:#fbbf24;" id="maLowPosition">0</div>
+                    </div>
+                    <div class="reason-item" style="border-left-color:#60a5fa;">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📊 XG вне диапазона</div>
+                        <div class="count" style="color:#60a5fa;" id="maXGOut">0</div>
+                    </div>
+                </div>
+                
+                <div id="matchRecommendations" class="recommendations" style="display:none;">
+                    <div class="title">💡 Рекомендации</div>
+                    <div class="list" id="recommendationsList"></div>
+                </div>
+            </div>
+
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
                     <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
@@ -2234,14 +3061,14 @@ body.light-theme .bottom-nav::before {
 
         document.getElementById('dashboard-content').innerHTML = html;
         
-        // Добавляем модальное окно
         addModalHTML();
         
         setTimeout(() => renderChart(data.profit_data), 50);
+        setTimeout(loadMatchAnalysis, 500);
     }
 
     // ============================================================
-    // МОДАЛЬНОЕ ОКНО (HTML)
+    // МОДАЛЬНОЕ ОКНО
     // ============================================================
     function addModalHTML() {
         if (document.getElementById('addMatchModal')) return;
@@ -2918,8 +3745,8 @@ body.light-theme .bottom-nav::before {
                         <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
                     </div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-                        <button class="btn" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
+                        <button class="btn btn-primary" onclick="runSimulation()">🎲 Запустить</button>
+                        <button class="btn btn-outline" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
                     </div>
                 </div>
                 <div id="simResults" style="display:none;">
@@ -2954,6 +3781,72 @@ body.light-theme .bottom-nav::before {
         document.getElementById('simulator-content').innerHTML = html;
     }
 
+    async function runSimulation() {
+        const count = parseInt(document.getElementById('simCount').value) || 1000;
+        document.getElementById('simResults').style.display = 'block';
+        try {
+            const response = await fetch(API_BASE + '/api/simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: count })
+            });
+            const data = await response.json();
+            if (data.error) {
+                showNotification('❌ Ошибка: ' + data.error, 'error');
+                return;
+            }
+            document.getElementById('simProfit').textContent = '$' + data.profit;
+            document.getElementById('simWinrate').textContent = data.winrate + '%';
+            document.getElementById('simROI').textContent = data.roi + '%';
+            document.getElementById('simRisk').textContent = data.risk + '%';
+            document.getElementById('simTotal').textContent = data.total;
+            document.getElementById('simWins').textContent = data.wins;
+            document.getElementById('simLosses').textContent = data.losses;
+            document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
+            document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
+            document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
+            const rec = document.getElementById('simRecommendation');
+            if (data.profit > 0) {
+                rec.innerHTML = '✅ <b style="color:#34d399;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
+            } else {
+                rec.innerHTML = '⚠️ <b style="color:#f87171;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
+            }
+            const ctx = document.getElementById('simChart');
+            if (ctx) {
+                if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
+                const isLight = document.body.classList.contains('light-theme');
+                simChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1),
+                        datasets: [{
+                            label: 'Прибыль ($)',
+                            data: data.history || [],
+                            borderColor: data.profit > 0 ? '#34d399' : '#f87171',
+                            backgroundColor: data.profit > 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
+                        },
+                        scales: {
+                            x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
+                            y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
+    }
+
     // ============================================================
     // НАСТРОЙКИ
     // ============================================================
@@ -2967,29 +3860,23 @@ body.light-theme .bottom-nav::before {
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Управление ботом</h2>
             <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Команды и настройки бота</div>
             
-            <!-- ============================================================
-                 КОМАНДЫ ДЛЯ БОТА
-                 ============================================================ -->
             <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
                 <div class="card-header">
                     <h2 style="color:#a78bfa;">📱 Команды бота</h2>
                     <span style="font-size:9px;color:rgba(255,255,255,0.3);">Отправка в Telegram</span>
                 </div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;">
-                    <button class="btn-primary" onclick="sendBotCommand('/update')" style="padding:8px 16px;">🔄 Обновить матчи</button>
-                    <button class="btn-primary" onclick="sendBotCommand('/stats')" style="padding:8px 16px;background:linear-gradient(135deg,#059669,#10b981);">📊 Статистика</button>
-                    <button class="btn-primary" onclick="sendBotCommand('/bank')" style="padding:8px 16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);">💰 Банк</button>
-                    <button class="btn-primary" onclick="sendBotCommand('/autobet')" style="padding:8px 16px;background:linear-gradient(135deg,#f472b6,#ec4899);">🤖 Авто-ставка</button>
-                    <button class="btn-primary" onclick="sendBotCommand('/update_results')" style="padding:8px 16px;background:linear-gradient(135deg,#6366f1,#4f46e5);">📋 Обновить результаты</button>
-                    <button class="btn-primary" onclick="sendBotCommand('/export')" style="padding:8px 16px;background:linear-gradient(135deg,#34d399,#059669);">📥 Экспорт Excel</button>
+                    <button class="btn btn-primary" onclick="sendBotCommand('/update')" style="padding:8px 16px;">🔄 Обновить матчи</button>
+                    <button class="btn btn-success" onclick="sendBotCommand('/stats')" style="padding:8px 16px;">📊 Статистика</button>
+                    <button class="btn btn-success" onclick="sendBotCommand('/bank')" style="padding:8px 16px;">💰 Банк</button>
+                    <button class="btn btn-primary" onclick="sendBotCommand('/autobet')" style="padding:8px 16px;">🤖 Авто-ставка</button>
+                    <button class="btn btn-primary" onclick="sendBotCommand('/update_results')" style="padding:8px 16px;">📋 Обновить результаты</button>
+                    <button class="btn btn-success" onclick="sendBotCommand('/export')" style="padding:8px 16px;">📥 Экспорт Excel</button>
                     <button class="btn btn-danger" onclick="sendBotCommand('/stop')" style="padding:8px 16px;">⏹️ Остановить поиск</button>
                 </div>
                 <div id="commandStatus" style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.3);">Нажмите кнопку для отправки команды боту</div>
             </div>
             
-            <!-- ============================================================
-                 НАСТРОЙКИ БОТА
-                 ============================================================ -->
             <div class="card" style="border:2px solid rgba(52,211,153,0.15);">
                 <div class="card-header">
                     <h2 style="color:#34d399;">🎛️ Настройки бота</h2>
@@ -2997,7 +3884,6 @@ body.light-theme .bottom-nav::before {
                 </div>
                 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <!-- 70%+ настройки -->
                     <div style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);">
                         <h3 style="color:rgba(255,255,255,0.5);font-size:11px;margin-bottom:8px;">🎯 70%+ (основной поиск)</h3>
                         
@@ -3033,7 +3919,6 @@ body.light-theme .bottom-nav::before {
                         </div>
                     </div>
                     
-                    <!-- ТМ 2.5 настройки -->
                     <div style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);">
                         <h3 style="color:rgba(255,255,255,0.5);font-size:11px;margin-bottom:8px;">🎯 ТМ 2.5 (специальный поиск)</h3>
                         
@@ -3077,14 +3962,13 @@ body.light-theme .bottom-nav::before {
                 </div>
                 
                 <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);">
-                    <button class="btn-success" onclick="saveBotSettings()" style="padding:8px 24px;">💾 Сохранить настройки</button>
+                    <button class="btn btn-success" onclick="saveBotSettings()" style="padding:8px 24px;">💾 Сохранить настройки</button>
                     <button class="btn btn-outline" onclick="loadBotSettings()" style="padding:8px 24px;">🔄 Загрузить настройки</button>
                     <button class="btn btn-outline" onclick="resetBotSettings()" style="padding:8px 24px;">↩️ Сбросить</button>
                 </div>
                 <div id="settingsStatus" style="margin-top:8px;font-size:11px;color:rgba(255,255,255,0.3);">Настройки загружены</div>
             </div>
             
-            <!-- СТАРЫЕ НАСТРОЙКИ (БАНК, ДЕТЕКТОР, ЭКСПОРТ) -->
             <div class="setting-group">
                 <h2>💰 Банк</h2>
                 <div class="setting-item">
@@ -3120,7 +4004,7 @@ body.light-theme .bottom-nav::before {
                         <div class="label">Сохранить проект</div>
                         <div class="desc">Скачать все данные и настройки в JSON</div>
                     </div>
-                    <button class="btn" onclick="exportProject()" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:#34d399;">
+                    <button class="btn btn-success" onclick="exportProject()" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:#34d399;">
                         💾 Сохранить
                     </button>
                 </div>
@@ -3139,18 +4023,10 @@ body.light-theme .bottom-nav::before {
             </div>
             
             <div class="setting-group">
-                <h2>🤖 Автоматизация</h2>
-                <div class="setting-item">
-                    <div><div class="label">Авто-ставки</div><div class="desc">Автоматическое размещение ставок</div></div>
-                    <div class="toggle active" onclick="this.classList.toggle('active')"><div class="dot"></div></div>
-                </div>
-            </div>
-            
-            <div class="setting-group">
                 <h2>📊 Экспорт / Импорт</h2>
                 <div class="setting-item">
                     <div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div>
-                    <button class="btn" onclick="window.location.href='/export'">📥 Скачать</button>
+                    <button class="btn btn-primary" onclick="window.location.href='/export'">📥 Скачать</button>
                 </div>
                 <div class="setting-item" style="border-bottom:none;">
                     <div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div>
@@ -3282,72 +4158,6 @@ body.light-theme .bottom-nav::before {
     // ============================================================
     // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
     // ============================================================
-    async function runSimulation() {
-        const count = parseInt(document.getElementById('simCount').value) || 1000;
-        document.getElementById('simResults').style.display = 'block';
-        try {
-            const response = await fetch(API_BASE + '/api/simulate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ count: count })
-            });
-            const data = await response.json();
-            if (data.error) {
-                showNotification('❌ Ошибка: ' + data.error, 'error');
-                return;
-            }
-            document.getElementById('simProfit').textContent = '$' + data.profit;
-            document.getElementById('simWinrate').textContent = data.winrate + '%';
-            document.getElementById('simROI').textContent = data.roi + '%';
-            document.getElementById('simRisk').textContent = data.risk + '%';
-            document.getElementById('simTotal').textContent = data.total;
-            document.getElementById('simWins').textContent = data.wins;
-            document.getElementById('simLosses').textContent = data.losses;
-            document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
-            document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
-            document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-            const rec = document.getElementById('simRecommendation');
-            if (data.profit > 0) {
-                rec.innerHTML = '✅ <b style="color:#34d399;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
-            } else {
-                rec.innerHTML = '⚠️ <b style="color:#f87171;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
-            }
-            const ctx = document.getElementById('simChart');
-            if (ctx) {
-                if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
-                const isLight = document.body.classList.contains('light-theme');
-                simChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1),
-                        datasets: [{
-                            label: 'Прибыль ($)',
-                            data: data.history || [],
-                            borderColor: data.profit > 0 ? '#34d399' : '#f87171',
-                            backgroundColor: data.profit > 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
-                        },
-                        scales: {
-                            x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
-                            y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
-                        }
-                    }
-                });
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
     async function updateBank() {
         const value = document.getElementById('bankInput').value;
         try {
@@ -3422,9 +4232,8 @@ body.light-theme .bottom-nav::before {
     });
 
     // ============================================================
-    // КОМАНДЫ ДЛЯ БОТА (ВЕБ)
+    // КОМАНДЫ ДЛЯ БОТА
     // ============================================================
-
     async function sendBotCommand(command) {
         const status = document.getElementById('commandStatus');
         status.textContent = `⏳ Отправка команды ${command}...`;
@@ -3456,9 +4265,8 @@ body.light-theme .bottom-nav::before {
     }
 
     // ============================================================
-    // НАСТРОЙКИ БОТА (ВЕБ)
+    // НАСТРОЙКИ БОТА
     // ============================================================
-
     async function saveBotSettings() {
         const status = document.getElementById('settingsStatus');
         status.textContent = '⏳ Сохранение настроек...';
@@ -3552,6 +4360,85 @@ body.light-theme .bottom-nav::before {
     }
 
     // ============================================================
+    // АНАЛИЗ МАТЧЕЙ
+    // ============================================================
+    async function loadMatchAnalysis() {
+        try {
+            const response = await fetch('/api/matches_log?t=' + Date.now());
+            if (!response.ok) {
+                showNotification('❌ Не удалось загрузить лог матчей', 'error');
+                return;
+            }
+            
+            const logData = await response.json();
+            const logText = logData.log || '';
+            
+            if (!logText) {
+                showNotification('⚠️ Нет данных для анализа. Подождите, пока бот найдет матчи.', '');
+                document.getElementById('maTotal').textContent = '0';
+                document.getElementById('maPassed').textContent = '0';
+                document.getElementById('maSkipped').textContent = '0';
+                document.getElementById('maRate').textContent = '0%';
+                document.getElementById('maNoMotivation').textContent = '0';
+                document.getElementById('maLowPosition').textContent = '0';
+                document.getElementById('maXGOut').textContent = '0';
+                document.getElementById('matchRecommendations').style.display = 'none';
+                return;
+            }
+            
+            const analyzeResponse = await fetch('/api/analyze_matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ log: logText })
+            });
+            
+            const result = await analyzeResponse.json();
+            
+            if (!result.success) {
+                showNotification('❌ Ошибка анализа: ' + result.error, 'error');
+                return;
+            }
+            
+            const stats = result.stats;
+            const recommendations = result.recommendations;
+            
+            document.getElementById('maTotal').textContent = stats.total || 0;
+            
+            const skipped = (stats.categories?.no_motivation?.count || 0) + 
+                           (stats.categories?.low_position?.count || 0) + 
+                           (stats.categories?.xg_out_of_range?.count || 0);
+            const passed = (stats.total || 0) - skipped;
+            
+            document.getElementById('maPassed').textContent = passed;
+            document.getElementById('maSkipped').textContent = skipped;
+            document.getElementById('maRate').textContent = stats.total > 0 ? 
+                ((passed / stats.total) * 100).toFixed(1) + '%' : '0%';
+            
+            document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
+            document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
+            document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
+            
+            const recDiv = document.getElementById('matchRecommendations');
+            const recList = document.getElementById('recommendationsList');
+            
+            if (recommendations && recommendations.length > 0 && stats.total > 0) {
+                recDiv.style.display = 'block';
+                recList.innerHTML = recommendations.map(r => '• ' + r).join('<br>');
+            } else {
+                recDiv.style.display = 'none';
+            }
+            
+            if (stats.total > 0) {
+                showNotification('✅ Анализ матчей обновлен', 'success');
+            }
+            
+        } catch (error) {
+            console.error('Ошибка загрузки анализа:', error);
+            showNotification('❌ Ошибка: ' + error.message, 'error');
+        }
+    }
+
+    // ============================================================
     // ЗАПУСК
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
@@ -3562,237 +4449,6 @@ body.light-theme .bottom-nav::before {
 </body>
 </html>
 """
-
-# ============================================================
-# ПРОВЕРКА БОТА
-# ============================================================
-
-def check_bot_health():
-    try:
-        response = requests.get(f'{BOT_URL}/health', timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            logger.info(f"✅ Бот доступен: {data}")
-            return True, data
-        else:
-            logger.warning(f"⚠️ Бот вернул код {response.status_code}")
-            return False, None
-    except Exception as e:
-        logger.error(f"❌ Бот недоступен: {e}")
-        return False, None
-
-# ============================================================
-# API МАРШРУТЫ
-# ============================================================
-
-@app.route('/')
-def index():
-    return render_template_string(MAIN_HTML)
-
-@app.route('/api/all_data')
-def api_all_data():
-    try:
-        response = requests.get(f'{BOT_URL}/api/all_data', timeout=15)
-        if response.status_code == 200:
-            return jsonify(response.json())
-        else:
-            return jsonify({'error': f'Бот вернул ошибку {response.status_code}'}), 500
-    except Exception as e:
-        logger.error(f"Ошибка: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/matches')
-def api_matches():
-    try:
-        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
-        if response.status_code == 200:
-            return jsonify(response.json())
-        return jsonify([])
-    except:
-        return jsonify([])
-
-@app.route('/api/stats')
-def api_stats():
-    try:
-        response = requests.get(f'{BOT_URL}/api/stats', timeout=10)
-        if response.status_code == 200:
-            return jsonify(response.json())
-        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
-    except:
-        return jsonify({'bank': 1000, 'total_bets': 0, 'wins': 0, 'losses': 0, 'profit': 0})
-
-@app.route('/api/history')
-def api_history():
-    try:
-        response = requests.get(f'{BOT_URL}/api/history', timeout=10)
-        if response.status_code == 200:
-            return jsonify(response.json())
-        return jsonify([])
-    except:
-        return jsonify([])
-
-@app.route('/api/import_excel', methods=['POST'])
-def import_excel():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/import_excel', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/import_project', methods=['POST'])
-def import_project():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/import_project', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/edit_bet', methods=['POST'])
-def edit_bet():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/edit_bet', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/delete_bet', methods=['POST'])
-def delete_bet():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/delete_bet', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/bank', methods=['POST'])
-def update_bank():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/bank', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/simulate', methods=['POST'])
-def simulate():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/simulate', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/add_manual_match', methods=['POST'])
-def add_manual_match():
-    try:
-        data = request.json
-        response = requests.post(f'{BOT_URL}/api/add_manual_match', json=data, timeout=30)
-        return jsonify(response.json()), response.status_code
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/health')
-def health():
-    bot_ok, bot_data = check_bot_health()
-    return jsonify({
-        'status': 'ok',
-        'web': 'running',
-        'bot': 'ok' if bot_ok else 'error',
-        'bot_data': bot_data,
-        'bot_url': BOT_URL
-    })
-
-# ============================================================
-# API ДЛЯ КОМАНД И НАСТРОЕК (НОВЫЕ)
-# ============================================================
-
-@app.route('/api/send_command', methods=['POST'])
-def send_command():
-    """Отправляет команду боту"""
-    try:
-        data = request.json
-        command = data.get('command', '')
-        
-        if not command:
-            return jsonify({'success': False, 'error': 'Команда не указана'}), 400
-        
-        # Отправляем команду через Telegram API
-        url = f"https://api.telegram.org/bot{os.environ.get('TELEGRAM_TOKEN', '')}/sendMessage"
-        payload = {
-            'chat_id': os.environ.get('ADMIN_CHAT_ID', ''),
-            'text': command,
-            'parse_mode': 'HTML'
-        }
-        
-        response = requests.post(url, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            return jsonify({'success': True, 'message': f'Команда {command} отправлена'})
-        else:
-            return jsonify({'success': False, 'error': f'Ошибка Telegram: {response.status_code}'}), 500
-            
-    except Exception as e:
-        logger.error(f"Ошибка отправки команды: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/save_settings', methods=['POST'])
-def save_settings():
-    """Сохраняет настройки бота"""
-    try:
-        data = request.json
-        
-        # Сохраняем в файл
-        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
-        with open(settings_file, 'w') as f:
-            json.dump(data, f, indent=2)
-        
-        # Отправляем настройки в бот
-        try:
-            response = requests.post(f'{BOT_URL}/api/update_settings', json=data, timeout=5)
-            if response.status_code != 200:
-                logger.warning(f"Не удалось обновить настройки в боте: {response.status_code}")
-        except:
-            pass
-        
-        return jsonify({'success': True, 'message': 'Настройки сохранены'})
-        
-    except Exception as e:
-        logger.error(f"Ошибка сохранения настроек: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/get_settings', methods=['GET'])
-def get_settings():
-    """Загружает настройки бота"""
-    try:
-        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
-        
-        if os.path.exists(settings_file):
-            with open(settings_file, 'r') as f:
-                settings = json.load(f)
-            return jsonify({'success': True, 'settings': settings})
-        else:
-            # Возвращаем настройки по умолчанию
-            default_settings = {
-                'ev_min_70': 20,
-                'prob_min_70': 60,
-                'xg_min_70': 1.8,
-                'xg_max_70': 3.0,
-                'position_max_70': 15,
-                'premium_ev': 30,
-                'standard_ev': 15,
-                'xg_min_tm25': 1.0,
-                'xg_max_tm25': 3.0,
-                'max_tm25_bets': 5,
-                'top_league_ev': 35
-            }
-            return jsonify({'success': True, 'settings': default_settings})
-            
-    except Exception as e:
-        logger.error(f"Ошибка загрузки настроек: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
 # ЗАПУСК
