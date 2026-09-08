@@ -24,12 +24,16 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
+from fastapi.staticfiles import StaticFiles
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
 # ============================================================
 logger = get_logger(__name__)
 app = Flask(__name__)
+
+# Подключаем статическую папку
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 search_running = False
 search_state = {}
