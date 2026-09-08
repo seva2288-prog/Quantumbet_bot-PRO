@@ -1,15 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#4c1d95"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <text x="250" y="360" font-size="280" font-weight="700" 
-        font-family="Arial, sans-serif" text-anchor="middle" fill="white">Q</text>
-  <g transform="translate(340, 160)">
-    <line x1="0" y1="50" x2="50" y2="0" stroke="#fbbf24" stroke-width="18" stroke-linecap="round"/>
-    <polygon points="50,0 20,-25 70,18" fill="#fbbf24"/>
-  </g>
-</svg>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosmic Arrow Animated</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #05050a;
+    }
+
+    .portal {
+      width: 300px;
+      height: 300px;
+      border-radius: 52px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 
+        0 0 50px rgba(0, 190, 255, 0.3),
+        0 0 100px rgba(140, 40, 255, 0.2),
+        inset 0 0 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .portal img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      animation: swirl 20s linear infinite;
+    }
+
+    @keyframes swirl {
+      from { transform: scale(1) rotate(0deg); }
+      to   { transform: scale(1.05) rotate(8deg); }
+    }
+
+    /* Свечение стрелки */
+    .portal::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, 
+        rgba(0, 255, 255, 0.15) 0%, 
+        transparent 50%);
+      animation: glow 2.5s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes glow {
+      from { opacity: 0.4; }
+      to   { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="portal">
+    <img src="cosmic-arrow-icon.jpg" alt="Cosmic Portal">
+  </div>
+</body>
+</html>
