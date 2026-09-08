@@ -31,7 +31,6 @@ from fastapi.staticfiles import StaticFiles
 # ============================================================
 logger = get_logger(__name__)
 app = Flask(__name__)
-
 # Подключаем статическую папку
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
