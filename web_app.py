@@ -362,32 +362,116 @@ def analyze_matches():
 def get_matches_log():
     """Возвращает лог матчей от бота"""
     try:
-        response = requests.get(f'{BOT_URL}/api/log', timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            log_text = data.get('log', '')
-            if log_text:
-                return jsonify({
-                    'log': log_text,
-                    'source': 'bot',
-                    'timestamp': datetime.now().isoformat()
-                })
+        # ПРОБУЕМ ПОЛУЧИТЬ ЛОГ ИЗ ФАЙЛА НА СЕРВЕРЕ БОТА
+        try:
+            response = requests.get(f'{BOT_URL}/logs/matches.log', timeout=5)
+            if response.status_code == 200:
+                log_text = response.text
+                if log_text and len(log_text) > 100:
+                    return jsonify({
+                        'log': log_text,
+                        'source': 'bot_file',
+                        'timestamp': datetime.now().isoformat()
+                    })
+        except Exception as e:
+            logger.warning(f"Не удалось получить лог с бота: {e}")
         
+        # ПРОБУЕМ ПОЛУЧИТЬ ЛОГ ЧЕРЕЗ API БОТА
+        try:
+            response = requests.get(f'{BOT_URL}/api/log', timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                log_text = data.get('log', '')
+                if log_text and len(log_text) > 100:
+                    return jsonify({
+                        'log': log_text,
+                        'source': 'bot_api',
+                        'timestamp': datetime.now().isoformat()
+                    })
+        except Exception as e:
+            logger.warning(f"Не удалось получить лог через API: {e}")
+        
+        # ПРОБУЕМ ПОЛУЧИТЬ ЛОГ ИЗ ЛОКАЛЬНОГО ФАЙЛА
         log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
         if os.path.exists(log_file):
             with open(log_file, 'r', encoding='utf-8') as f:
                 log_text = f.read()
-            if log_text:
+            if log_text and len(log_text) > 100:
                 return jsonify({
                     'log': log_text,
-                    'source': 'file',
+                    'source': 'local_file',
                     'timestamp': datetime.fromtimestamp(os.path.getmtime(log_file)).isoformat()
                 })
         
+        # ПРОБУЕМ ПОЛУЧИТЬ ЛОГ ИЗ РАБОЧЕЙ ДИРЕКТОРИИ БОТА
+        try:
+            response = requests.get(f'{BOT_URL}/static/logs/matches.log', timeout=5)
+            if response.status_code == 200:
+                log_text = response.text
+                if log_text and len(log_text) > 100:
+                    return jsonify({
+                        'log': log_text,
+                        'source': 'bot_static',
+                        'timestamp': datetime.now().isoformat()
+                    })
+        except:
+            pass
+        
+        # ЕСЛИ НИЧЕГО НЕ НАШЛИ, СОЗДАЕМ ЛОГ ИЗ МАТЧЕЙ
+        try:
+            matches_response = requests.get(f'{BOT_URL}/api/matches', timeout=5)
+            if matches_response.status_code == 200:
+                matches = matches_response.json()
+                if matches and len(matches) > 0:
+                    log_lines = []
+                    for match in matches:
+                        xg = match.get('total_xg', 0)
+                        home = match.get('home', 'Unknown')
+                        away = match.get('away', 'Unknown')
+                        skip_reason = match.get('skip_reason', '')
+                        
+                        if skip_reason:
+                            if 'xg' in skip_reason.lower() or 'XG' in skip_reason:
+                                log_lines.append(f"⏭️ Пропускаем (XG вне диапазона 1.8-3.0): {home} vs {away} | XG: {xg}")
+                            elif 'позици' in skip_reason.lower():
+                                log_lines.append(f"⏭️ Пропускаем (низкая позиция): {home} vs {away}")
+                            elif 'мотиваци' in skip_reason.lower():
+                                log_lines.append(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
+                    
+                    if log_lines:
+                        log_text = '\n'.join(log_lines)
+                        # Сохраняем локально
+                        try:
+                            with open(log_file, 'w', encoding='utf-8') as f:
+                                f.write(log_text)
+                        except:
+                            pass
+                        return jsonify({
+                            'log': log_text,
+                            'source': 'generated_from_matches',
+                            'timestamp': datetime.now().isoformat(),
+                            'match_count': len(matches)
+                        })
+        except:
+            pass
+        
+        # ВОЗВРАЩАЕМ ТЕСТОВЫЙ ЛОГ
+        test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Cowdenbeath vs Kilmarnock II | XG: 4.39
+2026-09-08T04:38:19.667 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Gala Fairydean Rovers vs Hearts U21 | XG: 4.75
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): AEK Athens FC vs Lask Linz | XG: 3.66
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Porto U19 vs Manchester City U19 | XG: 4.11
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Real Madrid U19 vs Internazionale U19 | XG: 4.40
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Watford vs Preston | H: #17, A: #23
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Southampton vs Swansea | H: #19, A: #1
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Blackburn vs Sheffield Utd
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Al-Ettifaq vs Al-Faisaly FC"""
+        
         return jsonify({
-            'log': '',
-            'source': 'none',
-            'timestamp': datetime.now().isoformat()
+            'log': test_log,
+            'source': 'test_data',
+            'timestamp': datetime.now().isoformat(),
+            'message': 'Используются тестовые данные, так как лог бота не найден'
         })
         
     except Exception as e:
@@ -492,6 +576,31 @@ def test_matches():
 @app.route('/api/save_matches_log', methods=['POST'])
 def save_matches_log():
     """Сохраняет лог матчей в файл"""
+    try:
+        data = request.json
+        log_text = data.get('log', '')
+        
+        if not log_text:
+            return jsonify({'success': False, 'error': 'Лог пуст'}), 400
+        
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(log_text)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Лог сохранен',
+            'file': log_file,
+            'size': len(log_text)
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка сохранения лога: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/save_bot_log', methods=['POST'])
+def save_bot_log():
+    """Сохраняет лог от бота в локальный файл"""
     try:
         data = request.json
         log_text = data.get('log', '')
@@ -4342,7 +4451,13 @@ MAIN_HTML = """<!DOCTYPE html>
     // ============================================================
     async function loadMatchAnalysis() {
         try {
-            // Сначала пробуем получить лог от бота
+            // Показываем загрузку
+            document.getElementById('maTotal').textContent = '⏳';
+            document.getElementById('maPassed').textContent = '⏳';
+            document.getElementById('maSkipped').textContent = '⏳';
+            document.getElementById('maRate').textContent = '⏳%';
+            
+            // Пробуем получить лог от бота
             let response = await fetch('/api/matches_log?t=' + Date.now());
             let logText = '';
             let source = 'none';
@@ -4351,64 +4466,100 @@ MAIN_HTML = """<!DOCTYPE html>
                 const data = await response.json();
                 logText = data.log || '';
                 source = data.source || 'bot';
+                console.log('📥 Источник лога:', source);
+                console.log('📄 Длина лога:', logText.length);
             }
             
-            // Если лог пустой, используем тестовый
-            if (!logText || logText.trim() === '') {
-                const testResponse = await fetch('/api/test_analysis');
-                if (testResponse.ok) {
-                    const testData = await testResponse.json();
-                    if (testData.success && testData.stats.total > 0) {
-                        updateAnalysisUI(testData.stats, testData.recommendations);
-                        showNotification('📊 Используются тестовые данные (лог бота пуст)', '');
-                        return;
-                    }
+            // Если лог есть, анализируем
+            if (logText && logText.trim() !== '' && logText.length > 50) {
+                const analyzeResponse = await fetch('/api/analyze_matches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ log: logText })
+                });
+                
+                const result = await analyzeResponse.json();
+                
+                if (!result.success) {
+                    showNotification('❌ Ошибка анализа: ' + result.error, 'error');
+                    return;
                 }
                 
-                showNotification('⚠️ Нет данных для анализа. Подождите, пока бот найдет матчи.', '');
-                resetAnalysisUI();
+                updateAnalysisUI(result.stats, result.recommendations);
+                
+                const sourceText = source === 'test_data' ? ' (тестовые)' : '';
+                showNotification(`✅ Анализ матчей обновлен${sourceText} (${result.stats.total} матчей)`, 'success');
                 return;
             }
             
-            // Анализируем лог
-            const analyzeResponse = await fetch('/api/analyze_matches', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ log: logText })
-            });
-            
-            const result = await analyzeResponse.json();
-            
-            if (!result.success) {
-                showNotification('❌ Ошибка анализа: ' + result.error, 'error');
-                return;
+            // Если лог пустой, пробуем получить матчи напрямую
+            const matchesResponse = await fetch('/api/matches?t=' + Date.now());
+            if (matchesResponse.ok) {
+                const matches = await matchesResponse.json();
+                if (matches && matches.length > 0) {
+                    // Создаем лог из матчей
+                    let logLines = [];
+                    matches.forEach(match => {
+                        const xg = match.total_xg || 0;
+                        const home = match.home || 'Unknown';
+                        const away = match.away || 'Unknown';
+                        const skipReason = match.skip_reason || '';
+                        
+                        if (skipReason) {
+                            if (skipReason.toLowerCase().includes('xg') || skipReason.includes('XG')) {
+                                logLines.push(`⏭️ Пропускаем (XG вне диапазона 1.8-3.0): ${home} vs ${away} | XG: ${xg}`);
+                            } else if (skipReason.toLowerCase().includes('позици')) {
+                                logLines.push(`⏭️ Пропускаем (низкая позиция): ${home} vs ${away}`);
+                            } else if (skipReason.toLowerCase().includes('мотиваци')) {
+                                logLines.push(`⏭️ Пропускаем (нет мотивации): ${home} vs ${away}`);
+                            }
+                        }
+                    });
+                    
+                    if (logLines.length > 0) {
+                        logText = logLines.join('\n');
+                        // Сохраняем лог
+                        await fetch('/api/save_bot_log', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log: logText })
+                        });
+                        
+                        // Анализируем
+                        const analyzeResponse = await fetch('/api/analyze_matches', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log: logText })
+                        });
+                        
+                        const result = await analyzeResponse.json();
+                        if (result.success) {
+                            updateAnalysisUI(result.stats, result.recommendations);
+                            showNotification(`✅ Анализ матчей обновлен из матчей бота (${result.stats.total} матчей)`, 'success');
+                            return;
+                        }
+                    }
+                }
             }
             
-            updateAnalysisUI(result.stats, result.recommendations);
+            // Если ничего не найдено, показываем тестовые данные
+            showNotification('⚠️ Нет данных для анализа. Используются тестовые данные.', '');
+            resetAnalysisUI();
             
-            if (result.stats.total > 0) {
-                showNotification(`✅ Анализ матчей обновлен (${result.stats.total} матчей)`, 'success');
+            // Загружаем тестовые данные
+            const testResponse = await fetch('/api/test_analysis');
+            if (testResponse.ok) {
+                const testData = await testResponse.json();
+                if (testData.success && testData.stats.total > 0) {
+                    updateAnalysisUI(testData.stats, testData.recommendations);
+                    showNotification('📊 Используются тестовые данные', '');
+                    return;
+                }
             }
             
         } catch (error) {
             console.error('Ошибка загрузки анализа:', error);
             showNotification('❌ Ошибка: ' + error.message, 'error');
-            
-            // Пробуем тестовый режим
-            try {
-                const testResponse = await fetch('/api/test_analysis');
-                if (testResponse.ok) {
-                    const testData = await testResponse.json();
-                    if (testData.success && testData.stats.total > 0) {
-                        updateAnalysisUI(testData.stats, testData.recommendations);
-                        showNotification('📊 Используются тестовые данные', '');
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.error('Ошибка тестового режима:', e);
-            }
-            
             resetAnalysisUI();
         }
     }
