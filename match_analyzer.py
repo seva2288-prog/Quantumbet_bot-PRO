@@ -27,25 +27,47 @@ class MatchAnalyzer:
             'reason': '',
             'reason_detail': '',
             'xg': None,
-            'positions': {}
+            'positions': {},
+            'league': '',
+            'raw': line
         }
         
-        # Парсим матч
-        match_pattern = r'([A-Za-z\s\-\.]+)\s+vs\s+([A-Za-z\s\-\.]+(?:\s+[A-Za-z]+)?)'
-        match_match = re.search(match_pattern, line)
-        if match_match:
-            result['home'] = match_match.group(1).strip()
-            result['away'] = match_match.group(2).strip()
-            result['match'] = f"{result['home']} vs {result['away']}"
+        # Ищем название матча - разные паттерны
+        match_patterns = [
+            r'([A-Za-z\s\-\.]+)\s+vs\s+([A-Za-z\s\-\.]+(?:\s+[A-Za-z]+)?)',
+            r'([A-Za-z\s\-\.]+)\s+-\s+([A-Za-z\s\-\.]+)',
+            r'([A-Za-z\s\-\.]+)\s+/\s+([A-Za-z\s\-\.]+)'
+        ]
+        
+        for pattern in match_patterns:
+            match_match = re.search(pattern, line)
+            if match_match:
+                result['home'] = match_match.group(1).strip()
+                result['away'] = match_match.group(2).strip()
+                result['match'] = f"{result['home']} vs {result['away']}"
+                break
+        
+        # Если не нашли по паттерну, пробуем извлечь из "Пропускаем (XG вне диапазона):"
+        if not result['match']:
+            xg_match = re.search(r'Пропускаем\s*\([^)]+\):\s*([^|]+)', line)
+            if xg_match:
+                match_text = xg_match.group(1).strip()
+                result['match'] = match_text
+                # Пробуем разделить на home/away
+                if ' vs ' in match_text:
+                    parts = match_text.split(' vs ')
+                    result['home'] = parts[0].strip()
+                    result['away'] = parts[1].strip()
         
         # Определяем причину
-        if 'нет мотивации' in line.lower():
+        line_lower = line.lower()
+        
+        if 'нет мотивации' in line_lower:
             result['reason'] = 'no_motivation'
             result['reason_detail'] = 'Нет мотивации'
         
-        elif 'низкая позиция' in line.lower():
+        elif 'низкая позиция' in line_lower:
             result['reason'] = 'low_position'
-            # Парсим позиции
             pos_pattern = r'H: #?(\d+), A: #?(\d+)'
             pos_match = re.search(pos_pattern, line)
             if pos_match:
@@ -53,15 +75,20 @@ class MatchAnalyzer:
                     'home': int(pos_match.group(1)),
                     'away': int(pos_match.group(2))
                 }
-            result['reason_detail'] = 'Низкая позиция в таблице'
+            result['reason_detail'] = f"Низкая позиция (H: {result['positions'].get('home', '?')}, A: {result['positions'].get('away', '?')})"
         
-        elif 'xg вне диапазона' in line.lower() or 'XG вне диапазона' in line:
+        elif 'xg вне диапазона' in line_lower or 'xg вне диапазона' in line_lower:
             result['reason'] = 'xg_out_of_range'
             xg_pattern = r'XG:\s*([\d.]+)'
             xg_match = re.search(xg_pattern, line)
             if xg_match:
                 result['xg'] = float(xg_match.group(1))
             result['reason_detail'] = f'XG = {result["xg"]} (вне 1.8-3.0)'
+        
+        # Парсим лигу если есть
+        league_match = re.search(r'\[([A-Za-z\s]+)\]', line)
+        if league_match:
+            result['league'] = league_match.group(1).strip()
         
         return result
     
@@ -75,26 +102,31 @@ class MatchAnalyzer:
             'categories': {
                 'no_motivation': {'count': 0, 'matches': []},
                 'low_position': {'count': 0, 'matches': []},
-                'xg_out_of_range': {'count': 0, 'matches': []}
+                'xg_out_of_range': {'count': 0, 'matches': []},
+                'passed': {'count': 0, 'matches': []}
             },
             'xg_stats': {
                 'min': float('inf'),
                 'max': float('-inf'),
                 'total': 0,
-                'count': 0
+                'count': 0,
+                'values': []
             },
             'position_stats': {
                 'home_min': 99,
                 'home_max': 0,
                 'away_min': 99,
-                'away_max': 0
+                'away_max': 0,
+                'home_positions': [],
+                'away_positions': []
             },
             'by_league': defaultdict(int),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'all_matches': []
         }
         
         for line in lines:
-            if 'Пропускаем' not in line:
+            if 'Пропускаем' not in line and '⏭️ Пропускаем' not in line:
                 continue
             
             parsed = MatchAnalyzer.parse_log_line(line)
@@ -102,6 +134,7 @@ class MatchAnalyzer:
                 continue
             
             stats['total'] += 1
+            stats['all_matches'].append(parsed)
             
             # Добавляем в категорию
             if parsed['reason'] in stats['categories']:
@@ -111,7 +144,9 @@ class MatchAnalyzer:
                     'home': parsed['home'],
                     'away': parsed['away'],
                     'xg': parsed['xg'],
-                    'positions': parsed['positions']
+                    'positions': parsed['positions'],
+                    'league': parsed['league'],
+                    'reason_detail': parsed['reason_detail']
                 })
             
             # Статистика по XG
@@ -120,6 +155,7 @@ class MatchAnalyzer:
                 stats['xg_stats']['max'] = max(stats['xg_stats']['max'], parsed['xg'])
                 stats['xg_stats']['total'] += parsed['xg']
                 stats['xg_stats']['count'] += 1
+                stats['xg_stats']['values'].append(parsed['xg'])
             
             # Статистика по позициям
             if parsed['positions']:
@@ -128,9 +164,15 @@ class MatchAnalyzer:
                 if home_pos < 99:
                     stats['position_stats']['home_min'] = min(stats['position_stats']['home_min'], home_pos)
                     stats['position_stats']['home_max'] = max(stats['position_stats']['home_max'], home_pos)
+                    stats['position_stats']['home_positions'].append(home_pos)
                 if away_pos < 99:
                     stats['position_stats']['away_min'] = min(stats['position_stats']['away_min'], away_pos)
                     stats['position_stats']['away_max'] = max(stats['position_stats']['away_max'], away_pos)
+                    stats['position_stats']['away_positions'].append(away_pos)
+            
+            # По лигам
+            if parsed['league']:
+                stats['by_league'][parsed['league']] += 1
         
         # Вычисляем средний XG
         if stats['xg_stats']['count'] > 0:
@@ -159,7 +201,7 @@ class MatchAnalyzer:
         
         total = stats['total']
         if total == 0:
-            return ['Нет данных для анализа']
+            return ['📭 Нет данных для анализа. Подождите, пока бот найдет матчи.']
         
         # Проверяем XG
         if stats['xg_stats']['count'] > 0:
@@ -168,16 +210,21 @@ class MatchAnalyzer:
                 recommendations.append(f'⚠️ Средний XG ({avg_xg:.2f}) слишком высокий. Рассмотрите матчи с XG 1.8-3.0')
             elif avg_xg < 1.8:
                 recommendations.append(f'⚠️ Средний XG ({avg_xg:.2f}) слишком низкий. Ищите матчи с XG 1.8-3.0')
-        
-        # Проверяем позиции
-        home_min = stats['position_stats']['home_min']
-        if home_min < 15:
-            recommendations.append(f'📊 Найдены матчи с высокими позициями хозяев (#{home_min}). Возможно, стоит ослабить фильтр.')
+            else:
+                recommendations.append(f'✅ Средний XG ({avg_xg:.2f}) в норме')
         
         # Проверяем категории
         for cat in stats['top_reasons']:
-            if cat['count'] / total > 0.5:
+            if cat['name'] != 'passed' and cat['count'] / total > 0.4:
                 recommendations.append(f'🔍 {cat["count"]} матчей ({cat["percent"]:.1f}%) пропущено по причине "{cat["name"]}". Проверьте настройки фильтра.')
+        
+        # Рекомендации по XG > 4
+        xg_high_matches = [m for m in stats['all_matches'] if m.get('xg') and m['xg'] > 4]
+        if xg_high_matches:
+            recommendations.append(f'⚽ Найдено {len(xg_high_matches)} матчей с XG > 4. Возможно, стоит расширить диапазон XG.')
+            # Показываем первые 3
+            for m in xg_high_matches[:3]:
+                recommendations.append(f'  • {m["match"]} (XG: {m["xg"]})')
         
         if not recommendations:
             recommendations.append('✅ Все фильтры работают корректно!')
