@@ -240,12 +240,10 @@ def send_command():
         if not command:
             return jsonify({'success': False, 'error': 'Команда не указана'}), 400
         
-        # Отправляем команду через Telegram API
         telegram_token = os.environ.get('TELEGRAM_TOKEN', '')
         admin_chat_id = os.environ.get('ADMIN_CHAT_ID', '')
         
         if not telegram_token or not admin_chat_id:
-            # Если нет Telegram, отправляем через API бота
             response = requests.post(f'{BOT_URL}/api/command', json={'command': command}, timeout=10)
             if response.status_code == 200:
                 return jsonify({'success': True, 'message': f'Команда {command} отправлена боту'})
@@ -276,12 +274,10 @@ def save_settings():
     try:
         data = request.json
         
-        # Сохраняем в файл
         settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
         with open(settings_file, 'w') as f:
             json.dump(data, f, indent=2)
         
-        # Отправляем настройки в бот
         try:
             response = requests.post(f'{BOT_URL}/api/update_settings', json=data, timeout=5)
             if response.status_code != 200:
@@ -306,7 +302,6 @@ def get_settings():
                 settings = json.load(f)
             return jsonify({'success': True, 'settings': settings})
         else:
-            # Возвращаем настройки по умолчанию
             default_settings = {
                 'ev_min_70': 20,
                 'prob_min_70': 60,
@@ -327,7 +322,7 @@ def get_settings():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
-# API ДЛЯ АНАЛИЗА МАТЧЕЙ (НОВЫЕ)
+# API ДЛЯ АНАЛИЗА МАТЧЕЙ
 # ============================================================
 
 @app.route('/api/analyze_matches', methods=['POST'])
@@ -343,11 +338,9 @@ def analyze_matches():
                 'error': 'Лог не предоставлен'
             }), 400
         
-        # Анализируем лог
         stats = MatchAnalyzer.analyze_logs(log_text)
         recommendations = MatchAnalyzer.get_recommendations(stats)
         
-        # Добавляем дополнительную статистику
         stats['analysis_time'] = datetime.now().isoformat()
         stats['log_length'] = len(log_text)
         stats['lines_analyzed'] = len([line for line in log_text.split('\n') if 'Пропускаем' in line])
@@ -369,7 +362,6 @@ def analyze_matches():
 def get_matches_log():
     """Возвращает лог матчей от бота"""
     try:
-        # Пробуем получить лог от бота
         response = requests.get(f'{BOT_URL}/api/log', timeout=5)
         if response.status_code == 200:
             data = response.json()
@@ -381,7 +373,6 @@ def get_matches_log():
                     'timestamp': datetime.now().isoformat()
                 })
         
-        # Если не получилось, ищем сохраненный лог
         log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
         if os.path.exists(log_file):
             with open(log_file, 'r', encoding='utf-8') as f:
@@ -393,7 +384,6 @@ def get_matches_log():
                     'timestamp': datetime.fromtimestamp(os.path.getmtime(log_file)).isoformat()
                 })
         
-        # Если ничего нет, возвращаем пустой лог
         return jsonify({
             'log': '',
             'source': 'none',
@@ -404,109 +394,100 @@ def get_matches_log():
         logger.error(f"Ошибка получения лога: {e}")
         return jsonify({'log': '', 'source': 'error', 'error': str(e)})
 
-@app.route('/api/match_stats')
-def get_match_stats():
-    """Возвращает агрегированную статистику по матчам"""
-    try:
-        # Получаем данные от бота
-        response = requests.get(f'{BOT_URL}/api/matches', timeout=10)
-        if response.status_code != 200:
-            return jsonify({'error': 'Не удалось получить данные'}), 500
-        
-        matches = response.json()
-        
-        if not matches:
-            return jsonify({
-                'success': True,
-                'stats': {
-                    'total': 0,
-                    'filtered': {
-                        'no_motivation': 0,
-                        'low_position': 0,
-                        'xg_out_of_range': 0,
-                        'passed': 0
-                    },
-                    'by_league': {},
-                    'xg_distribution': {
-                        'low': 0,
-                        'normal': 0,
-                        'high': 0
-                    }
-                }
-            })
-        
-        # Анализируем матчи
-        stats = {
-            'total': len(matches),
-            'filtered': {
-                'no_motivation': 0,
-                'low_position': 0,
-                'xg_out_of_range': 0,
-                'passed': 0
-            },
-            'by_league': defaultdict(int),
-            'xg_distribution': {
-                'low': 0,  # < 1.8
-                'normal': 0,  # 1.8-3.0
-                'high': 0  # > 3.0
-            },
-            'avg_xg': 0,
-            'total_xg': 0
+@app.route('/api/test_analysis')
+def test_analysis():
+    """Тестовый анализ с примером лога"""
+    test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Cowdenbeath vs Kilmarnock II | XG: 4.39
+2026-09-08T04:38:19.667 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Gala Fairydean Rovers vs Hearts U21 | XG: 4.75
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): AEK Athens FC vs Lask Linz | XG: 3.66
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Porto U19 vs Manchester City U19 | XG: 4.11
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Real Madrid U19 vs Internazionale U19 | XG: 4.40
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Watford vs Preston | H: #17, A: #23
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Southampton vs Swansea | H: #19, A: #1
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Blackburn vs Sheffield Utd
+2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Al-Ettifaq vs Al-Faisaly FC"""
+    
+    stats = MatchAnalyzer.analyze_logs(test_log)
+    recommendations = MatchAnalyzer.get_recommendations(stats)
+    
+    return jsonify({
+        'success': True,
+        'stats': stats,
+        'recommendations': recommendations,
+        'test_mode': True
+    })
+
+@app.route('/api/test_matches')
+def test_matches():
+    """Возвращает тестовые матчи для демонстрации"""
+    test_matches = [
+        {
+            'home': 'Cowdenbeath',
+            'away': 'Kilmarnock II',
+            'total_xg': 4.39,
+            'league': 'Шотландия',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 16:00'
+        },
+        {
+            'home': 'Gala Fairydean Rovers',
+            'away': 'Hearts U21',
+            'total_xg': 4.75,
+            'league': 'Шотландия',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 16:30'
+        },
+        {
+            'home': 'Utrecht',
+            'away': 'GO Ahead Eagles',
+            'total_xg': 3.33,
+            'league': 'Нидерланды',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 17:00'
+        },
+        {
+            'home': 'AEK Athens FC',
+            'away': 'Lask Linz',
+            'total_xg': 3.66,
+            'league': 'Греция',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 17:30'
+        },
+        {
+            'home': 'Porto U19',
+            'away': 'Manchester City U19',
+            'total_xg': 4.11,
+            'league': 'UEFA U19',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 18:00'
+        },
+        {
+            'home': 'Real Madrid U19',
+            'away': 'Internazionale U19',
+            'total_xg': 4.40,
+            'league': 'UEFA U19',
+            'skip_reason': 'XG вне диапазона 1.8-3.0',
+            'match_time': '2026-09-08 18:30'
+        },
+        {
+            'home': 'Watford',
+            'away': 'Preston',
+            'total_xg': 2.1,
+            'league': 'Англия',
+            'skip_reason': 'низкая позиция (H: #17, A: #23)',
+            'match_time': '2026-09-08 17:30'
+        },
+        {
+            'home': 'Blackburn',
+            'away': 'Sheffield Utd',
+            'total_xg': 2.3,
+            'league': 'Англия',
+            'skip_reason': 'нет мотивации',
+            'match_time': '2026-09-08 17:45'
         }
-        
-        for match in matches:
-            league = match.get('league', 'Unknown')
-            stats['by_league'][league] += 1
-            
-            xg = safe_parse_float(match.get('total_xg', 0))
-            stats['total_xg'] += xg
-            
-            if xg < 1.8:
-                stats['xg_distribution']['low'] += 1
-            elif xg <= 3.0:
-                stats['xg_distribution']['normal'] += 1
-            else:
-                stats['xg_distribution']['high'] += 1
-            
-            # Определяем причину пропуска (если есть)
-            skip_reason = match.get('skip_reason', '')
-            if skip_reason:
-                if 'мотиваци' in skip_reason.lower():
-                    stats['filtered']['no_motivation'] += 1
-                elif 'позици' in skip_reason.lower():
-                    stats['filtered']['low_position'] += 1
-                elif 'xg' in skip_reason.lower() or 'XG' in skip_reason:
-                    stats['filtered']['xg_out_of_range'] += 1
-                else:
-                    stats['filtered']['passed'] += 1
-            else:
-                stats['filtered']['passed'] += 1
-        
-        # Вычисляем средний XG
-        if stats['total'] > 0:
-            stats['avg_xg'] = round(stats['total_xg'] / stats['total'], 2)
-        
-        # Добавляем процент прохода
-        if stats['total'] > 0:
-            stats['pass_rate'] = round((stats['filtered']['passed'] / stats['total']) * 100, 1)
-        else:
-            stats['pass_rate'] = 0
-        
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total': stats['total'],
-                'filtered': stats['filtered'],
-                'by_league': dict(stats['by_league']),
-                'xg_distribution': stats['xg_distribution'],
-                'avg_xg': stats['avg_xg'],
-                'pass_rate': stats['pass_rate']
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Ошибка получения статистики: {e}")
-        return jsonify({'error': str(e)}), 500
+    ]
+    return jsonify(test_matches)
 
 @app.route('/api/save_matches_log', methods=['POST'])
 def save_matches_log():
@@ -542,7 +523,6 @@ def health():
     """Проверка здоровья приложения"""
     bot_ok, bot_data = check_bot_health()
     
-    # Проверяем наличие файлов
     settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot_settings.json')
     log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
     
@@ -564,7 +544,6 @@ def api_status():
     """Детальный статус системы"""
     bot_status = get_bot_status()
     
-    # Получаем статистику
     try:
         stats_response = requests.get(f'{BOT_URL}/api/stats', timeout=5)
         if stats_response.status_code == 200:
@@ -607,7 +586,6 @@ def internal_error(error):
 # HTML ШАБЛОН
 # ============================================================
 
-# Время запуска приложения
 app_start_time = datetime.now()
 
 MAIN_HTML = """<!DOCTYPE html>
@@ -4360,32 +4338,39 @@ MAIN_HTML = """<!DOCTYPE html>
     }
 
     // ============================================================
-    // АНАЛИЗ МАТЧЕЙ
+    // АНАЛИЗ МАТЧЕЙ (ОБНОВЛЕННАЯ ВЕРСИЯ)
     // ============================================================
     async function loadMatchAnalysis() {
         try {
-            const response = await fetch('/api/matches_log?t=' + Date.now());
-            if (!response.ok) {
-                showNotification('❌ Не удалось загрузить лог матчей', 'error');
-                return;
+            // Сначала пробуем получить лог от бота
+            let response = await fetch('/api/matches_log?t=' + Date.now());
+            let logText = '';
+            let source = 'none';
+            
+            if (response.ok) {
+                const data = await response.json();
+                logText = data.log || '';
+                source = data.source || 'bot';
             }
             
-            const logData = await response.json();
-            const logText = logData.log || '';
-            
-            if (!logText) {
+            // Если лог пустой, используем тестовый
+            if (!logText || logText.trim() === '') {
+                const testResponse = await fetch('/api/test_analysis');
+                if (testResponse.ok) {
+                    const testData = await testResponse.json();
+                    if (testData.success && testData.stats.total > 0) {
+                        updateAnalysisUI(testData.stats, testData.recommendations);
+                        showNotification('📊 Используются тестовые данные (лог бота пуст)', '');
+                        return;
+                    }
+                }
+                
                 showNotification('⚠️ Нет данных для анализа. Подождите, пока бот найдет матчи.', '');
-                document.getElementById('maTotal').textContent = '0';
-                document.getElementById('maPassed').textContent = '0';
-                document.getElementById('maSkipped').textContent = '0';
-                document.getElementById('maRate').textContent = '0%';
-                document.getElementById('maNoMotivation').textContent = '0';
-                document.getElementById('maLowPosition').textContent = '0';
-                document.getElementById('maXGOut').textContent = '0';
-                document.getElementById('matchRecommendations').style.display = 'none';
+                resetAnalysisUI();
                 return;
             }
             
+            // Анализируем лог
             const analyzeResponse = await fetch('/api/analyze_matches', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4399,43 +4384,74 @@ MAIN_HTML = """<!DOCTYPE html>
                 return;
             }
             
-            const stats = result.stats;
-            const recommendations = result.recommendations;
+            updateAnalysisUI(result.stats, result.recommendations);
             
-            document.getElementById('maTotal').textContent = stats.total || 0;
-            
-            const skipped = (stats.categories?.no_motivation?.count || 0) + 
-                           (stats.categories?.low_position?.count || 0) + 
-                           (stats.categories?.xg_out_of_range?.count || 0);
-            const passed = (stats.total || 0) - skipped;
-            
-            document.getElementById('maPassed').textContent = passed;
-            document.getElementById('maSkipped').textContent = skipped;
-            document.getElementById('maRate').textContent = stats.total > 0 ? 
-                ((passed / stats.total) * 100).toFixed(1) + '%' : '0%';
-            
-            document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
-            document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
-            document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
-            
-            const recDiv = document.getElementById('matchRecommendations');
-            const recList = document.getElementById('recommendationsList');
-            
-            if (recommendations && recommendations.length > 0 && stats.total > 0) {
-                recDiv.style.display = 'block';
-                recList.innerHTML = recommendations.map(r => '• ' + r).join('<br>');
-            } else {
-                recDiv.style.display = 'none';
-            }
-            
-            if (stats.total > 0) {
-                showNotification('✅ Анализ матчей обновлен', 'success');
+            if (result.stats.total > 0) {
+                showNotification(`✅ Анализ матчей обновлен (${result.stats.total} матчей)`, 'success');
             }
             
         } catch (error) {
             console.error('Ошибка загрузки анализа:', error);
             showNotification('❌ Ошибка: ' + error.message, 'error');
+            
+            // Пробуем тестовый режим
+            try {
+                const testResponse = await fetch('/api/test_analysis');
+                if (testResponse.ok) {
+                    const testData = await testResponse.json();
+                    if (testData.success && testData.stats.total > 0) {
+                        updateAnalysisUI(testData.stats, testData.recommendations);
+                        showNotification('📊 Используются тестовые данные', '');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Ошибка тестового режима:', e);
+            }
+            
+            resetAnalysisUI();
         }
+    }
+
+    function updateAnalysisUI(stats, recommendations) {
+        // Обновляем статистику
+        document.getElementById('maTotal').textContent = stats.total || 0;
+        
+        const skipped = (stats.categories?.no_motivation?.count || 0) + 
+                       (stats.categories?.low_position?.count || 0) + 
+                       (stats.categories?.xg_out_of_range?.count || 0);
+        const passed = (stats.total || 0) - skipped;
+        
+        document.getElementById('maPassed').textContent = passed;
+        document.getElementById('maSkipped').textContent = skipped;
+        document.getElementById('maRate').textContent = stats.total > 0 ? 
+            ((passed / stats.total) * 100).toFixed(1) + '%' : '0%';
+        
+        document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
+        document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
+        document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
+        
+        // Показываем рекомендации
+        const recDiv = document.getElementById('matchRecommendations');
+        const recList = document.getElementById('recommendationsList');
+        
+        if (recommendations && recommendations.length > 0 && stats.total > 0) {
+            recDiv.style.display = 'block';
+            recList.innerHTML = recommendations.map(r => '• ' + r).join('<br>');
+        } else {
+            recDiv.style.display = 'none';
+        }
+    }
+
+    function resetAnalysisUI() {
+        document.getElementById('maTotal').textContent = '0';
+        document.getElementById('maPassed').textContent = '0';
+        document.getElementById('maSkipped').textContent = '0';
+        document.getElementById('maRate').textContent = '0%';
+        document.getElementById('maNoMotivation').textContent = '0';
+        document.getElementById('maLowPosition').textContent = '0';
+        document.getElementById('maXGOut').textContent = '0';
+        document.getElementById('matchRecommendations').style.display = 'none';
     }
 
     // ============================================================
