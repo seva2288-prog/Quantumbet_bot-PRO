@@ -146,7 +146,7 @@
             color: #e8e8f0;
             min-height: 100vh;
             overflow-x: hidden;
-            padding-bottom: 80px;
+            padding-bottom: 90px;
             position: relative;
             transition: background 0.3s ease, color 0.3s ease;
         }
@@ -409,7 +409,7 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 12px;
-            padding-bottom: 80px;
+            padding-bottom: 90px;
             position: relative;
             z-index: 1;
         }
@@ -650,7 +650,7 @@
         .profit-negative { color: #f87171; font-weight: 600; }
         
         /* ============================================================
-           IOS GLASS NAVIGATION
+           УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION
            ============================================================ */
         .bottom-nav {
             position: fixed;
@@ -658,11 +658,11 @@
             left: 50%;
             transform: translateX(-50%);
             width: 92%;
-            max-width: 450px;
+            max-width: 480px;
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(30px) saturate(180%);
             -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border-radius: 24px;
+            border-radius: 28px;
             border: 1px solid rgba(255, 255, 255, 0.15);
             box-shadow: 
                 0 8px 32px rgba(0, 0, 0, 0.5),
@@ -670,16 +670,16 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 8px 6px;
+            padding: 10px 8px;
             z-index: 1000;
             transition: all 0.3s ease;
         }
         
         body:not(.light-theme) .bottom-nav {
-            background: rgba(20, 20, 35, 0.4);
+            background: rgba(20, 20, 35, 0.5);
             backdrop-filter: blur(30px) saturate(180%);
             -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 
                 0 8px 32px rgba(0, 0, 0, 0.5),
                 inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -702,29 +702,29 @@
             justify-content: center;
             text-decoration: none;
             color: rgba(255, 255, 255, 0.4);
-            font-size: 10px;
+            font-size: 11px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 6px 14px;
-            border-radius: 16px;
+            padding: 8px 18px;
+            border-radius: 18px;
             border: none;
             background: transparent;
             cursor: pointer;
-            min-width: 56px;
+            min-width: 64px;
             position: relative;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
-            gap: 2px;
+            gap: 4px;
         }
         
         .bottom-nav .nav-item .icon {
-            font-size: 22px;
-            line-height: 1.1;
+            font-size: 26px;
+            line-height: 1.2;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .bottom-nav .nav-item .label {
-            font-size: 9px;
-            font-weight: 500;
+            font-size: 10px;
+            font-weight: 600;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0.6;
         }
@@ -824,18 +824,18 @@
             .bottom-nav {
                 bottom: 16px;
                 width: 94%;
-                padding: 6px 4px;
-                border-radius: 20px;
+                padding: 8px 6px;
+                border-radius: 24px;
             }
             .bottom-nav .nav-item {
-                padding: 4px 10px;
-                min-width: 44px;
+                padding: 6px 12px;
+                min-width: 50px;
             }
             .bottom-nav .nav-item .icon {
-                font-size: 18px;
+                font-size: 22px;
             }
             .bottom-nav .nav-item .label {
-                font-size: 8px;
+                font-size: 9px;
             }
         }
         
@@ -843,18 +843,18 @@
             .bottom-nav {
                 bottom: 12px;
                 width: 96%;
-                padding: 4px 2px;
-                border-radius: 16px;
+                padding: 6px 4px;
+                border-radius: 20px;
             }
             .bottom-nav .nav-item {
-                padding: 3px 6px;
-                min-width: 36px;
+                padding: 4px 8px;
+                min-width: 42px;
             }
             .bottom-nav .nav-item .icon {
-                font-size: 16px;
+                font-size: 18px;
             }
             .bottom-nav .nav-item .label {
-                font-size: 7px;
+                font-size: 8px;
             }
         }
         
@@ -1217,93 +1217,29 @@
             to { opacity: 0; transform: translateX(100px); }
         }
         
-        @media (max-width: 768px) {
-            .container { padding: 10px; padding-bottom: 80px; }
-            .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
-            .header h1 { font-size: 16px; text-align: center; }
-            .header-controls { justify-content: center; }
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid .metric-item { padding: 6px 10px; }
-            .metrics-grid .metric-item .value { font-size: 14px; }
-            .card { padding: 10px; }
-            table { font-size: 9px; min-width: 500px; }
-            th, td { padding: 3px 4px; }
-            .chart-container { height: 100px; }
-            .chart-container-large { height: 250px; }
-            .bottom-nav .nav-item { padding: 2px 6px; min-width: 44px; }
-            .bottom-nav .nav-item .icon { font-size: 16px; }
-            .bottom-nav .nav-item .label { font-size: 7px; }
-            .chart-details-grid { grid-template-columns: 1fr; }
-            .chart-controls { gap: 4px; }
-            .chart-controls select { font-size: 10px; padding: 3px 6px; }
-            .pattern-metrics { grid-template-columns: 1fr 1fr; }
-            .patterns-table { font-size: 9px; }
-            .patterns-table th, .patterns-table td { padding: 4px 6px; }
-            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
-            .modal { padding: 16px; }
-            .modal-field .row { grid-template-columns: 1fr; }
-            .edit-row input, .edit-row select { font-size: 9px; padding: 2px 4px; }
-        }
-        @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
-            .stat-card { padding: 8px; }
-            .stat-card .value { font-size: 16px; }
-            .metrics-grid { grid-template-columns: 1fr; }
-            .bottom-nav .nav-item { min-width: 40px; padding: 2px 4px; }
-            .bottom-nav .nav-item .icon { font-size: 14px; }
-            .pattern-metrics { grid-template-columns: 1fr 1fr; }
-        }
-        
-        /* Дополнительные стили для анализа матчей */
-        .match-analysis-card {
-            border: 2px solid rgba(167, 139, 250, 0.15);
-            margin-top: 12px;
-        }
+        /* ============================================================
+           СТИЛИ ДЛЯ СТРАНИЦЫ АНАЛИЗА
+           ============================================================ */
         .match-analysis-card .stat-item {
-            text-align: center;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 8px;
+            transition: all 0.3s ease;
         }
-        .match-analysis-card .stat-item .number {
-            font-size: 22px;
-            font-weight: 700;
-        }
-        .match-analysis-card .stat-item .label {
-            font-size: 9px;
-            color: rgba(255, 255, 255, 0.3);
+        .match-analysis-card .stat-item:hover {
+            transform: translateY(-2px);
+            background: rgba(255,255,255,0.05);
         }
         .match-analysis-card .reason-item {
-            padding: 8px;
-            border-radius: 8px;
-            border-left: 3px solid;
-            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.3s ease;
         }
-        .match-analysis-card .reason-item .count {
-            font-size: 18px;
-            font-weight: 700;
-        }
-        .match-analysis-card .reason-item .label {
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.3);
+        .match-analysis-card .reason-item:hover {
+            transform: translateY(-2px);
+            background: rgba(255,255,255,0.04);
         }
         .match-analysis-card .recommendations {
-            margin-top: 10px;
-            padding: 10px;
-            background: rgba(167, 139, 250, 0.05);
-            border-radius: 8px;
-            border: 1px solid rgba(167, 139, 250, 0.1);
+            animation: fadeIn 0.5s ease;
         }
-        .match-analysis-card .recommendations .title {
-            font-size: 11px;
-            color: #a78bfa;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-        .match-analysis-card .recommendations .list {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         body.light-theme .match-analysis-card .stat-item {
@@ -1318,6 +1254,48 @@
         }
         body.light-theme .match-analysis-card .recommendations .list {
             color: rgba(0, 0, 0, 0.6);
+        }
+        
+        @media (max-width: 768px) {
+            .container { padding: 10px; padding-bottom: 90px; }
+            .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
+            .header h1 { font-size: 16px; text-align: center; }
+            .header-controls { justify-content: center; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .metrics-grid .metric-item { padding: 6px 10px; }
+            .metrics-grid .metric-item .value { font-size: 14px; }
+            .card { padding: 10px; }
+            table { font-size: 9px; min-width: 500px; }
+            th, td { padding: 3px 4px; }
+            .chart-container { height: 100px; }
+            .chart-container-large { height: 250px; }
+            .chart-details-grid { grid-template-columns: 1fr; }
+            .chart-controls { gap: 4px; }
+            .chart-controls select { font-size: 10px; padding: 3px 6px; }
+            .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            .patterns-table { font-size: 9px; }
+            .patterns-table th, .patterns-table td { padding: 4px 6px; }
+            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
+            .modal { padding: 16px; }
+            .modal-field .row { grid-template-columns: 1fr; }
+            .edit-row input, .edit-row select { font-size: 9px; padding: 2px 4px; }
+            #matchAnalysisStats { grid-template-columns: 1fr 1fr; }
+            #matchAnalysisReasons { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .stat-card { padding: 8px; }
+            .stat-card .value { font-size: 16px; }
+            .metrics-grid { grid-template-columns: 1fr; }
+            .pattern-metrics { grid-template-columns: 1fr 1fr; }
+            #matchAnalysisStats { grid-template-columns: 1fr 1fr; }
+        }
+        
+        /* Дополнительные стили для анализа матчей */
+        .match-analysis-card {
+            border: 2px solid rgba(167, 139, 250, 0.15);
+            margin-top: 12px;
         }
         
         .btn {
@@ -1501,6 +1479,9 @@
     <div id="page-dashboard" class="page active">
         <div id="dashboard-content"></div>
     </div>
+    <div id="page-analysis" class="page" style="display:none;">
+        <div id="analysis-content"></div>
+    </div>
     <div id="page-analytics" class="page" style="display:none;">
         <div id="analytics-content"></div>
     </div>
@@ -1514,11 +1495,15 @@
     <div class="footer">Quantum Bet Bot v12 PRO © 2026</div>
 </div>
 
-<!-- IOS GLASS NAVIGATION -->
+<!-- УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard">
         <span class="icon">📊</span>
         <span class="label">Главная</span>
+    </button>
+    <button class="nav-item" data-page="analysis">
+        <span class="icon">🔍</span>
+        <span class="label">Анализ</span>
     </button>
     <button class="nav-item" data-page="analytics">
         <span class="icon">📈</span>
@@ -1746,6 +1731,7 @@
 
             switch(page) {
                 case 'dashboard': renderDashboard(data); break;
+                case 'analysis': renderAnalysis(data); break;
                 case 'analytics': renderAnalytics(data); break;
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
@@ -2322,55 +2308,6 @@
                 </div>
             </div>
 
-            <!-- БЛОК АНАЛИЗА МАТЧЕЙ -->
-            <div class="card match-analysis-card">
-                <div class="card-header">
-                    <h2 style="color:#a78bfa;">📊 Анализ пропущенных матчей</h2>
-                    <button onclick="loadMatchAnalysis()" style="background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);border-radius:6px;padding:4px 12px;color:#a78bfa;cursor:pointer;font-size:11px;">
-                        🔄 Обновить
-                    </button>
-                </div>
-                
-                <div id="matchAnalysisStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
-                    <div class="stat-item">
-                        <div class="number" style="color:#a78bfa;" id="maTotal">0</div>
-                        <div class="label">Всего матчей</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="number" style="color:#34d399;" id="maPassed">0</div>
-                        <div class="label">✅ Пройдено</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="number" style="color:#f87171;" id="maSkipped">0</div>
-                        <div class="label">⏭️ Пропущено</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="number" style="color:#fbbf24;" id="maRate">0%</div>
-                        <div class="label">📊 Проход</div>
-                    </div>
-                </div>
-                
-                <div id="matchAnalysisReasons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-                    <div class="reason-item" style="border-left-color:#f87171;">
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">🚫 Нет мотивации</div>
-                        <div class="count" style="color:#f87171;" id="maNoMotivation">0</div>
-                    </div>
-                    <div class="reason-item" style="border-left-color:#fbbf24;">
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📉 Низкая позиция</div>
-                        <div class="count" style="color:#fbbf24;" id="maLowPosition">0</div>
-                    </div>
-                    <div class="reason-item" style="border-left-color:#60a5fa;">
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📊 XG вне диапазона</div>
-                        <div class="count" style="color:#60a5fa;" id="maXGOut">0</div>
-                    </div>
-                </div>
-                
-                <div id="matchRecommendations" class="recommendations" style="display:none;">
-                    <div class="title">💡 Рекомендации</div>
-                    <div class="list" id="recommendationsList"></div>
-                </div>
-            </div>
-
             <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
                     <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
@@ -2452,7 +2389,6 @@
         addModalHTML();
         
         setTimeout(() => renderChart(data.profit_data), 50);
-        setTimeout(loadMatchAnalysis, 500);
     }
 
     // ============================================================
@@ -2575,6 +2511,215 @@
                 }
             }
         });
+    }
+
+    // ============================================================
+    // РЕНДЕР СТРАНИЦЫ АНАЛИЗА
+    // ============================================================
+    function renderAnalysis(data) {
+        const html = `
+            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🔍 Анализ пропущенных матчей</h2>
+            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Детальный анализ матчей, которые не прошли фильтр</div>
+            
+            <div class="card match-analysis-card" style="border:2px solid rgba(167,139,250,0.15);">
+                <div class="card-header">
+                    <h2 style="color:#a78bfa;">📊 Статистика пропущенных матчей</h2>
+                    <button onclick="loadMatchAnalysis()" style="background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);border-radius:6px;padding:4px 12px;color:#a78bfa;cursor:pointer;font-size:11px;">
+                        🔄 Обновить
+                    </button>
+                </div>
+                
+                <div id="matchAnalysisStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+                    <div class="stat-item" style="text-align:center;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                        <div class="number" style="font-size:22px;font-weight:700;color:#a78bfa;" id="maTotal">0</div>
+                        <div class="label" style="font-size:9px;color:rgba(255,255,255,0.3);">Всего матчей</div>
+                    </div>
+                    <div class="stat-item" style="text-align:center;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                        <div class="number" style="font-size:22px;font-weight:700;color:#34d399;" id="maPassed">0</div>
+                        <div class="label" style="font-size:9px;color:rgba(255,255,255,0.3);">✅ Пройдено</div>
+                    </div>
+                    <div class="stat-item" style="text-align:center;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                        <div class="number" style="font-size:22px;font-weight:700;color:#f87171;" id="maSkipped">0</div>
+                        <div class="label" style="font-size:9px;color:rgba(255,255,255,0.3);">⏭️ Пропущено</div>
+                    </div>
+                    <div class="stat-item" style="text-align:center;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                        <div class="number" style="font-size:22px;font-weight:700;color:#fbbf24;" id="maRate">0%</div>
+                        <div class="label" style="font-size:9px;color:rgba(255,255,255,0.3);">📊 Проход</div>
+                    </div>
+                </div>
+                
+                <div id="matchAnalysisReasons" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+                    <div class="reason-item" style="padding:8px;border-radius:8px;border-left:3px solid #f87171;background:rgba(255,255,255,0.02);">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">🚫 Нет мотивации</div>
+                        <div class="count" style="font-size:18px;font-weight:700;color:#f87171;" id="maNoMotivation">0</div>
+                    </div>
+                    <div class="reason-item" style="padding:8px;border-radius:8px;border-left:3px solid #fbbf24;background:rgba(255,255,255,0.02);">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📉 Низкая позиция</div>
+                        <div class="count" style="font-size:18px;font-weight:700;color:#fbbf24;" id="maLowPosition">0</div>
+                    </div>
+                    <div class="reason-item" style="padding:8px;border-radius:8px;border-left:3px solid #60a5fa;background:rgba(255,255,255,0.02);">
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);">📊 XG вне диапазона</div>
+                        <div class="count" style="font-size:18px;font-weight:700;color:#60a5fa;" id="maXGOut">0</div>
+                    </div>
+                </div>
+                
+                <div id="matchRecommendations" class="recommendations" style="display:none;margin-top:10px;padding:10px;background:rgba(167,139,250,0.05);border-radius:8px;border:1px solid rgba(167,139,250,0.1);">
+                    <div class="title" style="font-size:11px;color:#a78bfa;font-weight:600;margin-bottom:4px;">💡 Рекомендации</div>
+                    <div class="list" id="recommendationsList" style="font-size:12px;color:rgba(255,255,255,0.6);"></div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('analysis-content').innerHTML = html;
+        setTimeout(loadMatchAnalysis, 300);
+    }
+
+    // ============================================================
+    // АНАЛИЗ МАТЧЕЙ
+    // ============================================================
+    async function loadMatchAnalysis() {
+        try {
+            document.getElementById('maTotal').textContent = '⏳';
+            document.getElementById('maPassed').textContent = '⏳';
+            document.getElementById('maSkipped').textContent = '⏳';
+            document.getElementById('maRate').textContent = '⏳%';
+            
+            let response = await fetch('/api/matches_log?t=' + Date.now());
+            let logText = '';
+            let source = 'none';
+            
+            if (response.ok) {
+                const data = await response.json();
+                logText = data.log || '';
+                source = data.source || 'bot';
+                console.log('📥 Источник лога:', source);
+                console.log('📄 Длина лога:', logText.length);
+            }
+            
+            if (logText && logText.trim() !== '' && logText.length > 50) {
+                const analyzeResponse = await fetch('/api/analyze_matches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ log: logText })
+                });
+                
+                const result = await analyzeResponse.json();
+                
+                if (!result.success) {
+                    showNotification('❌ Ошибка анализа: ' + result.error, 'error');
+                    return;
+                }
+                
+                updateAnalysisUI(result.stats, result.recommendations);
+                
+                const sourceText = source === 'test_data' ? ' (тестовые)' : '';
+                showNotification(`✅ Анализ матчей обновлен${sourceText} (${result.stats.total} матчей)`, 'success');
+                return;
+            }
+            
+            const matchesResponse = await fetch('/api/matches?t=' + Date.now());
+            if (matchesResponse.ok) {
+                const matches = await matchesResponse.json();
+                if (matches && matches.length > 0) {
+                    let logLines = [];
+                    matches.forEach(match => {
+                        const xg = match.total_xg || 0;
+                        const home = match.home || 'Unknown';
+                        const away = match.away || 'Unknown';
+                        const skipReason = match.skip_reason || '';
+                        
+                        if (skipReason) {
+                            if (skipReason.toLowerCase().includes('xg') || skipReason.includes('XG')) {
+                                logLines.push(`⏭️ Пропускаем (XG вне диапазона 1.8-3.0): ${home} vs ${away} | XG: ${xg}`);
+                            } else if (skipReason.toLowerCase().includes('позици')) {
+                                logLines.push(`⏭️ Пропускаем (низкая позиция): ${home} vs ${away}`);
+                            } else if (skipReason.toLowerCase().includes('мотиваци')) {
+                                logLines.push(`⏭️ Пропускаем (нет мотивации): ${home} vs ${away}`);
+                            }
+                        }
+                    });
+                    
+                    if (logLines.length > 0) {
+                        logText = logLines.join('\n');
+                        await fetch('/api/save_bot_log', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log: logText })
+                        });
+                        
+                        const analyzeResponse = await fetch('/api/analyze_matches', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log: logText })
+                        });
+                        
+                        const result = await analyzeResponse.json();
+                        if (result.success) {
+                            updateAnalysisUI(result.stats, result.recommendations);
+                            showNotification(`✅ Анализ матчей обновлен из матчей бота (${result.stats.total} матчей)`, 'success');
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            showNotification('⚠️ Нет данных для анализа. Используются тестовые данные.', '');
+            resetAnalysisUI();
+            
+            const testResponse = await fetch('/api/test_analysis');
+            if (testResponse.ok) {
+                const testData = await testResponse.json();
+                if (testData.success && testData.stats.total > 0) {
+                    updateAnalysisUI(testData.stats, testData.recommendations);
+                    showNotification('📊 Используются тестовые данные', '');
+                    return;
+                }
+            }
+            
+        } catch (error) {
+            console.error('Ошибка загрузки анализа:', error);
+            showNotification('❌ Ошибка: ' + error.message, 'error');
+            resetAnalysisUI();
+        }
+    }
+
+    function updateAnalysisUI(stats, recommendations) {
+        document.getElementById('maTotal').textContent = stats.total || 0;
+        
+        const skipped = (stats.categories?.no_motivation?.count || 0) + 
+                       (stats.categories?.low_position?.count || 0) + 
+                       (stats.categories?.xg_out_of_range?.count || 0);
+        const passed = (stats.total || 0) - skipped;
+        
+        document.getElementById('maPassed').textContent = passed;
+        document.getElementById('maSkipped').textContent = skipped;
+        document.getElementById('maRate').textContent = stats.total > 0 ? 
+            ((passed / stats.total) * 100).toFixed(1) + '%' : '0%';
+        
+        document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
+        document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
+        document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
+        
+        const recDiv = document.getElementById('matchRecommendations');
+        const recList = document.getElementById('recommendationsList');
+        
+        if (recommendations && recommendations.length > 0 && stats.total > 0) {
+            recDiv.style.display = 'block';
+            recList.innerHTML = recommendations.map(r => '• ' + r).join('<br>');
+        } else {
+            recDiv.style.display = 'none';
+        }
+    }
+
+    function resetAnalysisUI() {
+        document.getElementById('maTotal').textContent = '0';
+        document.getElementById('maPassed').textContent = '0';
+        document.getElementById('maSkipped').textContent = '0';
+        document.getElementById('maRate').textContent = '0%';
+        document.getElementById('maNoMotivation').textContent = '0';
+        document.getElementById('maLowPosition').textContent = '0';
+        document.getElementById('maXGOut').textContent = '0';
+        document.getElementById('matchRecommendations').style.display = 'none';
     }
 
     // ============================================================
@@ -3745,165 +3890,6 @@
         const status = document.getElementById('settingsStatus');
         status.textContent = '🔄 Настройки сброшены к значениям по умолчанию';
         status.style.color = '#fbbf24';
-    }
-
-    // ============================================================
-    // АНАЛИЗ МАТЧЕЙ (ОБНОВЛЕННАЯ ВЕРСИЯ)
-    // ============================================================
-    async function loadMatchAnalysis() {
-        try {
-            // Показываем загрузку
-            document.getElementById('maTotal').textContent = '⏳';
-            document.getElementById('maPassed').textContent = '⏳';
-            document.getElementById('maSkipped').textContent = '⏳';
-            document.getElementById('maRate').textContent = '⏳%';
-            
-            // Пробуем получить лог от бота
-            let response = await fetch('/api/matches_log?t=' + Date.now());
-            let logText = '';
-            let source = 'none';
-            
-            if (response.ok) {
-                const data = await response.json();
-                logText = data.log || '';
-                source = data.source || 'bot';
-                console.log('📥 Источник лога:', source);
-                console.log('📄 Длина лога:', logText.length);
-            }
-            
-            // Если лог есть, анализируем
-            if (logText && logText.trim() !== '' && logText.length > 50) {
-                const analyzeResponse = await fetch('/api/analyze_matches', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ log: logText })
-                });
-                
-                const result = await analyzeResponse.json();
-                
-                if (!result.success) {
-                    showNotification('❌ Ошибка анализа: ' + result.error, 'error');
-                    return;
-                }
-                
-                updateAnalysisUI(result.stats, result.recommendations);
-                
-                const sourceText = source === 'test_data' ? ' (тестовые)' : '';
-                showNotification(`✅ Анализ матчей обновлен${sourceText} (${result.stats.total} матчей)`, 'success');
-                return;
-            }
-            
-            // Если лог пустой, пробуем получить матчи напрямую
-            const matchesResponse = await fetch('/api/matches?t=' + Date.now());
-            if (matchesResponse.ok) {
-                const matches = await matchesResponse.json();
-                if (matches && matches.length > 0) {
-                    // Создаем лог из матчей
-                    let logLines = [];
-                    matches.forEach(match => {
-                        const xg = match.total_xg || 0;
-                        const home = match.home || 'Unknown';
-                        const away = match.away || 'Unknown';
-                        const skipReason = match.skip_reason || '';
-                        
-                        if (skipReason) {
-                            if (skipReason.toLowerCase().includes('xg') || skipReason.includes('XG')) {
-                                logLines.push(`⏭️ Пропускаем (XG вне диапазона 1.8-3.0): ${home} vs ${away} | XG: ${xg}`);
-                            } else if (skipReason.toLowerCase().includes('позици')) {
-                                logLines.push(`⏭️ Пропускаем (низкая позиция): ${home} vs ${away}`);
-                            } else if (skipReason.toLowerCase().includes('мотиваци')) {
-                                logLines.push(`⏭️ Пропускаем (нет мотивации): ${home} vs ${away}`);
-                            }
-                        }
-                    });
-                    
-                    if (logLines.length > 0) {
-                        logText = logLines.join('\n');
-                        // Сохраняем лог
-                        await fetch('/api/save_bot_log', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ log: logText })
-                        });
-                        
-                        // Анализируем
-                        const analyzeResponse = await fetch('/api/analyze_matches', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ log: logText })
-                        });
-                        
-                        const result = await analyzeResponse.json();
-                        if (result.success) {
-                            updateAnalysisUI(result.stats, result.recommendations);
-                            showNotification(`✅ Анализ матчей обновлен из матчей бота (${result.stats.total} матчей)`, 'success');
-                            return;
-                        }
-                    }
-                }
-            }
-            
-            // Если ничего не найдено, показываем тестовые данные
-            showNotification('⚠️ Нет данных для анализа. Используются тестовые данные.', '');
-            resetAnalysisUI();
-            
-            // Загружаем тестовые данные
-            const testResponse = await fetch('/api/test_analysis');
-            if (testResponse.ok) {
-                const testData = await testResponse.json();
-                if (testData.success && testData.stats.total > 0) {
-                    updateAnalysisUI(testData.stats, testData.recommendations);
-                    showNotification('📊 Используются тестовые данные', '');
-                    return;
-                }
-            }
-            
-        } catch (error) {
-            console.error('Ошибка загрузки анализа:', error);
-            showNotification('❌ Ошибка: ' + error.message, 'error');
-            resetAnalysisUI();
-        }
-    }
-
-    function updateAnalysisUI(stats, recommendations) {
-        // Обновляем статистику
-        document.getElementById('maTotal').textContent = stats.total || 0;
-        
-        const skipped = (stats.categories?.no_motivation?.count || 0) + 
-                       (stats.categories?.low_position?.count || 0) + 
-                       (stats.categories?.xg_out_of_range?.count || 0);
-        const passed = (stats.total || 0) - skipped;
-        
-        document.getElementById('maPassed').textContent = passed;
-        document.getElementById('maSkipped').textContent = skipped;
-        document.getElementById('maRate').textContent = stats.total > 0 ? 
-            ((passed / stats.total) * 100).toFixed(1) + '%' : '0%';
-        
-        document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
-        document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
-        document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
-        
-        // Показываем рекомендации
-        const recDiv = document.getElementById('matchRecommendations');
-        const recList = document.getElementById('recommendationsList');
-        
-        if (recommendations && recommendations.length > 0 && stats.total > 0) {
-            recDiv.style.display = 'block';
-            recList.innerHTML = recommendations.map(r => '• ' + r).join('<br>');
-        } else {
-            recDiv.style.display = 'none';
-        }
-    }
-
-    function resetAnalysisUI() {
-        document.getElementById('maTotal').textContent = '0';
-        document.getElementById('maPassed').textContent = '0';
-        document.getElementById('maSkipped').textContent = '0';
-        document.getElementById('maRate').textContent = '0%';
-        document.getElementById('maNoMotivation').textContent = '0';
-        document.getElementById('maLowPosition').textContent = '0';
-        document.getElementById('maXGOut').textContent = '0';
-        document.getElementById('matchRecommendations').style.display = 'none';
     }
 
     // ============================================================
