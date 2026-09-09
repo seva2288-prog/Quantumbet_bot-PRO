@@ -4,6 +4,17 @@
     <title>Quantum Bet Tracker</title>
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
+    
+    <!-- PWA Meta -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Quantum Bet Tracker">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="msapplication-TileColor" content="#7c3aed">
+    <meta name="msapplication-TileImage" content="/static/icons/icon-144x144.png">
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1556,6 +1567,51 @@
             color: #34d399;
             border: 1px solid rgba(52,211,153,0.1);
         }
+
+        /* PWA баннеры */
+        #pwa-install-banner,
+        #pwa-update-banner {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(20, 20, 35, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 16px 20px;
+            z-index: 9998;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            animation: slideUp 0.4s ease;
+        }
+        #pwa-install-banner {
+            bottom: 100px;
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+        #pwa-update-banner {
+            top: 20px;
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-30px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+        
+        .pwa-mode .bottom-nav {
+            padding-bottom: env(safe-area-inset-bottom, 10px);
+        }
+        .pwa-mode .container {
+            padding-top: env(safe-area-inset-top, 10px);
+        }
     </style>
 </head>
 <body>
@@ -1808,7 +1864,176 @@
         loadPageData('dashboard');
         startKeepAlive();
         startAutoImportX2();
+        registerPWA();
     });
+
+    // ============================================================
+    // PWA РЕГИСТРАЦИЯ
+    // ============================================================
+    function registerPWA() {
+        // Проверяем поддержку Service Worker
+        if ('serviceWorker' in navigator) {
+            // Регистрируем Service Worker
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('✅ Service Worker зарегистрирован:', registration);
+                    
+                    // Проверяем обновления
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('🔄 Обновление Service Worker...');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('🔄 Новая версия готова');
+                                showUpdateBanner();
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.warn('⚠️ Ошибка регистрации Service Worker:', error);
+                });
+            
+            // Отслеживаем изменения
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                console.log('🔄 Обновление страницы...');
+                window.location.reload();
+            });
+        } else {
+            console.warn('⚠️ Service Worker не поддерживается');
+        }
+
+        // Проверяем, установлено ли приложение
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('📱 Приложение запущено в режиме PWA');
+            document.body.classList.add('pwa-mode');
+        }
+
+        // Обработка установки PWA
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('📲 Приложение можно установить');
+            showInstallBanner();
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ Приложение установлено!');
+            hideInstallBanner();
+            showNotification('✅ Приложение успешно установлено!', 'success');
+        });
+    }
+
+    // ============================================================
+    // БАННЕРЫ ДЛЯ УСТАНОВКИ И ОБНОВЛЕНИЯ PWA
+    // ============================================================
+    let deferredPrompt = null;
+
+    function showInstallBanner() {
+        const existing = document.getElementById('pwa-install-banner');
+        if (existing) return;
+        
+        const banner = document.createElement('div');
+        banner.id = 'pwa-install-banner';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;flex:1;">
+                <span style="font-size:24px;">📲</span>
+                <div>
+                    <div style="font-weight:600;font-size:14px;">Установить приложение</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);">Добавьте на главный экран</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button onclick="installPWA()" style="
+                    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+                    border: none;
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 10px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                ">Установить</button>
+                <button onclick="hideInstallBanner()" style="
+                    background: transparent;
+                    border: none;
+                    color: rgba(255,255,255,0.3);
+                    font-size: 18px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                ">✖</button>
+            </div>
+        `;
+        
+        document.body.appendChild(banner);
+    }
+
+    window.installPWA = function() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('✅ Пользователь установил приложение');
+                } else {
+                    console.log('❌ Пользователь отклонил установку');
+                }
+                deferredPrompt = null;
+                hideInstallBanner();
+            });
+        }
+    };
+
+    window.hideInstallBanner = function() {
+        const banner = document.getElementById('pwa-install-banner');
+        if (banner) {
+            banner.style.animation = 'slideDown 0.3s ease';
+            setTimeout(() => banner.remove(), 300);
+        }
+    };
+
+    function showUpdateBanner() {
+        const existing = document.getElementById('pwa-update-banner');
+        if (existing) return;
+        
+        const banner = document.createElement('div');
+        banner.id = 'pwa-update-banner';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;flex:1;">
+                <span style="font-size:20px;">🔄</span>
+                <div>
+                    <div style="font-weight:600;font-size:13px;">Доступно обновление</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">Нажмите для обновления приложения</div>
+                </div>
+            </div>
+            <button onclick="updatePWA()" style="
+                background: linear-gradient(135deg, #34d399, #059669);
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 10px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">Обновить</button>
+        `;
+        
+        document.body.appendChild(banner);
+    }
+
+    window.updatePWA = function() {
+        navigator.serviceWorker.ready.then((registration) => {
+            registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+        });
+        const banner = document.getElementById('pwa-update-banner');
+        if (banner) banner.remove();
+    };
 
     // ============================================================
     // KEEP-ALIVE — приложение само себя будит
@@ -3246,6 +3471,19 @@
                     <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
                 </div>
             </div>
+
+            <div class="setting-group" style="border:1px solid rgba(167,139,250,0.15);">
+                <h2 style="color:#a78bfa;">📱 PWA</h2>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Установить приложение</div>
+                        <div class="desc">Добавьте на главный экран для лучшего опыта</div>
+                    </div>
+                    <button class="btn btn-purple" onclick="installPWA()" style="padding:4px 12px;font-size:11px;">
+                        📲 Установить
+                    </button>
+                </div>
+            </div>
         `;
         document.getElementById('settings-content').innerHTML = html;
     }
@@ -3491,6 +3729,9 @@
     window.closeX2ImportModal = closeX2ImportModal;
     window.importX2Excel = importX2Excel;
     window.autoImportX2FromLogs = autoImportX2FromLogs;
+    window.installPWA = installPWA;
+    window.hideInstallBanner = hideInstallBanner;
+    window.updatePWA = updatePWA;
 </script>
 </body>
 </html>
