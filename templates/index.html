@@ -1513,6 +1513,51 @@
             }
         }
         
+        /* Стили для X2 импорта */
+        .x2-import-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .x2-import-actions .btn {
+            padding: 4px 12px;
+            font-size: 10px;
+        }
+        
+        /* Keep-Alive статус */
+        #keepAliveStatus {
+            position: fixed;
+            bottom: 80px;
+            right: 15px;
+            font-size: 9px;
+            color: rgba(255,255,255,0.15);
+            z-index: 999;
+            background: rgba(0,0,0,0.3);
+            padding: 3px 8px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            font-family: monospace;
+        }
+        body.light-theme #keepAliveStatus {
+            color: rgba(0,0,0,0.15);
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* Стиль для статуса авто-импорта */
+        .auto-import-status {
+            font-size: 10px;
+            color: rgba(255,255,255,0.3);
+            padding: 4px 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .auto-import-status.active {
+            color: #34d399;
+            border: 1px solid rgba(52,211,153,0.1);
+        }
+        
         /* ============================================================
            СТИЛИ ДЛЯ СТРАНИЦЫ АНАЛИЗА
            ============================================================ */
@@ -1578,6 +1623,7 @@
             .edit-row input, .edit-row select { font-size: 9px; padding: 2px 4px; }
             #matchAnalysisStats { grid-template-columns: 1fr 1fr; }
             #matchAnalysisReasons { grid-template-columns: 1fr; }
+            .stats-grid-x2 { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -1592,6 +1638,15 @@
         .match-analysis-card {
             border: 2px solid rgba(167, 139, 250, 0.15);
             margin-top: 12px;
+        }
+        
+        /* Индикатор загрузки для кнопок */
+        .btn.loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .btn.loading::after {
+            content: ' ⏳';
         }
     </style>
 </head>
@@ -1625,7 +1680,7 @@
                 <span class="status-dot"></span>
                 <span>Система активна</span>
                 <span style="color:rgba(255,255,255,0.2);">|</span>
-                <span style="color:rgba(255,255,255,0.2);">v13 X2</span>
+                <span style="color:rgba(255,255,255,0.2);">v14 X2 PRO</span>
             </div>
             <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
             <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
@@ -1651,7 +1706,7 @@
         <div id="settings-content"></div>
     </div>
 
-    <div class="footer">Quantum Bet Tracker v13 X2 © 2026</div>
+    <div class="footer">Quantum Bet Tracker v14 X2 PRO © 2026</div>
 </div>
 
 <!-- УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION -->
@@ -1751,6 +1806,75 @@
     </div>
 </div>
 
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ ИМПОРТА X2 EXCEL -->
+<div class="modal-overlay" id="x2ImportModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>📤 Импорт X2 из Excel</h3>
+            <button class="modal-close" onclick="closeX2ImportModal()">✖</button>
+        </div>
+        <div class="modal-field">
+            <label>📁 Выберите файл Excel</label>
+            <input type="file" id="x2ImportFile" accept=".xlsx,.xls,.csv" style="padding:8px;">
+        </div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:8px 0;">
+            📋 Формат: Дата | Матч | Фаворит | Аутсайдер | Кэф X2 | Сумма | Счёт | Результат | Примечание
+        </div>
+        <div id="x2ImportStatus" style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:8px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="importX2Excel()">📤 Импортировать</button>
+            <button class="btn btn-outline" onclick="closeX2ImportModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ МАТЧЕЙ -->
+<div class="modal-overlay" id="addMatchModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>➕ Добавить матч</h3>
+            <button class="modal-close" onclick="hideAddMatchModal()">✖</button>
+        </div>
+        <div class="modal-field">
+            <label>🏟️ Название матча</label>
+            <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona">
+        </div>
+        <div class="modal-field">
+            <label>⚽ Счёт</label>
+            <input type="text" id="matchScoreInput" placeholder="2-1">
+        </div>
+        <div class="modal-field">
+            <label>📊 Ставка</label>
+            <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>💰 Коэффициент</label>
+                    <input type="number" id="matchOddsInput" value="1.85" step="0.01">
+                </div>
+                <div>
+                    <label>💵 Сумма</label>
+                    <input type="number" id="matchStakeInput" value="42.87" step="0.01">
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <label>📊 Результат</label>
+            <select id="matchResultSelect">
+                <option value="win">✅ WIN (Выигрыш)</option>
+                <option value="loss">❌ LOSS (Проигрыш)</option>
+                <option value="push">🔄 PUSH (Возврат)</option>
+                <option value="pending">⏳ PENDING (Ожидание)</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
+            <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ============================================================
     // КОНФИГУРАЦИЯ
@@ -1795,7 +1919,164 @@
     window.addEventListener('load', function() {
         setTimeout(hideLoadingScreen, 600);
         loadPageData('dashboard');
+        startKeepAlive();
+        startAutoImportX2();
     });
+
+    // ============================================================
+    // KEEP-ALIVE — приложение само себя будит
+    // ============================================================
+    function startKeepAlive() {
+        // Пинг каждые 3 минуты (180 секунд)
+        keepAliveInterval = setInterval(function() {
+            fetch(API_BASE + '/api/all_data?t=' + Date.now())
+                .then(response => response.json())
+                .then(data => {
+                    console.log('🔄 Keep-Alive: пинг успешен', new Date().toLocaleTimeString());
+                    updateKeepAliveStatus('✅', new Date().toLocaleTimeString());
+                    if (cachedData) {
+                        cachedData = data;
+                    }
+                    // Дополнительный пинг на /api/keepalive
+                    fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
+                })
+                .catch(err => {
+                    console.warn('⚠️ Keep-Alive: пинг не удался', err);
+                    updateKeepAliveStatus('❌', new Date().toLocaleTimeString());
+                });
+        }, 180000); // 3 минуты
+
+        // Добавляем индикатор в правый нижний угол
+        const statusEl = document.createElement('div');
+        statusEl.id = 'keepAliveStatus';
+        statusEl.textContent = '🔄 Автопинг активен';
+        document.body.appendChild(statusEl);
+        
+        // Запускаем первый пинг сразу
+        setTimeout(function() {
+            fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
+        }, 5000);
+    }
+
+    function updateKeepAliveStatus(icon, time) {
+        const el = document.getElementById('keepAliveStatus');
+        if (el) {
+            el.textContent = icon + ' ' + time;
+        }
+    }
+
+    // ============================================================
+    // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ БОТА
+    // ============================================================
+    function startAutoImportX2() {
+        // Проверяем логи каждые 5 минут
+        autoImportInterval = setInterval(function() {
+            autoImportX2FromLogs();
+        }, 300000); // 5 минут
+        
+        // Первый импорт через 10 секунд после загрузки
+        setTimeout(function() {
+            autoImportX2FromLogs();
+        }, 10000);
+    }
+
+    async function autoImportX2FromLogs() {
+        try {
+            console.log('🤖 Авто-импорт X2 из логов...');
+            
+            // Получаем логи бота
+            const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
+            if (!response.ok) {
+                console.warn('⚠️ Не удалось получить логи');
+                return;
+            }
+            
+            const data = await response.json();
+            const logText = data.log || '';
+            
+            if (!logText || logText.trim() === '') {
+                console.log('📭 Логи пусты');
+                return;
+            }
+            
+            // Парсим логи
+            const lines = logText.split('\n');
+            let newMatches = 0;
+            
+            for (const line of lines) {
+                // Ищем строки с "нет мотивации"
+                if (line.includes('нет мотивации') || line.includes('no motivation')) {
+                    // Извлекаем название матча
+                    const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
+                    if (!matchMatch) continue;
+                    
+                    const home = matchMatch[1].trim();
+                    const away = matchMatch[2].trim();
+                    const matchName = home + ' vs ' + away;
+                    
+                    // Проверяем, нет ли уже такого матча в X2
+                    const exists = x2Data.some(m => m.match === matchName && m.date === new Date().toISOString().slice(0,10));
+                    if (exists) continue;
+                    
+                    // Извлекаем XG если есть
+                    const xgMatch = line.match(/XG:\s*([\d.]+)/i);
+                    const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
+                    
+                    // Определяем фаворита и аутсайдера (по позиции в логе)
+                    let favorite = home;
+                    let underdog = away;
+                    
+                    // Если есть информация о позициях
+                    const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
+                    if (posMatch) {
+                        const homePos = parseInt(posMatch[1]);
+                        const awayPos = parseInt(posMatch[2]);
+                        if (homePos < awayPos) {
+                            favorite = home;
+                            underdog = away;
+                        } else {
+                            favorite = away;
+                            underdog = home;
+                        }
+                    }
+                    
+                    // Добавляем матч
+                    const newMatch = {
+                        id: Date.now() + Math.random() * 1000,
+                        date: new Date().toISOString().slice(0,10),
+                        match: matchName,
+                        favorite: favorite,
+                        underdog: underdog,
+                        odds: 0,
+                        stake: 0,
+                        score: '-',
+                        result: 'pending',
+                        profit: 0,
+                        note: 'Авто-импорт из логов бота' + (xg ? ' | XG: ' + xg : '')
+                    };
+                    
+                    x2Data.push(newMatch);
+                    newMatches++;
+                }
+            }
+            
+            if (newMatches > 0) {
+                saveX2Data();
+                showNotification('🤖 Добавлено ' + newMatches + ' X2 матчей из логов!', 'success');
+                if (currentPage === 'x2') {
+                    renderX2Page();
+                }
+                if (currentPage === 'dashboard') {
+                    loadPageData('dashboard');
+                }
+            } else {
+                console.log('📭 Новых X2 матчей в логах не найдено');
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка авто-импорта X2:', error);
+        }
+    }
 
     // ============================================================
     // ЗВЁЗДЫ ДЛЯ ОСНОВНОГО ФОНА
@@ -1834,6 +2115,8 @@
     let x2Data = [];
     let editingX2Index = null;
     let currentFilter = 'all';
+    let keepAliveInterval = null;
+    let autoImportInterval = null;
 
     // Загружаем X2 данные из localStorage
     function loadX2Data() {
@@ -3084,18 +3367,23 @@
             <div class="x2-card">
                 <div class="card-header">
                     <h2 class="x2-title">📋 Таблица X2 матчей</h2>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <div class="x2-import-actions">
                         <button class="btn btn-purple" onclick="openX2Modal()" style="padding:4px 12px;font-size:10px;">➕ Добавить</button>
+                        <button class="btn btn-success" onclick="openX2ImportModal()" style="padding:4px 10px;font-size:10px;">📤 Импорт Excel</button>
+                        <button class="btn btn-primary" onclick="autoImportX2FromLogs()" style="padding:4px 10px;font-size:10px;">🤖 Из логов</button>
                         <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
+                        <button class="btn btn-outline" onclick="renderX2Page()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
                     </div>
                 </div>
-
-                <div class="filter-group">
-                    <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setX2Filter('all')">Все</button>
-                    <button class="filter-btn ${currentFilter === 'win' ? 'active' : ''}" onclick="setX2Filter('win')">✅ WIN</button>
-                    <button class="filter-btn ${currentFilter === 'loss' ? 'active' : ''}" onclick="setX2Filter('loss')">❌ LOSS</button>
-                    <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
-                    <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                    <div class="filter-group">
+                        <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setX2Filter('all')">Все</button>
+                        <button class="filter-btn ${currentFilter === 'win' ? 'active' : ''}" onclick="setX2Filter('win')">✅ WIN</button>
+                        <button class="filter-btn ${currentFilter === 'loss' ? 'active' : ''}" onclick="setX2Filter('loss')">❌ LOSS</button>
+                        <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
+                        <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
+                    </div>
+                    <span class="auto-import-status active">🤖 Авто-импорт активен</span>
                 </div>
 
                 <div class="table-wrapper">
@@ -3256,6 +3544,119 @@
                 showNotification('🗑️ X2 матч удален', '');
             }
         }
+    }
+
+    // ============================================================
+    // ИМПОРТ X2 ИЗ EXCEL
+    // ============================================================
+    function openX2ImportModal() {
+        document.getElementById('x2ImportModal').classList.add('active');
+        document.getElementById('x2ImportFile').value = '';
+        document.getElementById('x2ImportStatus').textContent = '';
+    }
+
+    function closeX2ImportModal() {
+        document.getElementById('x2ImportModal').classList.remove('active');
+    }
+
+    function importX2Excel() {
+        const fileInput = document.getElementById('x2ImportFile');
+        const statusEl = document.getElementById('x2ImportStatus');
+        
+        if (!fileInput.files || fileInput.files.length === 0) {
+            statusEl.textContent = '❌ Выберите файл!';
+            statusEl.style.color = '#f87171';
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        statusEl.textContent = '⏳ Чтение файла...';
+        statusEl.style.color = 'rgba(255,255,255,0.3)';
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet);
+                
+                if (json.length === 0) {
+                    statusEl.textContent = '❌ Файл пуст!';
+                    statusEl.style.color = '#f87171';
+                    return;
+                }
+                
+                let imported = 0;
+                let errors = 0;
+                
+                json.forEach(row => {
+                    try {
+                        const match = row['Матч'] || row['match'] || '';
+                        const favorite = row['Фаворит'] || row['favorite'] || '';
+                        const underdog = row['Аутсайдер'] || row['underdog'] || '';
+                        const odds = parseFloat(row['Кэф X2'] || row['odds'] || 0);
+                        const stake = parseFloat(row['Сумма'] || row['stake'] || 0);
+                        const date = row['Дата'] || row['date'] || new Date().toISOString().slice(0,10);
+                        const score = row['Счёт'] || row['score'] || '-';
+                        const result = (row['Результат'] || row['result'] || 'pending').toLowerCase();
+                        const note = row['Примечание'] || row['note'] || '';
+                        
+                        if (!match || !favorite || !underdog) {
+                            errors++;
+                            return;
+                        }
+                        
+                        // Проверяем на дубликаты
+                        const exists = x2Data.some(m => m.match === match && m.date === date);
+                        if (exists) {
+                            errors++;
+                            return;
+                        }
+                        
+                        let profit = 0;
+                        if (result === 'win') profit = Math.round((stake * odds - stake) * 100) / 100;
+                        else if (result === 'loss') profit = -stake;
+                        else if (result === 'push') profit = 0;
+                        
+                        x2Data.push({
+                            id: Date.now() + Math.random() * 1000 + imported,
+                            date: date,
+                            match: match,
+                            favorite: favorite,
+                            underdog: underdog,
+                            odds: odds,
+                            stake: stake,
+                            score: score,
+                            result: result,
+                            profit: profit,
+                            note: note || 'Импорт из Excel'
+                        });
+                        imported++;
+                    } catch (err) {
+                        errors++;
+                    }
+                });
+                
+                if (imported > 0) {
+                    saveX2Data();
+                    statusEl.textContent = `✅ Импортировано ${imported} матчей! Ошибок: ${errors}`;
+                    statusEl.style.color = '#34d399';
+                    showNotification(`✅ Импортировано ${imported} X2 матчей из Excel!`, 'success');
+                    renderX2Page();
+                    if (currentPage === 'dashboard') loadPageData('dashboard');
+                    setTimeout(closeX2ImportModal, 2000);
+                } else {
+                    statusEl.textContent = `❌ Не удалось импортировать матчи. Ошибок: ${errors}`;
+                    statusEl.style.color = '#f87171';
+                }
+                
+            } catch (error) {
+                statusEl.textContent = '❌ Ошибка чтения файла: ' + error.message;
+                statusEl.style.color = '#f87171';
+            }
+        };
+        reader.readAsArrayBuffer(file);
     }
 
     function exportX2Excel() {
@@ -4035,6 +4436,28 @@
                     <button class="btn btn-danger" onclick="clearAllX2()" style="padding:4px 12px;font-size:11px;">🗑️ Очистить</button>
                 </div>
             </div>
+
+            <div class="setting-group" style="border:1px solid rgba(52,211,153,0.15);">
+                <h2 style="color:#34d399;">🔄 Keep-Alive</h2>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Автопинг активен</div>
+                        <div class="desc">Приложение само себя будит каждые 3 минуты</div>
+                    </div>
+                    <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
+                </div>
+            </div>
+
+            <div class="setting-group" style="border:1px solid rgba(251,191,36,0.15);">
+                <h2 style="color:#fbbf24;">🤖 Авто-импорт X2</h2>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Авто-импорт из логов</div>
+                        <div class="desc">Автоматически добавляет X2 матчи из логов бота каждые 5 минут</div>
+                    </div>
+                    <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
+                </div>
+            </div>
         `;
         document.getElementById('settings-content').innerHTML = html;
     }
@@ -4251,6 +4674,39 @@
         loadX2Data();
         loadPageData('dashboard');
     });
+
+    // Экспортируем функции в глобальную область для доступа из HTML
+    window.toggleTheme = toggleTheme;
+    window.refreshData = refreshData;
+    window.switchPage = switchPage;
+    window.toggleEdit = toggleEdit;
+    window.saveEdit = saveEdit;
+    window.deleteBet = deleteBet;
+    window.showAddMatchModal = showAddMatchModal;
+    window.hideAddMatchModal = hideAddMatchModal;
+    window.saveManualMatch = saveManualMatch;
+    window.loadMatchAnalysis = loadMatchAnalysis;
+    window.resetInteractiveChart = resetInteractiveChart;
+    window.exportChart = exportChart;
+    window.runSimulation = runSimulation;
+    window.updateBank = updateBank;
+    window.toggleSetting = toggleSetting;
+    window.importExcel = importExcel;
+    window.exportProject = exportProject;
+    window.importProject = importProject;
+    window.clearAllX2 = clearAllX2;
+    window.openX2Modal = openX2Modal;
+    window.closeX2Modal = closeX2Modal;
+    window.saveX2Match = saveX2Match;
+    window.editX2Match = editX2Match;
+    window.deleteX2Match = deleteX2Match;
+    window.exportX2Excel = exportX2Excel;
+    window.setX2Filter = setX2Filter;
+    window.updateInteractiveChart = updateInteractiveChart;
+    window.openX2ImportModal = openX2ImportModal;
+    window.closeX2ImportModal = closeX2ImportModal;
+    window.importX2Excel = importX2Excel;
+    window.autoImportX2FromLogs = autoImportX2FromLogs;
 </script>
 </body>
 </html>
