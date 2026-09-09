@@ -1556,169 +1556,6 @@
             color: #34d399;
             border: 1px solid rgba(52,211,153,0.1);
         }
-        
-        /* Стиль для времени последнего обновления анализа */
-        .analysis-last-update {
-            font-size: 9px;
-            color: rgba(255,255,255,0.25);
-            margin-top: 4px;
-            text-align: right;
-        }
-        body.light-theme .analysis-last-update {
-            color: rgba(0,0,0,0.25);
-        }
-        
-        /* Анимация загрузки для кнопки анализа */
-        .btn.loading {
-            opacity: 0.6;
-            pointer-events: none;
-        }
-        .btn.loading::after {
-            content: ' ⏳';
-        }
-        
-        /* ============================================================
-           СТИЛИ ДЛЯ СТРАНИЦЫ АНАЛИЗА
-           ============================================================ */
-        .match-analysis-card .stat-item {
-            transition: all 0.3s ease;
-        }
-        .match-analysis-card .stat-item:hover {
-            transform: translateY(-2px);
-            background: rgba(255,255,255,0.05);
-        }
-        .match-analysis-card .reason-item {
-            transition: all 0.3s ease;
-        }
-        .match-analysis-card .reason-item:hover {
-            transform: translateY(-2px);
-            background: rgba(255,255,255,0.04);
-        }
-        .match-analysis-card .recommendations {
-            animation: fadeIn 0.5s ease;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        body.light-theme .match-analysis-card .stat-item {
-            background: rgba(0, 0, 0, 0.02);
-        }
-        body.light-theme .match-analysis-card .reason-item {
-            background: rgba(0, 0, 0, 0.02);
-        }
-        body.light-theme .match-analysis-card .recommendations {
-            background: rgba(124, 58, 237, 0.05);
-            border-color: rgba(124, 58, 237, 0.15);
-        }
-        body.light-theme .match-analysis-card .recommendations .list {
-            color: rgba(0, 0, 0, 0.6);
-        }
-        
-        .match-analysis-card .recommendation-item {
-            padding: 6px 10px;
-            margin-bottom: 4px;
-            border-radius: 6px;
-            background: rgba(255,255,255,0.02);
-            border-left: 3px solid transparent;
-            transition: all 0.3s ease;
-        }
-        .match-analysis-card .recommendation-item:hover {
-            background: rgba(255,255,255,0.04);
-        }
-        .match-analysis-card .recommendation-item .rec-icon {
-            margin-right: 6px;
-        }
-        .match-analysis-card .recommendation-item .rec-title {
-            font-weight: 600;
-            font-size: 11px;
-        }
-        .match-analysis-card .recommendation-item .rec-desc {
-            font-size: 10px;
-            color: rgba(255,255,255,0.5);
-            margin-top: 2px;
-        }
-        body.light-theme .match-analysis-card .recommendation-item .rec-desc {
-            color: rgba(0,0,0,0.4);
-        }
-        .match-analysis-card .recommendation-item.rec-danger {
-            border-left-color: #f87171;
-        }
-        .match-analysis-card .recommendation-item.rec-danger .rec-title {
-            color: #f87171;
-        }
-        .match-analysis-card .recommendation-item.rec-warning {
-            border-left-color: #fbbf24;
-        }
-        .match-analysis-card .recommendation-item.rec-warning .rec-title {
-            color: #fbbf24;
-        }
-        .match-analysis-card .recommendation-item.rec-success {
-            border-left-color: #34d399;
-        }
-        .match-analysis-card .recommendation-item.rec-success .rec-title {
-            color: #34d399;
-        }
-        .match-analysis-card .recommendation-item.rec-info {
-            border-left-color: #60a5fa;
-        }
-        .match-analysis-card .recommendation-item.rec-info .rec-title {
-            color: #60a5fa;
-        }
-        
-        @media (max-width: 768px) {
-            .container { padding: 10px; padding-bottom: 90px; }
-            .header { flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 12px; }
-            .header h1 { font-size: 16px; text-align: center; }
-            .header-controls { justify-content: center; }
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .metrics-grid .metric-item { padding: 6px 10px; }
-            .metrics-grid .metric-item .value { font-size: 14px; }
-            .card { padding: 10px; }
-            table { font-size: 9px; min-width: 500px; }
-            th, td { padding: 3px 4px; }
-            .chart-container { height: 100px; }
-            .chart-container-large { height: 250px; }
-            .chart-details-grid { grid-template-columns: 1fr; }
-            .chart-controls { gap: 4px; }
-            .chart-controls select { font-size: 10px; padding: 3px 6px; }
-            .pattern-metrics { grid-template-columns: 1fr 1fr; }
-            .patterns-table { font-size: 9px; }
-            .patterns-table th, .patterns-table td { padding: 4px 6px; }
-            .notification { max-width: 90%; right: 10px; left: 10px; top: 10px; }
-            .modal { padding: 16px; }
-            .modal-field .row { grid-template-columns: 1fr; }
-            .edit-row input, .edit-row select { font-size: 9px; padding: 2px 4px; }
-            #matchAnalysisStats { grid-template-columns: 1fr 1fr; }
-            #matchAnalysisReasons { grid-template-columns: 1fr; }
-            .stats-grid-x2 { grid-template-columns: 1fr 1fr; }
-            .x2-top-matches { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
-            .stat-card { padding: 8px; }
-            .stat-card .value { font-size: 16px; }
-            .metrics-grid { grid-template-columns: 1fr; }
-            .pattern-metrics { grid-template-columns: 1fr 1fr; }
-            #matchAnalysisStats { grid-template-columns: 1fr 1fr; }
-            .stats-grid-x2 { grid-template-columns: 1fr 1fr; }
-        }
-        
-        .match-analysis-card {
-            border: 2px solid rgba(167, 139, 250, 0.15);
-            margin-top: 12px;
-        }
-        
-        /* Индикатор загрузки для кнопок */
-        .btn.loading {
-            opacity: 0.6;
-            pointer-events: none;
-        }
-        .btn.loading::after {
-            content: ' ⏳';
-        }
     </style>
 </head>
 <body>
@@ -1761,14 +1598,8 @@
     <div id="page-dashboard" class="page active">
         <div id="dashboard-content"></div>
     </div>
-    <div id="page-analysis" class="page" style="display:none;">
-        <div id="analysis-content"></div>
-    </div>
     <div id="page-x2" class="page" style="display:none;">
         <div id="x2-content"></div>
-    </div>
-    <div id="page-simulator" class="page" style="display:none;">
-        <div id="simulator-content"></div>
     </div>
     <div id="page-settings" class="page" style="display:none;">
         <div id="settings-content"></div>
@@ -1783,17 +1614,9 @@
         <span class="icon">📊</span>
         <span class="label">Главная</span>
     </button>
-    <button class="nav-item" data-page="analysis">
-        <span class="icon">🔍</span>
-        <span class="label">Анализ</span>
-    </button>
     <button class="nav-item" data-page="x2">
         <span class="icon">🔥</span>
         <span class="label">X2</span>
-    </button>
-    <button class="nav-item" data-page="simulator">
-        <span class="icon">🎲</span>
-        <span class="label">Симулятор</span>
     </button>
     <button class="nav-item" data-page="settings">
         <span class="icon">⚙️</span>
@@ -1985,7 +1808,6 @@
         loadPageData('dashboard');
         startKeepAlive();
         startAutoImportX2();
-        startAutoMatchAnalysis();
     });
 
     // ============================================================
@@ -2030,11 +1852,9 @@
     // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ БОТА
     // ============================================================
     function startAutoImportX2() {
-        // Запускаем каждые 3 минуты (чаще, чтобы быстрее подгружались)
         autoImportInterval = setInterval(function() {
             autoImportX2FromLogs();
-        }, 180000); // 3 минуты
-        // Первый импорт сразу при загрузке
+        }, 180000);
         setTimeout(function() {
             autoImportX2FromLogs();
         }, 5000);
@@ -2059,7 +1879,6 @@
             let totalFound = 0;
             
             for (const line of lines) {
-                // Ищем строки с "нет мотивации"
                 if (line.includes('нет мотивации') || line.includes('no motivation')) {
                     totalFound++;
                     const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
@@ -2067,21 +1886,13 @@
                     const home = matchMatch[1].trim();
                     const away = matchMatch[2].trim();
                     const matchName = home + ' vs ' + away;
-                    
-                    // Проверяем, нет ли уже такого матча в X2 (по названию и дате)
                     const today = new Date().toISOString().slice(0,10);
                     const exists = x2Data.some(m => m.match === matchName && m.date === today);
                     if (exists) continue;
-                    
-                    // Извлекаем XG если есть
                     const xgMatch = line.match(/XG:\s*([\d.]+)/i);
                     const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
-                    
-                    // Определяем фаворита и аутсайдера
                     let favorite = home;
                     let underdog = away;
-                    
-                    // Если есть информация о позициях
                     const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
                     if (posMatch) {
                         const homePos = parseInt(posMatch[1]);
@@ -2094,8 +1905,6 @@
                             underdog = home;
                         }
                     }
-                    
-                    // Добавляем матч
                     const newMatch = {
                         id: Date.now() + Math.random() * 1000 + newMatches,
                         date: today,
@@ -2109,7 +1918,6 @@
                         profit: 0,
                         note: 'Авто-импорт из логов бота' + (xg ? ' | XG: ' + xg : '')
                     };
-                    
                     x2Data.push(newMatch);
                     newMatches++;
                 }
@@ -2118,13 +1926,8 @@
             if (newMatches > 0) {
                 saveX2Data();
                 showNotification('🤖 Добавлено ' + newMatches + ' X2 матчей из логов!', 'success');
-                // Обновляем страницу X2 если она открыта
-                if (currentPage === 'x2') {
-                    renderX2Page();
-                }
-                if (currentPage === 'dashboard') {
-                    loadPageData('dashboard');
-                }
+                if (currentPage === 'x2') renderX2Page();
+                if (currentPage === 'dashboard') loadPageData('dashboard');
             } else if (totalFound > 0) {
                 console.log('📭 Найдено ' + totalFound + ' матчей с "нет мотивации", но все уже добавлены');
             } else {
@@ -2133,19 +1936,6 @@
         } catch (error) {
             console.error('❌ Ошибка авто-импорта X2:', error);
         }
-    }
-
-    // ============================================================
-    // АВТО-ОБНОВЛЕНИЕ СТАТИСТИКИ АНАЛИЗА МАТЧЕЙ
-    // ============================================================
-    function startAutoMatchAnalysis() {
-        analysisInterval = setInterval(function() {
-            console.log('🔄 Авто-обновление анализа матчей...');
-            loadMatchAnalysis();
-        }, 300000);
-        setTimeout(function() {
-            loadMatchAnalysis();
-        }, 15000);
     }
 
     // ============================================================
@@ -2174,7 +1964,6 @@
     // ============================================================
     let cachedData = null;
     let chartInstance = null;
-    let simChartInstance = null;
     let currentPage = 'dashboard';
     let isLoading = false;
     let matchesCache = null;
@@ -2184,8 +1973,6 @@
     let currentFilter = 'all';
     let keepAliveInterval = null;
     let autoImportInterval = null;
-    let analysisInterval = null;
-    let analysisLastUpdate = null;
 
     // Загружаем X2 данные из localStorage
     function loadX2Data() {
@@ -2273,16 +2060,14 @@
     function updateAllCharts(isLight) {
         const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
         const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        [chartInstance, simChartInstance].forEach(chart => {
-            if (chart) {
-                chart.options.plugins.legend.labels.color = color;
-                chart.options.scales.x.ticks.color = color;
-                chart.options.scales.y.ticks.color = color;
-                chart.options.scales.x.grid.color = gridColor;
-                chart.options.scales.y.grid.color = gridColor;
-                chart.update();
-            }
-        });
+        if (chartInstance) {
+            chartInstance.options.plugins.legend.labels.color = color;
+            chartInstance.options.scales.x.ticks.color = color;
+            chartInstance.options.scales.y.ticks.color = color;
+            chartInstance.options.scales.x.grid.color = gridColor;
+            chartInstance.options.scales.y.grid.color = gridColor;
+            chartInstance.update();
+        }
     }
 
     const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -2328,11 +2113,11 @@
         if (isLoading) return;
         const contentId = page + '-content';
         const contentEl = document.getElementById(contentId);
-        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'x2' && page !== 'analysis') {
+        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'x2') {
             return;
         }
         isLoading = true;
-        if (page !== 'x2' && page !== 'analysis') {
+        if (page !== 'x2') {
             contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
         }
         try {
@@ -2353,15 +2138,13 @@
             cachedData = data;
             switch(page) {
                 case 'dashboard': renderDashboard(data); break;
-                case 'analysis': renderAnalysis(data); break;
                 case 'x2': renderX2Page(); break;
-                case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
             hideLoadingScreen();
         } catch (error) {
             console.error('Ошибка загрузки:', error);
-            if (page !== 'x2' && page !== 'analysis') {
+            if (page !== 'x2') {
                 contentEl.innerHTML = `
                     <div class="no-data">
                         <div class="emoji">⚠️</div>
@@ -2987,319 +2770,6 @@
     }
 
     // ============================================================
-    // РЕНДЕР СТРАНИЦЫ АНАЛИЗА
-    // ============================================================
-    function renderAnalysis(data) {
-        document.getElementById('analysis-content').innerHTML = `
-            <div class="loader active">
-                <div class="spinner"></div>
-                <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка анализа...</div>
-            </div>
-        `;
-        loadMatchAnalysis();
-    }
-
-    // ============================================================
-    // АНАЛИЗ МАТЧЕЙ
-    // ============================================================
-    async function loadMatchAnalysis() {
-        try {
-            const maTotal = document.getElementById('maTotal');
-            const maPassed = document.getElementById('maPassed');
-            const maSkipped = document.getElementById('maSkipped');
-            const maRate = document.getElementById('maRate');
-            const maNoMotivation = document.getElementById('maNoMotivation');
-            const maLowPosition = document.getElementById('maLowPosition');
-            const maXGOut = document.getElementById('maXGOut');
-            
-            if (!maTotal || !maPassed || !maSkipped || !maRate || 
-                !maNoMotivation || !maLowPosition || !maXGOut) {
-                console.log('⏳ Страница анализа ещё не загружена');
-                return;
-            }
-            
-            const btn = document.querySelector('#matchAnalysisRefreshBtn');
-            if (btn) {
-                btn.classList.add('loading');
-                btn.textContent = '🔄 Загрузка...';
-            }
-            
-            maTotal.textContent = '⏳';
-            maPassed.textContent = '⏳';
-            maSkipped.textContent = '⏳';
-            maRate.textContent = '⏳%';
-            maNoMotivation.textContent = '⏳';
-            maLowPosition.textContent = '⏳';
-            maXGOut.textContent = '⏳';
-            
-            let response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
-            let logText = '';
-            let source = 'none';
-            
-            if (response.ok) {
-                const data = await response.json();
-                logText = data.log || '';
-                source = data.source || 'bot';
-                console.log('📥 Источник лога:', source);
-                console.log('📄 Длина лога:', logText.length);
-            }
-            
-            let stats = {
-                total: 0,
-                passed: 0,
-                skipped: 0,
-                categories: {
-                    no_motivation: { count: 0, matches: [] },
-                    low_position: { count: 0, matches: [] },
-                    xg_out_of_range: { count: 0, matches: [] }
-                },
-                xg_values: [],
-                total_xg: 0
-            };
-            
-            let recommendations = [];
-            
-            if (logText && logText.trim() !== '' && logText.length > 50) {
-                const lines = logText.split('\n');
-                
-                for (const line of lines) {
-                    if (line.includes('⏭️ Пропускаем')) {
-                        stats.skipped++;
-                        
-                        if (line.includes('нет мотивации') || line.includes('no motivation')) {
-                            stats.categories.no_motivation.count++;
-                            const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
-                            if (matchMatch) {
-                                stats.categories.no_motivation.matches.push({
-                                    home: matchMatch[1].trim(),
-                                    away: matchMatch[2].trim(),
-                                    line: line
-                                });
-                            }
-                        } else if (line.includes('низкая позиция') || line.includes('low position')) {
-                            stats.categories.low_position.count++;
-                            const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
-                            if (matchMatch) {
-                                stats.categories.low_position.matches.push({
-                                    home: matchMatch[1].trim(),
-                                    away: matchMatch[2].trim(),
-                                    line: line
-                                });
-                            }
-                        } else if (line.includes('XG вне диапазона') || line.includes('XG out of range')) {
-                            stats.categories.xg_out_of_range.count++;
-                            const xgMatch = line.match(/XG:\s*([\d.]+)/i);
-                            if (xgMatch) {
-                                const xg = parseFloat(xgMatch[1]);
-                                stats.xg_values.push(xg);
-                                stats.total_xg += xg;
-                            }
-                            const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
-                            if (matchMatch) {
-                                stats.categories.xg_out_of_range.matches.push({
-                                    home: matchMatch[1].trim(),
-                                    away: matchMatch[2].trim(),
-                                    xg: xgMatch ? parseFloat(xgMatch[1]) : null,
-                                    line: line
-                                });
-                            }
-                        }
-                    } else if (line.includes('✅ Берем матч') || line.includes('✅ Найдена ставка') || line.includes('✅ Добавляем')) {
-                        stats.passed++;
-                    }
-                }
-                
-                stats.total = stats.passed + stats.skipped;
-                
-                if (stats.skipped > 0) {
-                    const skipPercent = Math.round((stats.skipped / stats.total) * 100);
-                    
-                    if (stats.categories.xg_out_of_range.count > 0) {
-                        const xgPercent = Math.round((stats.categories.xg_out_of_range.count / stats.skipped) * 100);
-                        const avgXG = stats.xg_values.length > 0 ? (stats.total_xg / stats.xg_values.length).toFixed(2) : '0';
-                        
-                        if (parseFloat(avgXG) > 4) {
-                            recommendations.push({
-                                type: 'danger',
-                                icon: '🔴',
-                                title: `${stats.categories.xg_out_of_range.count} матчей (${xgPercent}%) пропущено по XG`,
-                                desc: `Средний XG (${avgXG}) слишком высокий. Рассмотрите матчи с XG 1.8-3.0`
-                            });
-                            recommendations.push({
-                                type: 'warning',
-                                icon: '🟢',
-                                title: `Найдено ${stats.xg_values.filter(x => x > 4).length} матчей с XG > 4`,
-                                desc: 'Возможно, стоит расширить диапазон XG до 1.5-3.5'
-                            });
-                        } else {
-                            recommendations.push({
-                                type: 'warning',
-                                icon: '🟡',
-                                title: `${stats.categories.xg_out_of_range.count} матчей (${xgPercent}%) пропущено по XG`,
-                                desc: `Средний XG (${avgXG}). Проверьте настройки фильтра XG (сейчас 1.8-3.0)`
-                            });
-                        }
-                    }
-                    
-                    if (stats.categories.low_position.count > 0) {
-                        const posPercent = Math.round((stats.categories.low_position.count / stats.skipped) * 100);
-                        recommendations.push({
-                            type: 'warning',
-                            icon: '📉',
-                            title: `${stats.categories.low_position.count} матчей (${posPercent}%) пропущено по "низкая позиция"`,
-                            desc: 'Проверьте настройки фильтра позиции (сейчас MAX=15)'
-                        });
-                    }
-                    
-                    if (stats.categories.no_motivation.count > 0) {
-                        const motPercent = Math.round((stats.categories.no_motivation.count / stats.skipped) * 100);
-                        recommendations.push({
-                            type: 'info',
-                            icon: '🚫',
-                            title: `${stats.categories.no_motivation.count} матчей (${motPercent}%) пропущено по "нет мотивации"`,
-                            desc: '💡 Перейдите на вкладку X2 — эти матчи идеально подходят для стратегии "аутсайдер не проиграет"'
-                        });
-                    }
-                    
-                    if (skipPercent > 70) {
-                        recommendations.push({
-                            type: 'danger',
-                            icon: '⚠️',
-                            title: `Всего пропущено ${stats.skipped} матчей (${skipPercent}%)`,
-                            desc: 'Слишком много пропусков! Возможно, фильтры слишком строгие.'
-                        });
-                    } else if (skipPercent > 40) {
-                        recommendations.push({
-                            type: 'warning',
-                            icon: '📊',
-                            title: `Пропущено ${stats.skipped} матчей (${skipPercent}%)`,
-                            desc: 'Средний уровень пропусков. Проверьте настройки для оптимизации.'
-                        });
-                    } else {
-                        recommendations.push({
-                            type: 'success',
-                            icon: '✅',
-                            title: `Пропущено только ${stats.skipped} матчей (${skipPercent}%)`,
-                            desc: 'Отличный результат! Фильтры настроены оптимально.'
-                        });
-                    }
-                } else {
-                    recommendations.push({
-                        type: 'success',
-                        icon: '✅',
-                        title: 'Нет пропущенных матчей!',
-                        desc: 'Все матчи прошли фильтр. Отличная работа!'
-                    });
-                }
-                
-                if (stats.categories.no_motivation.count > 0 && x2Data.length > 0) {
-                    const x2Success = x2Data.filter(m => m.result === 'win').length;
-                    const x2Total = x2Data.length;
-                    if (x2Total > 0 && x2Success / x2Total > 0.5) {
-                        recommendations.push({
-                            type: 'success',
-                            icon: '🔥',
-                            title: `X2 стратегия: ${Math.round((x2Success/x2Total)*100)}% успеха (${x2Success}/${x2Total})`,
-                            desc: 'Матчи с "нет мотивации" отлично подходят для X2!'
-                        });
-                    }
-                }
-                
-                updateAnalysisUI(stats, recommendations);
-                
-                const sourceText = source === 'test_data' ? ' (тестовые)' : '';
-                showNotification(`✅ Анализ матчей обновлен${sourceText} (${stats.total} матчей)`, 'success');
-                
-            } else {
-                resetAnalysisUI();
-                showNotification('⚠️ Нет данных для анализа', '');
-            }
-            
-        } catch (error) {
-            console.error('Ошибка загрузки анализа:', error);
-            showNotification('❌ Ошибка: ' + error.message, 'error');
-            resetAnalysisUI();
-        }
-        
-        analysisLastUpdate = new Date();
-        const updateEl = document.getElementById('analysisLastUpdate');
-        if (updateEl) {
-            updateEl.textContent = '🔄 Обновлено: ' + analysisLastUpdate.toLocaleTimeString();
-        }
-        
-        const btn = document.querySelector('#matchAnalysisRefreshBtn');
-        if (btn) {
-            btn.classList.remove('loading');
-            btn.textContent = '🔄 Обновить';
-        }
-    }
-
-    function updateAnalysisUI(stats, recommendations) {
-        const maTotal = document.getElementById('maTotal');
-        const maPassed = document.getElementById('maPassed');
-        const maSkipped = document.getElementById('maSkipped');
-        const maRate = document.getElementById('maRate');
-        const maNoMotivation = document.getElementById('maNoMotivation');
-        const maLowPosition = document.getElementById('maLowPosition');
-        const maXGOut = document.getElementById('maXGOut');
-        
-        if (!maTotal || !maPassed || !maSkipped || !maRate || 
-            !maNoMotivation || !maLowPosition || !maXGOut) {
-            console.log('⏳ Элементы анализа не найдены');
-            return;
-        }
-        
-        maTotal.textContent = stats.total || 0;
-        maPassed.textContent = stats.passed || 0;
-        maSkipped.textContent = stats.skipped || 0;
-        maRate.textContent = stats.total > 0 ? 
-            Math.round((stats.passed / stats.total) * 100) + '%' : '0%';
-        
-        maNoMotivation.textContent = stats.categories?.no_motivation?.count || 0;
-        maLowPosition.textContent = stats.categories?.low_position?.count || 0;
-        maXGOut.textContent = stats.categories?.xg_out_of_range?.count || 0;
-        
-        const recDiv = document.getElementById('matchRecommendations');
-        const recList = document.getElementById('recommendationsList');
-        
-        if (recDiv && recList && recommendations && recommendations.length > 0) {
-            recDiv.style.display = 'block';
-            recList.innerHTML = recommendations.map(r => `
-                <div class="recommendation-item rec-${r.type}">
-                    <div>
-                        <span class="rec-icon">${r.icon}</span>
-                        <span class="rec-title">${r.title}</span>
-                    </div>
-                    <div class="rec-desc">${r.desc}</div>
-                </div>
-            `).join('');
-        } else if (recDiv) {
-            recDiv.style.display = 'none';
-        }
-    }
-
-    function resetAnalysisUI() {
-        const maTotal = document.getElementById('maTotal');
-        const maPassed = document.getElementById('maPassed');
-        const maSkipped = document.getElementById('maSkipped');
-        const maRate = document.getElementById('maRate');
-        const maNoMotivation = document.getElementById('maNoMotivation');
-        const maLowPosition = document.getElementById('maLowPosition');
-        const maXGOut = document.getElementById('maXGOut');
-        
-        if (maTotal) maTotal.textContent = '0';
-        if (maPassed) maPassed.textContent = '0';
-        if (maSkipped) maSkipped.textContent = '0';
-        if (maRate) maRate.textContent = '0%';
-        if (maNoMotivation) maNoMotivation.textContent = '0';
-        if (maLowPosition) maLowPosition.textContent = '0';
-        if (maXGOut) maXGOut.textContent = '0';
-        
-        const recDiv = document.getElementById('matchRecommendations');
-        if (recDiv) recDiv.style.display = 'none';
-    }
-
-    // ============================================================
     // X2 СТРАНИЦА
     // ============================================================
     function renderX2Page() {
@@ -3661,136 +3131,6 @@
     }
 
     // ============================================================
-    // СИМУЛЯТОР
-    // ============================================================
-    function renderSimulator(data) {
-        const history = data.history || [];
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🎲 Симулятор</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Узнай, сколько ты мог бы заработать!</div>
-        `;
-        if (history.length < 5) {
-            html += `
-                <div class="card">
-                    <div class="no-data">
-                        <div class="emoji">📭</div>
-                        <div>Нет данных для симуляции</div>
-                        <div style="font-size:11px;color:rgba(255,255,255,0.3);">Сначала сделайте хотя бы 5 ставок!</div>
-                    </div>
-                </div>
-            `;
-        } else {
-            html += `
-                <div class="card">
-                    <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📊 Параметры симуляции</h2>
-                    <div class="slider-container">
-                        <label style="color:rgba(255,255,255,0.4);font-size:12px;">Количество симуляций: <span id="simCountLabel">1000</span></label>
-                        <input type="range" id="simCount" min="100" max="5000" step="100" value="1000" oninput="document.getElementById('simCountLabel').textContent=this.value">
-                    </div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <button class="btn btn-primary" onclick="runSimulation()">🎲 Запустить</button>
-                        <button class="btn btn-outline" onclick="document.getElementById('simResults').style.display='none'">🔄 Сбросить</button>
-                    </div>
-                </div>
-                <div id="simResults" style="display:none;">
-                    <div class="sim-stats" id="simStats">
-                        <div class="sim-stat"><div class="value gold" id="simProfit">$0</div><div class="label">💰 Ожидаемая прибыль</div></div>
-                        <div class="sim-stat"><div class="value green" id="simWinrate">0%</div><div class="label">🎯 Проходимость</div></div>
-                        <div class="sim-stat"><div class="value" id="simROI">0%</div><div class="label">📈 ROI</div></div>
-                        <div class="sim-stat"><div class="value red" id="simRisk">0%</div><div class="label">⚠️ Риск</div></div>
-                    </div>
-                    <div class="card">
-                        <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📈 График симуляции</h2>
-                        <div class="chart-container"><canvas id="simChart"></canvas></div>
-                    </div>
-                    <div class="card">
-                        <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">📋 Результаты</h2>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;" id="simDetails">
-                            <div style="color:rgba(255,255,255,0.4);">Всего: <span id="simTotal" style="color:#e8e8f0;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Выигрышей: <span id="simWins" style="color:#34d399;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Проигрышей: <span id="simLosses" style="color:#f87171;">0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Макс. прибыль: <span id="simMaxProfit" style="color:#fbbf24;">$0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Мин. прибыль: <span id="simMinProfit" style="color:#f87171;">$0</span></div>
-                            <div style="color:rgba(255,255,255,0.4);">Средняя ставка: <span id="simAvgStake" style="color:#e8e8f0;">$0</span></div>
-                        </div>
-                    </div>
-                    <div class="card" style="background:rgba(124,58,237,0.05);border-color:rgba(124,58,237,0.1);">
-                        <h2 style="color:rgba(255,255,255,0.4);font-size:12px;font-weight:600;margin-bottom:6px;">💡 Рекомендация</h2>
-                        <div id="simRecommendation" style="font-size:13px;line-height:1.5;color:rgba(255,255,255,0.6);">Запустите симуляцию, чтобы получить рекомендацию!</div>
-                    </div>
-                </div>
-            `;
-        }
-        document.getElementById('simulator-content').innerHTML = html;
-    }
-
-    async function runSimulation() {
-        const count = parseInt(document.getElementById('simCount').value) || 1000;
-        document.getElementById('simResults').style.display = 'block';
-        try {
-            const response = await fetch(API_BASE + '/api/simulate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ count: count })
-            });
-            const data = await response.json();
-            if (data.error) {
-                showNotification('❌ Ошибка: ' + data.error, 'error');
-                return;
-            }
-            document.getElementById('simProfit').textContent = '$' + data.profit;
-            document.getElementById('simWinrate').textContent = data.winrate + '%';
-            document.getElementById('simROI').textContent = data.roi + '%';
-            document.getElementById('simRisk').textContent = data.risk + '%';
-            document.getElementById('simTotal').textContent = data.total;
-            document.getElementById('simWins').textContent = data.wins;
-            document.getElementById('simLosses').textContent = data.losses;
-            document.getElementById('simMaxProfit').textContent = '$' + data.max_profit;
-            document.getElementById('simMinProfit').textContent = '$' + data.min_profit;
-            document.getElementById('simAvgStake').textContent = '$' + data.avg_stake;
-            const rec = document.getElementById('simRecommendation');
-            if (data.profit > 0) {
-                rec.innerHTML = '✅ <b style="color:#34d399;">Отличный результат!</b> Ваша стратегия принесла бы прибыль!<br>💡 Средняя прибыль на ставку: $' + (data.profit / data.total).toFixed(2) + '<br>🔥 Лучший результат: +$' + data.max_profit;
-            } else {
-                rec.innerHTML = '⚠️ <b style="color:#f87171;">Стратегия требует улучшения</b><br>💡 Попробуйте снизить сумму ставок<br>📊 Работайте над проходимостью (сейчас ' + data.winrate + '%)';
-            }
-            const ctx = document.getElementById('simChart');
-            if (ctx) {
-                if (simChartInstance) { simChartInstance.destroy(); simChartInstance = null; }
-                const isLight = document.body.classList.contains('light-theme');
-                simChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels || Array.from({length: data.history.length}, (_, i) => i + 1),
-                        datasets: [{
-                            label: 'Прибыль ($)',
-                            data: data.history || [],
-                            borderColor: data.profit > 0 ? '#34d399' : '#f87171',
-                            backgroundColor: data.profit > 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
-                        },
-                        scales: {
-                            x: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } },
-                            y: { ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', callback: function(value) { return '$' + value; }, font: { size: 8 } }, grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' } }
-                        }
-                    }
-                });
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e, 'error');
-        }
-    }
-
-    // ============================================================
     // НАСТРОЙКИ
     // ============================================================
     function renderSettings(data) {
@@ -3904,24 +3244,6 @@
                         <div class="desc">Автоматически добавляет X2 матчи из логов бота каждые 3 минуты</div>
                     </div>
                     <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
-                </div>
-            </div>
-
-            <div class="setting-group" style="border:1px solid rgba(96,165,250,0.15);">
-                <h2 style="color:#60a5fa;">📊 Анализ матчей</h2>
-                <div class="setting-item" style="border-bottom:none;">
-                    <div>
-                        <div class="label">Авто-обновление анализа</div>
-                        <div class="desc">Статистика пропущенных матчей обновляется каждые 5 минут</div>
-                    </div>
-                    <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
-                </div>
-                <div class="setting-item" style="border-bottom:none;">
-                    <div>
-                        <div class="label">Последнее обновление</div>
-                        <div class="desc">${analysisLastUpdate ? analysisLastUpdate.toLocaleTimeString() : 'Еще не обновлялось'}</div>
-                    </div>
-                    <button class="btn btn-primary" onclick="loadMatchAnalysis()" style="padding:4px 10px;font-size:10px;">🔄 Обновить сейчас</button>
                 </div>
             </div>
         `;
@@ -4151,7 +3473,6 @@
     window.showAddMatchModal = showAddMatchModal;
     window.hideAddMatchModal = hideAddMatchModal;
     window.saveManualMatch = saveManualMatch;
-    window.loadMatchAnalysis = loadMatchAnalysis;
     window.runSimulation = runSimulation;
     window.updateBank = updateBank;
     window.toggleSetting = toggleSetting;
