@@ -3174,6 +3174,7 @@ def webhook():
 # ============================================================
 # API ЭНДПОИНТЫ
 # ============================================================
+
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
     stats = storage.load_stats()
@@ -3507,14 +3508,7 @@ def api_strategies():
         'current_test': strategy_tester.current_test
     })
 
-@app.route('/health', methods=['GET'])
-def health():
-    return {"status": "ok", "time": datetime.now().isoformat()}
-
-@app.route('/', methods=['GET'])
-def index(): 
-
-    @app.route('/api/keepalive', methods=['GET'])
+@app.route('/api/keepalive', methods=['GET'])
 def keepalive():
     """Эндпоинт для поддержания работы приложения"""
     return jsonify({
@@ -3522,6 +3516,13 @@ def keepalive():
         'timestamp': datetime.now().isoformat(),
         'message': 'Keep-Alive активен'
     })
+
+@app.route('/health', methods=['GET'])
+def health():
+    return {"status": "ok", "time": datetime.now().isoformat()}
+
+@app.route('/', methods=['GET'])
+def index():
     return f"🤖 Quantum Bot PRO (70%+ Target + ТМ 2.5 Special) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 # ============================================================
