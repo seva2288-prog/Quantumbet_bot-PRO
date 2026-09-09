@@ -2000,7 +2000,6 @@
     // KEEP-ALIVE — приложение само себя будит
     // ============================================================
     function startKeepAlive() {
-        // Пинг каждые 3 минуты (180 секунд)
         keepAliveInterval = setInterval(function() {
             fetch(API_BASE + '/api/all_data?t=' + Date.now())
                 .then(response => response.json())
@@ -2010,22 +2009,19 @@
                     if (cachedData) {
                         cachedData = data;
                     }
-                    // Дополнительный пинг на /api/keepalive
                     fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
                 })
                 .catch(err => {
                     console.warn('⚠️ Keep-Alive: пинг не удался', err);
                     updateKeepAliveStatus('❌', new Date().toLocaleTimeString());
                 });
-        }, 180000); // 3 минуты
+        }, 180000);
 
-        // Добавляем индикатор в правый нижний угол
         const statusEl = document.createElement('div');
         statusEl.id = 'keepAliveStatus';
         statusEl.textContent = '🔄 Автопинг активен';
         document.body.appendChild(statusEl);
         
-        // Запускаем первый пинг сразу
         setTimeout(function() {
             fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
         }, 5000);
@@ -2042,12 +2038,9 @@
     // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ БОТА
     // ============================================================
     function startAutoImportX2() {
-        // Проверяем логи каждые 5 минут
         autoImportInterval = setInterval(function() {
             autoImportX2FromLogs();
-        }, 300000); // 5 минут
-        
-        // Первый импорт через 10 секунд после загрузки
+        }, 300000);
         setTimeout(function() {
             autoImportX2FromLogs();
         }, 10000);
@@ -2056,50 +2049,32 @@
     async function autoImportX2FromLogs() {
         try {
             console.log('🤖 Авто-импорт X2 из логов...');
-            
-            // Получаем логи бота
             const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
             if (!response.ok) {
                 console.warn('⚠️ Не удалось получить логи');
                 return;
             }
-            
             const data = await response.json();
             const logText = data.log || '';
-            
             if (!logText || logText.trim() === '') {
                 console.log('📭 Логи пусты');
                 return;
             }
-            
-            // Парсим логи
             const lines = logText.split('\n');
             let newMatches = 0;
-            
             for (const line of lines) {
-                // Ищем строки с "нет мотивации"
                 if (line.includes('нет мотивации') || line.includes('no motivation')) {
-                    // Извлекаем название матча
                     const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
                     if (!matchMatch) continue;
-                    
                     const home = matchMatch[1].trim();
                     const away = matchMatch[2].trim();
                     const matchName = home + ' vs ' + away;
-                    
-                    // Проверяем, нет ли уже такого матча в X2
                     const exists = x2Data.some(m => m.match === matchName && m.date === new Date().toISOString().slice(0,10));
                     if (exists) continue;
-                    
-                    // Извлекаем XG если есть
                     const xgMatch = line.match(/XG:\s*([\d.]+)/i);
                     const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
-                    
-                    // Определяем фаворита и аутсайдера (по позиции в логе)
                     let favorite = home;
                     let underdog = away;
-                    
-                    // Если есть информация о позициях
                     const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
                     if (posMatch) {
                         const homePos = parseInt(posMatch[1]);
@@ -2112,8 +2087,6 @@
                             underdog = home;
                         }
                     }
-                    
-                    // Добавляем матч
                     const newMatch = {
                         id: Date.now() + Math.random() * 1000,
                         date: new Date().toISOString().slice(0,10),
@@ -2127,25 +2100,18 @@
                         profit: 0,
                         note: 'Авто-импорт из логов бота' + (xg ? ' | XG: ' + xg : '')
                     };
-                    
                     x2Data.push(newMatch);
                     newMatches++;
                 }
             }
-            
             if (newMatches > 0) {
                 saveX2Data();
                 showNotification('🤖 Добавлено ' + newMatches + ' X2 матчей из логов!', 'success');
-                if (currentPage === 'x2') {
-                    renderX2Page();
-                }
-                if (currentPage === 'dashboard') {
-                    loadPageData('dashboard');
-                }
+                if (currentPage === 'x2') renderX2Page();
+                if (currentPage === 'dashboard') loadPageData('dashboard');
             } else {
                 console.log('📭 Новых X2 матчей в логах не найдено');
             }
-            
         } catch (error) {
             console.error('❌ Ошибка авто-импорта X2:', error);
         }
@@ -2155,13 +2121,10 @@
     // АВТО-ОБНОВЛЕНИЕ СТАТИСТИКИ АНАЛИЗА МАТЧЕЙ
     // ============================================================
     function startAutoMatchAnalysis() {
-        // Обновляем анализ каждые 5 минут
         analysisInterval = setInterval(function() {
             console.log('🔄 Авто-обновление анализа матчей...');
             loadMatchAnalysis();
-        }, 300000); // 5 минут
-        
-        // Первый анализ через 15 секунд после загрузки
+        }, 300000);
         setTimeout(function() {
             loadMatchAnalysis();
         }, 15000);
@@ -2263,7 +2226,6 @@
         notification.className = 'notification' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
         notification.textContent = message;
         document.body.appendChild(notification);
-        
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease';
             setTimeout(() => {
@@ -2280,7 +2242,6 @@
     function toggleTheme() {
         const body = document.body;
         const btn = document.getElementById('themeBtn');
-        
         if (body.classList.contains('light-theme')) {
             body.classList.remove('light-theme');
             btn.textContent = '🌙';
@@ -2297,7 +2258,6 @@
     function updateAllCharts(isLight) {
         const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
         const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        
         [chartInstance, interactiveChartInstance, simChartInstance, x2ChartInstance].forEach(chart => {
             if (chart) {
                 chart.options.plugins.legend.labels.color = color;
@@ -2331,21 +2291,17 @@
 
     function switchPage(page) {
         if (page === currentPage) return;
-
         document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
         document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
-
         document.querySelectorAll('.page').forEach(p => {
             p.style.display = 'none';
             p.classList.remove('active');
         });
-
         const targetPage = document.getElementById('page-' + page);
         if (targetPage) {
             targetPage.style.display = 'block';
             targetPage.classList.add('active');
         }
-
         currentPage = page;
         loadPageData(page);
     }
@@ -2355,26 +2311,21 @@
     // ============================================================
     async function loadPageData(page) {
         if (isLoading) return;
-
         const contentId = page + '-content';
         const contentEl = document.getElementById(contentId);
-
         if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'analytics' && page !== 'x2' && page !== 'analysis') {
             return;
         }
-
         isLoading = true;
         if (page !== 'x2' && page !== 'analysis') {
             contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
         }
-
         try {
             const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
             if (!response.ok) {
                 throw new Error('Сервер вернул ошибку: ' + response.status);
             }
             const data = await response.json();
-            
             try {
                 const matchesData = await loadMatches();
                 if (matchesData && matchesData.length > 0) {
@@ -2384,9 +2335,7 @@
             } catch (e) {
                 console.log('Матчи не загружены отдельно');
             }
-            
             cachedData = data;
-
             switch(page) {
                 case 'dashboard': renderDashboard(data); break;
                 case 'analysis': renderAnalysis(data); break;
@@ -2395,7 +2344,6 @@
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
-            
             hideLoadingScreen();
         } catch (error) {
             console.error('Ошибка загрузки:', error);
@@ -2416,7 +2364,6 @@
             hideLoadingScreen();
             showNotification('❌ Ошибка загрузки: ' + error.message, 'error');
         }
-
         isLoading = false;
     }
 
@@ -2474,7 +2421,6 @@
         const history = cachedData.history || [];
         const matches = cachedData.matches || [];
         let allItems = [];
-        
         if (matches && matches.length > 0) {
             matches.forEach((match) => {
                 const bestBet = match.best_bet || match.bets?.[0] || {};
@@ -2495,7 +2441,6 @@
                 });
             });
         }
-        
         if (history && history.length > 0) {
             history.forEach((bet) => {
                 allItems.push({
@@ -2515,15 +2460,12 @@
                 });
             });
         }
-        
         allItems.sort((a, b) => {
             if (a.is_active && !b.is_active) return -1;
             if (!a.is_active && b.is_active) return 1;
             try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
         });
-        
         allItems = allItems.slice(0, 50);
-        
         if (index < allItems.length) {
             return allItems[index];
         }
@@ -2535,7 +2477,6 @@
         const history = cachedData.history || [];
         const matches = cachedData.matches || [];
         let allItems = [];
-        
         if (matches && matches.length > 0) {
             matches.forEach((match) => {
                 const bestBet = match.best_bet || match.bets?.[0] || {};
@@ -2556,7 +2497,6 @@
                 });
             });
         }
-        
         if (history && history.length > 0) {
             history.forEach((bet) => {
                 allItems.push({
@@ -2576,15 +2516,12 @@
                 });
             });
         }
-        
         allItems.sort((a, b) => {
             if (a.is_active && !b.is_active) return -1;
             if (!a.is_active && b.is_active) return 1;
             try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
         });
-        
         allItems = allItems.slice(0, 50);
-        
         if (displayIndex < allItems.length && allItems[displayIndex].type === 'history') {
             return history.length - 1 - allItems.slice(0, displayIndex + 1).filter(i => i.type === 'history').length;
         }
@@ -2599,7 +2536,6 @@
             home_goals = parseInt(parts[0].trim());
             away_goals = parseInt(parts[1].trim());
         }
-        
         const data = {
             home: document.getElementById('edit_home_' + index).value,
             away: document.getElementById('edit_away_' + index).value,
@@ -2613,12 +2549,10 @@
             result: document.getElementById('edit_result_' + index).value,
             index: getHistoryIndex(index)
         };
-        
         if (data.index === null) {
             showNotification('❌ Нельзя редактировать активный матч', 'error');
             return;
         }
-        
         try {
             const response = await fetch(API_BASE + '/api/edit_bet', {
                 method: 'POST',
@@ -2640,13 +2574,11 @@
 
     async function deleteBet(index) {
         if (!confirm('Удалить эту ставку?')) return;
-        
         const historyIndex = getHistoryIndex(index);
         if (historyIndex === null) {
             showNotification('❌ Нельзя удалить активный матч', 'error');
             return;
         }
-        
         try {
             const response = await fetch(API_BASE + '/api/delete_bet', {
                 method: 'POST',
@@ -2689,12 +2621,10 @@
         const odds = parseFloat(document.getElementById('matchOddsInput').value) || 1.85;
         const stake = parseFloat(document.getElementById('matchStakeInput').value) || 42.87;
         const result = document.getElementById('matchResultSelect').value;
-        
         if (!matchName) {
             alert('❌ Введите название матча!');
             return;
         }
-        
         try {
             const response = await fetch(API_BASE + '/api/add_manual_match', {
                 method: 'POST',
@@ -2733,26 +2663,20 @@
     }
 
     function shouldAnalyzeStake(stake) {
-        const decimalPlaces = getDecimalPlaces(stake);
-        return decimalPlaces >= 3;
+        return getDecimalPlaces(stake) >= 3;
     }
 
     function detectDecimalPatterns(history) {
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
         if (!settings.anomaly_detection) return [];
-        
         const patterns = [];
         const stakeGroups = {};
-        
         history.forEach((bet, index) => {
             const stake = parseFloat(bet.stake) || 0;
             if (stake > 0 && shouldAnalyzeStake(stake)) {
                 const key = stake.toString();
                 if (!stakeGroups[key]) {
-                    stakeGroups[key] = {
-                        stake: stake,
-                        bets: []
-                    };
+                    stakeGroups[key] = { stake: stake, bets: [] };
                 }
                 stakeGroups[key].bets.push({
                     index: index,
@@ -2767,7 +2691,6 @@
                 });
             }
         });
-        
         Object.values(stakeGroups).forEach(group => {
             if (group.bets.length >= 2) {
                 const wins = group.bets.filter(b => b.result === 'win').length;
@@ -2775,14 +2698,12 @@
                 const pushes = group.bets.filter(b => b.result === 'push').length;
                 const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
                 const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
-                
                 const profits = group.bets.map(b => b.profit || 0);
                 const avgProfit = profits.reduce((a, b) => a + b, 0) / profits.length || 0;
                 const maxProfit = Math.max(...profits) || 0;
                 const minProfit = Math.min(...profits) || 0;
                 const totalStakes = group.bets.reduce((sum, b) => sum + (b.bet.stake || 0), 0);
                 const roi = totalStakes > 0 ? (totalProfit / totalStakes * 100) : 0;
-                
                 let status = '📌';
                 let recommendation = '';
                 if (winrate >= 70 && group.bets.length >= 3) {
@@ -2801,7 +2722,6 @@
                     status = '🟡';
                     recommendation = 'Повторяющаяся сумма. Следите за статистикой.';
                 }
-                
                 patterns.push({
                     stake: group.stake,
                     count: group.bets.length,
@@ -2820,7 +2740,6 @@
                 });
             }
         });
-        
         patterns.sort((a, b) => b.count - a.count);
         return patterns;
     }
@@ -2842,36 +2761,17 @@
 
     function getRecommendation(stake) {
         const stakeStr = stake.toString();
-        
         const recommendations = {
-            '45.125': {
-                bet: '1X',
-                icon: '🏠',
-                description: 'Хозяева не проиграют (Победа или ничья хозяев)'
-            },
-            '40.7253125': {
-                bet: 'ОБЗ',
-                icon: '⚽',
-                description: 'Обе команды забьют'
-            },
-            '42.86875000000006': {
-                bet: 'ТМ 2.5',
-                icon: '🔽',
-                description: 'Тотал меньше 2.5 голов'
-            }
+            '45.125': { bet: '1X', icon: '🏠', description: 'Хозяева не проиграют (Победа или ничья хозяев)' },
+            '40.7253125': { bet: 'ОБЗ', icon: '⚽', description: 'Обе команды забьют' },
+            '42.86875000000006': { bet: 'ТМ 2.5', icon: '🔽', description: 'Тотал меньше 2.5 голов' }
         };
-        
         for (const [key, value] of Object.entries(recommendations)) {
             if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
                 return value;
             }
         }
-        
-        return {
-            bet: '—',
-            icon: '📌',
-            description: 'Нет рекомендации для этой суммы'
-        };
+        return { bet: '—', icon: '📌', description: 'Нет рекомендации для этой суммы' };
     }
 
     // ============================================================
@@ -2943,8 +2843,6 @@
 
         const totalBets = allItems.filter(i => i.type === 'history').length;
         const activeMatches = allItems.filter(i => i.type === 'match').length;
-
-        // X2 статистика
         const x2Stats = calcX2Stats();
 
         let html = `
@@ -2962,7 +2860,6 @@
                 <div class="metric-item"><span class="label">📅 Активных матчей</span><span class="value">${activeMatches}</span></div>
             </div>
 
-            <!-- X2 ВИДЖЕТ -->
             <div class="x2-card">
                 <div class="card-header">
                     <h2 class="x2-title">🔥 X2 Стратегия <span class="x2-badge">Аутсайдер не проиграет</span></h2>
@@ -3024,7 +2921,6 @@
                 const isActive = item.is_active;
                 const rowStyle = isActive ? 'background:rgba(167,139,250,0.05);' : '';
                 const markerDisplay = item.marker || '-';
-                
                 html += `
                     <tr style="${rowStyle}">
                         <td>${idx + 1}</td>
@@ -3077,9 +2973,7 @@
         `;
 
         document.getElementById('dashboard-content').innerHTML = html;
-        
         addModalHTML();
-        
         setTimeout(() => renderChart(data.profit_data), 50);
     }
 
@@ -3088,7 +2982,6 @@
     // ============================================================
     function addModalHTML() {
         if (document.getElementById('addMatchModal')) return;
-        
         const modalHTML = `
             <div class="modal-overlay" id="addMatchModal">
                 <div class="modal">
@@ -3136,7 +3029,6 @@
                 </div>
             </div>
         `;
-        
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
@@ -3146,15 +3038,12 @@
     function renderChart(profitData) {
         const ctx = document.getElementById('profitChart');
         if (!ctx) return;
-
         if (chartInstance) {
             chartInstance.destroy();
             chartInstance = null;
         }
-
         const isLight = document.body.classList.contains('light-theme');
         const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
@@ -3206,42 +3095,51 @@
     }
 
     // ============================================================
-    // РЕНДЕР СТРАНИЦЫ АНАЛИЗА (УЛУЧШЕННАЯ)
+    // РЕНДЕР СТРАНИЦЫ АНАЛИЗА
     // ============================================================
     function renderAnalysis(data) {
-        // Показываем загрузку
         document.getElementById('analysis-content').innerHTML = `
             <div class="loader active">
                 <div class="spinner"></div>
                 <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка анализа...</div>
             </div>
         `;
-        
-        // Загружаем анализ
         loadMatchAnalysis();
     }
 
     // ============================================================
-    // АНАЛИЗ МАТЧЕЙ (УЛУЧШЕННАЯ ВЕРСИЯ)
+    // АНАЛИЗ МАТЧЕЙ — ОСНОВНАЯ ФУНКЦИЯ (ИСПРАВЛЕННАЯ)
     // ============================================================
     async function loadMatchAnalysis() {
         try {
+            const maTotal = document.getElementById('maTotal');
+            const maPassed = document.getElementById('maPassed');
+            const maSkipped = document.getElementById('maSkipped');
+            const maRate = document.getElementById('maRate');
+            const maNoMotivation = document.getElementById('maNoMotivation');
+            const maLowPosition = document.getElementById('maLowPosition');
+            const maXGOut = document.getElementById('maXGOut');
+            
+            if (!maTotal || !maPassed || !maSkipped || !maRate || 
+                !maNoMotivation || !maLowPosition || !maXGOut) {
+                console.log('⏳ Страница анализа ещё не загружена');
+                return;
+            }
+            
             const btn = document.querySelector('#matchAnalysisRefreshBtn');
             if (btn) {
                 btn.classList.add('loading');
                 btn.textContent = '🔄 Загрузка...';
             }
             
-            // Показываем статус загрузки на карточках
-            document.getElementById('maTotal').textContent = '⏳';
-            document.getElementById('maPassed').textContent = '⏳';
-            document.getElementById('maSkipped').textContent = '⏳';
-            document.getElementById('maRate').textContent = '⏳%';
-            document.getElementById('maNoMotivation').textContent = '⏳';
-            document.getElementById('maLowPosition').textContent = '⏳';
-            document.getElementById('maXGOut').textContent = '⏳';
+            maTotal.textContent = '⏳';
+            maPassed.textContent = '⏳';
+            maSkipped.textContent = '⏳';
+            maRate.textContent = '⏳%';
+            maNoMotivation.textContent = '⏳';
+            maLowPosition.textContent = '⏳';
+            maXGOut.textContent = '⏳';
             
-            // Получаем логи бота
             let response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
             let logText = '';
             let source = 'none';
@@ -3269,19 +3167,15 @@
             
             let recommendations = [];
             
-            // Если есть логи — парсим
             if (logText && logText.trim() !== '' && logText.length > 50) {
                 const lines = logText.split('\n');
                 
                 for (const line of lines) {
-                    // Ищем строки с пропущенными матчами
-                    if (line.includes('⏭️ Пропускаем') || line.includes('⏭️ Пропускаем')) {
+                    if (line.includes('⏭️ Пропускаем')) {
                         stats.skipped++;
                         
-                        // Определяем причину
                         if (line.includes('нет мотивации') || line.includes('no motivation')) {
                             stats.categories.no_motivation.count++;
-                            // Извлекаем матч
                             const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
                             if (matchMatch) {
                                 stats.categories.no_motivation.matches.push({
@@ -3302,7 +3196,6 @@
                             }
                         } else if (line.includes('XG вне диапазона') || line.includes('XG out of range')) {
                             stats.categories.xg_out_of_range.count++;
-                            // Извлекаем XG
                             const xgMatch = line.match(/XG:\s*([\d.]+)/i);
                             if (xgMatch) {
                                 const xg = parseFloat(xgMatch[1]);
@@ -3326,20 +3219,18 @@
                 
                 stats.total = stats.passed + stats.skipped;
                 
-                // Генерируем рекомендации на основе статистики
                 if (stats.skipped > 0) {
                     const skipPercent = Math.round((stats.skipped / stats.total) * 100);
                     
-                    // Рекомендация по XG
                     if (stats.categories.xg_out_of_range.count > 0) {
                         const xgPercent = Math.round((stats.categories.xg_out_of_range.count / stats.skipped) * 100);
                         const avgXG = stats.xg_values.length > 0 ? (stats.total_xg / stats.xg_values.length).toFixed(2) : '0';
                         
-                        if (avgXG > 4) {
+                        if (parseFloat(avgXG) > 4) {
                             recommendations.push({
                                 type: 'danger',
                                 icon: '🔴',
-                                title: `${stats.categories.xg_out_of_range.count} матчей (${xgPercent}%) пропущено по причине "xg_out_of_range"`,
+                                title: `${stats.categories.xg_out_of_range.count} матчей (${xgPercent}%) пропущено по XG`,
                                 desc: `Средний XG (${avgXG}) слишком высокий. Рассмотрите матчи с XG 1.8-3.0`
                             });
                             recommendations.push({
@@ -3358,35 +3249,32 @@
                         }
                     }
                     
-                    // Рекомендация по позиции
                     if (stats.categories.low_position.count > 0) {
                         const posPercent = Math.round((stats.categories.low_position.count / stats.skipped) * 100);
                         recommendations.push({
                             type: 'warning',
                             icon: '📉',
-                            title: `${stats.categories.low_position.count} матчей (${posPercent}%) пропущено по причине "низкая позиция"`,
-                            desc: 'Проверьте настройки фильтра позиции (сейчас MAX=15). Возможно, стоит расширить до 20'
+                            title: `${stats.categories.low_position.count} матчей (${posPercent}%) пропущено по "низкая позиция"`,
+                            desc: 'Проверьте настройки фильтра позиции (сейчас MAX=15)'
                         });
                     }
                     
-                    // Рекомендация по мотивации (связь с X2)
                     if (stats.categories.no_motivation.count > 0) {
                         const motPercent = Math.round((stats.categories.no_motivation.count / stats.skipped) * 100);
                         recommendations.push({
                             type: 'info',
                             icon: '🚫',
-                            title: `${stats.categories.no_motivation.count} матчей (${motPercent}%) пропущено по причине "нет мотивации"`,
+                            title: `${stats.categories.no_motivation.count} матчей (${motPercent}%) пропущено по "нет мотивации"`,
                             desc: '💡 Перейдите на вкладку X2 — эти матчи идеально подходят для стратегии "аутсайдер не проиграет"'
                         });
                     }
                     
-                    // Общая рекомендация
                     if (skipPercent > 70) {
                         recommendations.push({
                             type: 'danger',
                             icon: '⚠️',
                             title: `Всего пропущено ${stats.skipped} матчей (${skipPercent}%)`,
-                            desc: 'Слишком много пропусков! Возможно, фильтры слишком строгие. Расширьте диапазоны.'
+                            desc: 'Слишком много пропусков! Возможно, фильтры слишком строгие.'
                         });
                     } else if (skipPercent > 40) {
                         recommendations.push({
@@ -3412,7 +3300,6 @@
                     });
                 }
                 
-                // Добавляем рекомендацию по X2
                 if (stats.categories.no_motivation.count > 0 && x2Data.length > 0) {
                     const x2Success = x2Data.filter(m => m.result === 'win').length;
                     const x2Total = x2Data.length;
@@ -3421,21 +3308,19 @@
                             type: 'success',
                             icon: '🔥',
                             title: `X2 стратегия: ${Math.round((x2Success/x2Total)*100)}% успеха (${x2Success}/${x2Total})`,
-                            desc: `Матчи с "нет мотивации" отлично подходят для X2. Рассмотрите их в стратегии!`
+                            desc: 'Матчи с "нет мотивации" отлично подходят для X2!'
                         });
                     }
                 }
                 
-                // Обновляем UI
                 updateAnalysisUI(stats, recommendations);
                 
                 const sourceText = source === 'test_data' ? ' (тестовые)' : '';
                 showNotification(`✅ Анализ матчей обновлен${sourceText} (${stats.total} матчей)`, 'success');
                 
             } else {
-                // Если нет логов — показываем заглушку
                 resetAnalysisUI();
-                showNotification('⚠️ Нет данных для анализа. Используются тестовые данные.', '');
+                showNotification('⚠️ Нет данных для анализа', '');
             }
             
         } catch (error) {
@@ -3444,14 +3329,12 @@
             resetAnalysisUI();
         }
         
-        // Обновляем время последнего обновления
         analysisLastUpdate = new Date();
         const updateEl = document.getElementById('analysisLastUpdate');
         if (updateEl) {
             updateEl.textContent = '🔄 Обновлено: ' + analysisLastUpdate.toLocaleTimeString();
         }
         
-        // Возвращаем кнопку в нормальное состояние
         const btn = document.querySelector('#matchAnalysisRefreshBtn');
         if (btn) {
             btn.classList.remove('loading');
@@ -3459,24 +3342,38 @@
         }
     }
 
+    // ============================================================
+    // ОБНОВЛЕНИЕ UI АНАЛИЗА (С ПРОВЕРКАМИ)
+    // ============================================================
     function updateAnalysisUI(stats, recommendations) {
-        // Обновляем основные показатели
-        document.getElementById('maTotal').textContent = stats.total || 0;
-        document.getElementById('maPassed').textContent = stats.passed || 0;
-        document.getElementById('maSkipped').textContent = stats.skipped || 0;
-        document.getElementById('maRate').textContent = stats.total > 0 ? 
+        const maTotal = document.getElementById('maTotal');
+        const maPassed = document.getElementById('maPassed');
+        const maSkipped = document.getElementById('maSkipped');
+        const maRate = document.getElementById('maRate');
+        const maNoMotivation = document.getElementById('maNoMotivation');
+        const maLowPosition = document.getElementById('maLowPosition');
+        const maXGOut = document.getElementById('maXGOut');
+        
+        if (!maTotal || !maPassed || !maSkipped || !maRate || 
+            !maNoMotivation || !maLowPosition || !maXGOut) {
+            console.log('⏳ Элементы анализа не найдены');
+            return;
+        }
+        
+        maTotal.textContent = stats.total || 0;
+        maPassed.textContent = stats.passed || 0;
+        maSkipped.textContent = stats.skipped || 0;
+        maRate.textContent = stats.total > 0 ? 
             Math.round((stats.passed / stats.total) * 100) + '%' : '0%';
         
-        // Обновляем причины
-        document.getElementById('maNoMotivation').textContent = stats.categories?.no_motivation?.count || 0;
-        document.getElementById('maLowPosition').textContent = stats.categories?.low_position?.count || 0;
-        document.getElementById('maXGOut').textContent = stats.categories?.xg_out_of_range?.count || 0;
+        maNoMotivation.textContent = stats.categories?.no_motivation?.count || 0;
+        maLowPosition.textContent = stats.categories?.low_position?.count || 0;
+        maXGOut.textContent = stats.categories?.xg_out_of_range?.count || 0;
         
-        // Обновляем рекомендации
         const recDiv = document.getElementById('matchRecommendations');
         const recList = document.getElementById('recommendationsList');
         
-        if (recommendations && recommendations.length > 0) {
+        if (recDiv && recList && recommendations && recommendations.length > 0) {
             recDiv.style.display = 'block';
             recList.innerHTML = recommendations.map(r => `
                 <div class="recommendation-item rec-${r.type}">
@@ -3487,24 +3384,37 @@
                     <div class="rec-desc">${r.desc}</div>
                 </div>
             `).join('');
-        } else {
+        } else if (recDiv) {
             recDiv.style.display = 'none';
         }
     }
 
+    // ============================================================
+    // СБРОС UI АНАЛИЗА (С ПРОВЕРКАМИ)
+    // ============================================================
     function resetAnalysisUI() {
-        document.getElementById('maTotal').textContent = '0';
-        document.getElementById('maPassed').textContent = '0';
-        document.getElementById('maSkipped').textContent = '0';
-        document.getElementById('maRate').textContent = '0%';
-        document.getElementById('maNoMotivation').textContent = '0';
-        document.getElementById('maLowPosition').textContent = '0';
-        document.getElementById('maXGOut').textContent = '0';
-        document.getElementById('matchRecommendations').style.display = 'none';
+        const maTotal = document.getElementById('maTotal');
+        const maPassed = document.getElementById('maPassed');
+        const maSkipped = document.getElementById('maSkipped');
+        const maRate = document.getElementById('maRate');
+        const maNoMotivation = document.getElementById('maNoMotivation');
+        const maLowPosition = document.getElementById('maLowPosition');
+        const maXGOut = document.getElementById('maXGOut');
+        
+        if (maTotal) maTotal.textContent = '0';
+        if (maPassed) maPassed.textContent = '0';
+        if (maSkipped) maSkipped.textContent = '0';
+        if (maRate) maRate.textContent = '0%';
+        if (maNoMotivation) maNoMotivation.textContent = '0';
+        if (maLowPosition) maLowPosition.textContent = '0';
+        if (maXGOut) maXGOut.textContent = '0';
+        
+        const recDiv = document.getElementById('matchRecommendations');
+        if (recDiv) recDiv.style.display = 'none';
     }
 
     // ============================================================
-    // X2 СТРАНИЦА
+    // X2 СТРАНИЦА И ФУНКЦИИ
     // ============================================================
     function renderX2Page() {
         loadX2Data();
@@ -3787,7 +3697,6 @@
                             return;
                         }
                         
-                        // Проверяем на дубликаты
                         const exists = x2Data.some(m => m.match === match && m.date === date);
                         if (exists) {
                             errors++;
@@ -3870,7 +3779,6 @@
     function renderAnalytics(data) {
         const history = data.history || [];
         const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        
         window._historyData = history;
         
         const patterns = detectDecimalPatterns(history);
@@ -4873,7 +4781,7 @@
         loadPageData('dashboard');
     });
 
-    // Экспортируем функции в глобальную область для доступа из HTML
+    // Экспорт функций в глобальную область
     window.toggleTheme = toggleTheme;
     window.refreshData = refreshData;
     window.switchPage = switchPage;
