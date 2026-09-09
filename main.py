@@ -3511,7 +3511,16 @@ def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
 
 @app.route('/', methods=['GET'])
-def index():
+def index(): 
+
+    @app.route('/api/keepalive', methods=['GET'])
+def keepalive():
+    """Эндпоинт для поддержания работы приложения"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'message': 'Keep-Alive активен'
+    })
     return f"🤖 Quantum Bot PRO (70%+ Target + ТМ 2.5 Special) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 # ============================================================
