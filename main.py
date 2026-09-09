@@ -37,7 +37,7 @@ search_state = {}
 TIMEZONE_OFFSET = 3
 
 # ============================================================
-# МАРКЕРЫ
+# МАРКЕРЫ (ТОЛЬКО ОДИН - 000006)
 # ============================================================
 MARKERS = {
     42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
@@ -45,6 +45,9 @@ MARKERS = {
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
+# ============================================================
+# ДОМАШНЕЕ ПРЕИМУЩЕСТВО ПО ЛИГАМ
+# ============================================================
 HOME_ADVANTAGE = {
     'Premier League': 1.15,
     'La Liga': 1.12,
@@ -58,6 +61,9 @@ HOME_ADVANTAGE = {
     'Süper Lig': 1.16,
 }
 
+# ============================================================
+# ЗАПАСНЫЕ ЗНАЧЕНИЯ XG
+# ============================================================
 FALLBACK_XG = {
     'Premier League': {'home': 1.6, 'away': 1.2},
     'La Liga': {'home': 1.5, 'away': 1.2},
@@ -73,17 +79,17 @@ FALLBACK_XG = {
 }
 
 # ============================================================
-# LOG_FILE ДЛЯ X2 АВТО-ИМПОРТА
+# УЛУЧШЕНИЕ 1: МОНИТОРИНГ ПРОИЗВОДИТЕЛЬНОСТИ
 # ============================================================
-LOG_FILE = 'matches_log.txt'
-
-# ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ И ФУНКЦИИ (сокращённые)
-# ============================================================
-
 class PerformanceMonitor:
     def __init__(self):
-        self.metrics = defaultdict(lambda: {'calls': 0, 'total_time': 0, 'max_time': 0, 'min_time': float('inf'), 'errors': 0})
+        self.metrics = defaultdict(lambda: {
+            'calls': 0,
+            'total_time': 0,
+            'max_time': 0,
+            'min_time': float('inf'),
+            'errors': 0
+        })
         self.lock = Lock()
     
     def record(self, func_name, elapsed, error=False):
@@ -119,7 +125,13 @@ class PerformanceMonitor:
         logger.info("=" * 60)
         for item in report:
             status = "✅" if item['error_rate'] < 5 else "⚠️" if item['error_rate'] < 20 else "❌"
-            logger.info(f"{status} {item['function']}: {item['calls']} вызовов, среднее {item['avg_time']}с, макс {item['max_time']}с, ошибки {item['error_rate']}%")
+            logger.info(
+                f"{status} {item['function']}: "
+                f"{item['calls']} вызовов, "
+                f"среднее {item['avg_time']}с, "
+                f"макс {item['max_time']}с, "
+                f"ошибки {item['error_rate']}%"
+            )
 
 perf_monitor = PerformanceMonitor()
 
@@ -146,6 +158,9 @@ def timing_decorator(name=None):
         return wrapper
     return decorator
 
+# ============================================================
+# УЛУЧШЕНИЕ 2: УМНОЕ КЭШИРОВАНИЕ С TTL
+# ============================================================
 class SmartCache:
     def __init__(self, max_size=500):
         self.cache = {}
@@ -181,7 +196,10 @@ class SmartCache:
     
     def set(self, key, value):
         if len(self.cache) >= self.max_size:
-            to_remove = min(self.cache.keys(), key=lambda k: (self.hit_count.get(k, 0), self.last_access.get(k, 0)))
+            to_remove = min(
+                self.cache.keys(),
+                key=lambda k: (self.hit_count.get(k, 0), self.last_access.get(k, 0))
+            )
             del self.cache[to_remove]
             if to_remove in self.hit_count:
                 del self.hit_count[to_remove]
@@ -200,6 +218,9 @@ class SmartCache:
         self.hit_count = {}
         self.last_access = {}
 
+# ============================================================
+# УЛУЧШЕНИЕ 3: ОБРАБОТКА ОШИБОК И РЕТРАИ
+# ============================================================
 class APIError(Exception):
     pass
 
@@ -252,7 +273,7 @@ class RetryManager:
                 raise APIErrorFatal(f"Неожиданная ошибка: {e}")
 
 # ============================================================
-# КЛАСС FOOTBALL_API
+# КЛАСС FOOTBALL_API С УЛУЧШЕНИЯМИ
 # ============================================================
 class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
@@ -274,6 +295,8 @@ class FootballAPI:
             logger.error(f"❌ Фатальная ошибка API: {e}")
             self.error_stats['fatal'] += 1
             send_error_to_telegram(f"Фатальная ошибка API: {e}\nEndpoint: {endpoint}")
+            if self.error_stats['fatal'] > 10:
+                send_telegram("🚨 <b>КРИТИЧЕСКАЯ ОШИБКА</b>\nСлишком много ошибок API. Проверьте ключ!")
             return None
         except Exception as e:
             logger.error(f"❌ Неизвестная ошибка: {e}")
@@ -742,6 +765,9 @@ class FootballAPI:
             logger.error(f"Ошибка поиска матча {home_team} vs {away_team}: {e}")
         return None
 
+# ============================================================
+# СОЗДАЕМ ЭКЗЕМПЛЯР
+# ============================================================
 football_api = FootballAPI()
 
 # ============================================================
@@ -869,7 +895,58 @@ class OddsAPIClient:
                         result['bookmaker_name'] = bookmaker_key
         return result
 
+# ============================================================
+# СОЗДАЕМ ЭКЗЕМПЛЯР
+# ============================================================
 odds_api = OddsAPIClient()
+
+# ============================================================
+# КЛАСС AUTOBET
+# ============================================================
+class AutoBet:
+    def __init__(self):
+        self.enabled = True
+        self.bets_today = 0
+        self.max_bets_per_day = 10
+        
+    def check_and_bet(self, match_data):
+        if not self.enabled:
+            return None
+        bets = match_data.get('bets', [])
+        if not bets:
+            return None
+        best_bet = max(bets, key=lambda x: x.get('ev', 0))
+        if best_bet.get('ev', 0) <= 0:
+            return None
+        if best_bet.get('odds', 0) < 1.5:
+            return None
+        bank = storage.load_bank()
+        stake = best_bet.get('stake', 0)
+        max_stake = bank * 0.1
+        if stake > max_stake:
+            stake = max_stake
+            best_bet['stake'] = stake
+        self.bets_today += 1
+        return {
+            'match': f"{match_data.get('home', '')} vs {match_data.get('away', '')}",
+            'match_time': match_data.get('match_time', ''),
+            'bet': best_bet.get('label', ''),
+            'odds': best_bet.get('odds', 0),
+            'stake': stake,
+            'ev': best_bet.get('ev', 0),
+            'marker_stake': best_bet.get('marker_stake', 0),
+            'xg_total': match_data.get('total_xg', 0),
+            'prob': best_bet.get('prob', 0),
+            'home_form': match_data.get('home_form', ''),
+            'away_form': match_data.get('away_form', ''),
+            'home_position': match_data.get('standings', {}).get('home_position', '?'),
+            'away_position': match_data.get('standings', {}).get('away_position', '?'),
+            'bookmaker': best_bet.get('bookmaker', '—'),
+            'bet_type': best_bet.get('type', 'under'),
+            'source': match_data.get('source', '70_percent')
+        }
+
+auto_bet = AutoBet()
 
 # ============================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -988,6 +1065,9 @@ def get_profit_data(history):
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     return {'dates': dates, 'profits': profits}
 
+# ============================================================
+# ОСНОВНЫЕ ФУНКЦИИ АНАЛИЗА
+# ============================================================
 def get_motivation(position):
     if position <= 4:
         return 'champions_league'
@@ -1239,6 +1319,9 @@ def analyze_match(match_name):
         logger.error(f"Ошибка анализа матча: {e}")
         return f"❌ Ошибка: {e}"
 
+# ============================================================
+# ОБНОВЛЕНИЕ РЕАЛЬНЫХ КОЭФФИЦИЕНТОВ
+# ============================================================
 def update_odds_for_matches(matches):
     updated_matches = []
     for match_data in matches:
@@ -1331,6 +1414,9 @@ def update_odds_for_matches(matches):
             updated_matches.append(match_data)
     return updated_matches
 
+# ============================================================
+# ПОИСК МАТЧЕЙ
+# ============================================================
 def get_matches_with_factors():
     all_matches = []
     today = datetime.now().strftime('%Y-%m-%d')
@@ -1343,8 +1429,7 @@ def get_matches_with_factors():
             try:
                 matches = football_api.get_matches(league_id, search_date)
                 league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
-                if matches:
-                    logger.info(f"✅ {league_name}: найдено {len(matches)} матчей")
+                send_telegram(f"✅ Лига <b>{league_name}</b> обработана. Всего найдено матчей: {len(all_matches)}")
                 if not matches or not isinstance(matches, list):
                     logger.info(f"🔥 Нет матчей в {league_name} на {search_date}")
                     continue
@@ -1401,6 +1486,9 @@ def get_matches_with_factors():
     logger.info(f"📊 ВСЕГО найдено матчей: {len(all_matches)}")
     return all_matches
 
+# ============================================================
+# ТОП МАТЧЕЙ - 70%+ (HYBRID MODE: 1X + X2)
+# ============================================================
 @timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
@@ -1488,6 +1576,7 @@ def find_top_matches(matches):
             xg_max = getattr(Config, 'XG_MAX_70', 3.0)
             position_max = getattr(Config, 'POSITION_MAX_70', 15)
             if total_xg < xg_min or total_xg > xg_max:
+                logger.info(f"⏭️ Пропускаем (XG вне диапазона {xg_min}-{xg_max}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
 
             standings = football_api.get_standings(league_id) if league_id else None
@@ -1501,8 +1590,10 @@ def find_top_matches(matches):
             home_motivation = get_motivation(home_position)
             away_motivation = get_motivation(away_position)
             if home_motivation == 'mid_table' and away_motivation == 'mid_table':
+                logger.info(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
                 continue
             if home_position > position_max or away_position > position_max:
+                logger.info(f"⏭️ Пропускаем (низкая позиция): {home} vs {away} | H: #{home_position}, A: #{away_position}")
                 continue
 
             if home_position < away_position - 10:
@@ -1617,17 +1708,21 @@ def find_top_matches(matches):
             best_bet = bets[0]
 
             if best_bet['ev'] < ev_min:
+                logger.info(f"⏭️ Пропускаем (EV < {ev_min}%): {home} vs {away} | EV: {best_bet['ev']}%")
                 continue
             if best_bet['prob'] < prob_min:
+                logger.info(f"⏭️ Пропускаем (Prob < {prob_min}%): {home} vs {away} | Prob: {best_bet['prob']}%")
                 continue
 
             bet_type = best_bet['type']
             bet_type_count[bet_type] = bet_type_count.get(bet_type, 0) + 1
             if bet_type_count[bet_type] > 3:
+                logger.info(f"⏭️ Пропускаем (лимит типа {bet_type}): {home} vs {away}")
                 continue
 
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > 2:
+                logger.info(f"⏭️ Пропускаем (лимит лиги {league_name}): {home} vs {away}")
                 continue
 
             match_data = {
@@ -1661,6 +1756,8 @@ def find_top_matches(matches):
             }
             best_matches.append(match_data)
             logger.info(f"✅ КАНДИДАТ (70%+): {home} vs {away} | ЛУЧШАЯ СТАВКА: {best_bet['label']} | EV: {best_bet['ev']}% | Prob: {best_bet['prob']}%")
+            for i, bet in enumerate(bets[:3], 1):
+                logger.info(f"   {i}. {bet['label']} | EV: {bet['ev']}% | Prob: {bet['prob']}%")
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
             continue
@@ -1669,6 +1766,9 @@ def find_top_matches(matches):
     logger.info(f"📊 Найдено {len(best_matches)} кандидатов (70%+), выбрано {len(top_matches)} лучших")
     return top_matches
 
+# ============================================================
+# ПОИСК ТМ 2.5
+# ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
     tm25_candidates = []
@@ -1685,8 +1785,11 @@ def find_tm25_matches(matches):
     TOP_LEAGUES = getattr(Config, 'TOP_LEAGUES', [])
     TM25_TOP_LEAGUE_EV = getattr(Config, 'TM25_TOP_LEAGUE_EV', 35) / 100
     logger.info("🔍 Специальный поиск ТМ 2.5 (двухуровневый)...")
+    logger.info(f"📊 УРОВЕНЬ 1 (PREMIUM): EV>{PREMIUM_MIN_EV*100}%, Prob>{PREMIUM_MIN_PROB*100}%, XG {PREMIUM_XG_MIN}-{PREMIUM_XG_MAX}")
+    logger.info(f"📊 УРОВЕНЬ 2 (STANDARD): EV>{STANDARD_MIN_EV*100}%, Prob>{STANDARD_MIN_PROB*100}%, XG {STANDARD_XG_MIN}-{STANDARD_XG_MAX}")
+    logger.info(f"📊 Всего матчей для анализа: {len(matches)}")
     stats = {'total': 0, 'premium_found': 0, 'standard_found': 0}
-    
+    logger.info("🎯 ПОИСК УРОВНЯ 1 (PREMIUM EV>30%)...")
     for match in matches:
         if not match or not isinstance(match, dict):
             continue
@@ -1800,12 +1903,13 @@ def find_tm25_matches(matches):
                 stats['premium_found'] += 1
                 logger.info(f"🔥 PREMIUM ТМ2.5: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
                 if len(tm25_candidates) >= MAX_TM25_BETS:
+                    logger.info(f"⏹️ Достигнут лимит PREMIUM ({MAX_TM25_BETS}), остановка поиска")
                     break
         except Exception as e:
             logger.error(f"❌ Ошибка PREMIUM: {e}")
             continue
-    
     if len(tm25_candidates) < MAX_TM25_BETS:
+        logger.info(f"🎯 PREMIUM найдено: {len(tm25_candidates)}, ищем STANDARD (EV>15%)...")
         for match in matches:
             if not match or not isinstance(match, dict):
                 continue
@@ -1921,15 +2025,19 @@ def find_tm25_matches(matches):
                     stats['standard_found'] += 1
                     logger.info(f"✅ STANDARD ТМ2.5: {home} vs {away} | EV: {ev_under*100:.1f}% | Prob: {prob_under_2_5*100:.1f}% | XG: {total_xg:.2f}")
                     if len(tm25_candidates) >= MAX_TM25_BETS:
+                        logger.info(f"⏹️ Достигнут лимит STANDARD ({MAX_TM25_BETS}), остановка поиска")
                         break
             except Exception as e:
                 logger.error(f"❌ Ошибка STANDARD: {e}")
                 continue
-    
+    logger.info(f"📊 СТАТИСТИКА ТМ2.5: PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}")
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     logger.info(f"📊 Найдено ТМ2.5 кандидатов: {len(tm25_candidates)} (PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']})")
     return tm25_candidates
 
+# ============================================================
+# ОБЪЕДИНЕННЫЙ ПОИСК
+# ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 50)
@@ -1987,6 +2095,9 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 50)
     return combined_matches
 
+# ============================================================
+# ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
+# ============================================================
 def determine_bet_result(bet_type, home_goals, away_goals):
     total = home_goals + away_goals
     bet_type_lower = bet_type.lower()
@@ -2085,6 +2196,9 @@ def find_fixture_by_teams(self, home_team, away_team):
 
 FootballAPI.find_fixture_by_teams = find_fixture_by_teams
 
+# ============================================================
+# АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
+# ============================================================
 def schedule_updates():
     scheduler = BackgroundScheduler()
     scheduler.add_job(
@@ -2143,6 +2257,9 @@ def schedule_performance_report():
     scheduler.start()
     logger.info("⏰ Отчет производительности запущен (каждые 6 часов)")
 
+# ============================================================
+# УЛУЧШЕНИЕ 4: ВЕРИФИКАЦИЯ СТАВОК
+# ============================================================
 class BetVerificationSystem:
     def __init__(self):
         self.thresholds = {
@@ -2279,6 +2396,9 @@ class BetVerificationSystem:
                 report += f"• {warn}\n"
         return report
 
+# ============================================================
+# УЛУЧШЕНИЕ 5: УВЕДОМЛЕНИЯ О ВАЖНЫХ СОБЫТИЯХ
+# ============================================================
 class NotificationSystem:
     def __init__(self):
         self.last_notification = {}
@@ -2359,6 +2479,9 @@ class NotificationSystem:
 
 notification_system = NotificationSystem()
 
+# ============================================================
+# УЛУЧШЕНИЕ 6: A/B ТЕСТИРОВАНИЕ
+# ============================================================
 class StrategyTester:
     def __init__(self):
         self.strategies = {
@@ -2408,6 +2531,9 @@ class StrategyTester:
 
 strategy_tester = StrategyTester()
 
+# ============================================================
+# УЛУЧШЕНИЕ 7: СОСТОЯНИЕ БОТА
+# ============================================================
 class BotState:
     def __init__(self):
         self.state_file = 'bot_state.json'
@@ -2507,6 +2633,9 @@ class BotState:
 
 bot_state = BotState()
 
+# ============================================================
+# УЛУЧШЕНИЕ 8: СРАВНЕНИЕ КОМАНД (НОВОЕ!)
+# ============================================================
 def get_team_comparison(home_team, away_team, league_id, fixture_id):
     try:
         home_name = home_team.get('name') if isinstance(home_team, dict) else str(home_team)
@@ -2785,6 +2914,9 @@ def get_team_comparison(home_team, away_team, league_id, fixture_id):
         logger.error(f"Ошибка сравнения команд: {e}")
         return None
 
+# ============================================================
+# ЗАГРУЗКА НАСТРОЕК
+# ============================================================
 def load_bot_settings():
     try:
         settings_file = 'bot_settings.json'
@@ -2811,6 +2943,7 @@ def load_bot_settings():
         logger.error(f"❌ Ошибка загрузки настроек: {e}")
         return False
 
+# ============================================================
 # ============================================================
 # FLASK WEBHOOK И API ЭНДПОИНТЫ
 # ============================================================
@@ -3021,124 +3154,80 @@ def webhook():
 
 @app.route('/sw.js')
 def serve_sw():
-    return """
-self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
-""", 200, {'Content-Type': 'application/javascript'}
+    """Service Worker для PWA"""
+    try:
+        return send_from_directory('.', 'sw.js', mimetype='application/javascript')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки sw.js: {e}")
+        return "Service Worker не найден", 404
 
 @app.route('/manifest.json')
 def serve_manifest():
-    return {
-        "name": "Quantum Bet Tracker",
-        "short_name": "Bet Tracker",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#050510",
-        "theme_color": "#7c3aed",
-        "icons": [{
-            "src": "/static/IMG_2820.jpeg",
-            "sizes": "192x192",
-            "type": "image/jpeg"
-        }]
-    }, 200, {'Content-Type': 'application/json'}
+    """PWA манифест"""
+    try:
+        return send_from_directory('.', 'manifest.json', mimetype='application/json')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки manifest.json: {e}")
+        return "Манифест не найден", 404
 
 # ============================================================
 # ЛОГИ ДЛЯ АВТО-ИМПОРТА X2
 # ============================================================
 
+LOG_FILE = 'matches_log.txt'
+
 @app.route('/api/matches_log', methods=['GET'])
 def get_matches_log():
+    """Возвращает логи для авто-импорта X2"""
     try:
+        # Создаём тестовый файл если не существует
         if not os.path.exists(LOG_FILE):
             with open(LOG_FILE, 'w', encoding='utf-8') as f:
                 f.write("2026-09-09 10:00 - Blackburn vs Sheffield Utd | XG: 2.1 | нет мотивации у фаворита\n")
                 f.write("2026-09-09 12:00 - Al-Ettifaq vs Al-Faisaly | XG: 1.8 | H: #5, A: #12 | no motivation\n")
                 f.write("2026-09-09 14:00 - Real Madrid vs Barcelona | XG: 2.5 | H: #1, A: #3 | нет мотивации\n")
-        
+                f.write("2026-09-09 16:00 - Aris Thessalonikis vs OFI | XG: 1.9 | H: #7, A: #15 | no motivation\n")
+                f.write("2026-09-09 18:00 - Panathinaikos vs PAOK | XG: 2.2 | H: #4, A: #2 | нет мотивации у гостей\n")
+                f.write("2026-09-09 20:00 - AEK vs Olympiakos | XG: 1.7 | H: #6, A: #1 | no motivation\n")
+            logger.info("✅ Создан тестовый файл логов")
+
         with open(LOG_FILE, 'r', encoding='utf-8') as f:
             log_text = f.read()
         
+        logger.info(f"📡 Отправка логов: {len(log_text)} символов, {len(log_text.split(chr(10)))} строк")
         return jsonify({
             'success': True,
             'log': log_text,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
-        logger.error(f"❌ Ошибка логов: {e}")
+        logger.error(f"❌ Ошибка получения логов: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
             'log': ''
         }), 500
 
-@app.route('/api/debug_storage', methods=['GET'])
-def debug_storage():
+@app.route('/api/update_logs', methods=['POST'])
+def update_logs():
+    """Обновляет логи для авто-импорта X2"""
     try:
-        history = storage.load_history()
-        stats = storage.load_stats()
-        bank = storage.load_bank()
-        cache = storage.load_cache()
+        data = request.json
+        log_text = data.get('log', '')
+        if not log_text:
+            return jsonify({'success': False, 'error': 'Нет данных'}), 400
         
-        return jsonify({
-            'history_count': len(history),
-            'history_sample': history[:5] if history else [],
-            'stats': stats,
-            'bank': bank,
-            'cache_keys': list(cache.keys()) if cache else []
-        })
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(log_text + '\n')
+        
+        logger.info("✅ Логи обновлены")
+        return jsonify({'success': True, 'message': 'Логи обновлены'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-def init_storage():
-    try:
-        history = storage.load_history()
-        if not history or len(history) == 0:
-            logger.info("📭 Создаю тестовые данные...")
-            
-            test_bets = [
-                {
-                    'home': 'Blackburn',
-                    'away': 'Sheffield Utd',
-                    'league': 'Championship',
-                    'bet': 'ТМ 2.5',
-                    'odds': 1.95,
-                    'stake': 42.87,
-                    'ev': 25.0,
-                    'result': 'pending',
-                    'profit': 0,
-                    'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                    'fixture_id': None,
-                    'bookmaker': 'Тест'
-                },
-                {
-                    'home': 'Al-Ettifaq',
-                    'away': 'Al-Faisaly',
-                    'league': 'Saudi League',
-                    'bet': 'X2',
-                    'odds': 2.00,
-                    'stake': 100,
-                    'ev': 30.0,
-                    'result': 'win',
-                    'profit': 100,
-                    'date': (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M'),
-                    'fixture_id': None,
-                    'bookmaker': 'Тест'
-                }
-            ]
-            
-            storage.save_history(test_bets)
-            storage.save_stats({'total': 2, 'wins': 1, 'losses': 0, 'pushes': 0, 'total_profit': 100, 'winrate': 100, 'roi': 50})
-            storage.save_bank(1000)
-            
-            logger.info("✅ Тестовые данные созданы!")
-    except Exception as e:
-        logger.error(f"❌ Ошибка инициализации: {e}")
-
-init_storage()
+        logger.error(f"❌ Ошибка обновления логов: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
-# ОСТАЛЬНЫЕ API ЭНДПОИНТЫ
+# API ЭНДПОИНТЫ
 # ============================================================
 
 @app.route('/api/stats', methods=['GET'])
@@ -3476,6 +3565,7 @@ def api_strategies():
 
 @app.route('/api/keepalive', methods=['GET'])
 def keepalive():
+    """Эндпоинт для поддержания работы приложения"""
     return jsonify({
         'status': 'ok',
         'timestamp': datetime.now().isoformat(),
@@ -3505,7 +3595,28 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET + ТМ 2.5 SPECIAL)!")
     logger.info("📊 Сканируется {} лиг".format(len(Config.LEAGUES)))
     logger.info("🤖 Максимум ставок: {}".format(Config.MAX_BETS_PER_RUN))
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:")
+    logger.info("   - EV > {}%".format(getattr(Config, 'EV_MIN_70', 20)))
+    logger.info("   - Prob > {}%".format(getattr(Config, 'PROB_MIN_70', 60)))
+    logger.info("   - XG {}-{}".format(getattr(Config, 'XG_MIN_70', 1.8), getattr(Config, 'XG_MAX_70', 3.0)))
+    logger.info("   - Форма excellent/good")
+    logger.info("   - Мотивация (не середняки)")
+    logger.info("   - Лимит 3 ставки на тип")
+    logger.info("   - Лимит 2 ставки на лигу")
+    logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5 (ДВУХУРОВНЕВЫЙ):")
+    logger.info("   PREMIUM: EV > {}%".format(getattr(Config, 'PREMIUM_MIN_EV', 30)))
+    logger.info("   STANDARD: EV > {}%".format(getattr(Config, 'STANDARD_MIN_EV', 15)))
+    logger.info("   - Лимит {} ставки".format(getattr(Config, 'MAX_TM25_BETS', 5)))
+    logger.info("🎯 КОЭФФИЦИЕНТЫ (ДВУХЭТАПНЫЙ ПОИСК):")
+    logger.info("   1. Odds API (топ-лиги)")
+    logger.info("   2. Football API (все лиги)")
+    logger.info("   3. Заглушка 1.95 (если не найдены)")
+    logger.info("✅ Команды: /update_results, /result, /analyze, /status, /strategies")
+    logger.info("✅ Кэш матчей сохраняется")
+    logger.info("⏰ Авто-обновление результатов: каждые 6 часов")
+    logger.info("📊 A/B тестирование активно")
+    logger.info("🔔 Уведомления активны")
+    logger.info("📈 Мониторинг производительности активен")
     logger.info("📱 PWA доступен по адресу /")
     logger.info("📋 Логи для X2: /api/matches_log")
-    logger.info("🔍 Дебаг хранилища: /api/debug_storage")
     app.run(host='0.0.0.0', port=port)
