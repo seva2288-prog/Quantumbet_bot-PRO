@@ -7,7 +7,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         /* ============================================================
@@ -1752,7 +1751,7 @@
                 <span class="status-dot"></span>
                 <span>Система активна</span>
                 <span style="color:rgba(255,255,255,0.2);">|</span>
-                <span style="color:rgba(255,255,255,0.2);">v14 X2 PRO</span>
+                <span style="color:rgba(255,255,255,0.2);">v15 X2 PRO</span>
             </div>
             <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
             <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
@@ -1768,9 +1767,6 @@
     <div id="page-x2" class="page" style="display:none;">
         <div id="x2-content"></div>
     </div>
-    <div id="page-analytics" class="page" style="display:none;">
-        <div id="analytics-content"></div>
-    </div>
     <div id="page-simulator" class="page" style="display:none;">
         <div id="simulator-content"></div>
     </div>
@@ -1778,7 +1774,7 @@
         <div id="settings-content"></div>
     </div>
 
-    <div class="footer">Quantum Bet Tracker v14 X2 PRO © 2026</div>
+    <div class="footer">Quantum Bet Tracker v15 X2 PRO © 2026</div>
 </div>
 
 <!-- УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION -->
@@ -1794,10 +1790,6 @@
     <button class="nav-item" data-page="x2">
         <span class="icon">🔥</span>
         <span class="label">X2</span>
-    </button>
-    <button class="nav-item" data-page="analytics">
-        <span class="icon">📈</span>
-        <span class="label">Аналитика</span>
     </button>
     <button class="nav-item" data-page="simulator">
         <span class="icon">🎲</span>
@@ -2038,12 +2030,14 @@
     // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ БОТА
     // ============================================================
     function startAutoImportX2() {
+        // Запускаем каждые 3 минуты (чаще, чтобы быстрее подгружались)
         autoImportInterval = setInterval(function() {
             autoImportX2FromLogs();
-        }, 300000);
+        }, 180000); // 3 минуты
+        // Первый импорт сразу при загрузке
         setTimeout(function() {
             autoImportX2FromLogs();
-        }, 10000);
+        }, 5000);
     }
 
     async function autoImportX2FromLogs() {
@@ -2062,19 +2056,32 @@
             }
             const lines = logText.split('\n');
             let newMatches = 0;
+            let totalFound = 0;
+            
             for (const line of lines) {
+                // Ищем строки с "нет мотивации"
                 if (line.includes('нет мотивации') || line.includes('no motivation')) {
+                    totalFound++;
                     const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
                     if (!matchMatch) continue;
                     const home = matchMatch[1].trim();
                     const away = matchMatch[2].trim();
                     const matchName = home + ' vs ' + away;
-                    const exists = x2Data.some(m => m.match === matchName && m.date === new Date().toISOString().slice(0,10));
+                    
+                    // Проверяем, нет ли уже такого матча в X2 (по названию и дате)
+                    const today = new Date().toISOString().slice(0,10);
+                    const exists = x2Data.some(m => m.match === matchName && m.date === today);
                     if (exists) continue;
+                    
+                    // Извлекаем XG если есть
                     const xgMatch = line.match(/XG:\s*([\d.]+)/i);
                     const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
+                    
+                    // Определяем фаворита и аутсайдера
                     let favorite = home;
                     let underdog = away;
+                    
+                    // Если есть информация о позициях
                     const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
                     if (posMatch) {
                         const homePos = parseInt(posMatch[1]);
@@ -2087,9 +2094,11 @@
                             underdog = home;
                         }
                     }
+                    
+                    // Добавляем матч
                     const newMatch = {
-                        id: Date.now() + Math.random() * 1000,
-                        date: new Date().toISOString().slice(0,10),
+                        id: Date.now() + Math.random() * 1000 + newMatches,
+                        date: today,
                         match: matchName,
                         favorite: favorite,
                         underdog: underdog,
@@ -2100,17 +2109,26 @@
                         profit: 0,
                         note: 'Авто-импорт из логов бота' + (xg ? ' | XG: ' + xg : '')
                     };
+                    
                     x2Data.push(newMatch);
                     newMatches++;
                 }
             }
+            
             if (newMatches > 0) {
                 saveX2Data();
                 showNotification('🤖 Добавлено ' + newMatches + ' X2 матчей из логов!', 'success');
-                if (currentPage === 'x2') renderX2Page();
-                if (currentPage === 'dashboard') loadPageData('dashboard');
+                // Обновляем страницу X2 если она открыта
+                if (currentPage === 'x2') {
+                    renderX2Page();
+                }
+                if (currentPage === 'dashboard') {
+                    loadPageData('dashboard');
+                }
+            } else if (totalFound > 0) {
+                console.log('📭 Найдено ' + totalFound + ' матчей с "нет мотивации", но все уже добавлены');
             } else {
-                console.log('📭 Новых X2 матчей в логах не найдено');
+                console.log('📭 Матчей с "нет мотивации" в логах не найдено');
             }
         } catch (error) {
             console.error('❌ Ошибка авто-импорта X2:', error);
@@ -2156,12 +2174,9 @@
     // ============================================================
     let cachedData = null;
     let chartInstance = null;
-    let interactiveChartInstance = null;
     let simChartInstance = null;
-    let x2ChartInstance = null;
     let currentPage = 'dashboard';
     let isLoading = false;
-    let chartData = null;
     let matchesCache = null;
     let editingIndex = null;
     let x2Data = [];
@@ -2258,7 +2273,7 @@
     function updateAllCharts(isLight) {
         const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
         const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        [chartInstance, interactiveChartInstance, simChartInstance, x2ChartInstance].forEach(chart => {
+        [chartInstance, simChartInstance].forEach(chart => {
             if (chart) {
                 chart.options.plugins.legend.labels.color = color;
                 chart.options.scales.x.ticks.color = color;
@@ -2313,7 +2328,7 @@
         if (isLoading) return;
         const contentId = page + '-content';
         const contentEl = document.getElementById(contentId);
-        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'analytics' && page !== 'x2' && page !== 'analysis') {
+        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'x2' && page !== 'analysis') {
             return;
         }
         isLoading = true;
@@ -2340,7 +2355,6 @@
                 case 'dashboard': renderDashboard(data); break;
                 case 'analysis': renderAnalysis(data); break;
                 case 'x2': renderX2Page(); break;
-                case 'analytics': renderAnalytics(data); break;
                 case 'simulator': renderSimulator(data); break;
                 case 'settings': renderSettings(data); break;
             }
@@ -2650,128 +2664,6 @@
         } catch (error) {
             showNotification('❌ Ошибка: ' + error, 'error');
         }
-    }
-
-    // ============================================================
-    // ДЕТЕКТОР ДРОБНЫХ СУММ
-    // ============================================================
-    function getDecimalPlaces(num) {
-        const str = num.toString();
-        const decimalIndex = str.indexOf('.');
-        if (decimalIndex === -1) return 0;
-        return str.length - decimalIndex - 1;
-    }
-
-    function shouldAnalyzeStake(stake) {
-        return getDecimalPlaces(stake) >= 3;
-    }
-
-    function detectDecimalPatterns(history) {
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        if (!settings.anomaly_detection) return [];
-        const patterns = [];
-        const stakeGroups = {};
-        history.forEach((bet, index) => {
-            const stake = parseFloat(bet.stake) || 0;
-            if (stake > 0 && shouldAnalyzeStake(stake)) {
-                const key = stake.toString();
-                if (!stakeGroups[key]) {
-                    stakeGroups[key] = { stake: stake, bets: [] };
-                }
-                stakeGroups[key].bets.push({
-                    index: index,
-                    bet: bet,
-                    match: `${bet.home} vs ${bet.away}`,
-                    score: bet.home_goals !== null && bet.away_goals !== null ? `${bet.home_goals}-${bet.away_goals}` : '-',
-                    result: bet.result,
-                    profit: bet.profit,
-                    date: bet.date,
-                    odds: bet.odds,
-                    ev: bet.ev
-                });
-            }
-        });
-        Object.values(stakeGroups).forEach(group => {
-            if (group.bets.length >= 2) {
-                const wins = group.bets.filter(b => b.result === 'win').length;
-                const losses = group.bets.filter(b => b.result === 'loss').length;
-                const pushes = group.bets.filter(b => b.result === 'push').length;
-                const totalProfit = group.bets.reduce((sum, b) => sum + (b.profit || 0), 0);
-                const winrate = group.bets.length > 0 ? (wins / group.bets.length * 100) : 0;
-                const profits = group.bets.map(b => b.profit || 0);
-                const avgProfit = profits.reduce((a, b) => a + b, 0) / profits.length || 0;
-                const maxProfit = Math.max(...profits) || 0;
-                const minProfit = Math.min(...profits) || 0;
-                const totalStakes = group.bets.reduce((sum, b) => sum + (b.bet.stake || 0), 0);
-                const roi = totalStakes > 0 ? (totalProfit / totalStakes * 100) : 0;
-                let status = '📌';
-                let recommendation = '';
-                if (winrate >= 70 && group.bets.length >= 3) {
-                    status = '🟢';
-                    recommendation = '🔥 Отличная рабочая сумма! Продолжайте использовать.';
-                } else if (winrate >= 50 && group.bets.length >= 3) {
-                    status = '🟢';
-                    recommendation = '👍 Хорошая сумма, стабильный результат.';
-                } else if (winrate < 40 && group.bets.length >= 3) {
-                    status = '🔴';
-                    recommendation = '⚠️ Неудачная сумма! Рекомендуем изменить размер.';
-                } else if (group.bets.length >= 4) {
-                    status = '🟡';
-                    recommendation = 'Часто используемая сумма. Анализируйте результаты.';
-                } else {
-                    status = '🟡';
-                    recommendation = 'Повторяющаяся сумма. Следите за статистикой.';
-                }
-                patterns.push({
-                    stake: group.stake,
-                    count: group.bets.length,
-                    wins: wins,
-                    losses: losses,
-                    pushes: pushes,
-                    winrate: winrate,
-                    totalProfit: totalProfit,
-                    avgProfit: avgProfit,
-                    maxProfit: maxProfit,
-                    minProfit: minProfit,
-                    roi: roi,
-                    status: status,
-                    recommendation: recommendation,
-                    bets: group.bets
-                });
-            }
-        });
-        patterns.sort((a, b) => b.count - a.count);
-        return patterns;
-    }
-
-    function getSkippedSums(history) {
-        const skipped = {};
-        history.forEach(bet => {
-            const stake = parseFloat(bet.stake) || 0;
-            if (stake > 0 && !shouldAnalyzeStake(stake)) {
-                const key = stake.toFixed(2);
-                if (!skipped[key]) {
-                    skipped[key] = { stake: stake, count: 0 };
-                }
-                skipped[key].count++;
-            }
-        });
-        return Object.values(skipped).filter(s => s.count >= 2);
-    }
-
-    function getRecommendation(stake) {
-        const stakeStr = stake.toString();
-        const recommendations = {
-            '45.125': { bet: '1X', icon: '🏠', description: 'Хозяева не проиграют (Победа или ничья хозяев)' },
-            '40.7253125': { bet: 'ОБЗ', icon: '⚽', description: 'Обе команды забьют' },
-            '42.86875000000006': { bet: 'ТМ 2.5', icon: '🔽', description: 'Тотал меньше 2.5 голов' }
-        };
-        for (const [key, value] of Object.entries(recommendations)) {
-            if (stakeStr === key || stakeStr.startsWith(key) || key.startsWith(stakeStr)) {
-                return value;
-            }
-        }
-        return { bet: '—', icon: '📌', description: 'Нет рекомендации для этой суммы' };
     }
 
     // ============================================================
@@ -3108,7 +3000,7 @@
     }
 
     // ============================================================
-    // АНАЛИЗ МАТЧЕЙ — ОСНОВНАЯ ФУНКЦИЯ (ИСПРАВЛЕННАЯ)
+    // АНАЛИЗ МАТЧЕЙ
     // ============================================================
     async function loadMatchAnalysis() {
         try {
@@ -3342,9 +3234,6 @@
         }
     }
 
-    // ============================================================
-    // ОБНОВЛЕНИЕ UI АНАЛИЗА (С ПРОВЕРКАМИ)
-    // ============================================================
     function updateAnalysisUI(stats, recommendations) {
         const maTotal = document.getElementById('maTotal');
         const maPassed = document.getElementById('maPassed');
@@ -3389,9 +3278,6 @@
         }
     }
 
-    // ============================================================
-    // СБРОС UI АНАЛИЗА (С ПРОВЕРКАМИ)
-    // ============================================================
     function resetAnalysisUI() {
         const maTotal = document.getElementById('maTotal');
         const maPassed = document.getElementById('maPassed');
@@ -3414,7 +3300,7 @@
     }
 
     // ============================================================
-    // X2 СТРАНИЦА И ФУНКЦИИ
+    // X2 СТРАНИЦА
     // ============================================================
     function renderX2Page() {
         loadX2Data();
@@ -3424,6 +3310,11 @@
         let html = `
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🔥 X2 Стратегия</h2>
             <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Аутсайдер не проиграет (X2) — ставка на команду, которая ниже в таблице</div>
+            
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                <span class="auto-import-status active">🤖 Авто-импорт активен (каждые 3 мин)</span>
+                <button class="btn btn-primary" onclick="autoImportX2FromLogs()" style="padding:4px 12px;font-size:10px;">🔄 Загрузить сейчас</button>
+            </div>
 
             <div class="x2-card">
                 <div class="stats-grid-x2">
@@ -3460,20 +3351,16 @@
                     <div class="x2-import-actions">
                         <button class="btn btn-purple" onclick="openX2Modal()" style="padding:4px 12px;font-size:10px;">➕ Добавить</button>
                         <button class="btn btn-success" onclick="openX2ImportModal()" style="padding:4px 10px;font-size:10px;">📤 Импорт Excel</button>
-                        <button class="btn btn-primary" onclick="autoImportX2FromLogs()" style="padding:4px 10px;font-size:10px;">🤖 Из логов</button>
                         <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
                         <button class="btn btn-outline" onclick="renderX2Page()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
                     </div>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-                    <div class="filter-group">
-                        <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setX2Filter('all')">Все</button>
-                        <button class="filter-btn ${currentFilter === 'win' ? 'active' : ''}" onclick="setX2Filter('win')">✅ WIN</button>
-                        <button class="filter-btn ${currentFilter === 'loss' ? 'active' : ''}" onclick="setX2Filter('loss')">❌ LOSS</button>
-                        <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
-                        <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
-                    </div>
-                    <span class="auto-import-status active">🤖 Авто-импорт активен</span>
+                <div class="filter-group">
+                    <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setX2Filter('all')">Все</button>
+                    <button class="filter-btn ${currentFilter === 'win' ? 'active' : ''}" onclick="setX2Filter('win')">✅ WIN</button>
+                    <button class="filter-btn ${currentFilter === 'loss' ? 'active' : ''}" onclick="setX2Filter('loss')">❌ LOSS</button>
+                    <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
+                    <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
                 </div>
 
                 <div class="table-wrapper">
@@ -3774,533 +3661,6 @@
     }
 
     // ============================================================
-    // РЕНДЕР АНАЛИТИКИ
-    // ============================================================
-    function renderAnalytics(data) {
-        const history = data.history || [];
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-        window._historyData = history;
-        
-        const patterns = detectDecimalPatterns(history);
-        const hasPatterns = patterns.length > 0;
-        const skippedSums = getSkippedSums(history);
-        
-        let html = `
-            <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">📈 Интерактивная аналитика</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Исследуйте свои ставки в деталях</div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <h2>📊 Интерактивный график</h2>
-                    <div class="chart-controls">
-                        <select id="chartPeriod" onchange="updateInteractiveChart()">
-                            <option value="7">7 дней</option>
-                            <option value="14">14 дней</option>
-                            <option value="30" selected>30 дней</option>
-                            <option value="90">90 дней</option>
-                            <option value="all">Всё время</option>
-                        </select>
-                        <select id="chartType" onchange="updateInteractiveChart()">
-                            <option value="profit">Прибыль</option>
-                            <option value="bank">Банк</option>
-                            <option value="winrate">Проходимость</option>
-                        </select>
-                        <button class="btn" onclick="resetInteractiveChart()">🔄 Сбросить</button>
-                        <button class="btn" onclick="exportChart()">💾 PNG</button>
-                    </div>
-                </div>
-                <div class="chart-container-large">
-                    <canvas id="interactiveChart"></canvas>
-                </div>
-                <div class="chart-details" id="chartDetails">
-                    <div class="chart-details-grid" id="chartDetailsContent"></div>
-                    <div class="chart-actions">
-                        <button class="btn" onclick="document.getElementById('chartDetails').classList.remove('active')">✖ Закрыть</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        if (settings.anomaly_detection) {
-            html += `
-            <div class="card" style="border:2px solid rgba(167,139,250,0.15);">
-                <div class="card-header">
-                    <h2 style="color:#a78bfa;">🕵️ Детектор дробных сумм (3+ знаков)</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">${patterns.length} паттернов</span>
-                </div>
-                
-                <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:8px;">
-                    ⚡ Анализируются только суммы с 3+ знаками после запятой
-                </div>
-                
-                ${hasPatterns ? `
-                <div style="overflow-x:auto;margin-bottom:12px;">
-                    <table class="patterns-table">
-                        <thead>
-                            <tr>
-                                <th>Сумма</th>
-                                <th>Ставок</th>
-                                <th>WIN</th>
-                                <th>LOSS</th>
-                                <th>PUSH</th>
-                                <th>Проход</th>
-                                <th>Прибыль</th>
-                                <th>ROI</th>
-                                <th>Рекомендация</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${patterns.map(p => `
-                                <tr>
-                                    <td><strong>$${p.stake.toString()}</strong></td>
-                                    <td>${p.count}</td>
-                                    <td style="color:#34d399;">${p.wins}</td>
-                                    <td style="color:#f87171;">${p.losses}</td>
-                                    <td style="color:#fbbf24;">${p.pushes}</td>
-                                    <td style="color:${p.winrate >= 60 ? '#34d399' : (p.winrate >= 40 ? '#fbbf24' : '#f87171')};font-weight:600;">${p.winrate.toFixed(1)}%</td>
-                                    <td style="color:${p.totalProfit >= 0 ? '#34d399' : '#f87171'};font-weight:600;">${p.totalProfit >= 0 ? '+' : ''}$${p.totalProfit.toFixed(2)}</td>
-                                    <td style="color:${p.roi >= 0 ? '#34d399' : '#f87171'};">${p.roi.toFixed(1)}%</td>
-                                    <td>${getRecommendation(p.stake).icon} ${getRecommendation(p.stake).bet}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    ${patterns.map((pattern, idx) => renderPatternCard(pattern, idx)).join('')}
-                </div>
-                
-                ${skippedSums.length > 0 ? `
-                <div style="margin-top:10px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid rgba(255,255,255,0.05);">
-                    <div style="font-size:10px;color:rgba(255,255,255,0.3);">
-                        ⏭️ Пропущенные суммы (1-2 знака): 
-                        ${skippedSums.map(s => `$${s.stake.toFixed(2)} (${s.count} ставки)`).join(' • ')}
-                    </div>
-                </div>
-                ` : ''}
-                ` : `
-                <div class="no-data" style="padding:20px 0;">
-                    <div class="emoji">📭</div>
-                    <div>Нет повторяющихся дробных сумм (3+ знаков)</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">
-                        Сделайте ставки с одинаковыми дробными суммами
-                    </div>
-                </div>
-                `}
-            </div>
-            `;
-        } else {
-            html += `
-            <div class="card" style="border:1px solid rgba(255,255,255,0.05);">
-                <div class="card-header">
-                    <h2 style="color:rgba(255,255,255,0.3);">🕵️ Детектор дробных сумм</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.2);">🔒 Отключен</span>
-                </div>
-                <div style="font-size:12px;color:rgba(255,255,255,0.3);text-align:center;padding:20px 0;">
-                    Включите детектор в <a href="#" onclick="switchPage('settings')" style="color:#a78bfa;text-decoration:none;">Настройках</a>
-                </div>
-            </div>
-            `;
-        }
-
-        html += `
-            <div class="card">
-                <div class="card-header">
-                    <h2>📊 Быстрая статистика</h2>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
-                    <div>
-                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">📊 Всего ставок</div>
-                        <div style="font-size:22px;font-weight:700;color:#a78bfa;">${data.stats?.total_bets || 0}</div>
-                    </div>
-                    <div>
-                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">🎯 Проходимость</div>
-                        <div style="font-size:22px;font-weight:700;color:#34d399;">${data.stats?.winrate || 0}%</div>
-                    </div>
-                    <div>
-                        <div style="color:rgba(255,255,255,0.3);font-size:10px;">📈 ROI</div>
-                        <div style="font-size:22px;font-weight:700;color:#fbbf24;">${data.stats?.roi || 0}%</div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('analytics-content').innerHTML = html;
-        setTimeout(() => initInteractiveChart(history), 100);
-    }
-
-    // ============================================================
-    // РЕНДЕР КАРТОЧКИ ПАТТЕРНА
-    // ============================================================
-    function renderPatternCard(pattern, idx) {
-        let statusColor;
-        let statusIcon;
-        let glowEffect = '';
-        
-        if (pattern.winrate === 100) {
-            statusColor = '#34d399';
-            statusIcon = '🌟';
-            glowEffect = 'box-shadow: 0 0 30px rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.2);';
-        } else if (pattern.winrate >= 60) {
-            statusColor = '#34d399';
-            statusIcon = '🟢';
-        } else if (pattern.winrate >= 40) {
-            statusColor = '#fbbf24';
-            statusIcon = '🟡';
-        } else {
-            statusColor = '#f87171';
-            statusIcon = '🔴';
-        }
-        
-        const formattedStake = pattern.stake.toString();
-        const recommendation = getRecommendation(pattern.stake);
-        
-        const isPerfect = pattern.winrate === 100;
-        const perfectBadge = isPerfect ? `
-            <span style="background:rgba(52,211,153,0.15);color:#34d399;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600;border:1px solid rgba(52,211,153,0.2);">
-                🏆 100% ПРОХОДИМОСТЬ
-            </span>
-        ` : '';
-        
-        const betsHtml = pattern.bets.map(b => {
-            const resultColor = b.result === 'win' ? '#34d399' : (b.result === 'loss' ? '#f87171' : '#fbbf24');
-            return `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.02);">
-                    <span style="color:rgba(255,255,255,0.6);">${b.match}</span>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <span style="color:rgba(255,255,255,0.3);">${b.score}</span>
-                        <span style="color:${resultColor};font-weight:600;">${b.result.toUpperCase()}</span>
-                        <span style="color:${b.profit > 0 ? '#34d399' : '#f87171'};font-weight:600;">
-                            ${b.profit > 0 ? '+' : ''}$${b.profit.toFixed(2)}
-                        </span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        return `
-            <div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;border-left:3px solid ${statusColor};${glowEffect}">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                        <span style="font-size:16px;">${statusIcon}</span>
-                        <span style="font-size:14px;font-weight:700;color:${statusColor};">$${formattedStake}</span>
-                        <span style="font-size:10px;color:rgba(255,255,255,0.3);">${pattern.count} ставки</span>
-                        ${perfectBadge}
-                    </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:12px;font-weight:600;color:${pattern.totalProfit >= 0 ? '#34d399' : '#f87171'};">
-                            ${pattern.totalProfit >= 0 ? '+' : ''}$${pattern.totalProfit.toFixed(2)}
-                        </div>
-                        <div style="font-size:9px;color:${statusColor};font-weight:600;">
-                            ${pattern.winrate.toFixed(1)}% (${pattern.wins}/${pattern.count})
-                            ${pattern.winrate === 100 ? ' 🏆' : ''}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="pattern-metrics">
-                    <div class="metric">
-                        <div class="label">Средняя прибыль</div>
-                        <div class="value" style="color:${pattern.avgProfit >= 0 ? '#34d399' : '#f87171'};">${pattern.avgProfit >= 0 ? '+' : ''}$${pattern.avgProfit.toFixed(2)}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="label">Макс. прибыль</div>
-                        <div class="value" style="color:#34d399;">+$${pattern.maxProfit.toFixed(2)}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="label">Мин. прибыль</div>
-                        <div class="value" style="color:#f87171;">$${pattern.minProfit.toFixed(2)}</div>
-                    </div>
-                    <div class="metric">
-                        <div class="label">ROI</div>
-                        <div class="value" style="color:${pattern.roi >= 0 ? '#34d399' : '#f87171'};">${pattern.roi.toFixed(1)}%</div>
-                    </div>
-                </div>
-                
-                <div style="background:${pattern.winrate === 100 ? 'rgba(52,211,153,0.08)' : 'rgba(167,139,250,0.08)'};border-radius:6px;padding:6px 10px;margin:6px 0;border:1px solid ${pattern.winrate === 100 ? 'rgba(52,211,153,0.2)' : 'rgba(167,139,250,0.15)'};">
-                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">
-                        <div>
-                            <span style="font-size:10px;color:rgba(255,255,255,0.3);">🎯 Рекомендация:</span>
-                            <span style="font-size:14px;font-weight:700;color:#a78bfa;">${recommendation.icon} ${recommendation.bet}</span>
-                        </div>
-                        <div style="font-size:10px;color:${pattern.winrate === 100 ? '#34d399' : 'rgba(255,255,255,0.3)'};font-weight:${pattern.winrate === 100 ? '700' : '400'};">
-                            🎯 ${pattern.winrate.toFixed(1)}% сыгранных матчей
-                            ${pattern.winrate === 100 ? ' ✅ ИДЕАЛЬНО!' : ''}
-                        </div>
-                    </div>
-                    <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">
-                        ${recommendation.description}
-                    </div>
-                </div>
-                
-                <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;padding-left:4px;">
-                    ${betsHtml}
-                </div>
-                
-                <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.03);">
-                    💡 ${pattern.recommendation}
-                    ${pattern.winrate === 100 ? ' 🏆 Идеальная проходимость!' : ''}
-                </div>
-            </div>
-        `;
-    }
-
-    // ============================================================
-    // ИНТЕРАКТИВНЫЙ ГРАФИК
-    // ============================================================
-    function initInteractiveChart(history) {
-        const ctx = document.getElementById('interactiveChart');
-        if (!ctx) return;
-
-        if (interactiveChartInstance) {
-            interactiveChartInstance.destroy();
-            interactiveChartInstance = null;
-        }
-
-        window._historyData = history;
-        
-        const isLight = document.body.classList.contains('light-theme');
-        const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
-        const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-
-        interactiveChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Прибыль ($)',
-                    data: [],
-                    borderColor: '#a78bfa',
-                    backgroundColor: 'rgba(167,139,250,0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointHoverRadius: 8,
-                    pointBackgroundColor: '#a78bfa',
-                    pointBorderColor: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(20,20,35,0.8)',
-                    pointBorderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: color,
-                            font: { size: 11 }
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)',
-                        titleColor: isLight ? '#1a1a2e' : '#fff',
-                        bodyColor: isLight ? '#1a1a2e' : '#fff',
-                        borderColor: 'rgba(167,139,250,0.3)',
-                        borderWidth: 1,
-                        padding: 12,
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.dataset.label || '';
-                                const value = context.parsed.y;
-                                return label + ': $' + value.toFixed(2);
-                            },
-                            afterBody: function(tooltipItems) {
-                                if (chartData && chartData[tooltipItems[0].dataIndex]) {
-                                    const bet = chartData[tooltipItems[0].dataIndex];
-                                    return [
-                                        'Матч: ' + bet.home + ' vs ' + bet.away,
-                                        'Ставка: ' + bet.bet,
-                                        'Кэф: ' + bet.odds,
-                                        'Результат: ' + bet.result
-                                    ];
-                                }
-                                return [];
-                            }
-                        }
-                    },
-                    zoom: {
-                        limits: {
-                            x: { min: 'original', max: 'original' }
-                        },
-                        pan: {
-                            enabled: true,
-                            mode: 'x'
-                        },
-                        zoom: {
-                            wheel: {
-                                enabled: true,
-                                speed: 0.1
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'x'
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            color: color,
-                            font: { size: 9 },
-                            maxTicksLimit: 20
-                        },
-                        grid: {
-                            color: gridColor
-                        }
-                    },
-                    y: {
-                        ticks: {
-                            color: color,
-                            font: { size: 9 },
-                            callback: function(value) {
-                                return '$' + value;
-                            }
-                        },
-                        grid: {
-                            color: gridColor
-                        }
-                    }
-                },
-                onClick: function(event, elements) {
-                    if (elements.length > 0) {
-                        const index = elements[0].index;
-                        showChartDetails(index);
-                    }
-                }
-            }
-        });
-
-        updateInteractiveChart();
-    }
-
-    function updateInteractiveChart() {
-        if (!interactiveChartInstance) return;
-
-        const period = document.getElementById('chartPeriod').value;
-        const type = document.getElementById('chartType').value;
-        const history = window._historyData || [];
-
-        let filtered = [...history];
-        if (period !== 'all') {
-            const days = parseInt(period);
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - days);
-            filtered = filtered.filter(bet => {
-                try {
-                    const betDate = new Date(bet.date.split(' ')[0]);
-                    return betDate >= cutoff;
-                } catch {
-                    return false;
-                }
-            });
-        }
-
-        filtered.sort((a, b) => {
-            try {
-                return new Date(a.date) - new Date(b.date);
-            } catch {
-                return 0;
-            }
-        });
-
-        const labels = [];
-        const values = [];
-        let cumulative = 0;
-        let bank = 1000;
-
-        filtered.forEach((bet, index) => {
-            labels.push(bet.date);
-            
-            if (type === 'profit') {
-                cumulative += bet.profit || 0;
-                values.push(Math.round(cumulative * 100) / 100);
-            } else if (type === 'bank') {
-                bank += bet.profit || 0;
-                values.push(Math.round(bank * 100) / 100);
-            } else {
-                const wins = filtered.slice(0, index + 1).filter(b => b.result === 'win').length;
-                const total = index + 1;
-                values.push(Math.round((wins / total) * 1000) / 10);
-            }
-        });
-
-        chartData = filtered;
-
-        const labelsMap = {
-            'profit': 'Прибыль ($)',
-            'bank': 'Банк ($)',
-            'winrate': 'Проходимость (%)'
-        };
-
-        interactiveChartInstance.data.labels = labels;
-        interactiveChartInstance.data.datasets[0].data = values;
-        interactiveChartInstance.data.datasets[0].label = labelsMap[type] || 'Прибыль ($)';
-        interactiveChartInstance.update();
-    }
-
-    function showChartDetails(index) {
-        const details = document.getElementById('chartDetails');
-        const content = document.getElementById('chartDetailsContent');
-        const bet = chartData[index];
-        
-        if (bet) {
-            details.classList.add('active');
-            const isLight = document.body.classList.contains('light-theme');
-            const color = isLight ? '#1a1a2e' : '#e8e8f0';
-            
-            content.innerHTML = `
-                <div class="chart-details-item">
-                    <div class="label">Матч</div>
-                    <div class="value" style="color:${color};">${bet.home} vs ${bet.away}</div>
-                </div>
-                <div class="chart-details-item">
-                    <div class="label">Дата</div>
-                    <div class="value" style="color:${color};">${bet.date}</div>
-                </div>
-                <div class="chart-details-item">
-                    <div class="label">Ставка</div>
-                    <div class="value" style="color:${color};">${bet.bet} (Кэф: ${bet.odds})</div>
-                </div>
-                <div class="chart-details-item">
-                    <div class="label">Результат</div>
-                    <div class="value"><span class="badge ${bet.result}">${bet.result}</span></div>
-                </div>
-                <div class="chart-details-item">
-                    <div class="label">Сумма</div>
-                    <div class="value" style="color:${color};">$${bet.stake}</div>
-                </div>
-                <div class="chart-details-item">
-                    <div class="label">Прибыль</div>
-                    <div class="value" style="color:${bet.profit > 0 ? '#34d399' : '#f87171'};font-weight:700;">
-                        ${bet.profit > 0 ? '+' : ''}$${bet.profit}
-                    </div>
-                </div>
-            `;
-        }
-    }
-
-    function resetInteractiveChart() {
-        document.getElementById('chartPeriod').value = '30';
-        document.getElementById('chartType').value = 'profit';
-        document.getElementById('chartDetails').classList.remove('active');
-        updateInteractiveChart();
-    }
-
-    function exportChart() {
-        const canvas = document.getElementById('interactiveChart');
-        const link = document.createElement('a');
-        link.download = 'chart_' + new Date().toISOString().slice(0,10) + '.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-    }
-
-    // ============================================================
     // СИМУЛЯТОР
     // ============================================================
     function renderSimulator(data) {
@@ -4541,7 +3901,7 @@
                 <div class="setting-item" style="border-bottom:none;">
                     <div>
                         <div class="label">Авто-импорт из логов</div>
-                        <div class="desc">Автоматически добавляет X2 матчи из логов бота каждые 5 минут</div>
+                        <div class="desc">Автоматически добавляет X2 матчи из логов бота каждые 3 минуты</div>
                     </div>
                     <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
                 </div>
@@ -4781,7 +4141,7 @@
         loadPageData('dashboard');
     });
 
-    // Экспорт функций в глобальную область
+    // Экспорт функций
     window.toggleTheme = toggleTheme;
     window.refreshData = refreshData;
     window.switchPage = switchPage;
@@ -4792,8 +4152,6 @@
     window.hideAddMatchModal = hideAddMatchModal;
     window.saveManualMatch = saveManualMatch;
     window.loadMatchAnalysis = loadMatchAnalysis;
-    window.resetInteractiveChart = resetInteractiveChart;
-    window.exportChart = exportChart;
     window.runSimulation = runSimulation;
     window.updateBank = updateBank;
     window.toggleSetting = toggleSetting;
@@ -4808,7 +4166,6 @@
     window.deleteX2Match = deleteX2Match;
     window.exportX2Excel = exportX2Excel;
     window.setX2Filter = setX2Filter;
-    window.updateInteractiveChart = updateInteractiveChart;
     window.openX2ImportModal = openX2ImportModal;
     window.closeX2ImportModal = closeX2ImportModal;
     window.importX2Excel = importX2Excel;
