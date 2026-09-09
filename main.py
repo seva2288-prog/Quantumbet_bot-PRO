@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime, timedelta
 from threading import Lock
 from collections import defaultdict
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from apscheduler.schedulers.background import BackgroundScheduler
 from threading import Thread
 from datetime import datetime
@@ -281,8 +281,8 @@ class FootballAPI:
         self.base_url = base_url or "https://v3.football.api-sports.io"
         self.cache = SmartCache(max_size=500)
         self.last_request_time = 0
-        self.min_request_interval = 0.2  # БЫЛО 1.5! Теперь 5 запросов в секунду
-        self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60) # БЫЛО 30! Под ваш тариф Pro
+        self.min_request_interval = 0.2
+        self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60)
         self.retry_manager = RetryManager(max_retries=3, base_delay=1)
         self.error_stats = defaultdict(int)
         logger.info(f"🔑 API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
@@ -319,7 +319,6 @@ class FootballAPI:
             self.last_request_time = time.time()
             logger.info(f"📡 Статус ответа: {response.status_code}")
             
-            # Логирование остатка лимитов API
             try:
                 rem_min = response.headers.get('x-ratelimit-remaining')
                 lim_min = response.headers.get('x-ratelimit-limit')
@@ -784,7 +783,7 @@ class OddsAPIClient:
         self.min_request_interval = 0.5
         self.rate_limiter = APIRateLimiter(max_requests=50, time_window=60)
         self.retry_manager = RetryManager(max_retries=2, base_delay=0.5)
-        self.top_leagues_only = []  # Теперь ищем кэфы для всех лиг
+        self.top_leagues_only = []
         logger.info(f"🎯 Odds API ключ загружен: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
     
     def _make_request(self, endpoint, params=None):
@@ -1337,7 +1336,6 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
-            # 1. ПОЛУЧАЕМ КЭФЫ ЧЕРЕЗ ODDS API (The Odds API)
             odds_data = odds_api.get_odds_for_match(home, away, league)
             if odds_data and odds_data.get('best_odds', 0) > 0:
                 if bet_type == 'under' and odds_data.get('under_odds', 0) > 0:
@@ -1355,7 +1353,6 @@ def update_odds_for_matches(matches):
                     source = 'Odds API'
                     logger.info(f"✅ Odds API: {home} vs {away} | {new_odds} ({bookmaker})")
 
-            # 2. ЕСЛИ НЕ НАШЛИ, ПРОБУЕМ FOOTBALL API
             if not new_odds or new_odds <= 0:
                 if fixture_id:
                     logger.info(f"📡 Odds API не нашел, пробуем Football API для {home} vs {away} (ID: {fixture_id})")
@@ -1389,7 +1386,6 @@ def update_odds_for_matches(matches):
                         if new_odds and new_odds > 0:
                             logger.info(f"✅ Football API: {home} vs {away} | {new_odds} ({bookmaker})")
 
-            # 3. ФИНАЛЬНАЯ ЗАГЛУШКА (СПРАВЕДЛИВЫЙ КЭФ)
             if not new_odds or new_odds <= 0:
                 prob = best_bet.get('prob', 0) / 100
                 if prob > 0:
@@ -1399,7 +1395,6 @@ def update_odds_for_matches(matches):
                     source = 'Calculated'
                     logger.info(f"ℹ️ Кэфы не найдены. Используем расчетный кэф: {new_odds} для {home} vs {away}")
 
-            # 4. ОБНОВЛЯЕМ СТАВКУ
             if new_odds and new_odds > 0:
                 prob = best_bet.get('prob', 0) / 100
                 new_ev = (prob * new_odds) - 1
@@ -1503,7 +1498,6 @@ def find_top_matches(matches):
     bet_type_count = {}
     league_count = {}
     
-    # WICHTIG! Variablen VOR der Schleife deklarieren
     home_win_prob = 0.0
     away_win_prob = 0.0
     draw_prob = 0.0
@@ -1551,7 +1545,6 @@ def find_top_matches(matches):
                 except:
                     match_time = "Время не указано"
 
-            # ПУНКТ 4: Получаем данные из формы (Real XG)
             home_form_data = football_api.get_form(home_team.get("id"))
             away_form_data = football_api.get_form(away_team.get("id"))
             home_form = home_form_data.get('form', '') if home_form_data else ''
@@ -1562,11 +1555,9 @@ def find_top_matches(matches):
             home_conceded_avg = home_form_data.get('conceded_avg', 1.0) if home_form_data else 1.0
             away_conceded_avg = away_form_data.get('conceded_avg', 1.2) if away_form_data else 1.2
 
-            # ПУНКТ 4: Real XG (среднее между своими голами и пропущенными соперника)
             home_xg = (home_goals_avg + away_conceded_avg) / 2
             away_xg = (away_goals_avg + home_conceded_avg) / 2
 
-            # ПУНКТ 3: Учитываем травмы
             h_inj = len(match['factors'].get('home_injuries_list', []))
             a_inj = len(match['factors'].get('away_injuries_list', []))
             if h_inj > 3:
@@ -1574,13 +1565,11 @@ def find_top_matches(matches):
             if a_inj > 3:
                 away_xg *= 0.8
 
-            # Добавляем домашнее преимущество
             home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
             home_xg *= home_adv
             away_xg /= home_adv
             total_xg = home_xg + away_xg
 
-            # Фильтры на XG
             ev_min = getattr(Config, 'EV_MIN_70', 20)
             prob_min = getattr(Config, 'PROB_MIN_70', 60)
             xg_min = getattr(Config, 'XG_MIN_70', 1.8)
@@ -1590,7 +1579,6 @@ def find_top_matches(matches):
                 logger.info(f"⏭️ Пропускаем (XG вне диапазона {xg_min}-{xg_max}): {home} vs {away} | XG: {total_xg:.2f}")
                 continue
 
-            # ПУНКТ 2: Получаем таблицу и позиции
             standings = football_api.get_standings(league_id) if league_id else None
             home_position = 99
             away_position = 99
@@ -1608,7 +1596,6 @@ def find_top_matches(matches):
                 logger.info(f"⏭️ Пропускаем (низкая позиция): {home} vs {away} | H: #{home_position}, A: #{away_position}")
                 continue
 
-            # ПУНКТ 2: Учитываем разницу в голах (разница в позициях)
             if home_position < away_position - 10:
                 home_win_prob += 0.10
                 away_win_prob -= 0.10
@@ -1616,12 +1603,10 @@ def find_top_matches(matches):
                 away_win_prob += 0.10
                 home_win_prob -= 0.10
 
-            # ПУНКТ 2 и 1: Расчет вероятностей (используем Real XG и травмы)
             home_win_prob = 0.55 + (home_xg - away_xg) * 0.2 - (h_inj - a_inj) * 0.02
             draw_prob = 0.25
             away_win_prob = 0.20 - (home_xg - away_xg) * 0.2
 
-            # ПУНКТ 1: Домашнее преимущество (эффект на вероятность)
             if home_xg > away_xg + 0.5:
                 home_win_prob += 0.08
                 away_win_prob -= 0.08
@@ -1629,7 +1614,6 @@ def find_top_matches(matches):
                 away_win_prob += 0.08
                 home_win_prob -= 0.08
 
-            # Нормализация (сумма вероятностей должна быть 1)
             total_prob = home_win_prob + draw_prob + away_win_prob
             if total_prob > 0:
                 home_win_prob /= total_prob
@@ -1642,7 +1626,6 @@ def find_top_matches(matches):
             prob_under_2_5 = 1 - prob_over_2_5
             prob_btts = 1 - (prob_under_2_5 * prob_over_2_5)
 
-            # ПУНКТ 1: Справедливые кэфы
             odds = {
                 '1X': 1.85,
                 'X2': 1.85,
@@ -1660,7 +1643,6 @@ def find_top_matches(matches):
             odds['ТБ 2.5'] = 1.95 if prob_over_2_5 > 0.60 else 1.95
             odds['ОБЗ'] = 1.90 if prob_btts > 0.60 else 1.90
 
-            # Получаем H2H (если возможно)
             h2h_data = football_api.get_head_to_head(home, away)
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data)
             prob_home_win = probs['home_win']
@@ -1672,7 +1654,6 @@ def find_top_matches(matches):
             prob_under_2_5 = probs['under_2_5']
             prob_btts = probs['btts']
 
-            # Дополнительная мотивация
             if home_motivation == 'relegation' and away_motivation == 'mid_table':
                 prob_home_win += 0.10
                 prob_1X += 0.08
@@ -1686,7 +1667,6 @@ def find_top_matches(matches):
                 prob_away_win += 0.08
                 prob_X2 += 0.05
 
-            # ПУНКТ 1: ВЫЧИСЛЕНИЕ EV (сумма вероятностей и кэфов)
             bets = []
             ev_1x = (prob_1X * odds['1X']) - 1
             bets.append({
@@ -2214,7 +2194,6 @@ def find_fixture_by_teams(self, home_team, away_team):
         logger.error(f"Ошибка поиска матча {home_team} vs {away_team}: {e}")
     return None
 
-# Добавляем метод в FootballAPI
 FootballAPI.find_fixture_by_teams = find_fixture_by_teams
 
 # ============================================================
@@ -2658,7 +2637,6 @@ bot_state = BotState()
 # УЛУЧШЕНИЕ 8: СРАВНЕНИЕ КОМАНД (НОВОЕ!)
 # ============================================================
 def get_team_comparison(home_team, away_team, league_id, fixture_id):
-    """Сравнение команд по 12 параметрам (НЕ ПОКАЗЫВАЕТСЯ ПОЛЬЗОВАТЕЛЮ)"""
     try:
         home_name = home_team.get('name') if isinstance(home_team, dict) else str(home_team)
         away_name = away_team.get('name') if isinstance(away_team, dict) else str(away_team)
@@ -2966,8 +2944,10 @@ def load_bot_settings():
         return False
 
 # ============================================================
-# FLASK WEBHOOK (ГЛАВНЫЙ)
 # ============================================================
+# FLASK WEBHOOK И API ЭНДПОИНТЫ
+# ============================================================
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     global search_running, search_state
@@ -3015,7 +2995,7 @@ def webhook():
             if search_running:
                 if 'start_time' in search_state:
                     elapsed = (datetime.now() - search_state['start_time']).seconds
-                    if elapsed > 900:  # Таймаут увеличен до 15 минут
+                    if elapsed > 900:
                         search_running = False
                         search_state = {}
                         send_telegram("⏰ Поиск был принудительно сброшен (таймаут 15 мин)")
@@ -3029,7 +3009,6 @@ def webhook():
                 search_running = True
                 search_state = {'start_time': datetime.now()}
                 
-                # МГНОВЕННЫЙ ОТВЕТ (чтобы Telegram не отключил бота)
                 send_telegram("🔎 Запущен полный анализ ВСЕХ лиг. Это может занять 10-20 минут. Я пришлю результат, когда закончу.")
 
                 def run_full_search():
@@ -3047,7 +3026,6 @@ def webhook():
                                 minutes = elapsed // 60
                                 seconds = elapsed % 60
                                 
-                                # Формируем сообщение
                                 matches_text = ""
                                 for i, m in enumerate(top_matches[:10], 1):
                                     best = m['best_bet']
@@ -3074,7 +3052,6 @@ def webhook():
                         search_running = False
                         search_state = {}
                 
-                # Запускаем в фоновом потоке
                 t = Thread(target=run_full_search)
                 t.daemon = True
                 t.start()
@@ -3170,6 +3147,84 @@ def webhook():
         logger.error(f"❌ {error_msg}")
         send_error_to_telegram(error_msg)
         return "ok", 200
+
+# ============================================================
+# PWA ЭНДПОИНТЫ
+# ============================================================
+
+@app.route('/sw.js')
+def serve_sw():
+    """Service Worker для PWA"""
+    try:
+        return send_from_directory('.', 'sw.js', mimetype='application/javascript')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки sw.js: {e}")
+        return "Service Worker не найден", 404
+
+@app.route('/manifest.json')
+def serve_manifest():
+    """PWA манифест"""
+    try:
+        return send_from_directory('.', 'manifest.json', mimetype='application/json')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки manifest.json: {e}")
+        return "Манифест не найден", 404
+
+# ============================================================
+# ЛОГИ ДЛЯ АВТО-ИМПОРТА X2
+# ============================================================
+
+LOG_FILE = 'matches_log.txt'
+
+@app.route('/api/matches_log', methods=['GET'])
+def get_matches_log():
+    """Возвращает логи для авто-импорта X2"""
+    try:
+        # Создаём тестовый файл если не существует
+        if not os.path.exists(LOG_FILE):
+            with open(LOG_FILE, 'w', encoding='utf-8') as f:
+                f.write("2026-09-09 10:00 - Blackburn vs Sheffield Utd | XG: 2.1 | нет мотивации у фаворита\n")
+                f.write("2026-09-09 12:00 - Al-Ettifaq vs Al-Faisaly | XG: 1.8 | H: #5, A: #12 | no motivation\n")
+                f.write("2026-09-09 14:00 - Real Madrid vs Barcelona | XG: 2.5 | H: #1, A: #3 | нет мотивации\n")
+                f.write("2026-09-09 16:00 - Aris Thessalonikis vs OFI | XG: 1.9 | H: #7, A: #15 | no motivation\n")
+                f.write("2026-09-09 18:00 - Panathinaikos vs PAOK | XG: 2.2 | H: #4, A: #2 | нет мотивации у гостей\n")
+                f.write("2026-09-09 20:00 - AEK vs Olympiakos | XG: 1.7 | H: #6, A: #1 | no motivation\n")
+            logger.info("✅ Создан тестовый файл логов")
+
+        with open(LOG_FILE, 'r', encoding='utf-8') as f:
+            log_text = f.read()
+        
+        logger.info(f"📡 Отправка логов: {len(log_text)} символов, {len(log_text.split(chr(10)))} строк")
+        return jsonify({
+            'success': True,
+            'log': log_text,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения логов: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'log': ''
+        }), 500
+
+@app.route('/api/update_logs', methods=['POST'])
+def update_logs():
+    """Обновляет логи для авто-импорта X2"""
+    try:
+        data = request.json
+        log_text = data.get('log', '')
+        if not log_text:
+            return jsonify({'success': False, 'error': 'Нет данных'}), 400
+        
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(log_text + '\n')
+        
+        logger.info("✅ Логи обновлены")
+        return jsonify({'success': True, 'message': 'Логи обновлены'})
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления логов: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================================
 # API ЭНДПОИНТЫ
@@ -3562,4 +3617,6 @@ if __name__ == "__main__":
     logger.info("📊 A/B тестирование активно")
     logger.info("🔔 Уведомления активны")
     logger.info("📈 Мониторинг производительности активен")
+    logger.info("📱 PWA доступен по адресу /")
+    logger.info("📋 Логи для X2: /api/matches_log")
     app.run(host='0.0.0.0', port=port)
