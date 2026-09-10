@@ -3256,8 +3256,8 @@ def get_matches_log():
 # API ЭНДПОИНТЫ
 # ============================================================
 
-@app.route('/api/matches_log', methods=['GET'])
-def get_matches_log():
+@app.route('/api/x2_matches', methods=['GET'])
+def get_x2_matches():
     """
     Возвращает матчи из кэша бота для авто-импорта X2.
     Матчи берутся из top_matches (результаты поиска бота после /update).
@@ -3266,7 +3266,7 @@ def get_matches_log():
         cache = storage.load_cache()
         top_matches = cache.get('top_matches', [])
         
-        logger.info(f"📋 /api/matches_log: в кэше {len(top_matches)} матчей")
+        logger.info(f"📋 /api/x2_matches: в кэше {len(top_matches)} матчей")
         
         x2_matches = []
         for m in top_matches:
@@ -3327,7 +3327,7 @@ def get_matches_log():
             log_lines.append(f"{m['date']} - {m['match']} | {m['note']}")
         log_text = '\n'.join(log_lines)
         
-        logger.info(f"📋 /api/matches_log: отдано {len(x2_matches)} X2 матчей")
+        logger.info(f"📋 /api/x2_matches: отдано {len(x2_matches)} X2 матчей")
         
         return jsonify({
             'success': True,
@@ -3337,7 +3337,7 @@ def get_matches_log():
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
-        logger.error(f"❌ Ошибка в /api/matches_log: {e}")
+        logger.error(f"❌ Ошибка в /api/x2_matches: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
