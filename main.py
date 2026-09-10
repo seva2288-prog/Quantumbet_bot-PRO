@@ -3230,6 +3230,110 @@ def update_logs():
 # API ЭНДПОИНТЫ
 # ============================================================
 
+@app.route('/api/matches_log', methods=['GET'])
+def get_matches_log():
+    """
+    Возвращает матчи из кэша бота для авто-импорта X2.
+    Матчи берутся из top_matches (результаты поиска бота после /update).
+    """
+    try:
+        # Берём реальные матчи из кэша бота
+        cache = storage.load_cache()
+        top_matches = cache.get('top_matches', [])
+        
+        logger.info(f"📋 /api/matches_log: в кэше {len(top_matches)} матчей")
+        
+        # Формируем список X2 матчей
+        x2_matches = []
+        for m in top_matches:
+            try:
+                home = m.get('home', '')
+                away = m.get('away', '')
+                if not home or not away:
+                    continue
+                
+                home_xg = float(m.get('home_xg', 0) or 0)
+                away_xg = float(m.get('away_xg', 0) or 0)
+                total_xg = float(m.get('total_xg', 0) or 0)
+                
+                standings = m.get('standings', {}) or {}
+                home_pos = standings.get('home_position', 99) or 99
+                away_pos = standings.get('away_position', 99) or 99
+                
+                best_bet = m.get('best_bet', {}) or {}
+                odds = float(best_bet.get('odds', 0) or 0)
+                stake = float(best_bet.get('stake', 0) or 0)
+                label = best_bet.get('label', '')
+                ev = best_bet.get('ev', 0)
+                
+                # Определяем фаворита и аутсайдера
+                if home_pos < away_pos or home_xg > away_xg:
+                    favorite = home
+                    underdog = away
+                else:
+                    favorite = away
+                    underdog = home
+                
+                # Дата матча
+                match_time = m.get('match_time', '')
+                if match_time:
+                    try:
+                        dt = datetime.strptime(match_time, '%d.%m.%Y %H:%M')
+                        date_str = dt.strftime('%Y-%m-%d')
+                    except:
+                        date_str = datetime.now().strftime('%Y-%m-%d')
+                else:
+                    date_str = datetime.now().strftime('%Y-%m-%d')
+                
+                x2_matches.append({
+                    'date': date_str,
+                    'match': f"{home} vs {away}",
+                    'favorite': favorite,
+                    'underdog': underdog,
+                    'odds': odds,
+                    'stake': stake if stake > 0 else 42.87,
+                    'score': '-',
+                    'result': 'pending',
+                    'note': f"XG: {total_xg} | {label} | EV: {ev}% | H:#{home_pos} A:#{away_pos}"
+                })
+            except Exception as e:
+                logger.error(f"Ошибка обработки матча для X2: {e}")
+                continue
+        
+        # Формируем строки логов для отображения
+        log_lines = []
+        for m in x2_matches:
+            log_lines.append(f"{m['date']} - {m['match']} | {m['note']}")
+        log_text = '\n'.join(log_lines)
+        
+        logger.info(f"📋 /api/matches_log: отдано {len(x2_matches)} X2 матчей")
+        
+        return jsonify({
+            'success': True,
+            'log': log_text,
+            'x2_matches': x2_matches,
+            'count': len(x2_matches),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /api/matches_log: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'log': '',
+            'x2_matches': []
+        }), 500
+
+# ============================================================
+# API СТАТИСТИКИ
+# ============================================================
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    stats = storage.load_stats()
+    bank = storage.load_bank()
+    return jsonify({'bank': bank, **stats})
+
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
     stats = storage.load_stats()
