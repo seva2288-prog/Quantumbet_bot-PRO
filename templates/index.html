@@ -2088,7 +2088,7 @@
     async function autoImportX2FromLogs() {
         try {
             console.log('🤖 Авто-импорт X2 из логов...');
-            const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
+            const response = await fetch(API_BASE + '/api/x2_matches?t=' + Date.now());
             if (!response.ok) {
                 console.warn('⚠️ Не удалось получить логи');
                 return;
