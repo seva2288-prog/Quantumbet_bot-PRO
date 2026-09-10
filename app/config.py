@@ -64,9 +64,9 @@ class Config:
     TM25_TOP_LEAGUE_EV = 35
     
     # ============================================================
-    # MAPПИНГ ЛИГ ДЛЯ ODDS API
+    # МАППИНГ ЛИГ ДЛЯ ODDS API
     # ============================================================
-    
+
     ODDS_SPORT_MAP = {
         # === АНГЛИЯ ===
         'АПЛ': 'soccer_epl',
@@ -146,123 +146,121 @@ class Config:
         'Австралия А-Лига': 'soccer_australia_a_league',
         'Китай Супер Лига': 'soccer_china_super_league',
     }
-    
+
     # ============================================================
-    # ЛИГИ (ПОЛНЫЙ СПИСОК - 76 ЛИГ)
+    # ЛИГИ (УНИКАЛЬНЫЕ ID, БЕЗ ДУБЛИКАТОВ)
     # ============================================================
-    
+
     LEAGUES = [
         # === АНГЛИЯ ===
         39,   # Premier League
         40,   # Championship
         41,   # League One
-        
+
         # === ИСПАНИЯ ===
         140,  # La Liga
         141,  # La Liga 2
         142,  # Primera Federación
-        
+
         # === ГЕРМАНИЯ ===
         78,   # Bundesliga
         79,   # 2. Bundesliga
         80,   # 3. Liga
-        
+
         # === ИТАЛИЯ ===
         135,  # Serie A
         136,  # Serie B
         137,  # Serie C
-        
+
         # === ФРАНЦИЯ ===
         61,   # Ligue 1
         62,   # Ligue 2
         63,   # National
-        
+
         # === НИДЕРЛАНДЫ ===
         88,   # Eredivisie
         89,   # Eerste Divisie
-        
+
         # === ПОРТУГАЛИЯ ===
         94,   # Primeira Liga
-        95,   # Segunda Liga
-        
+        # 95 занят Украиной — Португалия Сегунда убрана
+
         # === ТУРЦИЯ ===
         203,  # Süper Lig
         204,  # TFF 1. Lig
-        
+
         # === ГРЕЦИЯ ===
         197,  # Super League
         198,  # Super League 2
-        
+
         # === ШОТЛАНДИЯ ===
-        179,  # Premiership
-        180,  # Championship
-        
+        # 179/180 заняты Россией — требует уточнения по API
+
         # === БЕЛЬГИЯ ===
         144,  # Pro League
         145,  # Challenger Pro League
-        
+
         # === ДАНИЯ ===
         119,  # Superliga
         120,  # 1. Division
-        
+
         # === НОРВЕГИЯ ===
         164,  # Eliteserien
         165,  # OBOS-ligaen
-        
+
         # === ШВЕЦИЯ ===
-        188,  # Allsvenskan
+        # 188 конфликт с Австрией — требует уточнения по API
         189,  # Superettan
-        
+
         # === ПОЛЬША ===
         106,  # Ekstraklasa
         107,  # I Liga
-        
+
         # === УКРАИНА ===
         95,   # Premier League
         96,   # Persha Liga
-        
+
         # === АВСТРИЯ ===
         187,  # Bundesliga
-        188,  # 2. Liga
-        
+
         # === ШВЕЙЦАРИЯ ===
         206,  # Super League
         207,  # Challenge League
-        
+
         # === ХОРВАТИЯ ===
         166,  # HNL
         167,  # 2. HNL
-        
+
         # === СЛОВЕНИЯ ===
         260,  # Prva Liga
         261,  # 2. Liga
-        
+
         # === СЕРБИЯ ===
         250,  # Super Liga
-        
+
         # === БОЛГАРИЯ ===
-        253,  # First League
-        
+        # 253 конфликт с MLS — требует уточнения по API
+
         # === РУМЫНИЯ ===
         256,  # Liga 1
-        
+
         # === СЛОВАКИЯ ===
         258,  # Super Liga
-        
+
         # === ВЕНГРИЯ ===
         171,  # NB I
-        
+
         # === РОССИЯ ===
         179,  # РПЛ
         180,  # Первая Лига
         181,  # Вторая Лига А
         182,  # Вторая Лига Б
-        
+
         # === ЕВРОПЕЙСКИЕ КУБКИ ===
         2,    # Champions League
         3,    # Europa League
         848,  # Conference League
-        
+
         # === ЮЖНАЯ АМЕРИКА ===
         71,   # Brasileirão
         128,  # Argentina Primera
@@ -270,12 +268,10 @@ class Config:
         158,  # Colombia Primera A
         168,  # Chile Primera
         178,  # Ecuador Serie A
-        180,  # Paraguay Primera
-        182,  # Peru Liga 1
-        
+
         # === СЕВЕРНАЯ АМЕРИКА ===
         253,  # MLS
-        
+
         # === АЗИЯ ===
         307,  # Saudi Pro League
         150,  # J1 League
@@ -284,34 +280,32 @@ class Config:
         155,  # K League 2
         183,  # A-League
         169,  # Chinese Super League
-        
+
         # === АФРИКА ===
         276,  # South Africa Premier League
         278,  # Botola Pro (Марокко)
         279,  # Egyptian Premier League
     ]
-    
+
     # ============================================================
-    # КУБКИ
+    # КУБКИ (УНИКАЛЬНЫЕ ID)
     # ============================================================
-    
+
     CUP_LEAGUES = [
         45,   # FA Cup
         46,   # EFL Cup
         143,  # Copa del Rey
         81,   # DFB-Pokal
-        137,  # Coppa Italia
         66,   # Coupe de France
         13,   # Copa Libertadores
         14,   # Copa Sudamericana
         15,   # Recopa Sudamericana
-        848,  # Conference League
     ]
-    
+
     # ============================================================
-    # НАЗВАНИЯ ЛИГ (РАСШИРЕННЫЙ СПИСОК)
+    # НАЗВАНИЯ ЛИГ (СИНХРОНИЗИРОВАНО С LEAGUES)
     # ============================================================
-    
+
     LEAGUE_NAMES = {
         # === АНГЛИЯ ===
         39: "Premier League",
@@ -338,16 +332,12 @@ class Config:
         89: "Eerste Divisie",
         # === ПОРТУГАЛИЯ ===
         94: "Primeira Liga",
-        95: "Segunda Liga",
         # === ТУРЦИЯ ===
         203: "Süper Lig",
         204: "TFF 1. Lig",
         # === ГРЕЦИЯ ===
         197: "Super League",
         198: "Super League 2",
-        # === ШОТЛАНДИЯ ===
-        179: "Premiership",
-        180: "Championship",
         # === БЕЛЬГИЯ ===
         144: "Pro League",
         145: "Challenger Pro League",
@@ -358,7 +348,6 @@ class Config:
         164: "Eliteserien",
         165: "OBOS-ligaen",
         # === ШВЕЦИЯ ===
-        188: "Allsvenskan",
         189: "Superettan",
         # === ПОЛЬША ===
         106: "Ekstraklasa",
@@ -368,7 +357,6 @@ class Config:
         96: "Persha Liga",
         # === АВСТРИЯ ===
         187: "Bundesliga",
-        188: "2. Liga",
         # === ШВЕЙЦАРИЯ ===
         206: "Super League",
         207: "Challenge League",
@@ -380,8 +368,6 @@ class Config:
         261: "2. Liga",
         # === СЕРБИЯ ===
         250: "Super Liga",
-        # === БОЛГАРИЯ ===
-        253: "First League",
         # === РУМЫНИЯ ===
         256: "Liga 1",
         # === СЛОВАКИЯ ===
@@ -404,8 +390,6 @@ class Config:
         158: "Colombia Primera A",
         168: "Chile Primera",
         178: "Ecuador Serie A",
-        180: "Paraguay Primera",
-        182: "Peru Liga 1",
         # === СЕВЕРНАЯ АМЕРИКА ===
         253: "MLS",
         # === АЗИЯ ===
@@ -421,31 +405,31 @@ class Config:
         278: "Botola Pro",
         279: "Egyptian Premier",
     }
-    
+
     # ============================================================
     # АВТОМАТИЧЕСКАЯ ПОДГРУЗКА ID ЛИГ ПО НАЗВАНИЯМ
     # ============================================================
-    
+
     @classmethod
     def fetch_league_ids(cls):
         """Получает ID лиг по названиям из API"""
         if not cls.FOOTBALL_API_KEY:
             print("❌ Нет API ключа! Не могу загрузить ID лиг.")
             return {}
-        
+
         league_ids = {}
         headers = {
             'x-apisports-key': cls.FOOTBALL_API_KEY,
             'x-rapidapi-host': 'v3.football.api-sports.io'
         }
-        
+
         try:
             response = requests.get(
                 f"{cls.FOOTBALL_API_URL}/leagues",
                 headers=headers,
                 timeout=30
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get('response'):
@@ -454,8 +438,7 @@ class Config:
                         name = league_data.get('name', '')
                         if name:
                             league_ids[name] = league_data.get('id')
-                            
-                            # Добавляем русские названия
+
                             if name == 'Premier League':
                                 league_ids['АПЛ'] = league_data.get('id')
                             elif name == 'La Liga':
@@ -472,21 +455,21 @@ class Config:
                                 league_ids['Лига Европы УЕФА'] = league_data.get('id')
                             elif name == 'MLS':
                                 league_ids['МЛС'] = league_data.get('id')
-                
+
                 print(f"✅ Загружено {len(league_ids)} лиг из API")
                 return league_ids
             else:
                 print(f"❌ Ошибка API: {response.status_code}")
                 return {}
-                
+
         except Exception as e:
             print(f"❌ Ошибка загрузки лиг: {e}")
             return {}
-    
+
     # ============================================================
-    # ПРОВЕРКА КОНФИГУРАЦИИ
+    # ПРОВЕРКА КОНФИГУРАЦИИ (С ПОДСЧЁТОМ УНИКАЛЬНЫХ ЛИГ)
     # ============================================================
-    
+
     @classmethod
     def check(cls):
         missing = []
@@ -498,21 +481,29 @@ class Config:
             missing.append("FOOTBALL_API_KEY")
         if not cls.ODDS_API_KEY:
             missing.append("ODDS_API_KEY")
-        
+
         if missing:
             print(f"⚠️ ВНИМАНИЕ: Отсутствуют: {', '.join(missing)}")
         else:
             print("✅ Все ключи загружены!")
-        
-        print(f"📊 Лиг: {len(cls.LEAGUES)}")
-        print(f"🏆 Кубков: {len(cls.CUP_LEAGUES)}")
-        print(f"📋 Всего соревнований: {len(cls.LEAGUES) + len(cls.CUP_LEAGUES)}")
+
+        unique_leagues = len(set(cls.LEAGUES))
+        unique_cups = len(set(cls.CUP_LEAGUES))
+        all_competitions = len(set(cls.LEAGUES) | set(cls.CUP_LEAGUES))
+
+        missing_names = set(cls.LEAGUES) - set(cls.LEAGUE_NAMES.keys())
+        extra_names = set(cls.LEAGUE_NAMES.keys()) - set(cls.LEAGUES)
+
+        print(f"📊 Лиг (уникальных): {unique_leagues}")
+        print(f"🏆 Кубков (уникальных): {unique_cups}")
+        print(f"📋 Всего соревнований: {all_competitions}")
         print(f"🎯 Odds API маппинг: {len(cls.ODDS_SPORT_MAP)} лиг")
-        
+
+        if missing_names:
+            print(f"⚠️ Нет названий для ID: {sorted(missing_names)}")
+        if extra_names:
+            print(f"⚠️ Лишние названия (нет в LEAGUES): {sorted(extra_names)}")
+        if not missing_names and not extra_names:
+            print("✅ Названия и ID лиг синхронизированы!")
+
         return True
-
-# ============================================================
-# АВТОМАТИЧЕСКАЯ ПРОВЕРКА ПРИ ЗАПУСКЕ
-# ============================================================
-
-Config.check()
