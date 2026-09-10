@@ -79,6 +79,47 @@ def index():
     return render_template('index.html')
 
 # ============================================================
+# PWA ЭНДПОИНТЫ
+# ============================================================
+
+@app.route('/sw.js')
+def serve_sw():
+    """Service Worker для PWA"""
+    from flask import send_from_directory
+    try:
+        return send_from_directory('.', 'sw.js', mimetype='application/javascript')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки sw.js: {e}")
+        # Возвращаем встроенный SW
+        return """
+self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+""", 200, {'Content-Type': 'application/javascript'}
+
+@app.route('/manifest.json')
+def serve_manifest():
+    """PWA манифест"""
+    from flask import send_from_directory
+    try:
+        return send_from_directory('.', 'manifest.json', mimetype='application/json')
+    except Exception as e:
+        logger.error(f"Ошибка загрузки manifest.json: {e}")
+        return {
+            "name": "Quantum Bet Tracker",
+            "short_name": "Bet Tracker",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#050510",
+            "theme_color": "#7c3aed",
+            "icons": [{
+                "src": "/static/IMG_2820.jpeg",
+                "sizes": "192x192",
+                "type": "image/jpeg"
+            }]
+        }, 200, {'Content-Type': 'application/json'}
+
+# ============================================================
 # API МАРШРУТЫ
 # ============================================================
 
@@ -126,6 +167,45 @@ def api_history():
     except Exception as e:
         logger.error(f"Ошибка получения истории: {e}")
         return jsonify([])
+
+# ============================================================
+# X2 МАТЧИ — ПРОКСИРУЕТСЯ НА БОТ
+# ============================================================
+
+@app.route('/api/x2_matches')
+def api_x2_matches():
+    """
+    Проксирует запрос на бот для получения X2 матчей.
+    Матчи берутся из кэша бота (top_matches).
+    """
+    try:
+        logger.info(f"📡 Проксирование запроса на {BOT_URL}/api/x2_matches")
+        response = requests.get(f'{BOT_URL}/api/x2_matches', timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Получено {data.get('count', 0)} X2 матчей от бота")
+            return jsonify(data)
+        else:
+            logger.warning(f"⚠️ Бот вернул {response.status_code}")
+            return jsonify({
+                'success': False,
+                'x2_matches': [],
+                'count': 0,
+                'error': f'Бот вернул {response.status_code}'
+            }), response.status_code
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения X2 матчей: {e}")
+        return jsonify({
+            'success': False,
+            'x2_matches': [],
+            'count': 0,
+            'error': str(e)
+        }), 500
+
+# ============================================================
+# API ДЛЯ УПРАВЛЕНИЯ
+# ============================================================
 
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
@@ -321,90 +401,6 @@ def analyze_matches():
             'error': str(e)
         }), 500
 
-@app.route('/api/matches_log')
-def get_matches_log():
-    try:
-        # Пробуем получить лог от бота
-        try:
-            response = requests.get(f'{BOT_URL}/api/log', timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                log_text = data.get('log', '')
-                if log_text and len(log_text) > 100:
-                    return jsonify({
-                        'log': log_text,
-                        'source': 'bot_api',
-                        'timestamp': datetime.now().isoformat()
-                    })
-        except Exception as e:
-            logger.warning(f"Не удалось получить лог через API: {e}")
-        
-        # Пробуем получить лог из локального файла
-        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matches_log.txt')
-        if os.path.exists(log_file):
-            with open(log_file, 'r', encoding='utf-8') as f:
-                log_text = f.read()
-            if log_text and len(log_text) > 100:
-                return jsonify({
-                    'log': log_text,
-                    'source': 'local_file',
-                    'timestamp': datetime.fromtimestamp(os.path.getmtime(log_file)).isoformat()
-                })
-        
-        # Пробуем создать лог из матчей
-        try:
-            matches_response = requests.get(f'{BOT_URL}/api/matches', timeout=5)
-            if matches_response.status_code == 200:
-                matches = matches_response.json()
-                if matches and len(matches) > 0:
-                    log_lines = []
-                    for match in matches:
-                        xg = match.get('total_xg', 0)
-                        home = match.get('home', 'Unknown')
-                        away = match.get('away', 'Unknown')
-                        skip_reason = match.get('skip_reason', '')
-                        
-                        if skip_reason:
-                            if 'xg' in skip_reason.lower() or 'XG' in skip_reason:
-                                log_lines.append(f"⏭️ Пропускаем (XG вне диапазона 1.8-3.0): {home} vs {away} | XG: {xg}")
-                            elif 'позици' in skip_reason.lower():
-                                log_lines.append(f"⏭️ Пропускаем (низкая позиция): {home} vs {away}")
-                            elif 'мотиваци' in skip_reason.lower():
-                                log_lines.append(f"⏭️ Пропускаем (нет мотивации): {home} vs {away}")
-                    
-                    if log_lines:
-                        log_text = '\n'.join(log_lines)
-                        try:
-                            with open(log_file, 'w', encoding='utf-8') as f:
-                                f.write(log_text)
-                        except:
-                            pass
-                        return jsonify({
-                            'log': log_text,
-                            'source': 'generated_from_matches',
-                            'timestamp': datetime.now().isoformat(),
-                            'match_count': len(matches)
-                        })
-        except:
-            pass
-        
-        # Тестовый лог
-        test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
-2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Cowdenbeath vs Kilmarnock II | XG: 4.39
-2026-09-08T04:38:19.667 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Gala Fairydean Rovers vs Hearts U21 | XG: 4.75
-2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (низкая позиция): Watford vs Preston | H: #17, A: #23
-2026-09-08T04:38:19.666 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (нет мотивации): Blackburn vs Sheffield Utd"""
-        
-        return jsonify({
-            'log': test_log,
-            'source': 'test_data',
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Ошибка получения лога: {e}")
-        return jsonify({'log': '', 'source': 'error', 'error': str(e)})
-
 @app.route('/api/test_analysis')
 def test_analysis():
     test_log = """2026-09-08T04:38:19.377 - betting_bot.__main__ - INFO - ⏭️ Пропускаем (XG вне диапазона 1.8-3.0): Utrecht vs GO Ahead Eagles | XG: 3.33
@@ -457,6 +453,15 @@ def health():
         'bot': 'ok' if bot_ok else 'error',
         'bot_data': bot_data,
         'bot_url': BOT_URL,
+        'timestamp': datetime.now().isoformat()
+    })
+
+@app.route('/health')
+def health_simple():
+    """Простой health check (без обращения к боту)"""
+    return jsonify({
+        'status': 'ok',
+        'web': 'running',
         'timestamp': datetime.now().isoformat()
     })
 
