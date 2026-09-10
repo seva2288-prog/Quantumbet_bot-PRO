@@ -3237,13 +3237,11 @@ def get_matches_log():
     Матчи берутся из top_matches (результаты поиска бота после /update).
     """
     try:
-        # Берём реальные матчи из кэша бота
         cache = storage.load_cache()
         top_matches = cache.get('top_matches', [])
         
         logger.info(f"📋 /api/matches_log: в кэше {len(top_matches)} матчей")
         
-        # Формируем список X2 матчей
         x2_matches = []
         for m in top_matches:
             try:
@@ -3266,7 +3264,6 @@ def get_matches_log():
                 label = best_bet.get('label', '')
                 ev = best_bet.get('ev', 0)
                 
-                # Определяем фаворита и аутсайдера
                 if home_pos < away_pos or home_xg > away_xg:
                     favorite = home
                     underdog = away
@@ -3274,7 +3271,6 @@ def get_matches_log():
                     favorite = away
                     underdog = home
                 
-                # Дата матча
                 match_time = m.get('match_time', '')
                 if match_time:
                     try:
@@ -3300,7 +3296,6 @@ def get_matches_log():
                 logger.error(f"Ошибка обработки матча для X2: {e}")
                 continue
         
-        # Формируем строки логов для отображения
         log_lines = []
         for m in x2_matches:
             log_lines.append(f"{m['date']} - {m['match']} | {m['note']}")
@@ -3324,9 +3319,6 @@ def get_matches_log():
             'x2_matches': []
         }), 500
 
-# ============================================================
-# API СТАТИСТИКИ
-# ============================================================
 
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
@@ -3334,21 +3326,18 @@ def api_stats():
     bank = storage.load_bank()
     return jsonify({'bank': bank, **stats})
 
-@app.route('/api/stats', methods=['GET'])
-def api_stats():
-    stats = storage.load_stats()
-    bank = storage.load_bank()
-    return jsonify({'bank': bank, **stats})
 
 @app.route('/api/history', methods=['GET'])
 def api_history():
     history = storage.load_history()
     return jsonify(history)
 
+
 @app.route('/api/matches', methods=['GET'])
 def api_matches():
     cache = storage.load_cache()
     return jsonify(cache.get('top_matches', []))
+
 
 @app.route('/api/all_data', methods=['GET'])
 def all_data():
@@ -3379,6 +3368,7 @@ def all_data():
     except Exception as e:
         logger.error(f"❌ Ошибка в /api/all_data: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
@@ -3443,6 +3433,7 @@ def import_excel():
         logger.error(f"Ошибка импорта Excel: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/import_project', methods=['POST'])
 def import_project():
     try:
@@ -3471,6 +3462,7 @@ def import_project():
     except Exception as e:
         logger.error(f"Ошибка импорта проекта: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
@@ -3502,6 +3494,7 @@ def edit_bet():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/delete_bet', methods=['POST'])
 def delete_bet():
     try:
@@ -3517,6 +3510,7 @@ def delete_bet():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/bank', methods=['POST'])
 def update_bank():
     try:
@@ -3527,6 +3521,7 @@ def update_bank():
         return jsonify({'error': 'No bank value'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/simulate', methods=['POST'])
 def simulate():
@@ -3573,6 +3568,7 @@ def simulate():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/add_manual_match', methods=['POST'])
 def add_manual_match():
@@ -3636,6 +3632,7 @@ def add_manual_match():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/update_settings', methods=['POST'])
 def update_settings():
     try:
@@ -3644,8 +3641,8 @@ def update_settings():
         with open(settings_file, 'w') as f:
             json.dump(data, f, indent=2)
         Config.EV_MIN_70 = data.get('ev_min_70', getattr(Config, 'EV_MIN_70', 20))
-        Config.PROB_MIN_70 = data.get('prob_min_70', getattr(Config, 'PROB_MIN_70', 60))
-        Config.XG_MIN_70 = data.get('xg_min_70', getattr(Config, 'XG_MIN_70', 1.8))
+        Config.PогуROB_MIN_70 = data.get('prob_min_70 даль', getattr(Config, 'PROBше_MIN_70', 60))
+       ! Config.XG_MIN_70 = data.get('xg_min_70', getattr(Config, 'XG_MIN_70', 1.8))
         Config.XG_MAX_70 = data.get('xg_max_70', getattr(Config, 'XG_MAX_70', 3.0))
         Config.POSITION_MAX_70 = data.get('position_max_70', getattr(Config, 'POSITION_MAX_70', 15))
         Config.PREMIUM_MIN_EV = data.get('premium_ev', getattr(Config, 'PREMIUM_MIN_EV', 30))
@@ -3660,12 +3657,14 @@ def update_settings():
         logger.error(f"Ошибка обновления настроек: {e}")
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/strategies', methods=['GET'])
 def api_strategies():
     return jsonify({
         'strategies': strategy_tester.strategies,
         'current_test': strategy_tester.current_test
     })
+
 
 @app.route('/api/keepalive', methods=['GET'])
 def keepalive():
@@ -3676,9 +3675,11 @@ def keepalive():
         'message': 'Keep-Alive активен'
     })
 
+
 @app.route('/health', methods=['GET'])
 def health():
     return {"status": "ok", "time": datetime.now().isoformat()}
+
 
 @app.route('/', methods=['GET'])
 def index():
