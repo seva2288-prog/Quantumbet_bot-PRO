@@ -2258,7 +2258,7 @@ def schedule_performance_report():
     logger.info("⏰ Отчет производительности запущен (каждые 6 часов)")
 
 # ============================================================
-# УЛУЧШЕНИЕ 4: ВЕРИФИКАЦИЯ СТАВОК
+# ВЕРИФИКАЦИЯ СТАВОК
 # ============================================================
 class BetVerificationSystem:
     def __init__(self):
@@ -2397,7 +2397,7 @@ class BetVerificationSystem:
         return report
 
 # ============================================================
-# УЛУЧШЕНИЕ 5: УВЕДОМЛЕНИЯ О ВАЖНЫХ СОБЫТИЯХ
+# УВЕДОМЛЕНИЯ О ВАЖНЫХ СОБЫТИЯХ
 # ============================================================
 class NotificationSystem:
     def __init__(self):
@@ -2480,7 +2480,7 @@ class NotificationSystem:
 notification_system = NotificationSystem()
 
 # ============================================================
-# УЛУЧШЕНИЕ 6: A/B ТЕСТИРОВАНИЕ
+# A/B ТЕСТИРОВАНИЕ
 # ============================================================
 class StrategyTester:
     def __init__(self):
@@ -2532,7 +2532,7 @@ class StrategyTester:
 strategy_tester = StrategyTester()
 
 # ============================================================
-# УЛУЧШЕНИЕ 7: СОСТОЯНИЕ БОТА
+# СОСТОЯНИЕ БОТА
 # ============================================================
 class BotState:
     def __init__(self):
@@ -2634,7 +2634,7 @@ class BotState:
 bot_state = BotState()
 
 # ============================================================
-# УЛУЧШЕНИЕ 8: СРАВНЕНИЕ КОМАНД (НОВОЕ!)
+# СРАВНЕНИЕ КОМАНД
 # ============================================================
 def get_team_comparison(home_team, away_team, league_id, fixture_id):
     try:
@@ -2944,8 +2944,7 @@ def load_bot_settings():
         return False
 
 # ============================================================
-# ============================================================
-# FLASK WEBHOOK И API ЭНДПОИНТЫ
+# FLASK WEBHOOK
 # ============================================================
 
 @app.route('/webhook', methods=['POST'])
@@ -3169,88 +3168,6 @@ def serve_manifest():
     except Exception as e:
         logger.error(f"Ошибка загрузки manifest.json: {e}")
         return "Манифест не найден", 404
-
-# ============================================================
-# ЛОГИ ДЛЯ АВТО-ИМПОРТА X2
-# ============================================================
-
-LOG_FILE = 'matches_log.txt'
-
-@app.route('/api/matches_log', methods=['GET'])
-def get_matches_log():
-    """Возвращает логи для авто-импорта X2"""
-    try:
-        # Создаём тестовый файл если не существует
-        if not os.path.exists(LOG_FILE):
-            with open(LOG_FILE, 'w', encoding='utf-8') as f:
-                f.write("2026-09-09 10:00 - Blackburn vs Sheffield Utd | XG: 2.1 | нет мотивации у фаворита\n")
-                f.write("2026-09-09 12:00 - Al-Ettifaq vs Al-Faisaly | XG: 1.8 | H: #5, A: #12 | no motivation\n")
-                f.write("2026-09-09 14:00 - Real Madrid vs Barcelona | XG: 2.5 | H: #1, A: #3 | нет мотивации\n")
-                f.write("2026-09-09 16:00 - Aris Thessalonikis vs OFI | XG: 1.9 | H: #7, A: #15 | no motivation\n")
-                f.write("2026-09-09 18:00 - Panathinaikos vs PAOK | XG: 2.2 | H: #4, A: #2 | нет мотивации у гостей\n")
-                f.write("2026-09-09 20:00 - AEK vs Olympiakos | XG: 1.7 | H: #6, A: #1 | no motivation\n")
-            logger.info("✅ Создан тестовый файл логов")
-
-        with open(LOG_FILE, 'r', encoding='utf-8') as f:
-            log_text = f.read()
-        
-        logger.info(f"📡 Отправка логов: {len(log_text)} символов, {len(log_text.split(chr(10)))} строк")
-        return jsonify({
-            'success': True,
-            'log': log_text,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"❌ Ошибка получения логов: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'log': ''
-        }), 500
-
-@app.route('/api/update_logs', methods=['POST'])
-def update_logs():
-    """Обновляет логи для авто-импорта X2"""
-    try:
-        data = request.json
-        log_text = data.get('log', '')
-        if not log_text:
-            return jsonify({'success': False, 'error': 'Нет данных'}), 400
-        
-        with open(LOG_FILE, 'a', encoding='utf-8') as f:
-            f.write(log_text + '\n')
-        
-        logger.info("✅ Логи обновлены")
-        return jsonify({'success': True, 'message': 'Логи обновлены'})
-    except Exception as e:
-        logger.error(f"❌ Ошибка обновления логов: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/matches_log', methods=['GET'])
-def get_matches_log():
-    try:
-        if not os.path.exists(LOG_FILE):
-            with open(LOG_FILE, 'w', encoding='utf-8') as f:
-                f.write("2026-09-09 10:00 - Blackburn vs Sheffield Utd | XG: 2.1 | нет мотивации у фаворита\n")
-                f.write("2026-09-09 12:00 - Al-Ettifaq vs Al-Faisaly | XG: 1.8 | H: #5, A: #12 | no motivation\n")
-                f.write("2026-09-09 14:00 - Real Madrid vs Barcelona | XG: 2.5 | H: #1, A: #3 | нет мотивации\n")
-        
-        with open(LOG_FILE, 'r', encoding='utf-8') as f:
-            log_text = f.read()
-        
-        return jsonify({
-            'success': True,
-            'log': log_text,
-            'source': 'test_data',          # ← ПРИЗНАК СТАРОГО КОДА
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"❌ Ошибка логов: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'log': ''
-        }), 500
 
 # ============================================================
 # API ЭНДПОИНТЫ
@@ -3726,28 +3643,6 @@ if __name__ == "__main__":
     logger.info("🚀 БОТ ЗАПУЩЕН (70%+ TARGET + ТМ 2.5 SPECIAL)!")
     logger.info("📊 Сканируется {} лиг".format(len(Config.LEAGUES)))
     logger.info("🤖 Максимум ставок: {}".format(Config.MAX_BETS_PER_RUN))
-    logger.info("🎯 ФИЛЬТРЫ ДЛЯ 70%+:")
-    logger.info("   - EV > {}%".format(getattr(Config, 'EV_MIN_70', 20)))
-    logger.info("   - Prob > {}%".format(getattr(Config, 'PROB_MIN_70', 60)))
-    logger.info("   - XG {}-{}".format(getattr(Config, 'XG_MIN_70', 1.8), getattr(Config, 'XG_MAX_70', 3.0)))
-    logger.info("   - Форма excellent/good")
-    logger.info("   - Мотивация (не середняки)")
-    logger.info("   - Лимит 3 ставки на тип")
-    logger.info("   - Лимит 2 ставки на лигу")
-    logger.info("🎯 ФИЛЬТРЫ ДЛЯ ТМ 2.5 (ДВУХУРОВНЕВЫЙ):")
-    logger.info("   PREMIUM: EV > {}%".format(getattr(Config, 'PREMIUM_MIN_EV', 30)))
-    logger.info("   STANDARD: EV > {}%".format(getattr(Config, 'STANDARD_MIN_EV', 15)))
-    logger.info("   - Лимит {} ставки".format(getattr(Config, 'MAX_TM25_BETS', 5)))
-    logger.info("🎯 КОЭФФИЦИЕНТЫ (ДВУХЭТАПНЫЙ ПОИСК):")
-    logger.info("   1. Odds API (топ-лиги)")
-    logger.info("   2. Football API (все лиги)")
-    logger.info("   3. Заглушка 1.95 (если не найдены)")
-    logger.info("✅ Команды: /update_results, /result, /analyze, /status, /strategies")
-    logger.info("✅ Кэш матчей сохраняется")
-    logger.info("⏰ Авто-обновление результатов: каждые 6 часов")
-    logger.info("📊 A/B тестирование активно")
-    logger.info("🔔 Уведомления активны")
-    logger.info("📈 Мониторинг производительности активен")
     logger.info("📱 PWA доступен по адресу /")
-    logger.info("📋 Логи для X2: /api/matches_log")
+    logger.info("📋 X2 матчи: /api/x2_matches")
     app.run(host='0.0.0.0', port=port)
