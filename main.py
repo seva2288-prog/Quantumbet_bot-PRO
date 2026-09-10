@@ -3253,6 +3253,465 @@ def get_matches_log():
         }), 500
 
 # ============================================================
+# API ЭНДПОИНТЫ
+# ============================================================
+
+@app.route('/api/matches_log', methods=['GET'])
+def get_matches_log():
+    """
+    Возвращает матчи из кэша бота для авто-импорта X2.
+    Матчи берутся из top_matches (результаты поиска бота после /update).
+    """
+    try:
+        cache = storage.load_cache()
+        top_matches = cache.get('top_matches', [])
+        
+        logger.info(f"📋 /api/matches_log: в кэше {len(top_matches)} матчей")
+        
+        x2_matches = []
+        for m in top_matches:
+            try:
+                home = m.get('home', '')
+                away = m.get('away', '')
+                if not home or not away:
+                    continue
+                
+                home_xg = float(m.get('home_xg', 0) or 0)
+                away_xg = float(m.get('away_xg', 0) or 0)
+                total_xg = float(m.get('total_xg', 0) or 0)
+                
+                standings = m.get('standings', {}) or {}
+                home_pos = standings.get('home_position', 99) or 99
+                away_pos = standings.get('away_position', 99) or 99
+                
+                best_bet = m.get('best_bet', {}) or {}
+                odds = float(best_bet.get('odds', 0) or 0)
+                stake = float(best_bet.get('stake', 0) or 0)
+                label = best_bet.get('label', '')
+                ev = best_bet.get('ev', 0)
+                
+                if home_pos < away_pos or home_xg > away_xg:
+                    favorite = home
+                    underdog = away
+                else:
+                    favorite = away
+                    underdog = home
+                
+                match_time = m.get('match_time', '')
+                if match_time:
+                    try:
+                        dt = datetime.strptime(match_time, '%d.%m.%Y %H:%M')
+                        date_str = dt.strftime('%Y-%m-%d')
+                    except:
+                        date_str = datetime.now().strftime('%Y-%m-%d')
+                else:
+                    date_str = datetime.now().strftime('%Y-%m-%d')
+                
+                x2_matches.append({
+                    'date': date_str,
+                    'match': f"{home} vs {away}",
+                    'favorite': favorite,
+                    'underdog': underdog,
+                    'odds': odds,
+                    'stake': stake if stake > 0 else 42.87,
+                    'score': '-',
+                    'result': 'pending',
+                    'note': f"XG: {total_xg} | {label} | EV: {ev}% | H:#{home_pos} A:#{away_pos}"
+                })
+            except Exception as e:
+                logger.error(f"Ошибка обработки матча для X2: {e}")
+                continue
+        
+        log_lines = []
+        for m in x2_matches:
+            log_lines.append(f"{m['date']} - {m['match']} | {m['note']}")
+        log_text = '\n'.join(log_lines)
+        
+        logger.info(f"📋 /api/matches_log: отдано {len(x2_matches)} X2 матчей")
+        
+        return jsonify({
+            'success': True,
+            'log': log_text,
+            'x2_matches': x2_matches,
+            'count': len(x2_matches),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /api/matches_log: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'log': '',
+            'x2_matches': []
+        }), 500
+
+
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    stats = storage.load_stats()
+    bank = storage.load_bank()
+    return jsonify({'bank': bank, **stats})
+
+
+@app.route('/api/history', methods=['GET'])
+def api_history():
+    history = storage.load_history()
+    return jsonify(history)
+
+
+@app.route('/api/matches', methods=['GET'])
+def api_matches():
+    cache = storage.load_cache()
+    return jsonify(cache.get('top_matches', []))
+
+
+@app.route('/api/all_data', methods=['GET'])
+def all_data():
+    try:
+        logger.info("📡 Запрос всех данных для веб-приложения")
+        stats = storage.load_stats()
+        bank = storage.load_bank()
+        history = storage.load_history()
+        cache = storage.load_cache()
+        profit_data = get_profit_data(history)
+        result = {
+            'stats': {
+                'bank': bank,
+                'total_bets': stats.get('total', 0),
+                'wins': stats.get('wins', 0),
+                'losses': stats.get('losses', 0),
+                'profit': stats.get('total_profit', 0),
+                'winrate': stats.get('winrate', 0),
+                'roi': stats.get('roi', 0),
+                'avg_stake': stats.get('avg_stake', 0)
+            },
+            'history': history,
+            'profit_data': profit_data,
+            'matches': cache.get('top_matches', [])
+        }
+        logger.info(f"✅ Данные отправлены: {len(history)} ставок, {len(result['matches'])} матчей")
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /api/all_data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/import_excel', methods=['POST'])
+def import_excel():
+    try:
+        data = request.json
+        excel_data = data.get('data', [])
+        if not excel_data:
+            return jsonify({'error': 'Нет данных'}), 400
+        history = storage.load_history()
+        imported = 0
+        for row in excel_data:
+            match = row.get('Матч', '') or row.get('Match', '')
+            home = ''
+            away = ''
+            if ' vs ' in match:
+                parts = match.split(' vs ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            elif ' - ' in match:
+                parts = match.split(' - ')
+                home = parts[0].strip()
+                away = parts[1].strip()
+            score = row.get('Счёт', '') or row.get('Score', '')
+            home_goals = None
+            away_goals = None
+            if score and '-' in str(score):
+                parts = str(score).split('-')
+                try:
+                    home_goals = int(parts[0].strip())
+                    away_goals = int(parts[1].strip())
+                except:
+                    pass
+            bet = row.get('Ставка', '') or row.get('Bet', '')
+            odds = float(row.get('Коэф', 1.85))
+            stake = float(row.get('Сумма', 0))
+            ev = float(row.get('EV%', 0))
+            result = row.get('Результат', 'pending')
+            profit = float(row.get('Прибыль', 0))
+            date = row.get('Дата', '') or datetime.now().strftime('%Y-%m-%d %H:%M')
+            bookmaker = row.get('Букмекер', '—')
+            bet_record = {
+                'home': home or 'Unknown',
+                'away': away or 'Unknown',
+                'league': 'Импорт из Excel',
+                'bet': bet,
+                'odds': odds,
+                'stake': stake,
+                'ev': ev,
+                'result': result,
+                'profit': profit,
+                'date': date,
+                'home_goals': home_goals,
+                'away_goals': away_goals,
+                'bookmaker': bookmaker
+            }
+            history.append(bet_record)
+            imported += 1
+        storage.save_history(history)
+        recalc_stats()
+        return jsonify({'success': True, 'count': imported})
+    except Exception as e:
+        logger.error(f"Ошибка импорта Excel: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/import_project', methods=['POST'])
+def import_project():
+    try:
+        data = request.json
+        history = data.get('history', [])
+        stats = data.get('stats', {})
+        if not history:
+            return jsonify({'error': 'Нет данных для импорта'}), 400
+        current_history = storage.load_history()
+        existing_keys = set()
+        for bet in current_history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            existing_keys.add(key)
+        imported = 0
+        for bet in history:
+            key = f"{bet.get('date', '')}_{bet.get('home', '')}_{bet.get('away', '')}"
+            if key not in existing_keys:
+                current_history.append(bet)
+                imported += 1
+                existing_keys.add(key)
+        if stats and 'bank' in stats:
+            storage.save_bank(stats['bank'])
+        storage.save_history(current_history)
+        recalc_stats()
+        return jsonify({'success': True, 'count': imported})
+    except Exception as e:
+        logger.error(f"Ошибка импорта проекта: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/edit_bet', methods=['POST'])
+def edit_bet():
+    try:
+        data = request.json
+        index = data.get('index')
+        history = storage.load_history()
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        history[index]['home'] = data.get('home', history[index]['home'])
+        history[index]['away'] = data.get('away', history[index]['away'])
+        history[index]['home_goals'] = data.get('home_goals')
+        history[index]['away_goals'] = data.get('away_goals')
+        history[index]['bet'] = data.get('bet', history[index]['bet'])
+        history[index]['odds'] = data.get('odds', history[index]['odds'])
+        history[index]['stake'] = data.get('stake', history[index]['stake'])
+        history[index]['ev'] = data.get('ev', history[index]['ev'])
+        history[index]['result'] = data.get('result', history[index]['result'])
+        history[index]['bookmaker'] = data.get('bookmaker', history[index].get('bookmaker', '—'))
+        if history[index]['result'] == 'win':
+            history[index]['profit'] = round(history[index]['stake'] * (history[index]['odds'] - 1), 2)
+        elif history[index]['result'] == 'loss':
+            history[index]['profit'] = -history[index]['stake']
+        else:
+            history[index]['profit'] = 0
+        storage.save_history(history)
+        recalc_stats()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/delete_bet', methods=['POST'])
+def delete_bet():
+    try:
+        data = request.json
+        index = data.get('index')
+        history = storage.load_history()
+        if index >= len(history):
+            return jsonify({'error': 'Ставка не найдена'}), 404
+        history.pop(index)
+        storage.save_history(history)
+        recalc_stats()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bank', methods=['POST'])
+def update_bank():
+    try:
+        data = request.json
+        if 'bank' in data:
+            storage.save_bank(data['bank'])
+            return jsonify({'success': True, 'bank': data['bank']})
+        return jsonify({'error': 'No bank value'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulate', methods=['POST'])
+def simulate():
+    try:
+        data = request.json
+        count = data.get('count', 1000)
+        history = storage.load_history()
+        if len(history) < 5:
+            return jsonify({'error': 'Нужно минимум 5 ставок для симуляции'}), 400
+        wins = sum(1 for b in history if b.get('result') == 'win')
+        total = len(history)
+        winrate = wins / total if total > 0 else 0
+        avg_stake = sum(float(b.get('stake', 0)) for b in history) / total if total > 0 else 10
+        results = []
+        profit_history = []
+        total_profit = 0
+        for i in range(count):
+            if random.random() < winrate:
+                profit = avg_stake * random.uniform(0.5, 1.5)
+                total_profit += profit
+                results.append('win')
+            else:
+                profit = -avg_stake
+                total_profit += profit
+                results.append('loss')
+            profit_history.append(round(total_profit, 2))
+        wins_sim = results.count('win')
+        losses_sim = results.count('loss')
+        max_profit = max(profit_history) if profit_history else 0
+        min_profit = min(profit_history) if profit_history else 0
+        return jsonify({
+            'total': count,
+            'wins': wins_sim,
+            'losses': losses_sim,
+            'profit': round(total_profit, 2),
+            'winrate': round(wins_sim / count * 100, 1),
+            'roi': round((total_profit / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'risk': round((abs(min_profit) / (avg_stake * count)) * 100, 2) if avg_stake > 0 else 0,
+            'max_profit': round(max_profit, 2),
+            'min_profit': round(min_profit, 2),
+            'avg_stake': round(avg_stake, 2),
+            'history': profit_history[:100],
+            'labels': list(range(1, min(count, 100) + 1))
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/add_manual_match', methods=['POST'])
+def add_manual_match():
+    try:
+        data = request.json
+        match_name = data.get('match', '')
+        score = data.get('score', '-')
+        result = data.get('result', 'win')
+        stake = data.get('stake', 0)
+        bet_type = data.get('bet', '')
+        odds = data.get('odds', 1.85)
+        bookmaker = data.get('bookmaker', 'Ручное добавление')
+        if not match_name:
+            return jsonify({'error': 'Название матча обязательно'}), 400
+        home_goals = None
+        away_goals = None
+        if score and '-' in score:
+            parts = score.split('-')
+            try:
+                home_goals = int(parts[0].strip())
+                away_goals = int(parts[1].strip())
+            except:
+                pass
+        home = 'Unknown'
+        away = 'Unknown'
+        if ' vs ' in match_name:
+            parts = match_name.split(' vs ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        elif ' - ' in match_name:
+            parts = match_name.split(' - ')
+            home = parts[0].strip()
+            away = parts[1].strip()
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+        elif result == 'loss':
+            profit = -stake
+        else:
+            profit = 0
+        history = storage.load_history()
+        bet_record = {
+            'home': home or 'Unknown',
+            'away': away or 'Unknown',
+            'league': 'Ручное добавление',
+            'bet': bet_type,
+            'odds': odds,
+            'stake': stake,
+            'ev': 0,
+            'result': result,
+            'profit': profit,
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'home_goals': home_goals,
+            'away_goals': away_goals,
+            'manual': True,
+            'bookmaker': bookmaker
+        }
+        history.append(bet_record)
+        storage.save_history(history)
+        recalc_stats()
+        return jsonify({'success': True, 'count': 1})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/update_settings', methods=['POST'])
+def update_settings():
+    try:
+        data = request.json
+        settings_file = 'bot_settings.json'
+        with open(settings_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        Config.EV_MIN_70 = data.get('ev_min_70', getattr(Config, 'EV_MIN_70', 20))
+        Config.PROB_MIN_70 = data.get('prob_min_70', getattr(Config, 'PROB_MIN_70', 60))
+        Config.XG_MIN_70 = data.get('xg_min_70', getattr(Config, 'XG_MIN_70', 1.8))
+        Config.XG_MAX_70 = data.get('xg_max_70', getattr(Config, 'XG_MAX_70', 3.0))
+        Config.POSITION_MAX_70 = data.get('position_max_70', getattr(Config, 'POSITION_MAX_70', 15))
+        Config.PREMIUM_MIN_EV = data.get('premium_ev', getattr(Config, 'PREMIUM_MIN_EV', 30))
+        Config.STANDARD_MIN_EV = data.get('standard_ev', getattr(Config, 'STANDARD_MIN_EV', 15))
+        Config.TM25_XG_MIN = data.get('xg_min_tm25', getattr(Config, 'TM25_XG_MIN', 1.0))
+        Config.TM25_XG_MAX = data.get('xg_max_tm25', getattr(Config, 'TM25_XG_MAX', 3.0))
+        Config.MAX_TM25_BETS = data.get('max_tm25_bets', getattr(Config, 'MAX_TM25_BETS', 5))
+        Config.TM25_TOP_LEAGUE_EV = data.get('top_league_ev', getattr(Config, 'TM25_TOP_LEAGUE_EV', 35))
+        logger.info("✅ Настройки обновлены через API")
+        return jsonify({'success': True, 'message': 'Настройки обновлены'})
+    except Exception as e:
+        logger.error(f"Ошибка обновления настроек: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/strategies', methods=['GET'])
+def api_strategies():
+    return jsonify({
+        'strategies': strategy_tester.strategies,
+        'current_test': strategy_tester.current_test
+    })
+
+
+@app.route('/api/keepalive', methods=['GET'])
+def keepalive():
+    """Эндпоинт для поддержания работы приложения"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'message': 'Keep-Alive активен'
+    })
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return {"status": "ok", "time": datetime.now().isoformat()}
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return f"🤖 Quantum Bot PRO (70%+ Target + ТМ 2.5 Special) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+# ============================================================
 # ЗАПУСК
 # ============================================================
 if __name__ == "__main__":
