@@ -2088,7 +2088,7 @@
     async function autoImportX2FromLogs() {
         try {
             console.log('🤖 Авто-импорт X2 из логов...');
-            const response = await fetch(API_BASE + '/api/x2_matches?t=' + Date.now());
+            const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
             if (!response.ok) {
                 console.warn('⚠️ Не удалось получить логи');
                 return;
@@ -2346,7 +2346,7 @@
             contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
         }
         try {
-            const response = await fetch(API_BASE + '/api/x2_matches?t=' + Date.now());
+            const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
             if (!response.ok) {
                 throw new Error('Сервер вернул ошибку: ' + response.status);
             }
