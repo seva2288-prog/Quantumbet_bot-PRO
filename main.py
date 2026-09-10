@@ -3257,7 +3257,7 @@ def get_matches_log():
 # ============================================================
 
 @app.route('/api/matches_log', methods=['GET'])
-def get_matches_log():
+def get_matches_log_OLD():
     """
     Возвращает матчи из кэша бота для авто-импорта X2.
     Матчи берутся из top_matches (результаты поиска бота после /update).
