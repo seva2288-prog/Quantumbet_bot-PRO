@@ -1,41 +1,51 @@
-# Секреты
+# === СЕКРЕТЫ ===
 .env
-.env.*
+.env.local
 *.env
-!.env.example
 
-# Данные
-data/
-*.db
-*.sqlite
-*.json
-!requirements.txt
-!README.md
-
-# Логи
-*.log
-logs/
-
-# Python
+# === PYTHON ===
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# === ВИРТУАЛЬНЫЕ ОКРУЖЕНИЯ ===
+.venv/
 venv/
 env/
 ENV/
-.venv
 
-# IDE
+# === ДАННЫЕ БОТА ===
+data/
+logs/
+backups/
+state_backups/
+bot.db
+bot.db-journal
+bot.db-wal
+bot_state.json
+bot_state.json.bak
+bot_settings.json
+
+# === IDE ===
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# === OS ===
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Secrets
-.secrets.baseline
+# === ЛОГИ ===
+*.log
+
+# === PWA (если не нужны в репо) ===
+# sw.js
+# manifest.json
