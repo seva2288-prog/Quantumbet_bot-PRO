@@ -1277,6 +1277,200 @@ def recalc_stats():
 
 
 # ============================================================
+# ПОИСК ТОП-МАТЧЕЙ
+# ============================================================
+@timing_decorator()
+def find_top_matches(matches):
+    bank = storage.load_bank()
+    max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 10)
+    logger.info(f"🔍 Анализ {len(matches)} матчей...")
+    best_matches = []
+    bet_type_count = {}
+    league_count = {}
+
+    for match in matches:
+        if not match or not isinstance(match, dict):
+            continue
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams:
+                continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            match_time = fixture.get('date', '')
+            if match_time:
+                try:
+                    dt = datetime.fromisoformat(match_time.replace("Z", "+00:00")) + timedelta(hours=TIMEZONE_OFFSET)
+                    match_time = dt.strftime("%d.%m.%Y %H:%M")
+                except Exception:
+                    match_time = "?"
+
+            hfd = football_api.get_form(ht.get('id'))
+            afd = football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+
+            hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
+            aga = afd.get('goals_avg', 1.0) if afd else 1.0
+            hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
+            aca = afd.get('conceded_avg', 1.2) if afd else 1.2
+
+            home_xg = (hga + aca) / 2
+            away_xg = (aga + hca) / 2
+
+            h_inj = len(match.get('factors', {}).get('home_injuries_list', []))
+            a_inj = len(match.get('factors', {}).get('away_injuries_list', []))
+            if h_inj > 3: home_xg *= 0.8
+            if a_inj > 3: away_xg *= 0.8
+
+            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+            home_xg *= home_adv
+            away_xg /= home_adv
+            total_xg = home_xg + away_xg
+
+            w = match.get('weather')
+            if w:
+                rain = w.get('rain', 0) or 0
+                wind = w.get('wind', 0) or 0
+                if rain > 2:
+                    total_xg *= 0.92
+                    home_xg *= 0.95
+                    away_xg *= 0.95
+                elif rain > 0.5:
+                    total_xg *= 0.96
+                if wind > 10:
+                    total_xg *= 0.95
+                elif wind > 7:
+                    total_xg *= 0.98
+
+            ev_min = getattr(Config, 'EV_MIN_70', 20)
+            prob_min = getattr(Config, 'PROB_MIN_70', 60)
+            xg_min = getattr(Config, 'XG_MIN_70', 1.8)
+            xg_max = getattr(Config, 'XG_MAX_70', 3.0)
+            pos_max = getattr(Config, 'POSITION_MAX_70', 15)
+            if total_xg < xg_min or total_xg > xg_max:
+                continue
+
+            standings = football_api.get_standings(league_id) if league_id else None
+            hp = standings.get(home, {}).get('position', 99) if standings else 99
+            ap = standings.get(away, {}).get('position', 99) if standings else 99
+            hm = get_motivation(hp); am = get_motivation(ap)
+            if hm == 'mid_table' and am == 'mid_table':
+                continue
+            if hp > pos_max or ap > pos_max:
+                continue
+
+            h2h = football_api.get_head_to_head(home, away)
+            probs = ensemble_probability(
+                home_xg, away_xg, home_form, away_form, h2h,
+                match_data={
+                    'home': home, 'away': away, 'league': league_name,
+                    'home_xg': round(home_xg, 2), 'away_xg': round(away_xg, 2),
+                    'total_xg': round(total_xg, 2),
+                    'home_form': home_form, 'away_form': away_form,
+                    'standings': {'home_position': hp, 'away_position': ap},
+                    'weather_reason': match.get('weather_reason', 'нет')
+                }
+            )
+
+            odds = {
+                '1X': 1.85 if probs['1X'] > 0.70 else 1.75,
+                'X2': 1.85 if probs['X2'] > 0.70 else 1.75,
+                'П1': 2.10,
+                'П2': 2.10,
+                'ОБЗ': 1.90,
+            }
+
+            if hm == 'relegation' and am == 'mid_table':
+                probs['1X'] += 0.08
+            elif am == 'relegation' and hm == 'mid_table':
+                probs['X2'] += 0.08
+
+            stake = round(bank * 0.02, 2) if bank > 0 else 10.0
+            bets = []
+            for bet_type, label, prob_key, odd in [
+                ('1X', '1X', '1X', odds['1X']),
+                ('X2', 'X2', 'X2', odds['X2']),
+                ('П1', 'П1', 'home_win', odds['П1']),
+                ('П2', 'П2', 'away_win', odds['П2']),
+                ('btts', 'ОБЗ', 'btts', odds['ОБЗ']),
+            ]:
+                p = probs.get(prob_key, 0)
+                bets.append({
+                    'type': bet_type, 'label': label,
+                    'prob': round(p * 100, 1),
+                    'ev': round((p * odd - 1) * 100, 1),
+                    'odds': odd, 'stake': stake
+                })
+
+            bets.sort(key=lambda x: x['ev'], reverse=True)
+            best_bet = bets[0]
+            if best_bet['ev'] < ev_min or best_bet['prob'] < prob_min:
+                continue
+
+            bt = best_bet['type']
+            bet_type_count[bt] = bet_type_count.get(bt, 0) + 1
+            if bet_type_count[bt] > 3:
+                continue
+            league_count[league_name] = league_count.get(league_name, 0) + 1
+            if league_count[league_name] > 2:
+                continue
+
+            best_matches.append({
+                "home": home, "away": away, "league": league_name,
+                "fixture_id": fid, "match_time": match_time,
+                "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form, "away_form": away_form,
+                "standings": {"home_position": hp, "away_position": ap,
+                              "home_motivation": hm, "away_motivation": am},
+                "bets": bets, "best_bet": best_bet,
+                "weather_reason": match.get('weather_reason', ''),
+                "factors": {}, "source": "70_percent"
+            })
+            logger.info(f"✅ {home} vs {away} | {best_bet['label']} | EV: {best_bet['ev']}%")
+        except Exception as e:
+            logger.error(f"❌ {e}")
+            continue
+
+    best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    return best_matches[:max_bets]
+
+
+@timing_decorator()
+def find_top_matches_with_tm25(matches):
+    """Историческое имя — теперь только 70%+ поток."""
+    result = find_top_matches(matches)
+    if result:
+        result = update_odds_for_matches(result)
+        cache = storage.load_cache()
+        cache['top_matches'] = result
+        storage.save_cache(cache)
+
+        history = storage.load_history()
+        for md in result:
+            bb = md.get('best_bet', {})
+            history.append({
+                'home': md.get('home'), 'away': md.get('away'),
+                'league': md.get('league'), 'bet': bb.get('label', '—'),
+                'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
+                'ev': bb.get('ev', 0), 'result': 'pending', 'profit': 0,
+                'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                'fixture_id': md.get('fixture_id'),
+                'bookmaker': bb.get('bookmaker', '—'),
+                'engine': Config.PREDICTION_ENGINE,
+                'weather_reason': md.get('weather_reason', '')
+            })
+        storage.save_history(history)
+    return result
+
+
+# ============================================================
 # РАСПИСАНИЯ
 # ============================================================
 def schedule_updates():
