@@ -140,12 +140,12 @@ class SmartCache:
         self.max_size = max_size
         self.default_ttl = 3600
         self.ttl_by_type = {
-            'form': 43200,        # 12 часов — форма команд не меняется за день
-            'odds': 300,          # 5 минут — кэфы меняются быстро
-            'statistics': 86400,  # сутки — статистика матча не меняется
-            'standings': 86400,   # сутки — таблица обновляется раз в тур
-            'matches': 43200,     # 12 часов — расписание на день стабильно
-            'h2h': 604800,        # неделя — история H2H не меняется
+            'form': 43200,
+            'odds': 300,
+            'statistics': 86400,
+            'standings': 86400,
+            'matches': 43200,
+            'h2h': 604800,
         }
 
     def get(self, key, data_type='default'):
@@ -255,7 +255,6 @@ MAX_BACKUPS = 7
 
 
 def cleanup_old_backups():
-    """Удаляет старые бэкапы, оставляет только последние MAX_BACKUPS."""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         files = sorted(
@@ -273,13 +272,11 @@ def cleanup_old_backups():
 
 
 def send_auto_backup():
-    """Создаёт zip со всеми данными и отправляет в Telegram."""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
 
-        # Что складываем в архив
         items_to_backup = ['data', 'bot.db', 'bot_state.json', 'matches_log.txt']
 
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -296,13 +293,11 @@ def send_auto_backup():
 
         size_kb = os.path.getsize(zip_path) / 1024
 
-        # Статистика для сообщения
         history = storage.load_history()
         bank = storage.load_bank()
         total_bets = len(history)
         wins = sum(1 for b in history if b.get('result') == 'win')
 
-        # Отправляем в Telegram
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
         with open(zip_path, 'rb') as f:
             r = requests.post(
@@ -337,7 +332,6 @@ def send_auto_backup():
 
 
 def schedule_auto_backup():
-    """Расписание: бэкап каждый день в 3:00 ночи."""
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=send_auto_backup,
@@ -352,7 +346,6 @@ def schedule_auto_backup():
 
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
-    """Отправка в ADMIN_CHAT_ID и, если задан, в CHANNEL_ID."""
     targets = [Config.ADMIN_CHAT_ID]
     if Config.CHANNEL_ID and str(Config.CHANNEL_ID) != str(Config.ADMIN_CHAT_ID):
         targets.append(Config.CHANNEL_ID)
@@ -1041,6 +1034,8 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
             final['X2'] = final['away_win'] + final['draw']
             if 'btts' in llm:
                 final['btts'] = final['btts'] * (1 - alpha) + llm['btts'] * alpha
+            if 'most_likely_score' in llm:
+                final['most_likely_score'] = llm['most_likely_score']
             logger.info(f"🤖 LLM (α={alpha}): H={final['home_win']:.2f} D={final['draw']:.2f} A={final['away_win']:.2f}")
 
     return final
@@ -1194,7 +1189,6 @@ def get_matches_with_factors():
 
     logger.info(f"🔍 Поиск матчей: {today}, лиг: {total_leagues}")
 
-    # === СТАРТОВОЕ СООБЩЕНИЕ ===
     send_telegram(
         f"🔎 <b>СТАРТ ПОИСКА</b>\n"
         f"📅 Дата: {today}\n"
@@ -1229,7 +1223,6 @@ def get_matches_with_factors():
                     if not fixture or not isinstance(fixture, dict):
                         continue
 
-                    # Только будущие матчи (Not Started)
                     if fixture.get('status', {}).get('short') != 'NS':
                         continue
 
@@ -1237,7 +1230,6 @@ def get_matches_with_factors():
                     if not mid:
                         continue
 
-                    # Пропускаем дубли
                     if any(x.get('fixture', {}).get('id') == mid
                            for x in all_matches if isinstance(x, dict)):
                         continue
@@ -1248,7 +1240,6 @@ def get_matches_with_factors():
                     if not hid or not aid:
                         continue
 
-                    # Факторы: форма, травмы
                     m['factors'] = {
                         'home_form': football_api.get_form(hid),
                         'away_form': football_api.get_form(aid),
@@ -1259,7 +1250,6 @@ def get_matches_with_factors():
                         'referee': fixture.get('referee')
                     }
 
-                    # Погода
                     weather = None
                     venue = fixture.get('venue', {})
                     city = venue.get('city') if isinstance(venue, dict) else None
@@ -1274,12 +1264,10 @@ def get_matches_with_factors():
                     else:
                         m['weather_reason'] = "🌤️ Нет данных"
 
-                    # Название лиги
                     ld = m.get('league', {})
                     if isinstance(ld, dict):
                         ld['name'] = league_name
 
-                    # ★★★ КЛЮЧЕВАЯ СТРОКА — добавляем в общий список ★★★
                     all_matches.append(m)
                     new_matches += 1
 
@@ -1291,7 +1279,6 @@ def get_matches_with_factors():
                     empty_leagues += 1
                     logger.info(f"⚪ {league_name}: матчей нет")
 
-            # === ПРОГРЕСС КАЖДЫЕ N ЛИГ ===
             if processed % progress_step == 0:
                 elapsed = (time.time() - start_time) / 60
                 remaining = total_leagues - processed
@@ -1312,7 +1299,6 @@ def get_matches_with_factors():
             logger.error(f"❌ {league_id}: {e}")
         time.sleep(0.1)
 
-    # === ФИНАЛЬНОЕ СООБЩЕНИЕ ===
     elapsed_total = (time.time() - start_time) / 60
     send_telegram(
         f"✅ <b>ПОИСК ЗАВЕРШЁН</b>\n"
@@ -1454,10 +1440,6 @@ def find_top_matches(matches):
                 elif wind > 7:
                     total_xg *= 0.98
 
-            # ===== ЖЁСТКИЕ ФИЛЬТРЫ =====
-            EV_MIN = 10       # только EV ≥ 10%
-            EV_MAX = 100      # отсекаем подозрительные EV > 100%
-            PROB_MIN = 55     # вероятность ≥ 55%
             XG_MIN = getattr(Config, 'XG_MIN_70', 1.8)
             XG_MAX = getattr(Config, 'XG_MAX_70', 3.0)
             POS_MAX = getattr(Config, 'POSITION_MAX_70', 15)
@@ -1522,12 +1504,6 @@ def find_top_matches(matches):
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
 
-            # ===== ГЛАВНЫЙ ФИЛЬТР =====
-            if best_bet['ev'] < EV_MIN or best_bet['ev'] > EV_MAX:
-                continue
-            if best_bet['prob'] < PROB_MIN:
-                continue
-
             bt = best_bet['type']
             bet_type_count[bt] = bet_type_count.get(bt, 0) + 1
             if bet_type_count[bt] > 3:
@@ -1559,29 +1535,54 @@ def find_top_matches(matches):
 
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
-    """Историческое имя — теперь только 70%+ поток."""
+    """Историческое имя — теперь только 70%+ поток. С ФИНАЛЬНЫМ ФИЛЬТРОМ ПОСЛЕ КЭФОВ."""
     result = find_top_matches(matches)
-    if result:
-        result = update_odds_for_matches(result)
-        cache = storage.load_cache()
-        cache['top_matches'] = result
-        storage.save_cache(cache)
+    if not result:
+        return result
 
-        history = storage.load_history()
-        for md in result:
-            bb = md.get('best_bet', {})
-            history.append({
-                'home': md.get('home'), 'away': md.get('away'),
-                'league': md.get('league'), 'bet': bb.get('label', '—'),
-                'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
-                'ev': bb.get('ev', 0), 'result': 'pending', 'profit': 0,
-                'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-                'fixture_id': md.get('fixture_id'),
-                'bookmaker': bb.get('bookmaker', '—'),
-                'engine': Config.PREDICTION_ENGINE,
-                'weather_reason': md.get('weather_reason', '')
-            })
-        storage.save_history(history)
+    # Обновляем кэфы
+    result = update_odds_for_matches(result)
+
+    # ★★★ ГЛАВНОЕ ИСПРАВЛЕНИЕ: ФИНАЛЬНЫЙ ФИЛЬТР ПОСЛЕ РЕАЛЬНЫХ КЭФОВ ★★★
+    filtered = []
+    for m in result:
+        bb = m.get('best_bet', {})
+        ev = bb.get('ev', 0)
+        prob = bb.get('prob', 0)
+        
+        # Отсеиваем убыточные и подозрительные
+        if ev < 10 or ev > 100:
+            logger.info(f"⏭️ Отсев после кэфов: {m.get('home')} vs {m.get('away')} | EV: {ev}%")
+            continue
+        if prob < 55:
+            logger.info(f"⏭️ Отсев по Prob: {m.get('home')} vs {m.get('away')} | Prob: {prob}%")
+            continue
+        filtered.append(m)
+
+    logger.info(f"📊 После финального фильтра EV 10-100%: {len(filtered)} из {len(result)}")
+
+    result = filtered
+
+    # Сохраняем в кэш и историю
+    cache = storage.load_cache()
+    cache['top_matches'] = result
+    storage.save_cache(cache)
+
+    history = storage.load_history()
+    for md in result:
+        bb = md.get('best_bet', {})
+        history.append({
+            'home': md.get('home'), 'away': md.get('away'),
+            'league': md.get('league'), 'bet': bb.get('label', '—'),
+            'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
+            'ev': bb.get('ev', 0), 'result': 'pending', 'profit': 0,
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'fixture_id': md.get('fixture_id'),
+            'bookmaker': bb.get('bookmaker', '—'),
+            'engine': Config.PREDICTION_ENGINE,
+            'weather_reason': md.get('weather_reason', '')
+        })
+    storage.save_history(history)
     return result
 
 
@@ -1641,7 +1642,6 @@ class BetVerificationSystem:
         self._check_odds(bet_data)
         self._check_ev_prob(bet_data)
         self._check_stake(bet_data)
-        self._check_league(bet_data)
         self._check_form(bet_data)
         if not self.warnings:
             return {'status': '✅', 'message': 'OK'}
@@ -1668,7 +1668,6 @@ class BetVerificationSystem:
         bank = storage.load_bank()
         if bank > 0 and (stake / bank) * 100 > self.thresholds['max_stake_percent']:
             self.warnings.append(f"Ставка {stake:.2f} > 10% банка")
-
 
     def _check_form(self, bd):
         if bd.get('home_form', '').endswith('LLL'):
@@ -1897,7 +1896,7 @@ def webhook():
                                         f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n\n")
                             send_telegram(msg)
                         else:
-                            send_telegram("❌ Ничего не найдено")
+                            send_telegram("❌ Ничего не найдено (все отсеяны фильтром EV 10-100%)")
                     else:
                         send_telegram("❌ Матчей нет")
                 finally:
