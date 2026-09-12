@@ -1454,12 +1454,15 @@ def find_top_matches(matches):
                 elif wind > 7:
                     total_xg *= 0.98
 
-            ev_min = getattr(Config, 'EV_MIN_70', 20)
-            prob_min = getattr(Config, 'PROB_MIN_70', 60)
-            xg_min = getattr(Config, 'XG_MIN_70', 1.8)
-            xg_max = getattr(Config, 'XG_MAX_70', 3.0)
-            pos_max = getattr(Config, 'POSITION_MAX_70', 15)
-            if total_xg < xg_min or total_xg > xg_max:
+            # ===== ЖЁСТКИЕ ФИЛЬТРЫ =====
+            EV_MIN = 10       # только EV ≥ 10%
+            EV_MAX = 100      # отсекаем подозрительные EV > 100%
+            PROB_MIN = 55     # вероятность ≥ 55%
+            XG_MIN = getattr(Config, 'XG_MIN_70', 1.8)
+            XG_MAX = getattr(Config, 'XG_MAX_70', 3.0)
+            POS_MAX = getattr(Config, 'POSITION_MAX_70', 15)
+
+            if total_xg < XG_MIN or total_xg > XG_MAX:
                 continue
 
             standings = football_api.get_standings(league_id) if league_id else None
@@ -1468,7 +1471,7 @@ def find_top_matches(matches):
             hm = get_motivation(hp); am = get_motivation(ap)
             if hm == 'mid_table' and am == 'mid_table':
                 continue
-            if hp > pos_max or ap > pos_max:
+            if hp > POS_MAX or ap > POS_MAX:
                 continue
 
             h2h = football_api.get_head_to_head(home, away)
@@ -1516,7 +1519,11 @@ def find_top_matches(matches):
 
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
-            if best_bet['ev'] < ev_min or best_bet['prob'] < prob_min:
+
+            # ===== ГЛАВНЫЙ ФИЛЬТР =====
+            if best_bet['ev'] < EV_MIN or best_bet['ev'] > EV_MAX:
+                continue
+            if best_bet['prob'] < PROB_MIN:
                 continue
 
             bt = best_bet['type']
@@ -1539,7 +1546,7 @@ def find_top_matches(matches):
                 "weather_reason": match.get('weather_reason', ''),
                 "factors": {}, "source": "70_percent"
             })
-            logger.info(f"✅ {home} vs {away} | {best_bet['label']} | EV: {best_bet['ev']}%")
+            logger.info(f"✅ {home} vs {away} | {best_bet['label']} | EV: {best_bet['ev']}% | Prob: {best_bet['prob']}%")
         except Exception as e:
             logger.error(f"❌ {e}")
             continue
