@@ -1,8 +1,6 @@
-"""LLM-анализ матчей через новый google-genai SDK"""
+"""LLM-анализ матчей через DeepSeek (OpenAI-совместимый API)"""
 import json
-
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 from app.config import Config
 from app.utils.logger import get_logger
@@ -14,16 +12,21 @@ _client = None
 
 
 def _get_client():
-    """Ленивая инициализация клиента."""
+    """Ленивая инициализация клиента DeepSeek."""
     global _client
     if _client is None:
-        _client = genai.Client(api_key=Config.LLM_API_KEY)
+        _client = OpenAI(
+            api_key=Config.DEEPSEEK_API_KEY,
+            base_url="https://api.deepseek.com",
+            timeout=Config.REQUEST_TIMEOUT,
+        )
     return _client
 
 
 def llm_analyze_match(match_data: dict) -> dict | None:
     """
-    Отправляет данные матча в Gemini и получает скорректированные вероятности.
+    Отправляет данные матча в DeepSeek и получает скорректированные вероятности.
+    Возвращает dict с home_win, draw, away_win, 1X, X2, btts или None.
     """
     if not Config.LLM_ENABLED:
         return None
@@ -34,18 +37,19 @@ def llm_analyze_match(match_data: dict) -> dict | None:
 
     try:
         client = _get_client()
-        response = client.models.generate_content(
+        response = client.chat.completions.create(
             model=Config.LLM_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,
-                max_output_tokens=300,
-                response_mime_type='application/json',   # Принудительно JSON
-            ),
+            messages=[
+                {"role": "system", "content": "Ты — аналитик футбольных ставок. Отвечай строго JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=300,
+            response_format={"type": "json_object"},
         )
-        text = response.text.strip()
+        text = response.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"❌ Gemini ошибка: {e}")
+        logger.error(f"❌ DeepSeek ошибка: {e}")
         return None
 
     return _parse_json_response(text)
@@ -53,7 +57,7 @@ def llm_analyze_match(match_data: dict) -> dict | None:
 
 def _build_prompt(m: dict) -> str:
     """Собирает промпт для модели."""
-    return f"""Ты — аналитик футбольных ставок. Оцени вероятности исходов матча.
+    return f"""Оцени вероятности исходов футбольного матча.
 
 Матч: {m.get('home')} vs {m.get('away')}
 Лига: {m.get('league')}
@@ -63,7 +67,7 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 Позиции: #{m.get('standings', {}).get('home_position')} vs #{m.get('standings', {}).get('away_position')}
 Погода: {m.get('weather_reason', 'нет данных')}
 
-Верни СТРОГО JSON без пояснений:
+Верни СТРОГО JSON:
 {{
   "home_win": 0.55,
   "draw": 0.25,
