@@ -953,9 +953,12 @@ def get_profit_data(history):
 # АНАЛИЗ
 # ============================================================
 def get_motivation(position):
+    """Расширенная мотивация с учётом турнирной ситуации."""
+    if position <= 2: return 'title_race'
     if position <= 4: return 'champions_league'
     if position <= 6: return 'europa_league'
-    if position <= 17: return 'mid_table'
+    if position <= 14: return 'mid_table'
+    if position <= 17: return 'relegation_playoff'
     return 'relegation'
 
 
@@ -1072,8 +1075,6 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     if 'ничья' in bt or bt == 'x' or '(x)' in bt:
         return 'win' if home_goals == away_goals else 'loss'
     if 'андердог' in bt:
-        # Андердог выигрывает, если его сторона победила
-        # Определяем по метке "(Д)" — хозяева, "(Г)" — гости
         if '(д)' in bt:
             return 'win' if home_goals > away_goals else 'loss'
         elif '(г)' in bt:
@@ -1520,6 +1521,14 @@ def find_top_matches(matches):
             if hp > POS_MAX or ap > POS_MAX:
                 continue
 
+            # Извлекаем очки и разницу мячей
+            home_data = standings.get(home, {}) if standings else {}
+            away_data = standings.get(away, {}) if standings else {}
+            home_points = home_data.get('points', 0)
+            away_points = away_data.get('points', 0)
+            home_gd = home_data.get('goals_diff', 0)
+            away_gd = away_data.get('goals_diff', 0)
+
             h2h = football_api.get_head_to_head(home, away)
             probs = ensemble_probability(
                 home_xg, away_xg, home_form, away_form, h2h,
@@ -1528,7 +1537,16 @@ def find_top_matches(matches):
                     'home_xg': round(home_xg, 2), 'away_xg': round(away_xg, 2),
                     'total_xg': round(total_xg, 2),
                     'home_form': home_form, 'away_form': away_form,
-                    'standings': {'home_position': hp, 'away_position': ap},
+                    'standings': {
+                        'home_position': hp,
+                        'away_position': ap,
+                        'home_motivation': hm,
+                        'away_motivation': am,
+                        'home_points': home_points,
+                        'away_points': away_points,
+                        'home_goals_diff': home_gd,
+                        'away_goals_diff': away_gd,
+                    },
                     'weather_reason': match.get('weather_reason', 'нет'),
                     'home_injuries': match.get('factors', {}).get('home_injuries_list', []),
                     'away_injuries': match.get('factors', {}).get('away_injuries_list', [])
