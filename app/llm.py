@@ -1,4 +1,4 @@
-"""LLM-анализ матчей через DeepSeek с травмами, счётом и стратегиями"""
+"""LLM-анализ матчей через DeepSeek с травмами, счётом, стратегиями и мотивацией"""
 import json
 from openai import OpenAI
 
@@ -40,7 +40,7 @@ def llm_analyze_match(match_data: dict) -> dict | None:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=600,
+            max_tokens=700,
             response_format={"type": "json_object"},
         )
         text = response.choices[0].message.content.strip()
@@ -65,10 +65,33 @@ def _format_injuries(injuries: list) -> str:
     return "\n" + "\n".join(lines)
 
 
+def _motivation_text(motivation: str) -> str:
+    """Переводит код мотивации в текст для DeepSeek."""
+    mapping = {
+        'title_race': '🏆 Борьба за титул — максимальная мотивация, команда будет биться за 3 очка',
+        'champions_league': '🎯 Борьба за ЛЧ — высокая мотивация, очень нужны очки',
+        'europa_league': '🥉 Борьба за ЛЕ — средняя мотивация, желательна победа',
+        'mid_table': '😐 Середина таблицы — низкая мотивация, могут играть вничью',
+        'relegation_playoff': '😰 Борьба за выживание — очень высокая мотивация, каждая игра как финал',
+        'relegation': '💀 В зоне вылета — максимальная мотивация, будут биться до конца',
+    }
+    return mapping.get(motivation, '😐 Обычная мотивация')
+
+
 def _build_prompt(m: dict) -> str:
-    """Собирает промпт — травмы, счёт, ничья, андердог."""
+    """Собирает промпт — травмы, счёт, ничья, андердог, мотивация, очки."""
     home_injuries = m.get('home_injuries', [])
     away_injuries = m.get('away_injuries', [])
+
+    standings = m.get('standings', {})
+    home_pos = standings.get('home_position', 99)
+    away_pos = standings.get('away_position', 99)
+    home_motivation = standings.get('home_motivation', 'mid_table')
+    away_motivation = standings.get('away_motivation', 'mid_table')
+    home_points = standings.get('home_points', 0)
+    away_points = standings.get('away_points', 0)
+    home_gd = standings.get('home_goals_diff', 0)
+    away_gd = standings.get('away_goals_diff', 0)
 
     return f"""Оцени вероятности исходов футбольного матча + дай прогноз счёта и оценку ничьей/андердога.
 
@@ -77,7 +100,14 @@ def _build_prompt(m: dict) -> str:
 xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сумма: {m.get('total_xg')}
 Форма хозяев: {m.get('home_form')}
 Форма гостей: {m.get('away_form')}
-Позиции: #{m.get('standings', {}).get('home_position')} vs #{m.get('standings', {}).get('away_position')}
+
+🏆 ТУРНИРНАЯ СИТУАЦИЯ:
+Хозяева: #{home_pos} место, {home_points} очков, разница мячей {home_gd:+d}
+Мотивация хозяев: {_motivation_text(home_motivation)}
+
+Гости: #{away_pos} место, {away_points} очков, разница мячей {away_gd:+d}
+Мотивация гостей: {_motivation_text(away_motivation)}
+
 Погода: {m.get('weather_reason', 'нет данных')}
 
 Травмированные у хозяев: {_format_injuries(home_injuries)}
@@ -86,6 +116,15 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 ВАЖНО:
 - Если у команды травмирован ключевой игрок (вратарь, основной защитник, топ-бомбардир) — понижай её вероятность
 - Если у команды 3+ травмы в основе — понижай на 5-10%
+- Учитывай МОТИВАЦИЮ:
+  * Команды в зоне вылета (relegation) — обычно бьются сильнее, чем середина
+  * Команды в середине таблицы (mid_table) — часто играют вничью (низкая мотивация)
+  * Команды борющиеся за титул / ЛЧ — максимально мотивированы
+  * Если одна команда борется за выживание, а другая в середине — вероятность апсета выше
+- Учитывай РАЗНИЦУ В КЛАССЕ:
+  * Если у команды разница мячей +10 или больше — она в хорошей форме
+  * Если у команды разница мячей -10 или меньше — она слабая
+  * Если у одной команды 40+ очков, а у другой 20 — большая разница в классе
 
 Верни СТРОГО JSON:
 {{
@@ -106,13 +145,16 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 - most_likely_score — самый вероятный счёт (целые числа, prob — вероятность 0-1)
 - total_goals — ожидаемое количество голов (например, 2.8)
 - over_2_5 — вероятность что голов будет больше 2.5 (0-1)
-- draw_potential (0-1) — насколько вероятна НИЧЬЯ (обе команды равны, xG низкий, плохая погода, отсутствие мотивации)
-- underdog_potential (0-1) — насколько вероятен АПСЕТ (фаворит устал, андердог в форме, мотивация выжить)
-- Все значения от 0 до 1
-
-Где:
-- draw_potential высокий (>0.6), если: обе команды равны, xG низкий (<2.2), погода плохая, обе в середине таблицы
-- underdog_potential высокий (>0.6), если: фаворит устал (3+ матча за неделю), андердог в форме (WWDLW), фаворит потерял ключевого игрока"""
+- draw_potential (0-1) — насколько вероятна НИЧЬЯ:
+  * высокая (>0.6), если обе команды в середине таблицы (mid_table) и нет мотивации
+  * высокая (>0.6), если xG низкий (<2.2) и погода плохая
+  * низкая (<0.3), если одна из команд борется за титул или выживание
+- underdog_potential (0-1) — насколько вероятен АПСЕТ:
+  * высокая (>0.6), если фаворит устал (3+ матча за неделю)
+  * высокая (>0.6), если андердог в форме (WWDLW) и борется за выживание
+  * высокая (>0.6), если фаворит потерял ключевого игрока
+  * низкая (<0.3), если фаворит в топ-3 и в отличной форме
+- Все значения от 0 до 1"""
 
 
 def _parse_json_response(text: str) -> dict | None:
