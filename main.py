@@ -1960,6 +1960,12 @@ def webhook():
             send_telegram(handlers.handle_bank())
         elif text == '/strategies':
             send_telegram(strategy_tester.get_comparison_report())
+        elif text == '/personal':
+            send_telegram("📊 Анализирую историю...")
+            send_telegram(build_personal_report())
+        elif text == '/advice':
+            send_telegram("🤖 DeepSeek анализирует...")
+            send_telegram(get_personal_recommendations())
         elif text == '/report':
             send_telegram(handlers.handle_report())
         elif text == '/bettypes':
