@@ -25,7 +25,6 @@ from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
 from app.llm import llm_analyze_match
 from app.odds_rotator import OddsKeyRotator
-from app.personal import build_personal_report, get_personal_recommendations, schedule_weekly_personal_report
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
@@ -1049,6 +1048,10 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
                 final['btts'] = final['btts'] * (1 - alpha) + llm['btts'] * alpha
             if 'most_likely_score' in llm:
                 final['most_likely_score'] = llm['most_likely_score']
+            if 'draw_potential' in llm:
+                final['draw_potential'] = llm['draw_potential']
+            if 'underdog_potential' in llm:
+                final['underdog_potential'] = llm['underdog_potential']
             logger.info(f"🤖 LLM (α={alpha}): H={final['home_win']:.2f} D={final['draw']:.2f} A={final['away_win']:.2f}")
 
     return final
@@ -1066,6 +1069,16 @@ def determine_bet_result(bet_type, home_goals, away_goals):
         return 'win' if away_goals >= home_goals else 'loss'
     if 'обз' in bt or 'btts' in bt:
         return 'win' if home_goals > 0 and away_goals > 0 else 'loss'
+    if 'ничья' in bt or bt == 'x' or '(x)' in bt:
+        return 'win' if home_goals == away_goals else 'loss'
+    if 'андердог' in bt:
+        # Андердог выигрывает, если его сторона победила
+        # Определяем по метке "(Д)" — хозяева, "(Г)" — гости
+        if '(д)' in bt:
+            return 'win' if home_goals > away_goals else 'loss'
+        elif '(г)' in bt:
+            return 'win' if away_goals > home_goals else 'loss'
+        return 'pending'
     return 'pending'
 
 
@@ -1144,31 +1157,35 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
-            # 1. Пробуем Odds API
             od = odds_api.get_odds_for_match(home, away, league)
             if od and od.get('best_odds', 0) > 0:
-                if bt in ('1X', 'П1') and od.get('home_odds', 0) > 0:
-                    new_odds = od['home_odds']
-                elif bt in ('X2', 'П2') and od.get('away_odds', 0) > 0:
-                    new_odds = od['away_odds']
+                if bt in ('1X', 'П1'):
+                    if od.get('home_odds', 0) > 0:
+                        new_odds = od['home_odds']
+                elif bt in ('X2', 'П2'):
+                    if od.get('away_odds', 0) > 0:
+                        new_odds = od['away_odds']
+                elif bt == 'draw':
+                    if od.get('draw_odds', 0) > 0:
+                        new_odds = od['draw_odds']
                 else:
                     new_odds = od.get('best_odds', 0)
                 if new_odds:
                     bookmaker = od.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
 
-            # 2. Football API + АНАЛИЗ ЛИНИЙ
             if not new_odds and fid:
                 fo = football_api.get_match_odds(fid)
                 if fo:
                     bm_list = fo.get('all_bookmakers', {})
 
-                    # ★ АНАЛИЗ ЛИНИЙ: ищем аномалию
                     if bm_list and len(bm_list) >= 2:
                         if bt in ('1X', 'П1'):
                             target = 'home'
                         elif bt in ('X2', 'П2'):
                             target = 'away'
+                        elif bt == 'draw':
+                            target = 'draw'
                         else:
                             target = 'home'
 
@@ -1195,19 +1212,19 @@ def update_odds_for_matches(matches):
                                     f"(+{anomaly_pct:.1f}% к среднему {avg_odds:.2f})"
                                 )
 
-                    # Fallback: обычный best
                     if not new_odds:
                         if bt in ('1X', 'П1') and fo.get('home_odds', 0) > 0:
                             new_odds = fo['home_odds']
                         elif bt in ('X2', 'П2') and fo.get('away_odds', 0) > 0:
                             new_odds = fo['away_odds']
+                        elif bt == 'draw' and fo.get('draw_odds', 0) > 0:
+                            new_odds = fo['draw_odds']
                         else:
                             new_odds = fo.get('best_odds', 0)
                         if new_odds:
                             bookmaker = fo.get('bookmaker', 'Football API')
                             source = 'Football API'
 
-            # 3. Если совсем ничего — считаем Fair Odds
             if not new_odds:
                 prob = best_bet.get('prob', 0) / 100
                 if prob > 0:
@@ -1416,7 +1433,7 @@ def recalc_stats():
 
 
 # ============================================================
-# ПОИСК ТОП-МАТЧЕЙ
+# ПОИСК ТОП-МАТЧЕЙ С 4 СТРАТЕГИЯМИ
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -1547,6 +1564,78 @@ def find_top_matches(matches):
                     'ev': round((p * odd - 1) * 100, 1),
                     'odds': odd, 'stake': stake
                 })
+
+            # ============================================================
+            # ★ СТРАТЕГИЯ "НИЧЬЯ" ★
+            # ============================================================
+            draw_potential = probs.get('draw_potential', 0.5)
+            draw_prob = probs.get('draw', 0.25)
+
+            if total_xg < 2.2 and 10 <= hp <= 15 and 10 <= ap <= 15 and draw_potential >= 0.55:
+                draw_odds = 3.0 + (draw_potential * 1.5)
+                draw_ev = (draw_prob * draw_odds - 1) * 100
+
+                if draw_ev > 5:
+                    bets.append({
+                        'type': 'draw',
+                        'label': 'X (Ничья)',
+                        'prob': round(draw_prob * 100, 1),
+                        'ev': round(draw_ev, 1),
+                        'odds': round(draw_odds, 2),
+                        'stake': round(stake * 0.5, 2)
+                    })
+                    logger.info(
+                        f"🎲 НИЧЬЯ-СТРАТЕГИЯ: {home} vs {away} | "
+                        f"Potential: {draw_potential:.2f} | EV: {draw_ev:.1f}%"
+                    )
+
+            # ============================================================
+            # ★ СТРАТЕГИЯ "АНДЕРДОГ" ★
+            # ============================================================
+            underdog_potential = probs.get('underdog_potential', 0.4)
+
+            underdog_is_home = False
+            underdog_prob = 0
+            underdog_form = ''
+            underdog_position = 99
+            favorite_position = 99
+
+            if home_xg < away_xg - 0.5:
+                underdog_is_home = True
+                underdog_form = home_form
+                underdog_prob = probs.get('home_win', 0)
+                underdog_position = hp
+                favorite_position = ap
+            elif away_xg < home_xg - 0.5:
+                underdog_is_home = False
+                underdog_form = away_form
+                underdog_prob = probs.get('away_win', 0)
+                underdog_position = ap
+                favorite_position = hp
+
+            if underdog_prob > 0:
+                underdog_odds = max(4.0, (1 / underdog_prob) * 0.85)
+                favorite_in_top = favorite_position <= 3
+                underdog_in_form = underdog_form.count('W') >= 3
+
+                if (underdog_odds >= 4.0 and
+                        underdog_potential >= 0.5 and
+                        not favorite_in_top and
+                        underdog_in_form):
+                    underdog_ev = (underdog_prob * underdog_odds - 1) * 100
+                    if underdog_ev > 5:
+                        bets.append({
+                            'type': 'underdog',
+                            'label': f'Андердог {"(Д)" if underdog_is_home else "(Г)"}',
+                            'prob': round(underdog_prob * 100, 1),
+                            'ev': round(underdog_ev, 1),
+                            'odds': round(underdog_odds, 2),
+                            'stake': round(stake * 0.4, 2)
+                        })
+                        logger.info(
+                            f"🎲 АНДЕРДОГ-СТРАТЕГИЯ: {home} vs {away} | "
+                            f"Potential: {underdog_potential:.2f} | EV: {underdog_ev:.1f}%"
+                        )
 
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
@@ -1960,12 +2049,6 @@ def webhook():
             send_telegram(handlers.handle_bank())
         elif text == '/strategies':
             send_telegram(strategy_tester.get_comparison_report())
-        elif text == '/personal':
-            send_telegram("📊 Анализирую историю...")
-            send_telegram(build_personal_report())
-        elif text == '/advice':
-            send_telegram("🤖 DeepSeek анализирует...")
-            send_telegram(get_personal_recommendations())
         elif text == '/report':
             send_telegram(handlers.handle_report())
         elif text == '/bettypes':
@@ -2451,7 +2534,6 @@ if __name__ == "__main__":
     schedule_notifications()
     schedule_performance_report()
     schedule_auto_backup()
-    schedule_weekly_personal_report()
 
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН")
