@@ -1,4 +1,4 @@
-"""LLM-анализ матчей через DeepSeek (OpenAI-совместимый API)"""
+"""LLM-анализ матчей через DeepSeek с учётом травм"""
 import json
 from openai import OpenAI
 
@@ -7,7 +7,6 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Клиент создаётся один раз
 _client = None
 
 
@@ -24,10 +23,7 @@ def _get_client():
 
 
 def llm_analyze_match(match_data: dict) -> dict | None:
-    """
-    Отправляет данные матча в DeepSeek и получает скорректированные вероятности.
-    Возвращает dict с home_win, draw, away_win, 1X, X2, btts или None.
-    """
+    """Отправляет данные матча в DeepSeek и получает скорректированные вероятности."""
     if not Config.LLM_ENABLED:
         return None
     if not match_data:
@@ -44,7 +40,7 @@ def llm_analyze_match(match_data: dict) -> dict | None:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=300,
+            max_tokens=400,
             response_format={"type": "json_object"},
         )
         text = response.choices[0].message.content.strip()
@@ -55,8 +51,26 @@ def llm_analyze_match(match_data: dict) -> dict | None:
     return _parse_json_response(text)
 
 
+def _format_injuries(injuries: list) -> str:
+    """Форматирует список травмированных для промпта."""
+    if not injuries:
+        return "нет"
+    
+    lines = []
+    for inj in injuries[:10]:  # максимум 10, чтобы не раздувать промпт
+        player = inj.get('player', {})
+        name = player.get('name', 'Unknown')
+        position = player.get('position', '?')
+        reason = inj.get('reason', '?')
+        lines.append(f"  - {name} ({position}) — {reason}")
+    return "\n" + "\n".join(lines)
+
+
 def _build_prompt(m: dict) -> str:
-    """Собирает промпт для модели."""
+    """Собирает промпт для модели — с учётом травм."""
+    home_injuries = m.get('home_injuries', [])
+    away_injuries = m.get('away_injuries', [])
+
     return f"""Оцени вероятности исходов футбольного матча.
 
 Матч: {m.get('home')} vs {m.get('away')}
@@ -66,6 +80,12 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 Форма гостей: {m.get('away_form')}
 Позиции: #{m.get('standings', {}).get('home_position')} vs #{m.get('standings', {}).get('away_position')}
 Погода: {m.get('weather_reason', 'нет данных')}
+
+Травмированные у хозяев: {_format_injuries(home_injuries)}
+Травмированные у гостей: {_format_injuries(away_injuries)}
+
+ВАЖНО: если у команды травмирован ключевой игрок (вратарь, основной защитник, топ-бомбардир) — понижай её вероятность.
+Если у команды 3+ травмы в основе — понижай на 5-10%.
 
 Верни СТРОГО JSON:
 {{
