@@ -3,6 +3,7 @@ import os
 import sqlite3
 import requests
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -35,7 +36,7 @@ class Config:
     # === ИНФРАСТРУКТУРА ===
     DATABASE_URL = os.getenv("DATABASE_URL", "bot.db")
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
-    USE_SEASON = int(os.getenv("USE_SEASON", "2025"))
+    USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
     # === PREDICTION ENGINE ===
