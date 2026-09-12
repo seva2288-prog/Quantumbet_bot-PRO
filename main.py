@@ -138,8 +138,12 @@ class SmartCache:
         self.max_size = max_size
         self.default_ttl = 3600
         self.ttl_by_type = {
-            'form': 300, 'odds': 60, 'statistics': 300,
-            'standings': 1800, 'matches': 3600, 'h2h': 7200
+            'form': 43200,        # 12 часов — форма команд не меняется за день
+            'odds': 300,          # 5 минут — кэфы меняются быстро
+            'statistics': 86400,  # сутки — статистика матча не меняется
+            'standings': 86400,   # сутки — таблица обновляется раз в тур
+            'matches': 43200,     # 12 часов — расписание на день стабильно
+            'h2h': 604800,        # неделя — история H2H не меняется
         }
 
     def get(self, key, data_type='default'):
