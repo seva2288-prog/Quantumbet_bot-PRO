@@ -1483,7 +1483,9 @@ def find_top_matches(matches):
                     'total_xg': round(total_xg, 2),
                     'home_form': home_form, 'away_form': away_form,
                     'standings': {'home_position': hp, 'away_position': ap},
-                    'weather_reason': match.get('weather_reason', 'нет')
+                    'weather_reason': match.get('weather_reason', 'нет'),
+                    'home_injuries': match.get('factors', {}).get('home_injuries_list', []),
+                    'away_injuries': match.get('factors', {}).get('away_injuries_list', [])
                 }
             )
 
