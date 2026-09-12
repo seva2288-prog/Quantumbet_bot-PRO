@@ -237,6 +237,31 @@ class Config:
         }
         season = season or cls.USE_SEASON
         leagues, names = [], {}
+
+        # Стоп-слова: женские, юношеские, региональные, низшие дивизионы
+        EXCLUDE_WORDS = [
+            'women', 'womens', 'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
+            'youth', 'reserve', 'academy', 'amateur',
+            'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
+            'k4', 'k5', 'k6', 'k7',
+            'npl', 'nsw', 'victoria', 'queensland', 'south australia',
+            'primera federación', 'segunda federación', 'tercera federación',
+            'serie d', 'serie c',
+            'división profesional', 'liga premier', 'liga de expansión',
+            'besta deild karla', '1. deild karla', '2. deild karla',
+            'ekstraklasa ii', 'i liga ii', 'ii liga', 'iii liga',
+            'lpf', 'prim b', 'prim c', 'prim d',
+            'national league', 'national 2', 'national 3',
+            'championnat national', 'cfa',
+            'allsvenskan norra', 'allsvenskan södra',
+            'division 2', 'division 3',
+            'ykkösliiga', 'kakkonen',
+            'superettan norra', 'superettan södra',
+            '2. deild', '3. deild', '4. deild',
+            'treća hnl', 'druga hnl',
+            'virsliga women',
+        ]
+
         for country in cls.LEAGUE_COUNTRIES:
             try:
                 r = requests.get(
@@ -248,17 +273,26 @@ class Config:
                 if r.status_code != 200:
                     print(f"⚠️ {country}: HTTP {r.status_code}")
                     continue
+
                 for item in r.json().get('response', []):
                     lg = item.get('league', {})
                     if lg.get('type') == 'Cup':
                         continue
                     lid, lname = lg.get('id'), lg.get('name')
-                    if lid and lname:
-                        leagues.append(lid)
-                        names[lid] = lname
+                    if not lid or not lname:
+                        continue
+
+                    lname_lower = lname.lower()
+                    if any(w in lname_lower for w in EXCLUDE_WORDS):
+                        continue
+
+                    leagues.append(lid)
+                    names[lid] = lname
+
                 print(f"✅ {country}: OK")
             except Exception as e:
                 print(f"❌ {country}: {e}")
+
         if leagues:
             cls.LEAGUES = sorted(set(leagues))
             cls.LEAGUE_NAMES = names
