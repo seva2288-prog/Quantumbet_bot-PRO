@@ -1,21 +1,29 @@
-"""LLM-анализ матчей для PREDICTION_ENGINE='llm'"""
+"""LLM-анализ матчей через новый google-genai SDK"""
 import json
-import requests
+
+from google import genai
+from google.genai import types
 
 from app.config import Config
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Клиент создаётся один раз
+_client = None
+
+
+def _get_client():
+    """Ленивая инициализация клиента."""
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=Config.LLM_API_KEY)
+    return _client
+
 
 def llm_analyze_match(match_data: dict) -> dict | None:
     """
-    Отправляет данные матча в LLM и получает скорректированные вероятности.
-
-    Возвращает dict вида:
-        {'home_win': 0.55, 'draw': 0.25, 'away_win': 0.20,
-         '1X': 0.80, 'X2': 0.45, 'btts': 0.50, 'confidence': 0.75}
-    или None, если LLM отключён / ошибка.
+    Отправляет данные матча в Gemini и получает скорректированные вероятности.
     """
     if not Config.LLM_ENABLED:
         return None
@@ -25,16 +33,22 @@ def llm_analyze_match(match_data: dict) -> dict | None:
     prompt = _build_prompt(match_data)
 
     try:
-        if Config.LLM_PROVIDER == "gemini":
-            return _call_gemini(prompt)
-        elif Config.LLM_PROVIDER == "openai":
-            return _call_openai(prompt)
-        else:
-            logger.error(f"❌ Неизвестный LLM_PROVIDER: {Config.LLM_PROVIDER}")
-            return None
+        client = _get_client()
+        response = client.models.generate_content(
+            model=Config.LLM_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=300,
+                response_mime_type='application/json',   # Принудительно JSON
+            ),
+        )
+        text = response.text.strip()
     except Exception as e:
-        logger.error(f"❌ LLM ошибка: {e}")
+        logger.error(f"❌ Gemini ошибка: {e}")
         return None
+
+    return _parse_json_response(text)
 
 
 def _build_prompt(m: dict) -> str:
@@ -49,7 +63,7 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 Позиции: #{m.get('standings', {}).get('home_position')} vs #{m.get('standings', {}).get('away_position')}
 Погода: {m.get('weather_reason', 'нет данных')}
 
-Верни СТРОГО JSON без пояснений и без markdown:
+Верни СТРОГО JSON без пояснений:
 {{
   "home_win": 0.55,
   "draw": 0.25,
@@ -64,66 +78,9 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 - confidence — твоя уверенность в прогнозе от 0 до 1"""
 
 
-def _call_gemini(prompt: str) -> dict | None:
-    """Запрос к Google Gemini."""
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{Config.LLM_MODEL}:generateContent?key={Config.LLM_API_KEY}"
-    )
-    r = requests.post(
-        url,
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "maxOutputTokens": 300
-            }
-        },
-        timeout=Config.REQUEST_TIMEOUT
-    )
-    if r.status_code != 200:
-        logger.error(f"❌ Gemini {r.status_code}: {r.text[:200]}")
-        return None
-
-    try:
-        text = r.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-    except (KeyError, IndexError) as e:
-        logger.error(f"❌ Gemini неожиданный ответ: {e}")
-        return None
-
-    return _parse_json_response(text)
-
-
-def _call_openai(prompt: str) -> dict | None:
-    """Запрос к OpenAI."""
-    r = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {Config.LLM_API_KEY}"},
-        json={
-            "model": Config.LLM_MODEL or "gpt-4o-mini",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"}
-        },
-        timeout=Config.REQUEST_TIMEOUT
-    )
-    if r.status_code != 200:
-        logger.error(f"❌ OpenAI {r.status_code}: {r.text[:200]}")
-        return None
-
-    try:
-        text = r.json()['choices'][0]['message']['content']
-    except (KeyError, IndexError) as e:
-        logger.error(f"❌ OpenAI неожиданный ответ: {e}")
-        return None
-
-    return _parse_json_response(text)
-
-
 def _parse_json_response(text: str) -> dict | None:
     """Чистит markdown-обёртку и парсит JSON."""
     text = text.strip()
-    # Убираем ```json ... ``` если модель добавила
     if text.startswith('```'):
         text = text.split('\n', 1)[-1]
         if text.endswith('```'):
