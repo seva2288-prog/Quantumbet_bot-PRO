@@ -659,10 +659,15 @@ class FootballAPI:
         return None
 
     def _extract_best_odds(self, odds_data):
+        """Собирает лучшие кэфы + список ВСЕХ букмекеров для анализа линий."""
         result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
-                  'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0}
+                  'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
+                  'all_bookmakers': {}}
+
         for bm in odds_data:
             bm_name = bm.get('bookmaker', {}).get('name', '—')
+            bm_data = {'home': 0, 'draw': 0, 'away': 0}
+
             for bet in bm.get('bets', []):
                 bn = bet.get('name', '').lower()
                 values = bet.get('values', [])
@@ -676,10 +681,13 @@ class FootballAPI:
                             continue
                         if 'home' in vn or vn == '1':
                             result['home_odds'] = max(result['home_odds'], odd)
+                            bm_data['home'] = max(bm_data['home'], odd)
                         elif 'away' in vn or vn == '2':
                             result['away_odds'] = max(result['away_odds'], odd)
+                            bm_data['away'] = max(bm_data['away'], odd)
                         elif 'draw' in vn or vn == 'x':
                             result['draw_odds'] = max(result['draw_odds'], odd)
+                            bm_data['draw'] = max(bm_data['draw'], odd)
                         if odd > result['best_odds']:
                             result['best_odds'] = odd
                             result['bookmaker'] = bm_name
@@ -693,6 +701,10 @@ class FootballAPI:
                             result['under_odds'] = max(result['under_odds'], odd)
                         elif 'over' in vn:
                             result['over_odds'] = max(result['over_odds'], odd)
+
+            if bm_data['home'] > 0 or bm_data['draw'] > 0 or bm_data['away'] > 0:
+                result['all_bookmakers'][bm_name] = bm_data
+
         return result
 
     def clear_cache(self):
@@ -1117,7 +1129,7 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ
+# ОБНОВЛЕНИЕ КОЭФФИЦИЕНТОВ С АНАЛИЗОМ ЛИНИЙ
 # ============================================================
 def update_odds_for_matches(matches):
     updated = []
@@ -1131,6 +1143,7 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
+            # 1. Пробуем Odds API
             od = odds_api.get_odds_for_match(home, away, league)
             if od and od.get('best_odds', 0) > 0:
                 if bt in ('1X', 'П1') and od.get('home_odds', 0) > 0:
@@ -1143,19 +1156,57 @@ def update_odds_for_matches(matches):
                     bookmaker = od.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
 
+            # 2. Football API + АНАЛИЗ ЛИНИЙ
             if not new_odds and fid:
                 fo = football_api.get_match_odds(fid)
                 if fo:
-                    if bt in ('1X', 'П1') and fo.get('home_odds', 0) > 0:
-                        new_odds = fo['home_odds']
-                    elif bt in ('X2', 'П2') and fo.get('away_odds', 0) > 0:
-                        new_odds = fo['away_odds']
-                    else:
-                        new_odds = fo.get('best_odds', 0)
-                    if new_odds:
-                        bookmaker = fo.get('bookmaker', 'Football API')
-                        source = 'Football API'
+                    bm_list = fo.get('all_bookmakers', {})
 
+                    # ★ АНАЛИЗ ЛИНИЙ: ищем аномалию
+                    if bm_list and len(bm_list) >= 2:
+                        if bt in ('1X', 'П1'):
+                            target = 'home'
+                        elif bt in ('X2', 'П2'):
+                            target = 'away'
+                        else:
+                            target = 'home'
+
+                        target_odds = {
+                            bm: data.get(target, 0)
+                            for bm, data in bm_list.items()
+                            if data.get(target, 0) > 0
+                        }
+
+                        if target_odds:
+                            best_bm = max(target_odds, key=target_odds.get)
+                            best_odds = target_odds[best_bm]
+                            avg_odds = sum(target_odds.values()) / len(target_odds)
+                            anomaly_pct = ((best_odds / avg_odds) - 1) * 100 if avg_odds > 0 else 0
+
+                            new_odds = best_odds
+                            bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
+                            source = 'Line Analysis'
+
+                            if anomaly_pct > 5:
+                                logger.info(
+                                    f"🎯 АНОМАЛИЯ: {home} vs {away} | "
+                                    f"{best_bm} даёт {best_odds} "
+                                    f"(+{anomaly_pct:.1f}% к среднему {avg_odds:.2f})"
+                                )
+
+                    # Fallback: обычный best
+                    if not new_odds:
+                        if bt in ('1X', 'П1') and fo.get('home_odds', 0) > 0:
+                            new_odds = fo['home_odds']
+                        elif bt in ('X2', 'П2') and fo.get('away_odds', 0) > 0:
+                            new_odds = fo['away_odds']
+                        else:
+                            new_odds = fo.get('best_odds', 0)
+                        if new_odds:
+                            bookmaker = fo.get('bookmaker', 'Football API')
+                            source = 'Football API'
+
+            # 3. Если совсем ничего — считаем Fair Odds
             if not new_odds:
                 prob = best_bet.get('prob', 0) / 100
                 if prob > 0:
@@ -1218,22 +1269,17 @@ def get_matches_with_factors():
                 for m in matches:
                     if not isinstance(m, dict):
                         continue
-
                     fixture = m.get('fixture')
                     if not fixture or not isinstance(fixture, dict):
                         continue
-
                     if fixture.get('status', {}).get('short') != 'NS':
                         continue
-
                     mid = fixture.get('id')
                     if not mid:
                         continue
-
                     if any(x.get('fixture', {}).get('id') == mid
                            for x in all_matches if isinstance(x, dict)):
                         continue
-
                     teams = m.get('teams', {})
                     hid = teams.get('home', {}).get('id')
                     aid = teams.get('away', {}).get('id')
@@ -1535,22 +1581,18 @@ def find_top_matches(matches):
 
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
-    """Историческое имя — теперь только 70%+ поток. С ФИНАЛЬНЫМ ФИЛЬТРОМ ПОСЛЕ КЭФОВ."""
+    """Финальный фильтр ПОСЛЕ обновления кэфов + анализ линий."""
     result = find_top_matches(matches)
     if not result:
         return result
 
-    # Обновляем кэфы
     result = update_odds_for_matches(result)
 
-    # ★★★ ГЛАВНОЕ ИСПРАВЛЕНИЕ: ФИНАЛЬНЫЙ ФИЛЬТР ПОСЛЕ РЕАЛЬНЫХ КЭФОВ ★★★
     filtered = []
     for m in result:
         bb = m.get('best_bet', {})
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
-        
-        # Отсеиваем убыточные и подозрительные
         if ev < 10 or ev > 100:
             logger.info(f"⏭️ Отсев после кэфов: {m.get('home')} vs {m.get('away')} | EV: {ev}%")
             continue
@@ -1563,7 +1605,6 @@ def find_top_matches_with_tm25(matches):
 
     result = filtered
 
-    # Сохраняем в кэш и историю
     cache = storage.load_cache()
     cache['top_matches'] = result
     storage.save_cache(cache)
@@ -1893,10 +1934,11 @@ def webhook():
                             for i, m in enumerate(top[:10], 1):
                                 b = m['best_bet']
                                 msg += (f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
-                                        f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n\n")
+                                        f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n"
+                                        f"🏷️ {b.get('bookmaker', '—')}\n\n")
                             send_telegram(msg)
                         else:
-                            send_telegram("❌ Ничего не найдено (все отсеяны фильтром EV 10-100%)")
+                            send_telegram("❌ Ничего не найдено (фильтр EV 10-100% + Prob 55%)")
                     else:
                         send_telegram("❌ Матчей нет")
                 finally:
