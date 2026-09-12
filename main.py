@@ -2451,6 +2451,7 @@ if __name__ == "__main__":
     schedule_notifications()
     schedule_performance_report()
     schedule_auto_backup()
+    schedule_weekly_personal_report()
 
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН")
