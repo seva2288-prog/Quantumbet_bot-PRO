@@ -1477,7 +1477,6 @@ class BetVerificationSystem:
         if bank > 0 and (stake / bank) * 100 > self.thresholds['max_stake_percent']:
             self.warnings.append(f"Ставка {stake:.2f} > 10% банка")
 
-     25%")
 
     def _check_form(self, bd):
         if bd.get('home_form', '').endswith('LLL'):
