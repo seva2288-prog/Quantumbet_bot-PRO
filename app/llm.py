@@ -1,4 +1,4 @@
-"""LLM-анализ матчей через DeepSeek с учётом травм"""
+"""LLM-анализ матчей через DeepSeek с травмами, счётом и стратегиями"""
 import json
 from openai import OpenAI
 
@@ -23,7 +23,7 @@ def _get_client():
 
 
 def llm_analyze_match(match_data: dict) -> dict | None:
-    """Отправляет данные матча в DeepSeek и получает скорректированные вероятности."""
+    """Отправляет данные матча в DeepSeek и получает вероятности + счёт + потенциалы."""
     if not Config.LLM_ENABLED:
         return None
     if not match_data:
@@ -40,7 +40,7 @@ def llm_analyze_match(match_data: dict) -> dict | None:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=400,
+            max_tokens=600,
             response_format={"type": "json_object"},
         )
         text = response.choices[0].message.content.strip()
@@ -55,9 +55,8 @@ def _format_injuries(injuries: list) -> str:
     """Форматирует список травмированных для промпта."""
     if not injuries:
         return "нет"
-    
     lines = []
-    for inj in injuries[:10]:  # максимум 10, чтобы не раздувать промпт
+    for inj in injuries[:10]:
         player = inj.get('player', {})
         name = player.get('name', 'Unknown')
         position = player.get('position', '?')
@@ -67,11 +66,11 @@ def _format_injuries(injuries: list) -> str:
 
 
 def _build_prompt(m: dict) -> str:
-    """Собирает промпт для модели — с учётом травм."""
+    """Собирает промпт — травмы, счёт, ничья, андердог."""
     home_injuries = m.get('home_injuries', [])
     away_injuries = m.get('away_injuries', [])
 
-    return f"""Оцени вероятности исходов футбольного матча.
+    return f"""Оцени вероятности исходов футбольного матча + дай прогноз счёта и оценку ничьей/андердога.
 
 Матч: {m.get('home')} vs {m.get('away')}
 Лига: {m.get('league')}
@@ -84,8 +83,9 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
 Травмированные у хозяев: {_format_injuries(home_injuries)}
 Травмированные у гостей: {_format_injuries(away_injuries)}
 
-ВАЖНО: если у команды травмирован ключевой игрок (вратарь, основной защитник, топ-бомбардир) — понижай её вероятность.
-Если у команды 3+ травмы в основе — понижай на 5-10%.
+ВАЖНО:
+- Если у команды травмирован ключевой игрок (вратарь, основной защитник, топ-бомбардир) — понижай её вероятность
+- Если у команды 3+ травмы в основе — понижай на 5-10%
 
 Верни СТРОГО JSON:
 {{
@@ -93,13 +93,26 @@ xG хозяев: {m.get('home_xg')}, xG гостей: {m.get('away_xg')}, сум
   "draw": 0.25,
   "away_win": 0.20,
   "btts": 0.50,
-  "confidence": 0.75
+  "confidence": 0.75,
+  "most_likely_score": {{"home": 2, "away": 1, "prob": 0.15}},
+  "total_goals": 2.8,
+  "over_2_5": 0.55,
+  "draw_potential": 0.65,
+  "underdog_potential": 0.40
 }}
 
 Правила:
 - Сумма home_win + draw + away_win = 1.0
+- most_likely_score — самый вероятный счёт (целые числа, prob — вероятность 0-1)
+- total_goals — ожидаемое количество голов (например, 2.8)
+- over_2_5 — вероятность что голов будет больше 2.5 (0-1)
+- draw_potential (0-1) — насколько вероятна НИЧЬЯ (обе команды равны, xG низкий, плохая погода, отсутствие мотивации)
+- underdog_potential (0-1) — насколько вероятен АПСЕТ (фаворит устал, андердог в форме, мотивация выжить)
 - Все значения от 0 до 1
-- confidence — твоя уверенность в прогнозе от 0 до 1"""
+
+Где:
+- draw_potential высокий (>0.6), если: обе команды равны, xG низкий (<2.2), погода плохая, обе в середине таблицы
+- underdog_potential высокий (>0.6), если: фаворит устал (3+ матча за неделю), андердог в форме (WWDLW), фаворит потерял ключевого игрока"""
 
 
 def _parse_json_response(text: str) -> dict | None:
@@ -139,6 +152,23 @@ def _normalize(data: dict) -> dict | None:
     dr /= total
     aw /= total
 
+    score = data.get('most_likely_score', {})
+    most_likely_score = None
+    if isinstance(score, dict):
+        try:
+            home_goals = int(score.get('home', 0))
+            away_goals = int(score.get('away', 0))
+            score_prob = float(score.get('prob', 0))
+            if 0 <= home_goals <= 10 and 0 <= away_goals <= 10:
+                most_likely_score = {
+                    'home': home_goals,
+                    'away': away_goals,
+                    'prob': score_prob,
+                    'label': f"{home_goals}:{away_goals}"
+                }
+        except (TypeError, ValueError):
+            pass
+
     return {
         'home_win': hw,
         'draw': dr,
@@ -147,4 +177,9 @@ def _normalize(data: dict) -> dict | None:
         'X2': aw + dr,
         'btts': float(data.get('btts', 0.5)),
         'confidence': float(data.get('confidence', 0.6)),
+        'most_likely_score': most_likely_score,
+        'total_goals': float(data.get('total_goals', 2.5)),
+        'over_2_5': float(data.get('over_2_5', 0.5)),
+        'draw_potential': float(data.get('draw_potential', 0.5)),
+        'underdog_potential': float(data.get('underdog_potential', 0.4)),
     }
