@@ -925,17 +925,17 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
         final['1X'] = final['home_win'] + final['draw']
         final['X2'] = final['away_win'] + final['draw']
 
-    if engine == 'llm' and Config.LLM_ENABLED and match_data:
+    if engine in ('llm', 'hybrid') and Config.LLM_ENABLED and match_data:
         llm = llm_analyze_match(match_data)
         if llm:
-            alpha = 0.6
+            alpha = 0.6 if engine == 'llm' else 0.3
             for k in ('home_win', 'draw', 'away_win'):
                 final[k] = final[k] * (1 - alpha) + llm[k] * alpha
             final['1X'] = final['home_win'] + final['draw']
             final['X2'] = final['away_win'] + final['draw']
             if 'btts' in llm:
                 final['btts'] = final['btts'] * (1 - alpha) + llm['btts'] * alpha
-            logger.info(f"🤖 LLM: H={final['home_win']:.2f} D={final['draw']:.2f} A={final['away_win']:.2f}")
+            logger.info(f"🤖 LLM (α={alpha}): H={final['home_win']:.2f} D={final['draw']:.2f} A={final['away_win']:.2f}")
 
     return final
 
