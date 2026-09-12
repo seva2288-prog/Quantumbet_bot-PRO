@@ -25,6 +25,7 @@ from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
 from app.llm import llm_analyze_match
 from app.odds_rotator import OddsKeyRotator
+from app.personal import build_personal_report, get_personal_recommendations, schedule_weekly_personal_report
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
