@@ -1085,84 +1085,138 @@ def get_matches_with_factors():
     today = datetime.now().strftime('%Y-%m-%d')
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     total_leagues = len(all_leagues)
-    
+
     logger.info(f"🔍 Поиск матчей: {today}, лиг: {total_leagues}")
-    
-    # Отправляем стартовое сообщение
+
+    # === СТАРТОВОЕ СООБЩЕНИЕ ===
     send_telegram(
         f"🔎 <b>СТАРТ ПОИСКА</b>\n"
         f"📅 Дата: {today}\n"
         f"📊 Лиг к обработке: {total_leagues}\n"
-        f"⏱️ Это займёт 10-20 минут."
+        f"⏱️ Ожидаемое время: 10-20 минут\n\n"
+        f"Прогресс будет присылаться каждые 50 лиг."
     )
-    
+
     start_time = time.time()
     processed = 0
     found_total = 0
     empty_leagues = 0
-    progress_step = 50  # отправлять отчёт каждые 50 лиг
-    
+    leagues_with_matches = 0
+    progress_step = 50
+
     for league_id in all_leagues:
         try:
             matches = football_api.get_matches(league_id, today)
             league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
             processed += 1
-            
-            # Считаем найденные матчи по лиге
-            if matches:
-                found_in_league = sum(
-                    1 for m in matches
-                    if isinstance(m, dict)
-                    and m.get('fixture', {}).get('status', {}).get('short') == 'NS'
-                )
-                if found_in_league > 0:
-                    found_total += found_in_league
-                    logger.info(f"✅ {league_name}: {found_in_league} матчей")
+
+            if not matches:
+                empty_leagues += 1
+                logger.info(f"⚪ {league_name}: пусто")
+            else:
+                new_matches = 0
+                for m in matches:
+                    if not isinstance(m, dict):
+                        continue
+
+                    fixture = m.get('fixture')
+                    if not fixture or not isinstance(fixture, dict):
+                        continue
+
+                    # Только будущие матчи (Not Started)
+                    if fixture.get('status', {}).get('short') != 'NS':
+                        continue
+
+                    mid = fixture.get('id')
+                    if not mid:
+                        continue
+
+                    # Пропускаем дубли
+                    if any(x.get('fixture', {}).get('id') == mid
+                           for x in all_matches if isinstance(x, dict)):
+                        continue
+
+                    teams = m.get('teams', {})
+                    hid = teams.get('home', {}).get('id')
+                    aid = teams.get('away', {}).get('id')
+                    if not hid or not aid:
+                        continue
+
+                    # Факторы: форма, травмы
+                    m['factors'] = {
+                        'home_form': football_api.get_form(hid),
+                        'away_form': football_api.get_form(aid),
+                        'home_injuries_list': football_api.get_injuries(hid),
+                        'away_injuries_list': football_api.get_injuries(aid),
+                        'home_id': hid,
+                        'away_id': aid,
+                        'referee': fixture.get('referee')
+                    }
+
+                    # Погода
+                    weather = None
+                    venue = fixture.get('venue', {})
+                    city = venue.get('city') if isinstance(venue, dict) else None
+                    if city and Config.WEATHER_ENABLED:
+                        weather = Config.get_weather_for_city(city)
+                    m['weather'] = weather
+                    if weather:
+                        m['weather_reason'] = (
+                            f"🌤️ {weather['desc']}, {weather['temp']}°C, "
+                            f"ветер {weather['wind']} м/с, дождь {weather['rain']} мм"
+                        )
+                    else:
+                        m['weather_reason'] = "🌤️ Нет данных"
+
+                    # Название лиги
+                    ld = m.get('league', {})
+                    if isinstance(ld, dict):
+                        ld['name'] = league_name
+
+                    # ★★★ КЛЮЧЕВАЯ СТРОКА — добавляем в общий список ★★★
+                    all_matches.append(m)
+                    new_matches += 1
+
+                if new_matches > 0:
+                    found_total += new_matches
+                    leagues_with_matches += 1
+                    logger.info(f"✅ {league_name}: {new_matches} матчей")
                 else:
                     empty_leagues += 1
                     logger.info(f"⚪ {league_name}: матчей нет")
-            else:
-                empty_leagues += 1
-                logger.info(f"⚪ {league_name}: пусто")
-            
-            # Отправляем прогресс каждые N лиг
+
+            # === ПРОГРЕСС КАЖДЫЕ N ЛИГ ===
             if processed % progress_step == 0:
                 elapsed = (time.time() - start_time) / 60
                 remaining = total_leagues - processed
                 eta = (elapsed / processed) * remaining if processed > 0 else 0
-                
+
                 send_telegram(
                     f"⏳ <b>ПРОГРЕСС ПОИСКА</b>\n"
                     f"📊 Обработано: {processed}/{total_leagues}\n"
                     f"🎯 Найдено матчей: {found_total}\n"
+                    f"✅ Лиг с матчами: {leagues_with_matches}\n"
                     f"⚪ Пустых лиг: {empty_leagues}\n"
                     f"⏱️ Прошло: {elapsed:.1f} мин\n"
                     f"🕐 Осталось: ~{eta:.1f} мин"
                 )
                 logger.info(f"📢 Прогресс {processed}/{total_leagues} отправлен в Telegram")
-            
-            # Дальше твой код без изменений — обработка найденных матчей
-            if not matches:
-                continue
-            for m in matches:
-                if not isinstance(m, dict):
-                    continue
-                # ... (весь твой существующий код обработки)
-                
+
         except Exception as e:
             logger.error(f"❌ {league_id}: {e}")
         time.sleep(0.1)
-    
-    # Финальное сообщение
+
+    # === ФИНАЛЬНОЕ СООБЩЕНИЕ ===
     elapsed_total = (time.time() - start_time) / 60
     send_telegram(
         f"✅ <b>ПОИСК ЗАВЕРШЁН</b>\n"
         f"📊 Обработано лиг: {processed}/{total_leagues}\n"
         f"🎯 Всего матчей найдено: {found_total}\n"
+        f"✅ Лиг с матчами: {leagues_with_matches}\n"
         f"⚪ Пустых лиг: {empty_leagues}\n"
         f"⏱️ Время: {elapsed_total:.1f} мин"
     )
-    
+
     logger.info(f"📊 Найдено матчей: {len(all_matches)}")
     return all_matches
 
