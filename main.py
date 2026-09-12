@@ -10,7 +10,7 @@ import functools
 from datetime import datetime, timedelta
 from threading import Lock, Thread
 from collections import defaultdict
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # ============================================================
@@ -28,7 +28,7 @@ from app.odds_rotator import OddsKeyRotator
 # ИНИЦИАЛИЗАЦИЯ
 # ============================================================
 logger = get_logger(__name__)
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
 search_running = False
 search_state = {}
@@ -1477,9 +1477,7 @@ class BetVerificationSystem:
         if bank > 0 and (stake / bank) * 100 > self.thresholds['max_stake_percent']:
             self.warnings.append(f"Ставка {stake:.2f} > 10% банка")
 
-    def _check_league(self, bd):
-        if bd.get('league') in TOP_LEAGUES and bd.get('ev', 0) < 25:
-            self.warnings.append(f"Топ-лига, EV {bd.get('ev')}% < 25%")
+     25%")
 
     def _check_form(self, bd):
         if bd.get('home_form', '').endswith('LLL'):
@@ -2187,7 +2185,11 @@ def health():
 
 @app.route('/', methods=['GET'])
 def index():
-    return f"🤖 Quantum Bot PRO | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Ошибка рендера index.html: {e}")
+        return f"🤖 Quantum Bot PRO | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 
 # ============================================================
