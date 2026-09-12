@@ -7,6 +7,8 @@ import logging
 import random
 import math
 import functools
+import zipfile
+import shutil
 from datetime import datetime, timedelta
 from threading import Lock, Thread
 from collections import defaultdict
@@ -243,6 +245,110 @@ def send_error_to_telegram(error_text: str):
         }, timeout=5)
     except Exception as e:
         logger.error(f"Не удалось отправить ошибку: {e}")
+
+
+# ============================================================
+# АВТОБЭКАП В TELEGRAM
+# ============================================================
+BACKUP_DIR = 'backups'
+MAX_BACKUPS = 7
+
+
+def cleanup_old_backups():
+    """Удаляет старые бэкапы, оставляет только последние MAX_BACKUPS."""
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        files = sorted(
+            [f for f in os.listdir(BACKUP_DIR) if f.startswith('backup_') and f.endswith('.zip')],
+            reverse=True
+        )
+        for old in files[MAX_BACKUPS:]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, old))
+                logger.info(f"🗑️ Удалён старый бэкап: {old}")
+            except Exception as e:
+                logger.error(f"Ошибка удаления {old}: {e}")
+    except Exception as e:
+        logger.error(f"❌ cleanup_old_backups: {e}")
+
+
+def send_auto_backup():
+    """Создаёт zip со всеми данными и отправляет в Telegram."""
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
+
+        # Что складываем в архив
+        items_to_backup = ['data', 'bot.db', 'bot_state.json', 'matches_log.txt']
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for item in items_to_backup:
+                if os.path.exists(item):
+                    if os.path.isdir(item):
+                        for root, _, files in os.walk(item):
+                            for f in files:
+                                full = os.path.join(root, f)
+                                arcname = os.path.relpath(full, '.')
+                                zf.write(full, arcname)
+                    else:
+                        zf.write(item, item)
+
+        size_kb = os.path.getsize(zip_path) / 1024
+
+        # Статистика для сообщения
+        history = storage.load_history()
+        bank = storage.load_bank()
+        total_bets = len(history)
+        wins = sum(1 for b in history if b.get('result') == 'win')
+
+        # Отправляем в Telegram
+        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
+        with open(zip_path, 'rb') as f:
+            r = requests.post(
+                url,
+                files={'document': (os.path.basename(zip_path), f, 'application/zip')},
+                data={
+                    'chat_id': Config.ADMIN_CHAT_ID,
+                    'caption': (
+                        f"💾 <b>АВТОБЭКАП</b>\n"
+                        f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+                        f"📦 Размер: {size_kb:.1f} КБ\n"
+                        f"📊 Ставок: {total_bets} | Побед: {wins}\n"
+                        f"💰 Банк: ${bank:.2f}"
+                    ),
+                    'parse_mode': 'HTML'
+                },
+                timeout=60
+            )
+
+        if r.status_code == 200:
+            logger.info(f"💾 Бэкап отправлен: {zip_path} ({size_kb:.1f} КБ)")
+            cleanup_old_backups()
+            return zip_path
+        else:
+            logger.error(f"❌ Ошибка отправки бэкапа: {r.text}")
+            return None
+
+    except Exception as e:
+        logger.error(f"❌ send_auto_backup: {e}")
+        send_error_to_telegram(f"Ошибка автобэкапа: {e}")
+        return None
+
+
+def schedule_auto_backup():
+    """Расписание: бэкап каждый день в 3:00 ночи."""
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=send_auto_backup,
+        trigger='cron',
+        hour=3,
+        minute=0,
+        id='auto_backup',
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("⏰ Автобэкап: каждый день в 3:00")
 
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
@@ -1847,6 +1953,14 @@ def webhook():
                 except Exception as e:
                     logger.error(f"Ошибка отправки файла: {e}")
 
+        elif text == '/backup':
+            send_telegram("💾 Создаю бэкап...")
+            result = send_auto_backup()
+            if result:
+                send_telegram("✅ Бэкап отправлен!")
+            else:
+                send_telegram("❌ Ошибка бэкапа. Смотри логи.")
+
         elif text == '/autobet':
             auto_bet.enabled = not auto_bet.enabled
             send_telegram(handlers.handle_autobet(auto_bet.enabled))
@@ -2279,6 +2393,7 @@ if __name__ == "__main__":
     schedule_updates()
     schedule_notifications()
     schedule_performance_report()
+    schedule_auto_backup()
 
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН")
