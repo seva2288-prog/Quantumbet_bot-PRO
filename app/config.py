@@ -28,7 +28,6 @@ class Config:
     BACKUP_ODDS_KEYS = [k.strip() for k in os.getenv("BACKUP_ODDS_KEYS", "").split(",") if k.strip()]
 
     # === LLM ===
-    # === LLM ===
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
     LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-7a3401ec6b5f4f9fa33aede55a00f427")
     LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-reasoner")
