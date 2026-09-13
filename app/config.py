@@ -61,6 +61,11 @@ class Config:
     LIMIT_LEAGUE_70 = 2
     MIN_ODD_70 = 1.65
 
+    # === ФИНАЛЬНЫЙ ФИЛЬТР (после обновления кэфов) ===
+    EV_FINAL_MIN = 10                                      
+    EV_FINAL_MAX = 100                                     
+    PROB_FINAL_MIN = 70                                    
+
     # === ТМ 2.5 (мертвые, но совместимые с bot_settings.json) ===
     MAX_TM25_BETS = 0
     MIN_TM25_EV = 99
