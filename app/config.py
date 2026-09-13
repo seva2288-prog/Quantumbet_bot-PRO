@@ -62,7 +62,7 @@ class Config:
     MIN_ODD_70 = 1.65
 
     # === ФИНАЛЬНЫЙ ФИЛЬТР (после обновления кэфов) ===
-    EV_FINAL_MIN = 10                                      
+    EV_FINAL_MIN = 8                                      
     EV_FINAL_MAX = 100                                     
     PROB_FINAL_MIN = 70                                    
 
