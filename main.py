@@ -659,7 +659,6 @@ class FootballAPI:
         return None
 
     def _extract_best_odds(self, odds_data):
-        """Собирает лучшие кэфы + список ВСЕХ букмекеров для анализа линий."""
         result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
                   'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
                   'all_bookmakers': {}}
@@ -1039,7 +1038,19 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
         final['1X'] = final['home_win'] + final['draw']
         final['X2'] = final['away_win'] + final['draw']
 
-    if engine in ('llm', 'hybrid') and Config.LLM_ENABLED and match_data:
+    # ============================================================
+    # ★ УСКОРЕНИЕ: DeepSeek только для перспективных матчей ★
+    # ============================================================
+    best_base_prob = max(
+        final.get('1X', 0),
+        final.get('X2', 0),
+        final.get('home_win', 0),
+        final.get('away_win', 0)
+    )
+    base_ev = (best_base_prob * 1.85 - 1) * 100
+
+    if (engine in ('llm', 'hybrid') and Config.LLM_ENABLED
+            and match_data and base_ev > 5):
         llm = llm_analyze_match(match_data)
         if llm:
             alpha = 0.6 if engine == 'llm' else 0.3
@@ -1521,7 +1532,6 @@ def find_top_matches(matches):
             if hp > POS_MAX or ap > POS_MAX:
                 continue
 
-            # Извлекаем очки и разницу мячей
             home_data = standings.get(home, {}) if standings else {}
             away_data = standings.get(away, {}) if standings else {}
             home_points = home_data.get('points', 0)
@@ -1583,9 +1593,7 @@ def find_top_matches(matches):
                     'odds': odd, 'stake': stake
                 })
 
-            # ============================================================
             # ★ СТРАТЕГИЯ "НИЧЬЯ" ★
-            # ============================================================
             draw_potential = probs.get('draw_potential', 0.5)
             draw_prob = probs.get('draw', 0.25)
 
@@ -1607,9 +1615,7 @@ def find_top_matches(matches):
                         f"Potential: {draw_potential:.2f} | EV: {draw_ev:.1f}%"
                     )
 
-            # ============================================================
             # ★ СТРАТЕГИЯ "АНДЕРДОГ" ★
-            # ============================================================
             underdog_potential = probs.get('underdog_potential', 0.4)
 
             underdog_is_home = False
@@ -1696,20 +1702,27 @@ def find_top_matches_with_tm25(matches):
 
     result = update_odds_for_matches(result)
 
+    # ★ ФИНАЛЬНЫЙ ФИЛЬТР из Config ★
+    EV_MIN = getattr(Config, 'EV_FINAL_MIN', 10)
+    EV_MAX = getattr(Config, 'EV_FINAL_MAX', 100)
+    PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 70)
+
+    logger.info(f"🎯 Финальный фильтр: EV {EV_MIN}-{EV_MAX}%, Prob ≥ {PROB_MIN}%")
+
     filtered = []
     for m in result:
         bb = m.get('best_bet', {})
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
-        if ev < 10 or ev > 100:
-            logger.info(f"⏭️ Отсев после кэфов: {m.get('home')} vs {m.get('away')} | EV: {ev}%")
+        if ev < EV_MIN or ev > EV_MAX:
+            logger.info(f"⏭️ Отсев по EV: {m.get('home')} vs {m.get('away')} | EV: {ev}%")
             continue
-        if prob < 55:
+        if prob < PROB_MIN:
             logger.info(f"⏭️ Отсев по Prob: {m.get('home')} vs {m.get('away')} | Prob: {prob}%")
             continue
         filtered.append(m)
 
-    logger.info(f"📊 После финального фильтра EV 10-100%: {len(filtered)} из {len(result)}")
+    logger.info(f"📊 После финального фильтра EV {EV_MIN}-{EV_MAX}% + Prob ≥ {PROB_MIN}%: {len(filtered)} из {len(result)}")
 
     result = filtered
 
@@ -2046,7 +2059,7 @@ def webhook():
                                         f"🏷️ {b.get('bookmaker', '—')}\n\n")
                             send_telegram(msg)
                         else:
-                            send_telegram("❌ Ничего не найдено (фильтр EV 10-100% + Prob 55%)")
+                            send_telegram("❌ Ничего не найдено (фильтр EV 10-100% + Prob 70%)")
                     else:
                         send_telegram("❌ Матчей нет")
                 finally:
