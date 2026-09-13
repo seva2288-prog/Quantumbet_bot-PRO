@@ -24,7 +24,6 @@ from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
 from app.llm import llm_analyze_match, llm_analyze_batch
-from app.odds_rotator import OddsKeyRotator
 
 # ============================================================
 # ИНИЦИАЛИЗАЦИЯ
@@ -38,7 +37,6 @@ TIMEZONE_OFFSET = 3
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
-# ★ NEW: топ-лиги, где матчи с обеими командами в топ-6 пропускаются
 TOP_TEAMS_LEAGUES = [
     'Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1',
     'Champions League', 'UEFA Champions League',
@@ -443,6 +441,7 @@ class FootballAPI:
 
     @timing_decorator()
     def get_form(self, team_id):
+        """xG вместо голов (с fallback)."""
         cache_key = f"form_{team_id}"
         cached = self.cache.get(cache_key, data_type='form')
         if cached is not None:
@@ -452,22 +451,40 @@ class FootballAPI:
             if data and 'response' in data:
                 matches = data['response']
                 if matches:
-                    gs, gc = [], []
+                    xg_scored = []
+                    xg_conceded = []
                     w = d = l = 0
                     for m in matches:
                         goals = m.get('goals', {})
                         teams = m.get('teams', {})
-                        if teams.get('home', {}).get('id') == team_id:
+                        fid = m.get('fixture', {}).get('id')
+                        stats = self.get_match_statistics(fid) if fid else None
+
+                        is_home = teams.get('home', {}).get('id') == team_id
+                        if is_home:
                             s, c = goals.get('home', 0) or 0, goals.get('away', 0) or 0
                         else:
                             s, c = goals.get('away', 0) or 0, goals.get('home', 0) or 0
-                        gs.append(s); gc.append(c)
+
+                        xg_val = None
+                        if stats:
+                            for tn, tstats in stats.items():
+                                xg_entry = tstats.get('Expected Goals', 0)
+                                if tn == teams.get('home', {}).get('name') and is_home:
+                                    xg_val = xg_entry
+                                elif tn == teams.get('away', {}).get('name') and not is_home:
+                                    xg_val = xg_entry
+
+                        xg_scored.append(xg_val if xg_val is not None else s)
+                        xg_conceded.append(c)
+
                         if s > c: w += 1
                         elif s == c: d += 1
                         else: l += 1
+
                     result = {
-                        'goals_avg': round(sum(gs) / len(gs), 2),
-                        'conceded_avg': round(sum(gc) / len(gc), 2),
+                        'goals_avg': round(sum(xg_scored) / len(xg_scored), 2),
+                        'conceded_avg': round(sum(xg_conceded) / len(xg_conceded), 2),
                         'wins': w, 'draws': d, 'losses': l,
                         'matches': len(matches),
                         'form': self._calculate_form(matches, team_id)
@@ -645,7 +662,7 @@ class FootballAPI:
         if cached is not None:
             return cached
         try:
-            data = self._make_request('/fixtures/odds', {'fixture': fixture_id})
+            data = self._make_request('/odds', {'fixture': fixture_id})
             if data and 'response' in data:
                 result = self._extract_best_odds(data['response'])
                 if result.get('best_odds', 0) > 0:
@@ -655,10 +672,37 @@ class FootballAPI:
             logger.error(f"Ошибка кэфов {fixture_id}: {e}")
         return None
 
+    @timing_decorator()
+    def get_predictions(self, fixture_id):
+        cache_key = f"pred_{fixture_id}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            data = self._make_request('/predictions', {'fixture': fixture_id})
+            if data and 'response' in data and data['response']:
+                pred = data['response'][0].get('predictions', {})
+                percent = pred.get('percent', {})
+                result = {
+                    'home_win': self._parse_percent(percent.get('home', '0%')),
+                    'draw': self._parse_percent(percent.get('draw', '0%')),
+                    'away_win': self._parse_percent(percent.get('away', '0%')),
+                }
+                self.cache.set(cache_key, result)
+                return result
+        except Exception as e:
+            logger.error(f"Ошибка predictions {fixture_id}: {e}")
+        return None
+
+    def _parse_percent(self, s):
+        try:
+            return float(str(s).replace('%', '').strip()) / 100.0
+        except (ValueError, TypeError):
+            return 0.0
+
     def _extract_best_odds(self, odds_data):
         result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
                   'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
-                  'x2_odds': 0, '1x_odds': 0,
                   'all_bookmakers': {}}
 
         for bm in odds_data:
@@ -670,7 +714,7 @@ class FootballAPI:
                 values = bet.get('values', [])
                 if not values:
                     continue
-                if 'match' in bn or 'побед' in bn:
+                if 'match' in bn or 'побед' in bn or '1x2' in bn:
                     for v in values:
                         vn = v.get('value', '').lower()
                         odd = v.get('odd', 0)
@@ -688,7 +732,7 @@ class FootballAPI:
                         if odd > result['best_odds']:
                             result['best_odds'] = odd
                             result['bookmaker'] = bm_name
-                if 'total' in bn:
+                if 'total' in bn or 'over/under' in bn:
                     for v in values:
                         vn = v.get('value', '').lower()
                         odd = v.get('odd', 0)
@@ -699,34 +743,7 @@ class FootballAPI:
                         elif 'over' in vn:
                             result['over_odds'] = max(result['over_odds'], odd)
 
-            h = bm_data.get('home', 0)
-            d = bm_data.get('draw', 0)
-            a = bm_data.get('away', 0)
-
-            if h > 0 and d > 0 and a > 0:
-                p_h, p_d, p_a = 1/h, 1/d, 1/a
-                p_margin = p_h + p_d + p_a - 1.0
-                if p_h + p_d + p_a > 0:
-                    p_h_fair = p_h * (1 - p_margin * p_h / (p_h + p_d + p_a))
-                    p_d_fair = p_d * (1 - p_margin * p_d / (p_h + p_d + p_a))
-                    p_a_fair = p_a * (1 - p_margin * p_a / (p_h + p_d + p_a))
-                else:
-                    p_h_fair, p_d_fair, p_a_fair = p_h, p_d, p_a
-
-                x2_fair = p_d_fair + p_a_fair
-                x1_fair = p_h_fair + p_d_fair
-
-                if x2_fair > 0:
-                    bm_data['x2'] = round(1 / x2_fair, 2)
-                if x1_fair > 0:
-                    bm_data['1x'] = round(1 / x1_fair, 2)
-
-                if bm_data.get('x2', 0) > result['x2_odds']:
-                    result['x2_odds'] = bm_data['x2']
-                if bm_data.get('1x', 0) > result['1x_odds']:
-                    result['1x_odds'] = bm_data['1x']
-
-            if h > 0 or d > 0 or a > 0:
+            if bm_data.get('home', 0) > 0 or bm_data.get('draw', 0) > 0 or bm_data.get('away', 0) > 0:
                 result['all_bookmakers'][bm_name] = bm_data
 
         return result
@@ -751,112 +768,6 @@ class FootballAPI:
 
 
 football_api = FootballAPI()
-
-
-# ============================================================
-# ODDS API
-# ============================================================
-class OddsAPIClient:
-    def __init__(self, api_key=None):
-        self.api_key = api_key or Config.ODDS_API_KEY
-        self.base_url = Config.ODDS_API_URL
-        self.cache = SmartCache(max_size=200)
-        self.last_request_time = 0
-        self.min_request_interval = 0.5
-        self.rate_limiter = APIRateLimiter(max_requests=50, time_window=60)
-        self.retry_manager = RetryManager(max_retries=2, base_delay=0.5)
-        try:
-            self.rotator = OddsKeyRotator()
-        except ValueError:
-            self.rotator = None
-            logger.warning("⚠️ Ротатор ключей Odds API не инициализирован")
-        logger.info(f"🎯 Odds API ключ: {self.api_key[:8]}..." if self.api_key else "❌ Odds API КЛЮЧ НЕ НАЙДЕН!")
-
-    def _make_request(self, endpoint, params=None):
-        try:
-            self.rate_limiter.wait_if_needed()
-            return self.retry_manager.retry(self._make_request_impl, endpoint, params)
-        except Exception as e:
-            logger.error(f"❌ Ошибка Odds API: {e}")
-            return None
-
-    def _make_request_impl(self, endpoint, params=None):
-        now = time.time()
-        if now - self.last_request_time < self.min_request_interval:
-            time.sleep(self.min_request_interval - (now - self.last_request_time))
-        url = f"{self.base_url}{endpoint}"
-        params = params or {}
-        params['apiKey'] = self.api_key
-        r = requests.get(url, params=params, timeout=Config.REQUEST_TIMEOUT)
-        self.last_request_time = time.time()
-        if r.status_code == 200:
-            return r.json()
-        if r.status_code == 429:
-            logger.warning("⏳ Odds API: 429, ротация")
-            new_key = self.rotator.rotate() if self.rotator else None
-            if new_key:
-                self.api_key = new_key
-                raise APIErrorRetry("Odds API 429 → смена ключа")
-            retry_after = int(r.headers.get('Retry-After', 60))
-            time.sleep(retry_after)
-            raise APIErrorRetry("Odds API rate limit")
-        if r.status_code == 401:
-            logger.error("❌ Odds API: 401")
-            new_key = self.rotator.rotate() if self.rotator else None
-            if new_key:
-                self.api_key = new_key
-                raise APIErrorRetry("Odds API 401 → смена ключа")
-        logger.error(f"❌ Odds API {r.status_code}")
-        return None
-
-    @timing_decorator()
-    def get_odds_for_match(self, home_team, away_team, league):
-        cache_key = f"odds_{home_team}_{away_team}_{league}"
-        cached = self.cache.get(cache_key, data_type='odds')
-        if cached is not None:
-            return cached
-        try:
-            sport_key = Config.ODDS_SPORT_MAP.get(league, 'soccer_epl')
-            data = self._make_request(f"/sports/{sport_key}/odds", {
-                'regions': 'eu', 'markets': 'h2h,totals', 'oddsFormat': 'decimal'
-            })
-            if data:
-                for event in data:
-                    eh = event.get('home_team', '').lower()
-                    ea = event.get('away_team', '').lower()
-                    hl, al = home_team.lower(), away_team.lower()
-                    if (hl in eh or eh in hl) and (al in ea or ea in al):
-                        result = self._extract_odds(event)
-                        self.cache.set(cache_key, result)
-                        return result
-        except Exception as e:
-            logger.error(f"❌ Ошибка Odds API: {e}")
-        return None
-
-    def _extract_odds(self, event):
-        result = {'best_odds': 0, 'bookmaker_name': '—', 'home_odds': 0,
-                  'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0}
-        for bm in event.get('bookmakers', []):
-            bmk = bm.get('key', '')
-            for market in bm.get('markets', []):
-                mk = market.get('key', '')
-                for o in market.get('outcomes', []):
-                    name = o.get('name', '')
-                    price = o.get('price', 0)
-                    if mk == 'h2h':
-                        if name == event.get('home_team'):
-                            result['home_odds'] = max(result['home_odds'], price)
-                        elif name == event.get('away_team'):
-                            result['away_odds'] = max(result['away_odds'], price)
-                        elif name == 'Draw':
-                            result['draw_odds'] = max(result['draw_odds'], price)
-                    if price > result['best_odds']:
-                        result['best_odds'] = price
-                        result['bookmaker_name'] = bmk
-        return result
-
-
-odds_api = OddsAPIClient()
 
 
 # ============================================================
@@ -1040,20 +951,27 @@ def calculate_h2h_probability(h2h_data):
     return prob
 
 
-def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match_data=None):
+def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
+                          match_data=None, api_predictions=None):
     engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
     poisson = calculate_poisson_probability(home_xg, away_xg)
     form_prob = calculate_form_probability(home_form, away_form)
     h2h_prob = calculate_h2h_probability(h2h_data)
 
     if engine == 'hybrid':
-        w_p, w_f, w_h = 0.45, 0.35, 0.20
+        w_p, w_f, w_h = 0.40, 0.30, 0.15
     else:
         w_p, w_f, w_h = 0.5, 0.3, 0.2
 
     final = {}
     for k in poisson:
         final[k] = poisson[k] * w_p + form_prob.get(k, 0) * w_f + h2h_prob.get(k, 0) * w_h
+
+    if api_predictions:
+        w_api = 0.15
+        final['home_win'] = final.get('home_win', 0) * (1 - w_api) + api_predictions.get('home_win', 0) * w_api
+        final['draw'] = final.get('draw', 0) * (1 - w_api) + api_predictions.get('draw', 0) * w_api
+        final['away_win'] = final.get('away_win', 0) * (1 - w_api) + api_predictions.get('away_win', 0) * w_api
 
     total = final['home_win'] + final['draw'] + final['away_win']
     if total > 0:
@@ -1067,7 +985,6 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
 
 
 def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
-    """★ NEW: alpha по умолчанию 0.7 — LLM доминирует над эвристикой."""
     if not llm:
         return
     key_map = {
@@ -1179,7 +1096,7 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ КЭФОВ
+# ОБНОВЛЕНИЕ КЭФОВ + СНИМОК В ИСТОРИЮ
 # ============================================================
 def update_odds_for_matches(matches):
     updated = []
@@ -1202,41 +1119,7 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
-            # 1. Odds API
-            od = odds_api.get_odds_for_match(home, away, league)
-            if od and od.get('best_odds', 0) > 0:
-                h_o = od.get('home_odds', 0)
-                d_o = od.get('draw_odds', 0)
-                a_o = od.get('away_odds', 0)
-
-                if bt == 'X2' and d_o > 0 and a_o > 0:
-                    new_odds = round((d_o * a_o) / (d_o + a_o), 2)
-                    bookmaker = od.get('bookmaker_name', 'Odds API')
-                    source = 'Odds API (X2 расчет)'
-                elif bt == '1X' and h_o > 0 and d_o > 0:
-                    new_odds = round((h_o * d_o) / (h_o + d_o), 2)
-                    bookmaker = od.get('bookmaker_name', 'Odds API')
-                    source = 'Odds API (1X расчет)'
-                elif bt in ('П1', '1') and h_o > 0:
-                    new_odds = h_o
-                    bookmaker = od.get('bookmaker_name', 'Odds API')
-                    source = 'Odds API'
-                elif bt in ('П2', '2') and a_o > 0:
-                    new_odds = a_o
-                    bookmaker = od.get('bookmaker_name', 'Odds API')
-                    source = 'Odds API'
-                elif bt == 'draw' and d_o > 0:
-                    new_odds = d_o
-                    bookmaker = od.get('bookmaker_name', 'Odds API')
-                    source = 'Odds API'
-                else:
-                    new_odds = od.get('best_odds', 0)
-                    if new_odds:
-                        bookmaker = od.get('bookmaker_name', 'Odds API')
-                        source = 'Odds API'
-
-            # 2. Football API
-            if not new_odds and fid:
+            if fid:
                 fo = football_api.get_match_odds(fid)
                 if fo:
                     bm_list = fo.get('all_bookmakers', {})
@@ -1271,14 +1154,13 @@ def update_odds_for_matches(matches):
                             bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
                             source = 'Line Analysis'
 
-                            # ★ NEW: аномалия > 5% → бонус к EV
                             if anomaly_pct > 5:
                                 logger.info(
                                     f"🎯 АНОМАЛИЯ: {home} vs {away} | "
                                     f"{best_bm} даёт {best_odds} (+{anomaly_pct:.1f}%)"
                                 )
                                 prob = best_bet.get('prob', 0) / 100
-                                anomaly_bonus = min(anomaly_pct / 100, 0.10)  # максимум +10%
+                                anomaly_bonus = min(anomaly_pct / 100, 0.10)
                                 boosted_prob = min(prob + anomaly_bonus, 0.95)
                                 best_bet['prob'] = round(boosted_prob * 100, 1)
                                 best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
@@ -1332,6 +1214,31 @@ def update_odds_for_matches(matches):
                 best_bet['odds_source'] = source
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
+
+                # ★ NEW: снимок кэфа в историю (для line movement / CLV)
+                try:
+                    market_map = {
+                        'draw': ('1X2', 'X'),
+                        'draw_boosted': ('1X2', 'X'),
+                        'btts': ('BTTS', 'BTTS'),
+                        'over25': ('O/U 2.5', 'Over'),
+                        'under25': ('O/U 2.5', 'Under'),
+                        'underdog': ('1X2', 'Underdog'),
+                        'П1': ('1X2', '1'),
+                        'П2': ('1X2', '2'),
+                        '1X': ('DC', '1X'),
+                        'X2': ('DC', 'X2'),
+                    }
+                    mkt, sel = market_map.get(bt, (bt, 'unknown'))
+                    storage.save_odds_snapshot(
+                        fixture_id=fid,
+                        market=mkt,
+                        selection=sel,
+                        odds=new_odds,
+                        bookmaker=bookmaker
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка записи снимка кэфа: {e}")
 
             updated.append(md)
         except Exception as e:
@@ -1522,6 +1429,76 @@ def recalc_stats():
 
 
 # ============================================================
+# СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ (line movement / CLV)
+# ============================================================
+def snapshot_odds_for_upcoming():
+    """
+    ★ NEW: Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
+    Нужно для line movement (движение кэфов) и CLV (closing line value).
+    """
+    try:
+        cache = storage.load_cache()
+        matches = cache.get('top_matches', [])
+        if not matches:
+            return 0
+
+        now = datetime.now()
+        total_snapshots = 0
+
+        for md in matches:
+            try:
+                match_time_str = md.get('match_time', '')
+                if not match_time_str or match_time_str == '?':
+                    continue
+
+                try:
+                    match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+                except ValueError:
+                    continue
+
+                hours_to_match = (match_dt - now).total_seconds() / 3600
+                if not (0 < hours_to_match <= 2):
+                    continue
+
+                fid = md.get('fixture_id')
+                if not fid:
+                    continue
+
+                fo = football_api.get_match_odds(fid)
+                if not fo:
+                    continue
+
+                for mkt, sel, key in [
+                    ('1X2', '1', 'home_odds'),
+                    ('1X2', 'X', 'draw_odds'),
+                    ('1X2', '2', 'away_odds'),
+                ]:
+                    odd = fo.get(key, 0)
+                    if odd and odd > 1.01:
+                        ok = storage.save_odds_snapshot(
+                            fixture_id=fid,
+                            market=mkt,
+                            selection=sel,
+                            odds=odd,
+                            bookmaker=fo.get('bookmaker', '—')
+                        )
+                        if ok:
+                            total_snapshots += 1
+
+            except Exception as e:
+                logger.error(f"Ошибка snapshot для {md.get('home')}: {e}")
+                continue
+
+        if total_snapshots > 0:
+            logger.info(f"📸 Снимков кэфов (ближайшие 2ч): {total_snapshots}")
+
+        return total_snapshots
+    except Exception as e:
+        logger.error(f"❌ snapshot_odds_for_upcoming: {e}")
+        return 0
+
+
+# ============================================================
 # ПОИСК ТОП-МАТЧЕЙ
 # ============================================================
 @timing_decorator()
@@ -1619,7 +1596,6 @@ def find_top_matches(matches):
             if hp > POS_MAX or ap > POS_MAX:
                 continue
 
-            # ★ NEW: топ-матчи (обе команды в топ-6 топ-лиги) — скип
             if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6:
                 logger.info(f"⏭️ Топ-матч пропущен: {home} vs {away} ({league_name})")
                 continue
@@ -1632,6 +1608,8 @@ def find_top_matches(matches):
             away_gd = away_data.get('goals_diff', 0)
 
             h2h = football_api.get_head_to_head(home, away)
+            api_predictions = football_api.get_predictions(fid) if fid else None
+
             probs = ensemble_probability(
                 home_xg, away_xg, home_form, away_form, h2h,
                 match_data={
@@ -1648,7 +1626,8 @@ def find_top_matches(matches):
                     'weather_reason': match.get('weather_reason', 'нет'),
                     'home_injuries': match.get('factors', {}).get('home_injuries_list', []),
                     'away_injuries': match.get('factors', {}).get('away_injuries_list', [])
-                }
+                },
+                api_predictions=api_predictions
             )
 
             if hm == 'relegation' and am == 'mid_table':
@@ -1748,6 +1727,7 @@ def find_top_matches(matches):
                               "home_goals_diff": home_gd, "away_goals_diff": away_gd},
                 "bets": bets, "best_bet": best_bet,
                 "weather_reason": match.get('weather_reason', ''),
+                "api_predictions": api_predictions,
                 "factors": {}, "source": "70_percent"
             })
             logger.info(f"✅ {home} vs {away} | {best_bet['label']} | Prob: {best_bet['prob']}%")
@@ -1758,7 +1738,6 @@ def find_top_matches(matches):
     best_matches.sort(key=lambda x: x['best_bet']['prob'], reverse=True)
     top = best_matches[:max_bets]
 
-    # LLM батч для топ-20
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
             llm_payload = [
@@ -1777,7 +1756,6 @@ def find_top_matches(matches):
             llm_results = llm_analyze_batch(llm_payload)
             logger.info(f"🤖 LLM батч завершён за {time.time() - t0:.1f}с")
 
-            # ★ NEW: alpha=0.7 — LLM доминирует
             for m, llm in zip(top[:20], llm_results):
                 if llm:
                     _apply_llm_to_match(m, llm, alpha=0.7)
@@ -1803,7 +1781,6 @@ def find_top_matches_with_tm25(matches):
         m['bets'] = bets
         m['best_bet'] = bets[0]
 
-    # ★ NEW: EV_FINAL_MIN = 0
     EV_MIN = getattr(Config, 'EV_FINAL_MIN', 0)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 100)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 55)
@@ -2242,7 +2219,16 @@ def webhook():
             auto_bet.enabled = not auto_bet.enabled
             send_telegram(handlers.handle_autobet(auto_bet.enabled))
         elif text == '/status':
-            send_telegram(bot_state.get_status_report())
+            report = bot_state.get_status_report()
+            try:
+                oh_size = storage.get_odds_history_size()
+                report += (f"\n📊 История кэфов: "
+                           f"{oh_size['matches']} матчей, "
+                           f"{oh_size['snapshots']} снимков, "
+                           f"{oh_size['size_kb']} КБ")
+            except Exception as e:
+                logger.error(f"Ошибка статуса истории кэфов: {e}")
+            send_telegram(report)
         elif text == '/stop':
             search_running = False
             search_state = {}
@@ -2361,6 +2347,26 @@ if __name__ == "__main__":
     schedule_notifications()
     schedule_performance_report()
     schedule_auto_backup()
+
+    # ★ NEW: cron для снимков кэфов каждые 30 мин + очистка раз в сутки
+    odds_scheduler = BackgroundScheduler()
+    odds_scheduler.add_job(
+        func=snapshot_odds_for_upcoming,
+        trigger='interval',
+        minutes=30,
+        id='odds_snapshot',
+        replace_existing=True,
+        max_instances=1
+    )
+    odds_scheduler.add_job(
+        func=lambda: storage.cleanup_old_odds_history(days=30),
+        trigger='cron',
+        hour=4, minute=0,
+        id='odds_cleanup',
+        replace_existing=True
+    )
+    odds_scheduler.start()
+    logger.info("📸 Снимки кэфов: каждые 30 минут | Очистка: 4:00")
 
     port = int(os.environ.get("PORT", 10000))
     logger.info("🚀 БОТ ЗАПУЩЕН")
