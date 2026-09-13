@@ -29,10 +29,11 @@ class Config:
 
     # === LLM ===
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
-    LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-7a3401ec6b5f4f9fa33aede55a00f427")
-    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-reasoner")
-    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", LLM_API_KEY)   # ← НОВАЯ
-    LLM_ENABLED = bool(LLM_API_KEY)
+    LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", LLM_API_KEY or "")
+    # ★ V3 вместо R1 — быстрее в 5-10 раз, дешевле, JSON mode стабильный
+    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+    LLM_ENABLED = bool(DEEPSEEK_API_KEY or LLM_API_KEY)
 
     # === ИНФРАСТРУКТУРА ===
     DATABASE_URL = os.getenv("DATABASE_URL", "bot.db")
@@ -42,8 +43,9 @@ class Config:
 
     # === PREDICTION ENGINE ===
     PREDICTION_ENGINE = os.getenv("PREDICTION_ENGINE", "heuristic")
-    MIN_ODDS = 1.50
-    MAX_ODDS = 3.50
+    MIN_ODDS = 1.55            # ★ было 1.50 → режем совсем дешёвые
+    MAX_ODDS = 6.00            # ★ расширено: ничьи/андердоги живут до 6.0
+    MAX_ODDS_SAFE = 3.50       # для «безопасных» рынков (1X, X2 если оставишь)
     MIN_CONFIDENCE = 0.60
 
     # === СТАВКИ ===
@@ -57,14 +59,14 @@ class Config:
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
-    LIMIT_BET_TYPE_70 = 15
-    LIMIT_LEAGUE_70 = 2
+    LIMIT_BET_TYPE_70 = 15     # ★ было 3 → фактически снято
+    LIMIT_LEAGUE_70 = 5        # ★ было 2 → расширено
     MIN_ODD_70 = 1.65
 
     # === ФИНАЛЬНЫЙ ФИЛЬТР (после обновления кэфов) ===
-    EV_FINAL_MIN = 5                                      
-    EV_FINAL_MAX = 100                                     
-    PROB_FINAL_MIN = 60                                    
+    EV_FINAL_MIN = 3           # ★ было 5 → больше ставок
+    EV_FINAL_MAX = 100
+    PROB_FINAL_MIN = 55        # ★ было 60 → больше ставок
 
     # === ТМ 2.5 (мертвые, но совместимые с bot_settings.json) ===
     MAX_TM25_BETS = 0
@@ -244,7 +246,6 @@ class Config:
         season = season or cls.USE_SEASON
         leagues, names = [], {}
 
-        # Стоп-слова: женские, юношеские, региональные, низшие дивизионы
         EXCLUDE_WORDS = [
             'women', 'womens', 'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
             'youth', 'reserve', 'academy', 'amateur',
@@ -379,7 +380,7 @@ class Config:
 
         print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'} | городов: {len(cls.CITY_COORDS)}")
         print(f"🧠 PREDICTION_ENGINE: {cls.PREDICTION_ENGINE}")
-        print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER})")
+        print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER}) | модель: {cls.LLM_MODEL}")
         print(f"🔑 Резервных Odds-ключей: {len(cls.BACKUP_ODDS_KEYS)}")
         print(f"📢 CHANNEL_ID: {'задан' if cls.CHANNEL_ID else 'не задан'}")
         print(f"📅 Сезон: {cls.USE_SEASON}")
