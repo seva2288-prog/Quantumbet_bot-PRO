@@ -55,11 +55,11 @@ class Config:
     EV_MIN_70 = 15
     PROB_MIN_70 = 55
     POSITION_MAX_70 = 15
-
-    # === ФИНАЛЬНЫЙ ФИЛЬТР (после обновления кэфов) ===
-    EV_FINAL_MIN = 10      # минимальный EV (10% = качественные ставки)
-    EV_FINAL_MAX = 100     # максимальный EV (отсекаем аномалии >100%)
-    PROB_FINAL_MIN = 70    # минимальная вероятность (70%)
+    FORM_REQUIRED_70 = ['excellent', 'good']
+    SKIP_MID_TABLE_70 = True
+    LIMIT_BET_TYPE_70 = 15
+    LIMIT_LEAGUE_70 = 2
+    MIN_ODD_70 = 1.65
 
     # === ТМ 2.5 (мертвые, но совместимые с bot_settings.json) ===
     MAX_TM25_BETS = 0
