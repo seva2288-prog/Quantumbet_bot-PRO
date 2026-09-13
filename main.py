@@ -23,7 +23,7 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
-from app.llm import llm_analyze_match, llm_analyze_batch   # ★ NEW
+from app.llm import llm_analyze_match, llm_analyze_batch
 from app.odds_rotator import OddsKeyRotator
 
 # ============================================================
@@ -37,6 +37,13 @@ search_state = {}
 TIMEZONE_OFFSET = 3
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
+
+# ★ NEW: топ-лиги, где матчи с обеими командами в топ-6 пропускаются
+TOP_TEAMS_LEAGUES = [
+    'Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1',
+    'Champions League', 'UEFA Champions League',
+    'Europa League', 'UEFA Europa League',
+]
 
 HOME_ADVANTAGE = {
     'Premier League': 1.15, 'La Liga': 1.12, 'Bundesliga': 1.18,
@@ -132,7 +139,7 @@ def timing_decorator(name=None):
 # УМНОЕ КЭШИРОВАНИЕ
 # ============================================================
 class SmartCache:
-    def __init__(self, max_size=2000):   # ★ NEW: было 500
+    def __init__(self, max_size=2000):
         self.cache = {}
         self.cache_timestamps = {}
         self.hit_count = {}
@@ -364,7 +371,7 @@ class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
         self.api_key = api_key or Config.FOOTBALL_API_KEY
         self.base_url = base_url or Config.FOOTBALL_API_URL
-        self.cache = SmartCache(max_size=2000)   # ★ NEW: было 500
+        self.cache = SmartCache(max_size=2000)
         self.last_request_time = 0
         self.min_request_interval = 0.2
         self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60)
@@ -649,9 +656,6 @@ class FootballAPI:
         return None
 
     def _extract_best_odds(self, odds_data):
-        """
-        Собирает лучшие кэфы + X2/1X через неявные вероятности (без маржи).
-        """
         result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
                   'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
                   'x2_odds': 0, '1x_odds': 0,
@@ -700,10 +704,8 @@ class FootballAPI:
             a = bm_data.get('away', 0)
 
             if h > 0 and d > 0 and a > 0:
-                # ★ FIX: правильная формула X2 / 1X через неявные вероятности
                 p_h, p_d, p_a = 1/h, 1/d, 1/a
                 p_margin = p_h + p_d + p_a - 1.0
-                # пропорционально снимаем маржу
                 if p_h + p_d + p_a > 0:
                     p_h_fair = p_h * (1 - p_margin * p_h / (p_h + p_d + p_a))
                     p_d_fair = p_d * (1 - p_margin * p_d / (p_h + p_d + p_a))
@@ -1039,9 +1041,6 @@ def calculate_h2h_probability(h2h_data):
 
 
 def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match_data=None):
-    """
-    ★ FIX: LLM вызов УБРАН отсюда. Теперь LLM применяется батчем в конце find_top_matches.
-    """
     engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
     poisson = calculate_poisson_probability(home_xg, away_xg)
     form_prob = calculate_form_probability(home_form, away_form)
@@ -1067,8 +1066,8 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data, match
     return final
 
 
-def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.3):
-    """★ NEW: применяет LLM-вероятности к матчу, пересчитывает EV."""
+def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
+    """★ NEW: alpha по умолчанию 0.7 — LLM доминирует над эвристикой."""
     if not llm:
         return
     key_map = {
@@ -1203,7 +1202,7 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
-            # ★ 1. Odds API
+            # 1. Odds API
             od = odds_api.get_odds_for_match(home, away, league)
             if od and od.get('best_odds', 0) > 0:
                 h_o = od.get('home_odds', 0)
@@ -1236,7 +1235,7 @@ def update_odds_for_matches(matches):
                         bookmaker = od.get('bookmaker_name', 'Odds API')
                         source = 'Odds API'
 
-            # ★ 2. Football API
+            # 2. Football API
             if not new_odds and fid:
                 fo = football_api.get_match_odds(fid)
                 if fo:
@@ -1272,11 +1271,17 @@ def update_odds_for_matches(matches):
                             bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
                             source = 'Line Analysis'
 
+                            # ★ NEW: аномалия > 5% → бонус к EV
                             if anomaly_pct > 5:
                                 logger.info(
                                     f"🎯 АНОМАЛИЯ: {home} vs {away} | "
                                     f"{best_bm} даёт {best_odds} (+{anomaly_pct:.1f}%)"
                                 )
+                                prob = best_bet.get('prob', 0) / 100
+                                anomaly_bonus = min(anomaly_pct / 100, 0.10)  # максимум +10%
+                                boosted_prob = min(prob + anomaly_bonus, 0.95)
+                                best_bet['prob'] = round(boosted_prob * 100, 1)
+                                best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
 
                     if not new_odds:
                         if bt == 'X2' and fo.get('x2_odds', 0) > 0:
@@ -1312,7 +1317,6 @@ def update_odds_for_matches(matches):
                     bookmaker = 'Fair Odds'
                     source = 'Calculated'
 
-            # ★ FIX: жёсткая проверка диапазона кэфов
             if new_odds and new_odds > 0:
                 MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.55)
                 MAX_ODDS = getattr(Config, 'MAX_ODDS', 6.00)
@@ -1361,7 +1365,7 @@ def get_matches_with_factors():
     empty_leagues = 0
     leagues_with_matches = 0
     progress_step = 25
-    seen_fixtures = set()   # ★ NEW: O(1) вместо O(n²)
+    seen_fixtures = set()
 
     for league_id in all_leagues:
         try:
@@ -1385,7 +1389,7 @@ def get_matches_with_factors():
                     mid = fixture.get('id')
                     if not mid:
                         continue
-                    if mid in seen_fixtures:   # ★ NEW
+                    if mid in seen_fixtures:
                         continue
                     seen_fixtures.add(mid)
                     teams = m.get('teams', {})
@@ -1615,6 +1619,11 @@ def find_top_matches(matches):
             if hp > POS_MAX or ap > POS_MAX:
                 continue
 
+            # ★ NEW: топ-матчи (обе команды в топ-6 топ-лиги) — скип
+            if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6:
+                logger.info(f"⏭️ Топ-матч пропущен: {home} vs {away} ({league_name})")
+                continue
+
             home_data = standings.get(home, {}) if standings else {}
             away_data = standings.get(away, {}) if standings else {}
             home_points = home_data.get('points', 0)
@@ -1642,7 +1651,6 @@ def find_top_matches(matches):
                 }
             )
 
-            # ★ FIX: убрали X2/1X и П1/П2. Оставили: draw, underdog, btts, over25, under25
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
             elif am == 'relegation' and hm == 'mid_table':
@@ -1651,7 +1659,6 @@ def find_top_matches(matches):
             stake = round(bank * 0.02, 2) if bank > 0 else 10.0
             bets = []
 
-            # Основные ставки: draw, btts, over25, under25 (все с реальными кэфами позже)
             for bet_type, label, prob_key in [
                 ('draw', 'X (Ничья)', 'draw'),
                 ('btts', 'ОБЗ', 'btts'),
@@ -1664,12 +1671,11 @@ def find_top_matches(matches):
                 bets.append({
                     'type': bet_type, 'label': label,
                     'prob': round(p * 100, 1),
-                    'ev': 0,              # EV посчитаем после получения реального кэфа
-                    'odds': 0,            # Кэф пока неизвестен
+                    'ev': 0,
+                    'odds': 0,
                     'stake': stake,
                 })
 
-            # Ставка на ничью (расширенное условие)
             draw_potential = probs.get('draw_potential', 0.5)
             draw_prob = probs.get('draw', 0.25)
             if total_xg < 2.4 and draw_potential >= 0.5:
@@ -1681,7 +1687,6 @@ def find_top_matches(matches):
                     'stake': round(stake * 0.7, 2)
                 })
 
-            # Ставка на андердога (без выдуманных кэфов)
             underdog_potential = probs.get('underdog_potential', 0.4)
             underdog_is_home = False
             underdog_prob = 0
@@ -1718,7 +1723,6 @@ def find_top_matches(matches):
             if not bets:
                 continue
 
-            # ★ FIX: сортируем по вероятности (кэфов ещё нет)
             bets.sort(key=lambda x: x['prob'], reverse=True)
             best_bet = bets[0]
 
@@ -1751,11 +1755,10 @@ def find_top_matches(matches):
             logger.error(f"❌ {e}")
             continue
 
-    # ★ NEW: сортируем по вероятности (кэфы ещё неизвестны) и берём топ-30
     best_matches.sort(key=lambda x: x['best_bet']['prob'], reverse=True)
     top = best_matches[:max_bets]
 
-    # ★ NEW: батч-вызов LLM для топ-20
+    # LLM батч для топ-20
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
             llm_payload = [
@@ -1774,9 +1777,10 @@ def find_top_matches(matches):
             llm_results = llm_analyze_batch(llm_payload)
             logger.info(f"🤖 LLM батч завершён за {time.time() - t0:.1f}с")
 
+            # ★ NEW: alpha=0.7 — LLM доминирует
             for m, llm in zip(top[:20], llm_results):
                 if llm:
-                    _apply_llm_to_match(m, llm, alpha=0.3)
+                    _apply_llm_to_match(m, llm, alpha=0.7)
         except Exception as e:
             logger.error(f"❌ LLM батч ошибка: {e}")
 
@@ -1789,10 +1793,8 @@ def find_top_matches_with_tm25(matches):
     if not result:
         return result
 
-    # Обновляем кэфы (и режем по MIN/MAX)
     result = update_odds_for_matches(result)
 
-    # Пересчитываем best_bet после обновления кэфов
     for m in result:
         bets = [b for b in m.get('bets', []) if b.get('odds', 0) > 1.01]
         if not bets:
@@ -1801,7 +1803,8 @@ def find_top_matches_with_tm25(matches):
         m['bets'] = bets
         m['best_bet'] = bets[0]
 
-    EV_MIN = getattr(Config, 'EV_FINAL_MIN', 3)
+    # ★ NEW: EV_FINAL_MIN = 0
+    EV_MIN = getattr(Config, 'EV_FINAL_MIN', 0)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 100)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 55)
 
@@ -1827,7 +1830,6 @@ def find_top_matches_with_tm25(matches):
     cache['top_matches'] = result
     storage.save_cache(cache)
 
-    # ★ NEW: дедупликация истории
     history = storage.load_history()
     today_str = datetime.now().strftime('%Y-%m-%d')
     existing = {
@@ -1905,7 +1907,7 @@ def schedule_performance_report():
 # ============================================================
 class BetVerificationSystem:
     def __init__(self):
-        self.thresholds = {'min_odds': 1.55, 'max_odds': 6.00, 'min_ev': 3,
+        self.thresholds = {'min_odds': 1.55, 'max_odds': 6.00, 'min_ev': 0,
                            'min_prob': 50, 'max_stake_percent': 10, 'min_samples': 10}
         self.warnings = []
 
@@ -2161,8 +2163,10 @@ def webhook():
                             msg = f"✅ <b>НАЙДЕНО: {len(top)}</b>\n\n"
                             for i, m in enumerate(top[:10], 1):
                                 b = m['best_bet']
+                                bonus = b.get('anomaly_bonus', 0)
+                                bonus_str = f" (+{bonus}% аномалия)" if bonus else ""
                                 msg += (f"{i}. <b>{m['home']} vs {m['away']}</b>\n"
-                                        f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n"
+                                        f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%{bonus_str}\n"
                                         f"🏷️ {b.get('bookmaker', '—')}\n\n")
                             send_telegram(msg)
                         else:
