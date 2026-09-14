@@ -31,7 +31,6 @@ class Config:
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
     LLM_API_KEY = os.getenv("LLM_API_KEY", "")
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", LLM_API_KEY or "")
-    # ★ V3 вместо R1 — быстрее в 5-10 раз, дешевле, JSON mode стабильный
     LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
     LLM_ENABLED = bool(DEEPSEEK_API_KEY or LLM_API_KEY)
 
@@ -43,9 +42,9 @@ class Config:
 
     # === PREDICTION ENGINE ===
     PREDICTION_ENGINE = os.getenv("PREDICTION_ENGINE", "heuristic")
-    MIN_ODDS = 1.40            # ★ было 1.50 → режем совсем дешёвые
-    MAX_ODDS = 8.00            # ★ расширено: ничьи/андердоги живут до 6.0
-    MAX_ODDS_SAFE = 3.50       # для «безопасных» рынков (1X, X2 если оставишь)
+    MIN_ODDS = 1.40
+    MAX_ODDS = 8.00
+    MAX_ODDS_SAFE = 3.50
     MIN_CONFIDENCE = 0.60
 
     # === СТАВКИ ===
@@ -59,15 +58,39 @@ class Config:
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
-    LIMIT_BET_TYPE_70 = 15     # ★ было 3 → фактически снято
-    LIMIT_LEAGUE_70 = 5        # ★ было 2 → расширено
+    LIMIT_BET_TYPE_70 = 15
+    LIMIT_LEAGUE_70 = 5
     MIN_ODD_70 = 1.40
     MAX_ODD_70 = 8.00
 
-    # === ФИНАЛЬНЫЙ ФИЛЬТР (после обновления кэфов) ===
-    EV_FINAL_MIN = -6           # ★ было 5 → больше ставок
+    # === ФИНАЛЬНЫЙ ФИЛЬТР ===
+    EV_FINAL_MIN = -6
     EV_FINAL_MAX = 100
-    PROB_FINAL_MIN = 45        # ★ было 60 → больше ставок
+    PROB_FINAL_MIN = 45
+
+    # === ★ ЧЁРНЫЙ СПИСОК ЛИГ ===
+    # Матчи из этих лиг не берём — там нет кэфов у букмекеров
+    BLACKLIST_LEAGUES = [
+        # Резервы и дубли
+        ' ii', ' b ', 'reserve', 'reserves',
+        'mls next pro', 'usl league', 'usl championship',
+        'next pro',
+        # Молодёжные
+        'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
+        'youth', 'academy', 'junior',
+        # Женские
+        'women', 'womens', 'femenina', 'feminine', 'female',
+        # Низшие дивизионы (экзотика, нет кэфов)
+        'primera b', 'primera c', 'primera d',
+        'segunda división', 'segunda division',
+        'serie c', 'serie d',
+        'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
+        'torneo federal', 'torneo argentino',
+        'prim b', 'prim c', 'prim d',
+        # Экзотические страны/лиги
+        'botola', 'egyptian premier', 'south africa premier',
+        # Любые матчи с пометкой W (women) в названии команды
+    ]
 
     # === ТМ 2.5 (мертвые, но совместимые с bot_settings.json) ===
     MAX_TM25_BETS = 0
@@ -386,6 +409,7 @@ class Config:
         print(f"📢 CHANNEL_ID: {'задан' if cls.CHANNEL_ID else 'не задан'}")
         print(f"📅 Сезон: {cls.USE_SEASON}")
         print(f"🗄️ БД: {cls.DATABASE_URL}")
+        print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
 
         cls.init_db()
         cls.build_leagues_from_api()
