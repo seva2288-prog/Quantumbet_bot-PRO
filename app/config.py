@@ -29,7 +29,7 @@ class Config:
 
     # === LLM ===
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
-    LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-550654fa184a48a892e6b55829fff4c3")
+    LLM_API_KEY = os.getenv("LLM_API_KEY", "")
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", LLM_API_KEY or "")
     # ★ V3 вместо R1 — быстрее в 5-10 раз, дешевле, JSON mode стабильный
     LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
