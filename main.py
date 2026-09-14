@@ -105,8 +105,7 @@ class PerformanceMonitor:
         for item in self.get_report():
             status = "✅" if item['error_rate'] < 5 else "⚠️" if item['error_rate'] < 20 else "❌"
             logger.info(f"{status} {item['function']}: {item['calls']} вызовов, "
-                        f"среднее {item['avg_time']}с, макс {item['max_time']}с, "
-                        f"ошибки {item['error_rate']}%")
+                        f"среднее {item['avg_time']}с, макс {item['max_time']}с")
 
 
 perf_monitor = PerformanceMonitor()
@@ -441,7 +440,6 @@ class FootballAPI:
 
     @timing_decorator()
     def get_form(self, team_id):
-        """xG вместо голов (с fallback)."""
         cache_key = f"form_{team_id}"
         cached = self.cache.get(cache_key, data_type='form')
         if cached is not None:
@@ -1428,14 +1426,9 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ — С ДИАГНОСТИКОЙ
+# СНИМКИ КЭФОВ
 # ============================================================
 def snapshot_odds_for_upcoming():
-    """
-    Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
-    Читает из 'all_analyzed' (все проанализированные матчи), fallback на 'top_matches'.
-    ★ Диагностические логи на каждом шаге.
-    """
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
@@ -1457,7 +1450,6 @@ def snapshot_odds_for_upcoming():
                 match_time_str = md.get('match_time', '')
 
                 if not match_time_str or match_time_str == '?':
-                    logger.debug(f"⏭️ snapshot: нет времени для {home} vs {away}")
                     continue
 
                 try:
@@ -1469,7 +1461,6 @@ def snapshot_odds_for_upcoming():
                 hours_to_match = (match_dt - now).total_seconds() / 3600
 
                 if not (0 < hours_to_match <= 2):
-                    logger.debug(f"⏭️ snapshot: вне окна {home} vs {away} (через {hours_to_match:.1f}ч)")
                     continue
 
                 in_window += 1
@@ -1532,6 +1523,9 @@ def find_top_matches(matches):
     max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 30)
     total_matches = len(matches)
     logger.info(f"🔍 Анализ {total_matches} матчей...")
+
+    blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
+
     best_matches = []
     bet_type_count = {}
     league_count = {}
@@ -1560,6 +1554,13 @@ def find_top_matches(matches):
             ld = match.get('league', {})
             league_name = ld.get('name', 'Unknown')
             league_id = ld.get('id')
+
+            # ★ ЧЁРНЫЙ СПИСОК ЛИГ
+            league_lower = league_name.lower()
+            if any(bad in league_lower for bad in blacklist):
+                logger.info(f"⏭️ Лига в чёрном списке: {home} vs {away} ({league_name})")
+                continue
+
             match_time = fixture.get('date', '')
             if match_time:
                 try:
@@ -2407,6 +2408,7 @@ if __name__ == "__main__":
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)}")
     logger.info(f"🧠 PREDICTION_ENGINE: {Config.PREDICTION_ENGINE}")
     logger.info(f"🤖 LLM: {'вкл' if Config.LLM_ENABLED else 'выкл'} | модель: {Config.LLM_MODEL}")
+    logger.info(f"🚫 Чёрный список лиг: {len(Config.BLACKLIST_LEAGUES)}")
     logger.info(f"🌦️ Погода: {'вкл' if Config.WEATHER_ENABLED else 'выкл'}")
 
     app.run(host='0.0.0.0', port=port)
