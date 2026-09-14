@@ -43,8 +43,8 @@ class Config:
 
     # === PREDICTION ENGINE ===
     PREDICTION_ENGINE = os.getenv("PREDICTION_ENGINE", "heuristic")
-    MIN_ODDS = 1.55            # ★ было 1.50 → режем совсем дешёвые
-    MAX_ODDS = 6.00            # ★ расширено: ничьи/андердоги живут до 6.0
+    MIN_ODDS = 1.40            # ★ было 1.50 → режем совсем дешёвые
+    MAX_ODDS = 8.00            # ★ расширено: ничьи/андердоги живут до 6.0
     MAX_ODDS_SAFE = 3.50       # для «безопасных» рынков (1X, X2 если оставишь)
     MIN_CONFIDENCE = 0.60
 
