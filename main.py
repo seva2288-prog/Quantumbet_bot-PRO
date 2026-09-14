@@ -1215,7 +1215,6 @@ def update_odds_for_matches(matches):
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
 
-                # снимок кэфа в историю (для line movement / CLV)
                 try:
                     market_map = {
                         'draw': ('1X2', 'X'),
@@ -1429,18 +1428,17 @@ def recalc_stats():
 
 
 # ============================================================
-# ★ СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ
+# СНИМКИ КЭФОВ — С ДИАГНОСТИКОЙ
 # ============================================================
 def snapshot_odds_for_upcoming():
     """
     Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
-    ★ Читает из 'all_analyzed' (все проанализированные матчи),
-      fallback на 'top_matches' для совместимости.
+    Читает из 'all_analyzed' (все проанализированные матчи), fallback на 'top_matches'.
+    ★ Диагностические логи на каждом шаге.
     """
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
-        # ★ ПРИОРИТЕТ: all_analyzed (все матчи), fallback: top_matches
         matches = cache.get('all_analyzed') or cache.get('top_matches', [])
         logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
 
@@ -1454,28 +1452,41 @@ def snapshot_odds_for_upcoming():
 
         for md in matches:
             try:
+                home = md.get('home', '?')
+                away = md.get('away', '?')
                 match_time_str = md.get('match_time', '')
+
                 if not match_time_str or match_time_str == '?':
+                    logger.debug(f"⏭️ snapshot: нет времени для {home} vs {away}")
                     continue
 
                 try:
                     match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
                 except ValueError:
+                    logger.warning(f"⚠️ snapshot: неверный формат времени '{match_time_str}' для {home} vs {away}")
                     continue
 
                 hours_to_match = (match_dt - now).total_seconds() / 3600
-                if 0 < hours_to_match <= 2:
-                    in_window += 1
-                else:
+
+                if not (0 < hours_to_match <= 2):
+                    logger.debug(f"⏭️ snapshot: вне окна {home} vs {away} (через {hours_to_match:.1f}ч)")
                     continue
+
+                in_window += 1
+                logger.info(f"✅ snapshot: {home} vs {away} В ОКНЕ (через {hours_to_match:.1f}ч)")
 
                 fid = md.get('fixture_id')
                 if not fid:
+                    logger.warning(f"⚠️ snapshot: нет fixture_id для {home} vs {away}")
                     continue
 
                 fo = football_api.get_match_odds(fid)
                 if not fo:
+                    logger.warning(f"⚠️ snapshot: НЕТ КЭФОВ от API для {home} vs {away} | fid={fid}")
                     continue
+
+                logger.info(f"🔍 snapshot: кэфы получены для {home} vs {away}: "
+                            f"1={fo.get('home_odds')} X={fo.get('draw_odds')} 2={fo.get('away_odds')}")
 
                 for mkt, sel, key in [
                     ('1X2', '1', 'home_odds'),
@@ -1493,6 +1504,10 @@ def snapshot_odds_for_upcoming():
                         )
                         if ok:
                             total_snapshots += 1
+                        else:
+                            logger.info(f"⏭️ snapshot: дубль {home} vs {away} | {mkt}/{sel} = {odd}")
+                    else:
+                        logger.info(f"⏭️ snapshot: пустой кэф {key} для {home} vs {away}")
 
             except Exception as e:
                 logger.error(f"🔍 snapshot error для {md.get('home')}: {e}")
@@ -1811,10 +1826,9 @@ def find_top_matches_with_tm25(matches):
 
     logger.info(f"📊 После финального фильтра: {len(filtered)} из {len(result)}")
 
-    # ★ NEW: сохраняем ОБА списка
     cache = storage.load_cache()
-    cache['top_matches'] = filtered       # для UI (/today, /api/matches) — только ставки
-    cache['all_analyzed'] = result        # ★ ДЛЯ SNAPSHOT — все проанализированные матчи с кэфами
+    cache['top_matches'] = filtered
+    cache['all_analyzed'] = result
     storage.save_cache(cache)
 
     history = storage.load_history()
@@ -2157,7 +2171,7 @@ def webhook():
                                         f"🏷️ {b.get('bookmaker', '—')}\n\n")
                             send_telegram(msg)
                         else:
-                            send_telegram("❌ Ничего не найдено (в кэш сохранены все проанализированные матчи для снимков)")
+                            send_telegram("❌ Ничего не найдено (все матчи в кэше для снимков)")
                     else:
                         send_telegram("❌ Матчей нет")
                 finally:
@@ -2327,9 +2341,6 @@ def update_bank():
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-# API ДЛЯ СНИМКОВ КЭФОВ (внешний cron-job.org)
-# ============================================================
 @app.route('/api/snapshot', methods=['GET'])
 def api_snapshot():
     """Внешний вызов для сохранения снимков кэфов (cron-job.org)."""
@@ -2372,7 +2383,6 @@ if __name__ == "__main__":
     schedule_performance_report()
     schedule_auto_backup()
 
-    # cron для снимков кэфов каждые 30 мин + очистка раз в сутки
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=snapshot_odds_for_upcoming,
