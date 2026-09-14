@@ -1215,7 +1215,7 @@ def update_odds_for_matches(matches):
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
 
-                # ★ снимок кэфа в историю (для line movement / CLV)
+                # снимок кэфа в историю (для line movement / CLV)
                 try:
                     market_map = {
                         'draw': ('1X2', 'X'),
@@ -1429,17 +1429,19 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ
+# ★ СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ
 # ============================================================
 def snapshot_odds_for_upcoming():
     """
     Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
-    Вызывается: cron каждые 30 минут И внешним cron-job.org через /api/snapshot.
+    ★ Читает из 'all_analyzed' (все проанализированные матчи),
+      fallback на 'top_matches' для совместимости.
     """
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
-        matches = cache.get('top_matches', [])
+        # ★ ПРИОРИТЕТ: all_analyzed (все матчи), fallback: top_matches
+        matches = cache.get('all_analyzed') or cache.get('top_matches', [])
         logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
 
         if not matches:
@@ -1808,10 +1810,11 @@ def find_top_matches_with_tm25(matches):
         filtered.append(m)
 
     logger.info(f"📊 После финального фильтра: {len(filtered)} из {len(result)}")
-    result = filtered
 
+    # ★ NEW: сохраняем ОБА списка
     cache = storage.load_cache()
-    cache['top_matches'] = result
+    cache['top_matches'] = filtered       # для UI (/today, /api/matches) — только ставки
+    cache['all_analyzed'] = result        # ★ ДЛЯ SNAPSHOT — все проанализированные матчи с кэфами
     storage.save_cache(cache)
 
     history = storage.load_history()
@@ -1821,7 +1824,7 @@ def find_top_matches_with_tm25(matches):
         for h in history
     }
     added = 0
-    for md in result:
+    for md in filtered:
         bb = md.get('best_bet', {})
         key = (md.get('home'), md.get('away'), today_str)
         if key in existing:
@@ -1840,8 +1843,8 @@ def find_top_matches_with_tm25(matches):
         })
         added += 1
     storage.save_history(history)
-    logger.info(f"📝 Добавлено ставок: {added} (отсеяно дублей: {len(result) - added})")
-    return result
+    logger.info(f"📝 Добавлено ставок: {added} (отсеяно дублей: {len(filtered) - added})")
+    return filtered
 
 
 # ============================================================
@@ -2154,7 +2157,7 @@ def webhook():
                                         f"🏷️ {b.get('bookmaker', '—')}\n\n")
                             send_telegram(msg)
                         else:
-                            send_telegram("❌ Ничего не найдено")
+                            send_telegram("❌ Ничего не найдено (в кэш сохранены все проанализированные матчи для снимков)")
                     else:
                         send_telegram("❌ Матчей нет")
                 finally:
@@ -2325,7 +2328,7 @@ def update_bank():
 
 
 # ============================================================
-# ★ NEW: API ДЛЯ СНИМКОВ КЭФОВ (внешний cron-job.org)
+# API ДЛЯ СНИМКОВ КЭФОВ (внешний cron-job.org)
 # ============================================================
 @app.route('/api/snapshot', methods=['GET'])
 def api_snapshot():
@@ -2369,7 +2372,7 @@ if __name__ == "__main__":
     schedule_performance_report()
     schedule_auto_backup()
 
-    # ★ NEW: cron для снимков кэфов каждые 30 мин + очистка раз в сутки
+    # cron для снимков кэфов каждые 30 мин + очистка раз в сутки
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=snapshot_odds_for_upcoming,
