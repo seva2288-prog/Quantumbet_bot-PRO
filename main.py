@@ -1200,8 +1200,8 @@ def update_odds_for_matches(matches):
                     source = 'Calculated'
 
             if new_odds and new_odds > 0:
-                MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.55)
-                MAX_ODDS = getattr(Config, 'MAX_ODDS', 6.00)
+                MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
+                MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
                 if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
                     logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]: "
                                 f"{home} vs {away} | тип: {bt}")
@@ -1215,7 +1215,7 @@ def update_odds_for_matches(matches):
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
 
-                # ★ NEW: снимок кэфа в историю (для line movement / CLV)
+                # ★ снимок кэфа в историю (для line movement / CLV)
                 try:
                     market_map = {
                         'draw': ('1X2', 'X'),
@@ -1429,20 +1429,25 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ (line movement / CLV)
+# СНИМКИ КЭФОВ ДЛЯ БЛИЖАЙШИХ МАТЧЕЙ
 # ============================================================
 def snapshot_odds_for_upcoming():
     """
-    ★ NEW: Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
-    Нужно для line movement (движение кэфов) и CLV (closing line value).
+    Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
+    Вызывается: cron каждые 30 минут И внешним cron-job.org через /api/snapshot.
     """
+    logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
         matches = cache.get('top_matches', [])
+        logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
+
         if not matches:
+            logger.info("🔍 snapshot: кэш пуст → выход")
             return 0
 
         now = datetime.now()
+        in_window = 0
         total_snapshots = 0
 
         for md in matches:
@@ -1457,7 +1462,9 @@ def snapshot_odds_for_upcoming():
                     continue
 
                 hours_to_match = (match_dt - now).total_seconds() / 3600
-                if not (0 < hours_to_match <= 2):
+                if 0 < hours_to_match <= 2:
+                    in_window += 1
+                else:
                     continue
 
                 fid = md.get('fixture_id')
@@ -1486,15 +1493,15 @@ def snapshot_odds_for_upcoming():
                             total_snapshots += 1
 
             except Exception as e:
-                logger.error(f"Ошибка snapshot для {md.get('home')}: {e}")
+                logger.error(f"🔍 snapshot error для {md.get('home')}: {e}")
                 continue
 
-        if total_snapshots > 0:
-            logger.info(f"📸 Снимков кэфов (ближайшие 2ч): {total_snapshots}")
-
+        logger.info(f"📸 Снимков кэфов (ближайшие 2ч): {total_snapshots} | "
+                    f"в окне: {in_window}/{len(matches)}")
         return total_snapshots
+
     except Exception as e:
-        logger.error(f"❌ snapshot_odds_for_upcoming: {e}")
+        logger.exception(f"❌ snapshot_odds_for_upcoming: {e}")
         return 0
 
 
@@ -1884,7 +1891,7 @@ def schedule_performance_report():
 # ============================================================
 class BetVerificationSystem:
     def __init__(self):
-        self.thresholds = {'min_odds': 1.55, 'max_odds': 6.00, 'min_ev': 0,
+        self.thresholds = {'min_odds': 1.40, 'max_odds': 8.00, 'min_ev': 0,
                            'min_prob': 50, 'max_stake_percent': 10, 'min_samples': 10}
         self.warnings = []
 
@@ -2315,6 +2322,20 @@ def update_bank():
         return jsonify({'error': 'No bank value'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
+# ★ NEW: API ДЛЯ СНИМКОВ КЭФОВ (внешний cron-job.org)
+# ============================================================
+@app.route('/api/snapshot', methods=['GET'])
+def api_snapshot():
+    """Внешний вызов для сохранения снимков кэфов (cron-job.org)."""
+    try:
+        n = snapshot_odds_for_upcoming()
+        return jsonify({'status': 'ok', 'snapshots': n})
+    except Exception as e:
+        logger.exception("❌ Ошибка в /api/snapshot")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @app.route('/api/keepalive', methods=['GET'])
