@@ -69,30 +69,23 @@ class Config:
     PROB_FINAL_MIN = 45
 
     # === ★ ЧЁРНЫЙ СПИСОК ЛИГ ===
-    # Матчи из этих лиг не берём — там нет кэфов у букмекеров
     BLACKLIST_LEAGUES = [
-        # Резервы и дубли
         ' ii', ' b ', 'reserve', 'reserves',
         'mls next pro', 'usl league', 'usl championship',
         'next pro',
-        # Молодёжные
         'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
         'youth', 'academy', 'junior',
-        # Женские
         'women', 'womens', 'femenina', 'feminine', 'female',
-        # Низшие дивизионы (экзотика, нет кэфов)
         'primera b', 'primera c', 'primera d',
         'segunda división', 'segunda division',
         'serie c', 'serie d',
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
         'torneo federal', 'torneo argentino',
         'prim b', 'prim c', 'prim d',
-        # Экзотические страны/лиги
         'botola', 'egyptian premier', 'south africa premier',
-        # Любые матчи с пометкой W (women) в названии команды
     ]
 
-    # === ТМ 2.5 (мертвые, но совместимые с bot_settings.json) ===
+    # === ТМ 2.5 ===
     MAX_TM25_BETS = 0
     MIN_TM25_EV = 99
     MIN_TM25_PROB = 99
@@ -154,22 +147,14 @@ class Config:
     }
 
     # ============================================================
-    # СТРАНЫ ДЛЯ АВТОМАТИЧЕСКОГО ПОСТРОЕНИЯ СПИСКА ЛИГ
+    # ★ СТРАНЫ ДЛЯ АВТОМАТИЧЕСКОГО ПОСТРОЕНИЯ СПИСКА ЛИГ
+    # Только 15 стран — где API-Football стабильно даёт кэфы
     # ============================================================
     LEAGUE_COUNTRIES = [
         'England', 'Spain', 'Germany', 'Italy', 'France',
         'Netherlands', 'Portugal', 'Belgium', 'Turkey',
-        'Scotland', 'Denmark', 'Norway', 'Sweden', 'Poland',
-        'Ukraine', 'Russia', 'Croatia', 'Austria', 'Switzerland',
-        'Slovenia', 'Serbia', 'Bulgaria', 'Romania', 'Slovakia',
-        'Hungary', 'Greece', 'Czech-Republic',
-        'Brazil', 'Argentina', 'Uruguay', 'Colombia', 'Chile',
-        'Ecuador', 'Paraguay', 'Peru', 'Venezuela', 'Mexico',
-        'USA',
-        'Saudi-Arabia', 'Japan', 'South-Korea', 'Australia',
-        'China', 'UAE', 'Qatar', 'Iraq',
-        'South-Africa', 'Morocco', 'Egypt', 'Algeria', 'Tunisia',
-        'Nigeria', 'Ghana',
+        'Brazil', 'Argentina', 'Mexico', 'USA',
+        'Saudi-Arabia', 'Japan',
     ]
 
     # ============================================================
@@ -410,6 +395,7 @@ class Config:
         print(f"📅 Сезон: {cls.USE_SEASON}")
         print(f"🗄️ БД: {cls.DATABASE_URL}")
         print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
+        print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
 
         cls.init_db()
         cls.build_leagues_from_api()
