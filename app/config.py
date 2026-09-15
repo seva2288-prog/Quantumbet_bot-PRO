@@ -68,24 +68,105 @@ class Config:
     EV_FINAL_MAX = 100
     PROB_FINAL_MIN = 45
 
-    # === ★ ЧЁРНЫЙ СПИСОК ЛИГ ===
+    # ============================================================
+    # ★ WHITELIST — только эти лиги берём в работу
+    # ============================================================
+    WHITELIST_LEAGUES = [
+        # Англия
+        'premier league', 'championship', 'efl league one', 'efl league two',
+        # Испания
+        'la liga', 'laliga', 'segunda división', 'la liga 2',
+        # Германия
+        'bundesliga', '2. bundesliga', '3. liga',
+        # Италия
+        'serie a', 'serie b',
+        # Франция
+        'ligue 1', 'ligue 2',
+        # Нидерланды
+        'eredivisie',
+        # Португалия
+        'primeira liga', 'liga portugal',
+        # Бельгия
+        'pro league', 'jupiler',
+        # Турция
+        'süper lig', 'super lig',
+        # Бразилия
+        'brasileirão', 'brasileirao', 'serie a',
+        # Аргентина
+        'primera división', 'primera division', 'liga profesional',
+        # Мексика
+        'liga mx',
+        # США
+        'mls', 'major league soccer',
+        # Саудовская Аравия
+        'saudi pro league', 'saudi league',
+        # Япония
+        'j1 league', 'j2 league',
+        # Европейские кубки
+        'champions league', 'uefa champions',
+        'europa league', 'uefa europa',
+        'conference league', 'uefa europa conference',
+    ]
+
+    # ============================================================
+    # ★ ЧЁРНЫЙ СПИСОК ЛИГ
+    # ============================================================
     BLACKLIST_LEAGUES = [
+        # Низшие английские дивизионы (8-й уровень — Isthmian, Northern Premier, и т.д.)
+        'isthmian',
+        'northern premier',
+        'southern league',
+        'national league',
+        'county league',
+        'combined counties',
+        'united counties',
+        'premier division',
+        'division one',
+        'division two',
+        'championship north',
+        'championship south',
+        'east counties',
+        'wessex league',
+        'western league',
+        'northern counties east',
+        'northern counties west',
+        'essex senior',
+        'hellenic league',
+        'midland league',
+        'north west counties',
+        'spartan south midlands',
+        'southern counties east',
+        'southern combination',
+        'wessex football league',
+        'yorkshire league',
+        # Резервы и дубли
         ' ii', ' b ', 'reserve', 'reserves',
         'mls next pro', 'usl league', 'usl championship',
         'next pro',
+        # Молодёжные
         'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
         'youth', 'academy', 'junior',
+        # Женские
         'women', 'womens', 'femenina', 'feminine', 'female',
+        # Низшие дивизионы других стран
         'primera b', 'primera c', 'primera d',
         'segunda división', 'segunda division',
         'serie c', 'serie d',
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
         'torneo federal', 'torneo argentino',
         'prim b', 'prim c', 'prim d',
+        'lpf', 'primera nacional', 'primera federación',
+        'segunda federación', 'tercera federación',
+        # Экзотика
         'botola', 'egyptian premier', 'south africa premier',
+        # Бразильские штаты (низшие)
+        'copa paulista', 'carioca', 'gaúcho', 'mineiro',
+        'baiano', 'pernambucano', 'cearense', 'paranaense',
     ]
 
-    # === ТМ 2.5 ===
+    # ============================================================
+    # ТМ 2.5
+    # ============================================================
     MAX_TM25_BETS = 0
     MIN_TM25_EV = 99
     MIN_TM25_PROB = 99
@@ -148,7 +229,6 @@ class Config:
 
     # ============================================================
     # ★ СТРАНЫ ДЛЯ АВТОМАТИЧЕСКОГО ПОСТРОЕНИЯ СПИСКА ЛИГ
-    # Только 15 стран — где API-Football стабильно даёт кэфы
     # ============================================================
     LEAGUE_COUNTRIES = [
         'England', 'Spain', 'Germany', 'Italy', 'France',
@@ -158,7 +238,7 @@ class Config:
     ]
 
     # ============================================================
-    # ЛИГИ И НАЗВАНИЯ (резерв; заменяются из API)
+    # ЛИГИ И НАЗВАНИЯ (резерв)
     # ============================================================
     LEAGUES = [
         39, 40, 41, 140, 141, 142, 78, 79, 80, 135, 136, 137,
@@ -256,27 +336,52 @@ class Config:
         leagues, names = [], {}
 
         EXCLUDE_WORDS = [
-            'women', 'womens', 'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
-            'youth', 'reserve', 'academy', 'amateur',
-            'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
-            'k4', 'k5', 'k6', 'k7',
-            'npl', 'nsw', 'victoria', 'queensland', 'south australia',
+            # Женские
+            'women', 'womens', 'femenina', 'feminine', 'female',
+            # Молодёжные
+            'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
+            'youth', 'reserve', 'academy', 'junior',
+            # Низшие английские дивизионы (8+ уровень)
+            'isthmian', 'northern premier', 'southern league',
+            'national league', 'county league', 'combined counties',
+            'premier division', 'division one', 'division two',
+            'championship north', 'championship south',
+            'east counties', 'wessex league', 'western league',
+            'northern counties east', 'northern counties west',
+            'essex senior', 'hellenic league', 'midland league',
+            'north west counties', 'spartan south midlands',
+            'southern counties east', 'southern combination',
+            'yorkshire league',
+            # Низшие других стран
+            'primera b', 'primera c', 'primera d',
+            'segunda división', 'segunda division',
             'primera federación', 'segunda federación', 'tercera federación',
-            'serie d', 'serie c',
-            'división profesional', 'liga premier', 'liga de expansión',
-            'besta deild karla', '1. deild karla', '2. deild karla',
-            'ekstraklasa ii', 'i liga ii', 'ii liga', 'iii liga',
-            'lpf', 'prim b', 'prim c', 'prim d',
-            'national league', 'national 2', 'national 3',
+            'serie c', 'serie d',
+            'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
+            'torneo federal', 'torneo argentino',
+            'prim b', 'prim c', 'prim d',
+            'lpf', 'primera nacional',
+            # Мелкие региональные
+            'amateur', 'npl', 'nsw', 'victoria', 'queensland',
+            'south australia',
+            'k4', 'k5', 'k6', 'k7',
+            'copa paulista', 'carioca', 'gaúcho', 'mineiro',
+            'baiano', 'pernambucano', 'cearense', 'paranaense',
+            'division 2', 'division 3',
+            'national 2', 'national 3',
             'championnat national', 'cfa',
             'allsvenskan norra', 'allsvenskan södra',
-            'division 2', 'division 3',
-            'ykkösliiga', 'kakkonen',
             'superettan norra', 'superettan södra',
             '2. deild', '3. deild', '4. deild',
             'treća hnl', 'druga hnl',
             'virsliga women',
+            'ii liga', 'iii liga', 'ekstraklasa ii', 'i liga ii',
+            'besta deild karla', '1. deild karla', '2. deild karla',
+            'ykkösliiga', 'kakkonen',
+            'división profesional', 'liga premier', 'liga de expansión',
         ]
+
+        whitelist = cls.WHITELIST_LEAGUES
 
         for country in cls.LEAGUE_COUNTRIES:
             try:
@@ -299,7 +404,14 @@ class Config:
                         continue
 
                     lname_lower = lname.lower()
+
+                    # EXCLUDE
                     if any(w in lname_lower for w in EXCLUDE_WORDS):
+                        continue
+
+                    # ★ WHITELIST — пропускаем только лиги из белого списка
+                    if not any(good in lname_lower for good in whitelist):
+                        print(f"⏭️ {country}: {lname} — не в whitelist")
                         continue
 
                     leagues.append(lid)
@@ -312,7 +424,7 @@ class Config:
         if leagues:
             cls.LEAGUES = sorted(set(leagues))
             cls.LEAGUE_NAMES = names
-            print(f"🔄 Из API: {len(cls.LEAGUES)} лиг")
+            print(f"🔄 Из API: {len(cls.LEAGUES)} лиг (после whitelist)")
             return True
         print("⚠️ API пусто — резервный список.")
         return False
@@ -387,14 +499,13 @@ class Config:
         else:
             print("✅ Все ключи загружены!")
 
-        print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'} | городов: {len(cls.CITY_COORDS)}")
+        print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'}")
         print(f"🧠 PREDICTION_ENGINE: {cls.PREDICTION_ENGINE}")
         print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER}) | модель: {cls.LLM_MODEL}")
-        print(f"🔑 Резервных Odds-ключей: {len(cls.BACKUP_ODDS_KEYS)}")
-        print(f"📢 CHANNEL_ID: {'задан' if cls.CHANNEL_ID else 'не задан'}")
         print(f"📅 Сезон: {cls.USE_SEASON}")
         print(f"🗄️ БД: {cls.DATABASE_URL}")
         print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
+        print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
 
         cls.init_db()
