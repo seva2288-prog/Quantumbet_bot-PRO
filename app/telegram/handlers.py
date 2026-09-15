@@ -82,7 +82,7 @@ class Handlers:
 📅 Средняя ставка: ${avg_stake}"""
 
     # ============================================================
-    # TODAY — ТОП-5
+    # TODAY — ТОП-5 (★ С ВРЕМЕНЕМ МАТЧА)
     # ============================================================
     def handle_today(self):
         cache = storage.load_cache()
@@ -94,6 +94,12 @@ class Handlers:
         for i, m in enumerate(matches[:5], 1):
             msg += f"{i}. 🏟️ {m.get('home')} vs {m.get('away')}\n"
             msg += f"   🏆 {m.get('league')}\n"
+
+            # ★ Время матча
+            match_time = m.get('match_time', '?')
+            if match_time and match_time != '?':
+                msg += f"   ⏰ {match_time}\n"
+
             if m.get('bets'):
                 best = m['bets'][0]
                 msg += f"   🎯 {best.get('label')} | КЭФ: {best.get('odds')} | EV: {best.get('ev')}%\n"
