@@ -105,7 +105,8 @@ class PerformanceMonitor:
         for item in self.get_report():
             status = "✅" if item['error_rate'] < 5 else "⚠️" if item['error_rate'] < 20 else "❌"
             logger.info(f"{status} {item['function']}: {item['calls']} вызовов, "
-                        f"среднее {item['avg_time']}с, макс {item['max_time']}с")
+                        f"среднее {item['avg_time']}с, макс {item['max_time']}с, "
+                        f"ошибки {item['error_rate']}%")
 
 
 perf_monitor = PerformanceMonitor()
@@ -1426,9 +1427,13 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ
+# ★ СНИМКИ КЭФОВ — С ФИКСОМ ЧАСОВОГО ПОЯСА
 # ============================================================
 def snapshot_odds_for_upcoming():
+    """
+    Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
+    ★ ФИКС: match_time в кэше в МСК (UTC+3), сравниваем в том же поясе.
+    """
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
@@ -1439,7 +1444,11 @@ def snapshot_odds_for_upcoming():
             logger.info("🔍 snapshot: кэш пуст → выход")
             return 0
 
-        now = datetime.now()
+        # ★ ФИКС: match_time в кэше в МСК, а datetime.now() на Render = UTC.
+        # Приводим now к МСК для корректного сравнения.
+        now = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+        logger.info(f"🔍 snapshot: сейчас (МСК): {now.strftime('%d.%m.%Y %H:%M')}")
+
         in_window = 0
         total_snapshots = 0
 
@@ -1461,10 +1470,11 @@ def snapshot_odds_for_upcoming():
                 hours_to_match = (match_dt - now).total_seconds() / 3600
 
                 if not (0 < hours_to_match <= 2):
+                    logger.debug(f"⏭️ snapshot: {home} vs {away} | {match_time_str} | вне окна ({hours_to_match:.1f}ч)")
                     continue
 
                 in_window += 1
-                logger.info(f"✅ snapshot: {home} vs {away} В ОКНЕ (через {hours_to_match:.1f}ч)")
+                logger.info(f"✅ snapshot: {home} vs {away} | {match_time_str} | В ОКНЕ (через {hours_to_match:.1f}ч)")
 
                 fid = md.get('fixture_id')
                 if not fid:
@@ -1497,8 +1507,6 @@ def snapshot_odds_for_upcoming():
                             total_snapshots += 1
                         else:
                             logger.info(f"⏭️ snapshot: дубль {home} vs {away} | {mkt}/{sel} = {odd}")
-                    else:
-                        logger.info(f"⏭️ snapshot: пустой кэф {key} для {home} vs {away}")
 
             except Exception as e:
                 logger.error(f"🔍 snapshot error для {md.get('home')}: {e}")
@@ -1555,7 +1563,6 @@ def find_top_matches(matches):
             league_name = ld.get('name', 'Unknown')
             league_id = ld.get('id')
 
-            # ★ ЧЁРНЫЙ СПИСОК ЛИГ
             league_lower = league_name.lower()
             if any(bad in league_lower for bad in blacklist):
                 logger.info(f"⏭️ Лига в чёрном списке: {home} vs {away} ({league_name})")
@@ -1755,7 +1762,7 @@ def find_top_matches(matches):
                 "api_predictions": api_predictions,
                 "factors": {}, "source": "70_percent"
             })
-            logger.info(f"✅ {home} vs {away} | {best_bet['label']} | Prob: {best_bet['prob']}%")
+            logger.info(f"✅ {home} vs {away} | {match_time} | {best_bet['label']} | Prob: {best_bet['prob']}%")
         except Exception as e:
             logger.error(f"❌ {e}")
             continue
