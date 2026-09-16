@@ -1,4 +1,6 @@
-"""Конфигурация бота"""
+"""Конфигурация бота — Quantum Bet Bot PRO
+Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
+"""
 import os
 import sys
 import time
@@ -19,8 +21,8 @@ class Config:
     CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 
     # ============================================================
-    # === FOOTBALL API (тариф Ultra) ===
-    # 450 req/min, 75 000 req/day, доступ к /odds, /predictions, /injuries
+    # === FOOTBALL API (Ultra) ===
+    # 450 req/min, 75 000 req/day, /odds, /predictions, /injuries
     # ============================================================
     FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "")
     FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io")
@@ -50,10 +52,10 @@ class Config:
 
     # ============================================================
     # === ИНФРАСТРУКТУРА ===
-    # DATABASE_URL должен указывать на Render Disk (например, /data/bot.db)
+    # DATABASE_URL должен указывать на Render Disk (/data/...)
     # ============================================================
     DATABASE_URL = os.getenv("DATABASE_URL", "/data/bot.db")
-    REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "15"))  # Ultra быстрый — 15 сек хватит
+    REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "15"))
     USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
@@ -95,8 +97,8 @@ class Config:
 
     # ============================================================
     # ★ WHITELIST — лиги, которые берём в работу
-    # Тариф Ultra даёт кэфы и для вторых дивизионов.
-    # build_leagues_from_api() фильтрует лиги из API по этому списку.
+    # Проверено на Ultra: по этим лигам API отдаёт кэфы.
+    # Результаты проверки: 50 лиг с кэфами, 17 без.
     # ============================================================
     WHITELIST_LEAGUES = [
         # ── Англия ──
@@ -136,8 +138,9 @@ class Config:
 
     # ============================================================
     # ★ BLACKLIST — лиги, которые НЕ анализируем
-    # Вторые дивизионы (Championship, Serie B, Ligue 2,
-    # 2. Bundesliga, 3. Liga, La Liga 2) УБРАНЫ — они в whitelist.
+    # Обновлено после проверки check_whitelist_odds():
+    #  - убраны лиги без кэфов на Ultra
+    #  - убраны низшие дивизионы и мусор
     # ============================================================
     BLACKLIST_LEAGUES = [
         # ── Низшие английские дивизионы (полу-любители) ──
@@ -169,15 +172,30 @@ class Config:
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
         'torneo federal', 'torneo argentino',
         'prim b', 'prim c', 'prim d',
-        'lpf', 'primera nacional', 'primera federación',
+        'lpf', 'primera nacional',
         'segunda federación', 'tercera federación',
         'national 2', 'national 3', 'championnat national',
         'ii liga', 'iii liga',
 
-        # ── Экзотика (локальные кубки штатов Бразилии) ──
-        'botola', 'egyptian premier', 'south africa premier',
+        # ── Локальные кубки штатов Бразилии ──
         'copa paulista', 'carioca', 'gaúcho', 'mineiro',
         'baiano', 'pernambucano', 'cearense', 'paranaense',
+
+        # ============================================================
+        # ★ ЛИГИ БЕЗ КЭФОВ (проверено на Ultra — 0 матчей /odds)
+        # ============================================================
+        'persha liga',              # Украина, 2-й див.
+        'j2 league',                # Япония, 2-й див.
+        'k league 1',               # Южная Корея
+        'k league 2',               # Южная Корея
+        'colombia primera a',       # Колумбия
+        'chile primera',            # Чили
+        'nb i',                     # Венгрия
+        'ecuador serie a',          # Эквадор
+        'вторая лига а',            # Россия, 3-й див.
+        'super league 2',           # Греция, 2-й див.
+        'prva liga',                # Словения (ID 260)
+        'egyptian premier',         # Египет
     ]
 
     # ============================================================
@@ -266,7 +284,6 @@ class Config:
         150, 151, 154, 155, 183, 169, 276, 278, 279,
     ]
 
-    # Еврокубки (уже в основных LEAGUES, оставлено для совместимости)
     CUP_LEAGUES = [2, 3, 848]
 
     LEAGUE_NAMES = {
@@ -354,7 +371,8 @@ class Config:
         season = season or cls.USE_SEASON
         leagues, names = [], {}
 
-        # Единый список исключений (вторые дивизионы больше НЕ исключаются)
+        # Единый список исключений (вторые дивизионы больше НЕ исключаются,
+        # т.к. Ultra даёт кэфы)
         EXCLUDE_WORDS = [
             'women', 'womens', 'femenina', 'feminine', 'female',
             'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
@@ -374,7 +392,7 @@ class Config:
             'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
             'torneo federal', 'torneo argentino',
             'prim b', 'prim c', 'prim d',
-            'lpf', 'primera nacional', 'primera federación',
+            'lpf', 'primera nacional',
             'segunda federación', 'tercera federación',
             'amateur', 'npl', 'nsw', 'victoria', 'queensland',
             'south australia',
@@ -445,8 +463,13 @@ class Config:
         return cls.LEAGUE_NAMES
 
     @classmethod
+    def get_whitelist_ids(cls):
+        """Возвращает список ID лиг, которые прошли whitelist (для отладки)."""
+        return sorted(set(cls.LEAGUES))
+
+    @classmethod
     def init_db(cls):
-        # Папка /data должна существовать (Render Disk)
+        """Инициализация БД. Создаёт /data, если папки нет (Render Disk)."""
         db_dir = os.path.dirname(cls.DATABASE_URL)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
@@ -502,7 +525,7 @@ class Config:
 
     # ============================================================
     # ★ ПРОВЕРКА КЭФОВ ПО ВСЕМ ЛИГАМ (из Config.LEAGUES)
-    # Запуск: python3 -c "from app.config import Config; Config.check_leagues_odds()"
+    # Запуск: python3 -m app.config leagues
     # ============================================================
     @classmethod
     def check_leagues_odds(cls):
@@ -558,7 +581,7 @@ class Config:
                 errors.append((lid, name, str(e)))
                 print(f"❌ [{i}/{len(all_leagues)}] {name} — {e}")
 
-            time.sleep(0.15)  # Ultra: 450 req/min — 0.15 сек безопасно
+            time.sleep(0.15)  # Ultra: 450 req/min
 
         print("=" * 70)
         print(f"\n📊 РЕЗУЛЬТАТ:")
@@ -576,15 +599,19 @@ class Config:
             for lid, name in without_odds:
                 print(f"  {lid}: {name}")
 
+        # Сохраняем в /data (Render Disk), а не в корень проекта
         try:
-            with open("leagues_with_odds.txt", "w", encoding="utf-8") as f:
+            out_dir = os.path.dirname(cls.DATABASE_URL) or '.'
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, "leagues_with_odds.txt")
+            with open(out_path, "w", encoding="utf-8") as f:
                 f.write("# Лиги с кэфами\n")
                 for lid, name in with_odds:
                     f.write(f"{lid}\t{name}\n")
                 f.write("\n# Лиги без кэфов\n")
                 for lid, name in without_odds:
                     f.write(f"{lid}\t{name}\n")
-            print(f"\n💾 Сохранено в leagues_with_odds.txt")
+            print(f"\n💾 Сохранено в {out_path}")
         except Exception as e:
             print(f"⚠️ Не удалось сохранить файл: {e}")
 
@@ -592,7 +619,7 @@ class Config:
 
     # ============================================================
     # ★ ПРОВЕРКА КЭФОВ ПО WHITELIST (по названию)
-    # Запуск: python3 -c "from app.config import Config; Config.check_whitelist_odds()"
+    # Запуск: python3 -m app.config whitelist
     # ============================================================
     @classmethod
     def check_whitelist_odds(cls):
@@ -686,6 +713,7 @@ class Config:
 
     # ============================================================
     # === ОБЩАЯ ПРОВЕРКА ===
+    # Запуск: python3 -m app.config check
     # ============================================================
     @classmethod
     def check(cls):
