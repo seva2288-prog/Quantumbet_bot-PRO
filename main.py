@@ -1427,13 +1427,9 @@ def recalc_stats():
 
 
 # ============================================================
-# ★ СНИМКИ КЭФОВ — С ФИКСОМ ЧАСОВОГО ПОЯСА
+# СНИМКИ КЭФОВ
 # ============================================================
 def snapshot_odds_for_upcoming():
-    """
-    Записывает кэфы для матчей, стартующих в ближайшие 2 часа.
-    ★ ФИКС: match_time в кэше в МСК (UTC+3), сравниваем в том же поясе.
-    """
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
         cache = storage.load_cache()
@@ -1444,8 +1440,6 @@ def snapshot_odds_for_upcoming():
             logger.info("🔍 snapshot: кэш пуст → выход")
             return 0
 
-        # ★ ФИКС: match_time в кэше в МСК, а datetime.now() на Render = UTC.
-        # Приводим now к МСК для корректного сравнения.
         now = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         logger.info(f"🔍 snapshot: сейчас (МСК): {now.strftime('%d.%m.%Y %H:%M')}")
 
@@ -1803,6 +1797,9 @@ def find_top_matches_with_tm25(matches):
     if not result:
         return result
 
+    # ★ NEW: запоминаем ВСЕ матчи ДО фильтра по кэфам
+    all_before_odds_filter = result.copy()
+
     result = update_odds_for_matches(result)
 
     for m in result:
@@ -1836,7 +1833,7 @@ def find_top_matches_with_tm25(matches):
 
     cache = storage.load_cache()
     cache['top_matches'] = filtered
-    cache['all_analyzed'] = result
+    cache['all_analyzed'] = all_before_odds_filter    # ★ NEW: все матчи до фильтра кэфов
     storage.save_cache(cache)
 
     history = storage.load_history()
@@ -2351,7 +2348,6 @@ def update_bank():
 
 @app.route('/api/snapshot', methods=['GET'])
 def api_snapshot():
-    """Внешний вызов для сохранения снимков кэфов (cron-job.org)."""
     try:
         n = snapshot_odds_for_upcoming()
         return jsonify({'status': 'ok', 'snapshots': n})
