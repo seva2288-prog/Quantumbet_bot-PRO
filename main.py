@@ -1,5 +1,6 @@
 import sys
 import os
+import copy
 import requests
 import time
 import json
@@ -34,6 +35,9 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 search_running = False
 search_state = {}
 TIMEZONE_OFFSET = 3
+
+# Блокировка для безопасной работы с кэшем
+cache_lock = Lock()
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
@@ -1432,8 +1436,11 @@ def recalc_stats():
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
-        cache = storage.load_cache()
-        matches = cache.get('all_analyzed') or cache.get('top_matches', [])
+        # Безопасное чтение кэша с блокировкой
+        with cache_lock:
+            cache = storage.load_cache()
+            matches = cache.get('all_analyzed') or cache.get('top_matches', [])
+
         logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
 
         if not matches:
@@ -1797,8 +1804,8 @@ def find_top_matches_with_tm25(matches):
     if not result:
         return result
 
-    # ★ NEW: запоминаем ВСЕ матчи ДО фильтра по кэфам
-    all_before_odds_filter = result.copy()
+    # ★ NEW: запоминаем ВСЕ матчи ДО фильтра по кэфам (глубокая копия!)
+    all_before_odds_filter = copy.deepcopy(result)
 
     result = update_odds_for_matches(result)
 
@@ -1831,10 +1838,12 @@ def find_top_matches_with_tm25(matches):
 
     logger.info(f"📊 После финального фильтра: {len(filtered)} из {len(result)}")
 
-    cache = storage.load_cache()
-    cache['top_matches'] = filtered
-    cache['all_analyzed'] = all_before_odds_filter    # ★ NEW: все матчи до фильтра кэфов
-    storage.save_cache(cache)
+    # Безопасная запись в кэш
+    with cache_lock:
+        cache = storage.load_cache()
+        cache['top_matches'] = filtered
+        cache['all_analyzed'] = all_before_odds_filter    # ★ NEW: все матчи до фильтра кэфов
+        storage.save_cache(cache)
 
     history = storage.load_history()
     today_str = datetime.now().strftime('%Y-%m-%d')
@@ -2378,6 +2387,9 @@ def index():
 # ЗАПУСК
 # ============================================================
 if __name__ == "__main__":
+    # Создаём папку data, если её нет
+    os.makedirs('data', exist_ok=True)
+
     setup_logging()
     load_bot_settings()
     Config.init_db()
