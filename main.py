@@ -40,9 +40,7 @@ cache_lock = Lock()
 
 X2_FILE = '/data/x2_data.json' if os.path.exists('/data') else 'x2_data.json'
 
-# ============================================================
-# UTF-8 ПРИНУДИТЕЛЬНО
-# ============================================================
+
 @app.after_request
 def force_utf8(response):
     if response.mimetype == 'text/html':
@@ -52,12 +50,7 @@ def force_utf8(response):
     return response
 
 
-# ============================================================
-# МАРКЕРЫ (обратная совместимость)
-# ============================================================
-MARKERS = {
-    42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
-}
+MARKERS = {42.86875000000006: ('under', 1.95, 'ТМ 2.5')}
 
 TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
@@ -88,8 +81,9 @@ FALLBACK_XG = {
     'Primeira Liga': {'home': 1.4, 'away': 1.1},
 }
 
+
 # ============================================================
-# ПАРСИНГ ВРЕМЕНИ МАТЧА → МСК
+# ПАРСИНГ ВРЕМЕНИ
 # ============================================================
 def parse_match_time_to_msk(date_str):
     if not date_str:
@@ -116,7 +110,7 @@ def parse_match_time_to_msk(date_str):
 
 
 # ============================================================
-# МОНИТОРИНГ ПРОИЗВОДИТЕЛЬНОСТИ
+# PERFORMANCE MONITOR
 # ============================================================
 class PerformanceMonitor:
     def __init__(self):
@@ -185,7 +179,7 @@ def timing_decorator(name=None):
 
 
 # ============================================================
-# УМНОЕ КЭШИРОВАНИЕ
+# SMART CACHE
 # ============================================================
 class SmartCache:
     def __init__(self, max_size=2000):
@@ -232,7 +226,7 @@ class SmartCache:
 
 
 # ============================================================
-# ОБРАБОТКА ОШИБОК API
+# ERRORS
 # ============================================================
 class APIError(Exception): pass
 class APIErrorRetry(Exception): pass
@@ -318,29 +312,20 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
 
 
 # ============================================================
-# MATCHES LOG (для X2 — с дедупликацией)
+# MATCHES LOG (X2 — дедупликация)
 # ============================================================
 _logged_matches_today = set()
 
 
 def log_no_motivation_match(home, away, hp, ap, total_xg, league_name=''):
-    """
-    Записывает матч без мотивации в matches_log.txt.
-    Дедупликация: один матч пишется ОДИН раз за день.
-    """
     try:
         today = datetime.now().strftime('%Y-%m-%d')
         key = f"{today}_{home}_{away}"
-        
         if key in _logged_matches_today:
             return
-        
         _logged_matches_today.add(key)
-        
-        # Ограничиваем размер кэша
         if len(_logged_matches_today) > 5000:
             _logged_matches_today.clear()
-        
         log_path = 'matches_log.txt'
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M')} | {home} vs {away} | "
@@ -350,7 +335,6 @@ def log_no_motivation_match(home, away, hp, ap, total_xg, league_name=''):
 
 
 def trim_matches_log():
-    """Обрезает matches_log.txt, если он больше 500 KB."""
     try:
         log_path = 'matches_log.txt'
         if os.path.exists(log_path):
@@ -584,9 +568,15 @@ class FootballAPI:
             data = self._make_request('/fixtures', {'id': fixture_id})
             if data and 'response' in data:
                 f = data['response'][0]
+                # ★ НОВОЕ: счёт 1-го тайма
+                halftime = f.get('score', {}).get('halftime', {})
                 result = {
                     'goals': {'home': f.get('goals', {}).get('home'),
                               'away': f.get('goals', {}).get('away')},
+                    'halftime': {
+                        'home': halftime.get('home'),
+                        'away': halftime.get('away')
+                    },
                     'status': f.get('status', {}).get('short', 'FT')
                 }
                 self.cache.set(cache_key, result)
@@ -986,7 +976,7 @@ def is_quality_match(home_xg, away_xg, home_position, away_position, home_form, 
 
 
 # ============================================================
-# ЭКСПОРТ В EXCEL
+# ЭКСПОРТ EXCEL (с Prob, с 1-м таймом)
 # ============================================================
 def export_to_excel():
     from openpyxl import Workbook
@@ -1001,8 +991,8 @@ def export_to_excel():
     ws = wb.active
     ws.title = "Ставки"
 
-    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Prob%", "Сумма",
-               "Результат", "Прибыль", "Букмекер"]
+    headers = ["Дата", "Матч", "Счёт", "1-й тайм", "Ставка", "Коэф", "EV%", "Prob%",
+               "Сумма", "Результат", "Прибыль", "Букмекер"]
     ws.append(headers)
 
     for col in range(1, len(headers) + 1):
@@ -1014,6 +1004,7 @@ def export_to_excel():
     total_profit = 0
     for bet in history:
         score = f"{bet.get('home_goals', '-')}-{bet.get('away_goals', '-')}"
+        ht = f"{bet.get('halftime_home', '-')}-{bet.get('halftime_away', '-')}" if bet.get('halftime_home') is not None else '-'
         result = bet.get('result', 'pending')
         profit = bet.get('profit', 0)
         if result == 'win' and profit == 0:
@@ -1026,19 +1017,18 @@ def export_to_excel():
         ws.append([
             bet.get('date', ''),
             f"{bet.get('home', '')} vs {bet.get('away', '')}",
-            score,
+            score, ht,
             bet.get('bet', ''),
             bet.get('odds', 0),
             bet.get('ev', 0),
             bet.get('prob', 0),
             bet.get('stake', 0),
-            result,
-            profit,
+            result, profit,
             bet.get('bookmaker', '—')
         ])
 
     ws.append([])
-    ws.append(["ИТОГО", "", "", "", "", "", "", "", "", round(total_profit, 2), ""])
+    ws.append(["ИТОГО", "", "", "", "", "", "", "", "", "", round(total_profit, 2), ""])
 
     output = io.BytesIO()
     wb.save(output)
@@ -1074,15 +1064,12 @@ def get_profit_data(history):
 def calculate_poisson_probability(home_xg, away_xg):
     def poisson(avg, g):
         return (math.exp(-avg) * avg ** g) / math.factorial(g)
-
     hgp = [poisson(home_xg, i) for i in range(6)]
     agp = [poisson(away_xg, i) for i in range(6)]
-
     prob = {'home_win': 0, 'away_win': 0, 'draw': 0,
             '1X': 0, 'X2': 0, 'btts': 0,
             'over25': 0, 'under25': 0,
             'over_2_5': 0, 'under_2_5': 0}
-
     for h in range(6):
         for a in range(6):
             p = hgp[h] * agp[a]
@@ -1093,12 +1080,9 @@ def calculate_poisson_probability(home_xg, away_xg):
             if a >= h: prob['X2'] += p
             if h > 0 and a > 0: prob['btts'] += p
             if h + a > 2.5:
-                prob['over25'] += p
-                prob['over_2_5'] += p
+                prob['over25'] += p; prob['over_2_5'] += p
             else:
-                prob['under25'] += p
-                prob['under_2_5'] += p
-
+                prob['under25'] += p; prob['under_2_5'] += p
     return prob
 
 
@@ -1144,25 +1128,21 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
     poisson = calculate_poisson_probability(home_xg, away_xg)
     form_prob = calculate_form_probability(home_form, away_form)
     h2h_prob = calculate_h2h_probability(h2h_data)
-
     if engine == 'hybrid':
         w_p, w_f, w_h = 0.40, 0.30, 0.15
     else:
         w_p, w_f, w_h = 0.5, 0.3, 0.2
-
     final = {}
     all_keys = set(list(poisson.keys()) + list(form_prob.keys()) + list(h2h_prob.keys()))
     for k in all_keys:
         final[k] = (poisson.get(k, 0) * w_p +
                     form_prob.get(k, 0) * w_f +
                     h2h_prob.get(k, 0) * w_h)
-
     if api_predictions:
         w_api = 0.15
         final['home_win'] = final.get('home_win', 0) * (1 - w_api) + api_predictions.get('home_win', 0) * w_api
         final['draw'] = final.get('draw', 0) * (1 - w_api) + api_predictions.get('draw', 0) * w_api
         final['away_win'] = final.get('away_win', 0) * (1 - w_api) + api_predictions.get('away_win', 0) * w_api
-
     total = final.get('home_win', 0) + final.get('draw', 0) + final.get('away_win', 0)
     if total > 0:
         final['home_win'] /= total
@@ -1170,7 +1150,6 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
         final['draw'] /= total
         final['1X'] = final['home_win'] + final['draw']
         final['X2'] = final['away_win'] + final['draw']
-
     return final
 
 
@@ -1290,12 +1269,10 @@ def analyze_match(match_name):
 def update_odds_for_matches(matches):
     updated = []
     total = len(matches)
-
     for idx, md in enumerate(matches, 1):
         if idx % 10 == 0:
             send_telegram(f"💓 <b>ОБНОВЛЕНИЕ КЭФОВ</b> | {idx}/{total}")
             logger.info(f"💓 Heartbeat кэфов: {idx}/{total}")
-
         try:
             home = md.get('home'); away = md.get('away'); league = md.get('league')
             fid = md.get('fixture_id')
@@ -1305,7 +1282,6 @@ def update_odds_for_matches(matches):
             bookmaker = '—'
             source = None
 
-            # ЭТАП 1: Odds API
             odds_data = odds_api.get_odds_for_match(home, away, league)
             if odds_data and odds_data.get('best_odds', 0) > 0:
                 if bt == 'under' and odds_data.get('under_odds', 0) > 0:
@@ -1322,7 +1298,6 @@ def update_odds_for_matches(matches):
                     bookmaker = odds_data.get('bookmaker_name', 'Odds API')
                     source = 'Odds API'
 
-            # ЭТАП 2: Football API Ultra
             if not new_odds or new_odds <= 0:
                 if fid:
                     fo = football_api.get_match_odds(fid)
@@ -1335,7 +1310,6 @@ def update_odds_for_matches(matches):
                             elif bt in ('П2', '2'): target = 'away'
                             elif bt == 'draw': target = 'draw'
                             else: target = 'home'
-
                             target_odds = {
                                 bm: data.get(target, 0)
                                 for bm, data in bm_list.items()
@@ -1356,7 +1330,6 @@ def update_odds_for_matches(matches):
                                     boosted = min(prob + anomaly_bonus, 0.95)
                                     best_bet['prob'] = round(boosted * 100, 1)
                                     best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
-
                         if not new_odds:
                             if bt == 'X2' and fo.get('x2_odds', 0) > 0:
                                 new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
@@ -1380,7 +1353,6 @@ def update_odds_for_matches(matches):
                                     bookmaker = fo.get('bookmaker', 'Football API')
                                     source = 'Football API'
 
-            # ЭТАП 3: Fair Odds
             if not new_odds:
                 prob = best_bet.get('prob', 0) / 100
                 if prob > 0:
@@ -1395,7 +1367,6 @@ def update_odds_for_matches(matches):
                     logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]: {home} vs {away}")
                     updated.append(md)
                     continue
-
                 prob = best_bet.get('prob', 0) / 100
                 best_bet['odds'] = round(new_odds, 2)
                 best_bet['ev'] = round((prob * new_odds - 1) * 100, 1)
@@ -1403,7 +1374,6 @@ def update_odds_for_matches(matches):
                 best_bet['odds_source'] = source
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
-
                 try:
                     market_map = {
                         'draw': ('1X2', 'X'), 'draw_boosted': ('1X2', 'X'),
@@ -1421,12 +1391,10 @@ def update_odds_for_matches(matches):
                     )
                 except Exception as e:
                     logger.error(f"Ошибка записи снимка: {e}")
-
             updated.append(md)
         except Exception as e:
             logger.error(f"Ошибка кэфов: {e}")
             updated.append(md)
-
     return updated
 
 
@@ -1438,7 +1406,6 @@ def get_matches_with_factors():
     today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     total_leagues = len(all_leagues)
-
     logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
     send_telegram(
         f"🔎 <b>СТАРТ ПОИСКА</b>\n"
@@ -1446,7 +1413,6 @@ def get_matches_with_factors():
         f"📊 Лиг: {total_leagues}\n"
         f"⏱️ Время: 5-10 минут"
     )
-
     start_time = time.time()
     processed = 0
     found_total = 0
@@ -1454,13 +1420,11 @@ def get_matches_with_factors():
     leagues_with_matches = 0
     progress_step = 25
     seen_fixtures = set()
-
     for league_id in all_leagues:
         try:
             matches = football_api.get_matches(league_id, today)
             league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
             processed += 1
-
             if not matches:
                 empty_leagues += 1
             else:
@@ -1477,7 +1441,6 @@ def get_matches_with_factors():
                     hid = teams.get('home', {}).get('id')
                     aid = teams.get('away', {}).get('id')
                     if not hid or not aid: continue
-
                     m['factors'] = {
                         'home_form': football_api.get_form(hid),
                         'away_form': football_api.get_form(aid),
@@ -1486,7 +1449,6 @@ def get_matches_with_factors():
                         'home_id': hid, 'away_id': aid,
                         'referee': fixture.get('referee')
                     }
-
                     weather = None
                     venue = fixture.get('venue', {})
                     city = venue.get('city') if isinstance(venue, dict) else None
@@ -1497,20 +1459,16 @@ def get_matches_with_factors():
                         m['weather_reason'] = f"🌤️ {weather['desc']}, {weather['temp']}°C, ветер {weather['wind']} м/с, дождь {weather['rain']} мм"
                     else:
                         m['weather_reason'] = "🌤️ Нет данных"
-
                     ld = m.get('league', {})
                     if isinstance(ld, dict):
                         ld['name'] = league_name
-
                     all_matches.append(m)
                     new_matches += 1
-
                 if new_matches > 0:
                     found_total += new_matches
                     leagues_with_matches += 1
                 else:
                     empty_leagues += 1
-
             if processed % progress_step == 0:
                 elapsed = (time.time() - start_time) / 60
                 remaining = total_leagues - processed
@@ -1522,9 +1480,7 @@ def get_matches_with_factors():
                 )
         except Exception as e:
             logger.error(f"❌ {league_id}: {e}")
-
         time.sleep(0.01)
-
     elapsed_total = (time.time() - start_time) / 60
     send_telegram(
         f"✅ <b>ПОИСК ЗАВЕРШЁН</b>\n"
@@ -1546,19 +1502,16 @@ def find_top_matches(matches):
     max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 30)
     total_matches = len(matches)
     logger.info(f"🔍 [70%+] Анализ {total_matches} матчей...")
-
     blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
     best_matches = []
     bet_type_count = {}
     league_count = {}
     heartbeat_interval = 30
-
     for match_idx, match in enumerate(matches):
         if not match or not isinstance(match, dict): continue
         if (match_idx + 1) % heartbeat_interval == 0:
             elapsed = time.time() - find_start_time
             send_telegram(f"💓 <b>АНАЛИЗ 70%+</b> | {match_idx + 1}/{total_matches}\n🎯 Кандидатов: {len(best_matches)}")
-
         try:
             fixture = match.get('fixture')
             teams = match.get('teams')
@@ -1569,36 +1522,28 @@ def find_top_matches(matches):
             ld = match.get('league', {})
             league_name = ld.get('name', 'Unknown')
             league_id = ld.get('id')
-
             league_lower = league_name.lower()
             if any(bad in league_lower for bad in blacklist):
                 continue
-
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
-
             hfd = football_api.get_form(ht.get('id'))
             afd = football_api.get_form(at.get('id'))
             home_form = hfd.get('form', '') if hfd else ''
             away_form = afd.get('form', '') if afd else ''
-
             hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
             aga = afd.get('goals_avg', 1.0) if afd else 1.0
             hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
             aca = afd.get('conceded_avg', 1.2) if afd else 1.2
-
             home_xg = (hga + aca) / 2
             away_xg = (aga + hca) / 2
-
             h_inj = len(match.get('factors', {}).get('home_injuries_list', []))
             a_inj = len(match.get('factors', {}).get('away_injuries_list', []))
             if h_inj > 3: home_xg *= 0.8
             if a_inj > 3: away_xg *= 0.8
-
             home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
             home_xg *= home_adv
             away_xg /= home_adv
             total_xg = home_xg + away_xg
-
             w = match.get('weather')
             if w:
                 rain = w.get('rain', 0) or 0
@@ -1609,53 +1554,38 @@ def find_top_matches(matches):
                     total_xg *= 0.96
                 if wind > 10: total_xg *= 0.95
                 elif wind > 7: total_xg *= 0.98
-
             XG_MIN = getattr(Config, 'XG_MIN_70', 1.8)
             XG_MAX = getattr(Config, 'XG_MAX_70', 3.0)
             POS_MAX = getattr(Config, 'POSITION_MAX_70', 15)
-
             if total_xg < XG_MIN or total_xg > XG_MAX:
                 continue
-
             standings = football_api.get_standings(league_id) if league_id else None
             hp = standings.get(home, {}).get('position', 99) if standings else 99
             ap = standings.get(away, {}).get('position', 99) if standings else 99
             hm = get_motivation(hp); am = get_motivation(ap)
-
             if hm == 'mid_table' and am == 'mid_table':
-                # ✅ ЛОГ ДЛЯ X2 (с дедупликацией)
                 log_no_motivation_match(home, away, hp, ap, total_xg, league_name)
                 continue
-
             if hp > POS_MAX or ap > POS_MAX:
                 continue
-
             if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6:
                 continue
-
-            home_data = standings.get(home, {}) if standings else {}
-            away_data = standings.get(away, {}) if standings else {}
-
             h2h = football_api.get_head_to_head(home, away)
             api_predictions = football_api.get_predictions(fid) if fid else None
-
             probs = ensemble_probability(
                 home_xg, away_xg, home_form, away_form, h2h,
                 match_data=None, api_predictions=api_predictions
             )
-
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
             elif am == 'relegation' and hm == 'mid_table':
                 probs['away_win'] = probs.get('away_win', 0) + 0.05
-
             stake = round(bank * 0.02, 2) if bank > 0 else 10.0
             bets = []
             odds_template = {
                 '1X': 1.85, 'X2': 1.85, 'П1': 2.10, 'П2': 2.10,
                 'ТМ 2.5': 1.95, 'ТБ 2.5': 1.95, 'ОБЗ': 1.90,
             }
-
             for bt, label, pk in [
                 ('1X', '1X', '1X'), ('X2', 'X2', 'X2'),
                 ('П1', 'П1', 'home_win'), ('П2', 'П2', 'away_win'),
@@ -1671,17 +1601,13 @@ def find_top_matches(matches):
                     'ev': round((p * odds_template[key] - 1) * 100, 1),
                     'odds': odds_template[key], 'stake': stake
                 })
-
             if not bets: continue
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
-
             EV_MIN_70 = getattr(Config, 'EV_MIN_70', 15)
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 55)
-
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
-
             bt = best_bet['type']
             LIMIT_BT = getattr(Config, 'LIMIT_BET_TYPE_70', 15)
             LIMIT_LG = getattr(Config, 'LIMIT_LEAGUE_70', 5)
@@ -1689,7 +1615,6 @@ def find_top_matches(matches):
             if bet_type_count[bt] > LIMIT_BT: continue
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
-
             best_matches.append({
                 "home": home, "away": away, "league": league_name,
                 "fixture_id": fid, "match_time": match_time,
@@ -1707,10 +1632,8 @@ def find_top_matches(matches):
         except Exception as e:
             logger.error(f"❌ [70%+] {e}")
             continue
-
     best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     top = best_matches[:max_bets]
-
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
             llm_payload = [
@@ -1731,12 +1654,11 @@ def find_top_matches(matches):
                     _apply_llm_to_match(m, llm, alpha=0.7)
         except Exception as e:
             logger.error(f"❌ LLM ошибка: {e}")
-
     return top
 
 
 # ============================================================
-# ПОТОК 2: ТМ 2.5 (единый цикл)
+# ПОТОК 2: ТМ 2.5
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -1750,16 +1672,13 @@ def find_tm25_matches(matches):
     STANDARD_MIN_PROB = getattr(Config, 'STANDARD_MIN_PROB', 50) / 100
     STANDARD_XG_MIN = getattr(Config, 'TM25_XG_MIN', 0.8)
     STANDARD_XG_MAX = getattr(Config, 'TM25_XG_MAX', 3.0)
-
     logger.info("🔍 [ТМ 2.5] Единый поиск...")
     stats = {'premium_found': 0, 'standard_found': 0}
     seen_keys = set()
-
     for match in matches:
         if len(tm25_candidates) >= MAX_TM25_BETS:
             break
-        if not match or not isinstance(match, dict):
-            continue
+        if not match or not isinstance(match, dict): continue
         try:
             fixture = match.get('fixture')
             teams = match.get('teams')
@@ -1767,16 +1686,13 @@ def find_tm25_matches(matches):
             fid = fixture.get('id')
             ht = teams.get('home', {}); at = teams.get('away', {})
             home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
-
             key = f"{home}_{away}"
             if key in seen_keys: continue
             seen_keys.add(key)
-
             ld = match.get('league', {})
             league_name = ld.get('name', 'Unknown')
             league_id = ld.get('id')
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
-
             stats_dict = football_api.get_match_statistics(fid) if fid else None
             home_xg = 1.2; away_xg = 1.0
             if stats_dict:
@@ -1787,7 +1703,6 @@ def find_tm25_matches(matches):
                     elif away.lower() in tn.lower() or tn.lower() in away.lower():
                         xg = ts.get('Expected Goals', ts.get('xG'))
                         if xg and xg > 0: away_xg = float(xg)
-
             if home_xg == 1.2 and away_xg == 1.0:
                 if league_name in FALLBACK_XG:
                     home_xg = FALLBACK_XG[league_name]['home']
@@ -1797,12 +1712,10 @@ def find_tm25_matches(matches):
                 rng = random.Random(fid)
                 home_xg *= (1 + rng.uniform(-0.1, 0.1))
                 away_xg *= (1 + rng.uniform(-0.1, 0.1))
-
             home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
             home_xg *= home_adv
             away_xg /= home_adv
             total_xg = home_xg + away_xg
-
             hfd = football_api.get_form(ht.get('id'))
             afd = football_api.get_form(at.get('id'))
             home_form = hfd.get('form', '') if hfd else ''
@@ -1815,7 +1728,6 @@ def find_tm25_matches(matches):
             p_under = probs.get('under25', probs.get('under_2_5', 0))
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
-
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV
                 and p_under >= PREMIUM_MIN_PROB):
@@ -1841,7 +1753,6 @@ def find_tm25_matches(matches):
                 stats['premium_found'] += 1
                 logger.info(f"🔥 PREMIUM: {home} vs {away} | EV: {ev_under*100:.1f}%")
                 continue
-
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV
                 and p_under >= STANDARD_MIN_PROB):
@@ -1869,7 +1780,6 @@ def find_tm25_matches(matches):
         except Exception as e:
             logger.error(f"❌ [ТМ2.5] {e}")
             continue
-
     logger.info(f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}")
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     return tm25_candidates
@@ -1884,12 +1794,10 @@ def find_top_matches_with_tm25(matches):
     logger.info("📊 ПОТОК 1: 70%+")
     logger.info("=" * 60)
     top_matches_70 = find_top_matches(matches)
-
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 2: ТМ 2.5")
     logger.info("=" * 60)
     tm25_matches = find_tm25_matches(matches)
-
     combined = []
     keys = set()
     for m in top_matches_70:
@@ -1900,26 +1808,20 @@ def find_top_matches_with_tm25(matches):
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
             combined.append(m); keys.add(key)
-
     combined.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
-
     all_before_odds_filter = copy.deepcopy(combined)
-
     if combined:
         logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
         combined = update_odds_for_matches(combined)
-
     for m in combined:
         bets = [b for b in m.get('bets', []) if b.get('odds', 0) > 1.01]
         if not bets: continue
         bets.sort(key=lambda x: x.get('ev', 0), reverse=True)
         m['bets'] = bets
         m['best_bet'] = bets[0]
-
     EV_MIN = getattr(Config, 'EV_FINAL_MIN', -6)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 100)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 45)
-
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
@@ -1928,26 +1830,21 @@ def find_top_matches_with_tm25(matches):
         if ev < EV_MIN or ev > EV_MAX: continue
         if prob < PROB_MIN: continue
         filtered.append(m)
-
     logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}")
-
     with cache_lock:
         cache = storage.load_cache()
         cache['top_matches'] = filtered
         cache['all_analyzed'] = all_before_odds_filter
         storage.save_cache(cache)
-
     history = storage.load_history()
     today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0]) for h in history}
     added = 0
-
     for md in filtered:
         bb = md.get('best_bet', {})
         key = (md.get('home'), md.get('away'), today_str)
         if key in existing: continue
         existing.add(key)
-        # ✅ ДОБАВЛЕН PROB В ИСТОРИЮ
         history.append({
             'home': md.get('home'), 'away': md.get('away'),
             'league': md.get('league'), 'bet': bb.get('label', '—'),
@@ -1965,12 +1862,11 @@ def find_top_matches_with_tm25(matches):
     storage.save_history(history)
     logger.info(f"📝 Добавлено ставок: {added}")
     logger.info("=" * 60)
-
     return filtered
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
+# ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ (С 1-М ТАЙМОМ)
 # ============================================================
 @timing_decorator()
 def update_pending_bets():
@@ -1992,6 +1888,10 @@ def update_pending_bets():
                             bet['result'] = result
                             bet['home_goals'] = hg
                             bet['away_goals'] = ag
+                            # ★ Сохраняем 1-й тайм
+                            if md.get('halftime'):
+                                bet['halftime_home'] = md['halftime'].get('home')
+                                bet['halftime_away'] = md['halftime'].get('away')
                             if result == 'win':
                                 bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
                             elif result == 'loss':
@@ -2035,11 +1935,9 @@ def snapshot_odds_for_upcoming():
         logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
         if not matches:
             return 0
-
         now = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         in_window = 0
         total_snapshots = 0
-
         for md in matches:
             try:
                 home = md.get('home', '?')
@@ -2075,7 +1973,6 @@ def snapshot_odds_for_upcoming():
             except Exception as e:
                 logger.error(f"🔍 snapshot error: {e}")
                 continue
-
         logger.info(f"📸 Снимков: {total_snapshots} | в окне: {in_window}/{len(matches)}")
         return total_snapshots
     except Exception as e:
@@ -2154,7 +2051,6 @@ def send_auto_backup():
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
         items_to_backup = ['data', 'bot.db', 'bot_state.json', 'matches_log.txt']
-
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             for item in items_to_backup:
                 if os.path.exists(item):
@@ -2166,13 +2062,11 @@ def send_auto_backup():
                                 zf.write(full, arcname)
                     else:
                         zf.write(item, item)
-
         size_kb = os.path.getsize(zip_path) / 1024
         history = storage.load_history()
         bank = storage.load_bank()
         total_bets = len(history)
         wins = sum(1 for b in history if b.get('result') == 'win')
-
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendDocument"
         with open(zip_path, 'rb') as f:
             r = requests.post(url,
@@ -2188,7 +2082,6 @@ def send_auto_backup():
                     ),
                     'parse_mode': 'HTML'
                 }, timeout=60)
-
         if r.status_code == 200:
             logger.info(f"💾 Бэкап: {zip_path} ({size_kb:.1f} КБ)")
             cleanup_old_backups()
@@ -2394,7 +2287,6 @@ def webhook():
     try:
         data = request.get_json()
         if not data: return "ok", 200
-
         if 'callback_query' in data:
             cb = data['callback_query']
             answer_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/answerCallbackQuery"
@@ -2406,15 +2298,12 @@ def webhook():
             except Exception as e:
                 logger.error(f"Ответ: {e}")
             return "ok", 200
-
         if 'message' in data:
             message = data['message']
             text = message.get('text', '')
             chat_id = message.get('chat', {}).get('id')
-
             if str(chat_id) != str(Config.ADMIN_CHAT_ID):
                 return "ok", 200
-
             if text == '/start':
                 send_telegram(handlers.handle_start())
             elif text == '/help':
@@ -2426,7 +2315,6 @@ def webhook():
                 search_running = True
                 search_state = {'start_time': datetime.now()}
                 send_telegram("🔎 Запущен анализ. Ждите...")
-
                 def run_search():
                     global search_running
                     try:
@@ -2454,9 +2342,7 @@ def webhook():
                             send_telegram("❌ Матчей нет")
                     finally:
                         search_running = False
-
                 Thread(target=run_search, daemon=True).start()
-
             elif text == '/reset_search':
                 search_running = False
                 send_telegram("✅ Сброшено")
@@ -2525,7 +2411,6 @@ def webhook():
                 send_telegram(report)
             else:
                 send_telegram("❌ Неизвестная команда. /help")
-
         return "ok", 200
     except Exception as e:
         logger.error(f"Webhook: {e}")
@@ -2553,7 +2438,225 @@ def serve_manifest():
 
 
 # ============================================================
-# API ЭНДПОИНТЫ
+# API: СНИМКИ КЭФОВ ★ НОВОЕ
+# ============================================================
+@app.route('/api/snapshots', methods=['GET'])
+def api_snapshots_list():
+    """
+    Список матчей со снимками кэфов.
+    Параметры:
+      - days (int, default=7): за сколько дней
+      - only_anomaly (bool): только с аномалиями >5%
+      - limit (int, default=50): максимум матчей
+    """
+    try:
+        days = int(request.args.get('days', 7))
+        only_anomaly = request.args.get('only_anomaly', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 50))
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            matches_raw = storage.get_snapshots_since(cutoff)
+        except AttributeError:
+            matches_raw = storage.get_all_snapshots() if hasattr(storage, 'get_all_snapshots') else []
+
+        grouped = {}
+        for row in matches_raw:
+            fid = row.get('fixture_id')
+            if not fid: continue
+            if fid not in grouped:
+                grouped[fid] = {
+                    'fixture_id': fid,
+                    'snapshots': [],
+                    'first_time': None,
+                    'last_time': None
+                }
+            grouped[fid]['snapshots'].append(row)
+            t = row.get('created_at')
+            if t:
+                if not grouped[fid]['first_time'] or t < grouped[fid]['first_time']:
+                    grouped[fid]['first_time'] = t
+                if not grouped[fid]['last_time'] or t > grouped[fid]['last_time']:
+                    grouped[fid]['last_time'] = t
+
+        cache = storage.load_cache()
+        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+        match_lookup = {}
+        for m in all_matches:
+            fid = m.get('fixture_id')
+            if fid:
+                match_lookup[fid] = {
+                    'home': m.get('home'),
+                    'away': m.get('away'),
+                    'league': m.get('league', ''),
+                    'match_time': m.get('match_time', '')
+                }
+
+        result = []
+        for fid, info in grouped.items():
+            snaps = info['snapshots']
+            if not snaps: continue
+            first_odds = {'1': 0, 'X': 0, '2': 0}
+            last_odds = {'1': 0, 'X': 0, '2': 0}
+            anomalies = []
+            for s in snaps:
+                sel = s.get('selection', '')
+                odd = s.get('odds', 0)
+                if sel in ['1', 'X', '2']:
+                    if not first_odds[sel]:
+                        first_odds[sel] = odd
+                    last_odds[sel] = odd
+            for sel in ['1', 'X', '2']:
+                if first_odds[sel] > 0 and last_odds[sel] > 0:
+                    trend = ((last_odds[sel] / first_odds[sel]) - 1) * 100
+                    if abs(trend) > 5:
+                        anomalies.append({
+                            'selection': sel,
+                            'first': first_odds[sel],
+                            'last': last_odds[sel],
+                            'trend': round(trend, 1)
+                        })
+            if only_anomaly and not anomalies:
+                continue
+            m_info = match_lookup.get(fid, {})
+            result.append({
+                'fixture_id': fid,
+                'home': m_info.get('home', '?'),
+                'away': m_info.get('away', '?'),
+                'league': m_info.get('league', '?'),
+                'match_time': m_info.get('match_time', '?'),
+                'snapshot_count': len(snaps),
+                'first_time': info['first_time'],
+                'last_time': info['last_time'],
+                'first': first_odds,
+                'last': last_odds,
+                'anomalies': anomalies
+            })
+        result.sort(key=lambda x: x.get('last_time', ''), reverse=True)
+        result = result[:limit]
+        return jsonify({
+            'status': 'ok',
+            'count': len(result),
+            'days': days,
+            'only_anomaly': only_anomaly,
+            'matches': result
+        })
+    except Exception as e:
+        logger.exception("❌ /api/snapshots")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
+def api_snapshots_detail(fixture_id):
+    """Детальные снимки для одного матча."""
+    try:
+        try:
+            rows = storage.get_snapshots_by_fixture(fixture_id)
+        except AttributeError:
+            rows = []
+        if not rows:
+            return jsonify({'status': 'ok', 'fixture_id': fixture_id, 'history': []})
+
+        cache = storage.load_cache()
+        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+        m_info = {}
+        for m in all_matches:
+            if m.get('fixture_id') == fixture_id:
+                m_info = {
+                    'home': m.get('home'),
+                    'away': m.get('away'),
+                    'league': m.get('league', ''),
+                    'match_time': m.get('match_time', '')
+                }
+                break
+
+        history_map = {}
+        for r in rows:
+            t = r.get('created_at')
+            sel = r.get('selection', '')
+            odd = r.get('odds', 0)
+            bm = r.get('bookmaker', '—')
+            if not t: continue
+            if t not in history_map:
+                history_map[t] = {'created_at': t, 'odds': {'1': 0, 'X': 0, '2': 0}, 'bookmaker': bm}
+            if sel in ['1', 'X', '2']:
+                history_map[t]['odds'][sel] = odd
+            history_map[t]['bookmaker'] = bm
+
+        history = sorted(history_map.values(), key=lambda x: x['created_at'])
+        return jsonify({
+            'status': 'ok',
+            'fixture_id': fixture_id,
+            'match': m_info,
+            'history': history
+        })
+    except Exception as e:
+        logger.exception(f"❌ /api/snapshots/{fixture_id}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/snapshot_anomalies', methods=['GET'])
+def api_snapshot_anomalies():
+    """Только снимки с аномалиями >5%."""
+    try:
+        days = int(request.args.get('days', 7))
+        limit = int(request.args.get('limit', 50))
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+        try:
+            matches_raw = storage.get_snapshots_since(cutoff)
+        except AttributeError:
+            matches_raw = []
+
+        grouped = {}
+        for row in matches_raw:
+            fid = row.get('fixture_id')
+            if not fid: continue
+            grouped.setdefault(fid, []).append(row)
+
+        cache = storage.load_cache()
+        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+        match_lookup = {m.get('fixture_id'): m for m in all_matches if m.get('fixture_id')}
+
+        result = []
+        for fid, snaps in grouped.items():
+            odds_by_time = {}
+            for s in snaps:
+                t = s.get('created_at')
+                sel = s.get('selection')
+                odd = s.get('odds', 0)
+                if not t or sel not in ['1', 'X', '2']: continue
+                odds_by_time.setdefault(t, {'1': 0, 'X': 0, '2': 0})[sel] = odd
+
+            sorted_times = sorted(odds_by_time.keys())
+            for i, sel in enumerate(['1', 'X', '2']):
+                values = [odds_by_time[t][sel] for t in sorted_times if odds_by_time[t][sel] > 0]
+                if len(values) < 2: continue
+                first_odd = values[0]
+                max_odd = max(values)
+                anomaly_pct = ((max_odd / first_odd) - 1) * 100 if first_odd > 0 else 0
+                if anomaly_pct > 5:
+                    m = match_lookup.get(fid, {})
+                    result.append({
+                        'fixture_id': fid,
+                        'home': m.get('home', '?'),
+                        'away': m.get('away', '?'),
+                        'league': m.get('league', '?'),
+                        'match_time': m.get('match_time', '?'),
+                        'selection': sel,
+                        'first_odds': first_odd,
+                        'max_odds': max_odd,
+                        'anomaly_pct': round(anomaly_pct, 1),
+                        'snapshots_count': len(values)
+                    })
+        result.sort(key=lambda x: x['anomaly_pct'], reverse=True)
+        result = result[:limit]
+        return jsonify({'status': 'ok', 'count': len(result), 'anomalies': result})
+    except Exception as e:
+        logger.exception("❌ /api/snapshot_anomalies")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# API: остальные
 # ============================================================
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
@@ -2619,7 +2722,6 @@ def api_snapshot():
         n = snapshot_odds_for_upcoming()
         return jsonify({'status': 'ok', 'snapshots': n})
     except Exception as e:
-        logger.exception("❌ /api/snapshot")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
@@ -2630,31 +2732,18 @@ def keepalive():
 
 @app.route('/api/matches_log', methods=['GET'])
 def api_matches_log():
-    """Возвращает matches_log.txt для авто-импорта X2."""
     try:
-        possible_paths = [
-            'matches_log.txt',
-            'data/matches_log.txt',
-            '/data/matches_log.txt',
-        ]
+        possible_paths = ['matches_log.txt', 'data/matches_log.txt', '/data/matches_log.txt']
         log_content = ''
         for path in possible_paths:
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                     log_content = f.read()
-                logger.info(f"📄 matches_log: {path} ({len(log_content)} символов)")
                 break
-
         if not log_content:
             return jsonify({'log': '', 'status': 'empty'})
-
-        return jsonify({
-            'log': log_content[-100000:],
-            'status': 'ok',
-            'size': len(log_content)
-        })
+        return jsonify({'log': log_content[-100000:], 'status': 'ok', 'size': len(log_content)})
     except Exception as e:
-        logger.error(f"❌ /api/matches_log: {e}")
         return jsonify({'log': '', 'error': str(e)}), 500
 
 
@@ -2667,7 +2756,6 @@ def api_x2_data_get():
             return jsonify({'status': 'ok', 'data': data})
         return jsonify({'status': 'ok', 'data': []})
     except Exception as e:
-        logger.error(f"❌ Чтение X2: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
@@ -2680,10 +2768,8 @@ def api_x2_data_post():
         os.makedirs(os.path.dirname(X2_FILE) or '.', exist_ok=True)
         with open(X2_FILE, 'w', encoding='utf-8') as f:
             json.dump(data['data'], f, ensure_ascii=False, indent=2)
-        logger.info(f"💾 X2 сохранено: {len(data['data'])} записей")
         return jsonify({'status': 'ok', 'count': len(data['data'])})
     except Exception as e:
-        logger.error(f"❌ Запись X2: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
@@ -2756,7 +2842,6 @@ def import_project():
         recalc_stats()
         return jsonify({'success': True, 'count': imported})
     except Exception as e:
-        logger.error(f"Ошибка импорта: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -2768,7 +2853,8 @@ def edit_bet():
         history = storage.load_history()
         if index >= len(history):
             return jsonify({'error': 'Не найдено'}), 404
-        for field in ['home', 'away', 'bet', 'odds', 'stake', 'ev', 'prob', 'result', 'bookmaker']:
+        for field in ['home', 'away', 'bet', 'odds', 'stake', 'ev', 'prob', 'result', 'bookmaker',
+                      'halftime_home', 'halftime_away']:
             if field in data:
                 history[index][field] = data[field]
         history[index]['home_goals'] = data.get('home_goals')
@@ -2887,17 +2973,14 @@ def index():
 # ============================================================
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
-
     setup_logging()
     load_bot_settings()
     Config.init_db()
     start_scheduler()
-
     schedule_updates()
     schedule_notifications()
     schedule_performance_report()
     schedule_auto_backup()
-
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=snapshot_odds_for_upcoming,
@@ -2911,9 +2994,7 @@ if __name__ == "__main__":
     )
     odds_scheduler.start()
     logger.info("📸 Снимки: 30 мин | Очистка: 4:00 МСК")
-
     port = int(os.environ.get("PORT", 10000))
-
     logger.info("=" * 60)
     logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН")
     logger.info("=" * 60)
@@ -2922,10 +3003,7 @@ if __name__ == "__main__":
     logger.info(f"🤖 LLM: {'вкл' if Config.LLM_ENABLED else 'выкл'}")
     logger.info(f"🚫 Blacklist: {len(Config.BLACKLIST_LEAGUES)}")
     logger.info(f"🌦️ Погода: {'вкл' if Config.WEATHER_ENABLED else 'выкл'}")
-    logger.info(f"📈 Stats: {'вкл' if getattr(Config, 'STATS_ENABLED', True) else 'выкл'}")
-    logger.info(f"✅ /api/matches_log, /api/x2_data готовы")
-    logger.info(f"✅ log_no_motivation_match с дедупликацией")
-    logger.info(f"✅ prob добавлен в историю")
+    logger.info(f"✅ НОВОЕ: /api/snapshots, /api/snapshots/<id>, /api/snapshot_anomalies")
+    logger.info(f"✅ Сохранение 1-го тайма в истории")
     logger.info("=" * 60)
-
     app.run(host='0.0.0.0', port=port)
