@@ -78,8 +78,8 @@ class Config:
     # ============================================================
     XG_MIN_70 = 1.8
     XG_MAX_70 = 3.0
-    EV_MIN_70 = 15
-    PROB_MIN_70 = 55
+    EV_MIN_70 = 20
+    PROB_MIN_70 = 65
     POSITION_MAX_70 = 15
     FORM_REQUIRED_70 = ['excellent', 'good']
     SKIP_MID_TABLE_70 = True
