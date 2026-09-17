@@ -10,7 +10,7 @@ import math
 import functools
 import zipfile
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock, Thread
 from collections import defaultdict
 from flask import Flask, request, jsonify, send_from_directory, render_template
@@ -34,7 +34,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 
 search_running = False
 search_state = {}
-TIMEZONE_OFFSET = 3
+TIMEZONE_OFFSET = 3  # МСК = UTC+3
 
 # Блокировка для безопасной работы с кэшем
 cache_lock = Lock()
@@ -67,6 +67,56 @@ FALLBACK_XG = {
     'Süper Lig': {'home': 1.5, 'away': 1.1},
     'Primeira Liga': {'home': 1.4, 'away': 1.1},
 }
+
+# ============================================================
+# ПАРСИНГ ВРЕМЕНИ МАТЧА → МСК (UTC+3)
+# ============================================================
+def parse_match_time_to_msk(date_str):
+    """
+    Принимает строку даты от API-Football (ISO 8601 с Z или без)
+    и возвращает дату в формате 'DD.MM.YYYY HH:MM' по МСК.
+
+    Обрабатывает форматы:
+      - '2026-09-17T13:00:00+00:00'
+      - '2026-09-17T13:00:00Z'
+      - '2026-09-17T13:00:00'
+      - '2026-09-17 13:00:00'
+    """
+    if not date_str:
+        return "?"
+
+    try:
+        s = str(date_str).strip()
+
+        # Z → +00:00
+        if s.endswith('Z'):
+            s = s[:-1] + '+00:00'
+
+        # Нет таймзоны — считаем UTC
+        if '+' not in s and s.count('-') <= 2:
+            s = s + '+00:00'
+
+        # Пробел → T
+        if ' ' in s and 'T' not in s:
+            s = s.replace(' ', 'T', 1)
+
+        dt = datetime.fromisoformat(s)
+
+        # Naive → UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # Сдвиг в МСК
+        dt_msk = dt + timedelta(hours=TIMEZONE_OFFSET)
+        return dt_msk.strftime("%d.%m.%Y %H:%M")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось распарсить дату '{date_str}': {e}")
+        try:
+            return str(date_str)[:16]
+        except Exception:
+            return "?"
+
 
 # ============================================================
 # МОНИТОРИНГ ПРОИЗВОДИТЕЛЬНОСТИ
@@ -1436,7 +1486,6 @@ def recalc_stats():
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot_odds_for_upcoming: НАЧАЛО")
     try:
-        # Безопасное чтение кэша с блокировкой
         with cache_lock:
             cache = storage.load_cache()
             matches = cache.get('all_analyzed') or cache.get('top_matches', [])
@@ -1569,13 +1618,8 @@ def find_top_matches(matches):
                 logger.info(f"⏭️ Лига в чёрном списке: {home} vs {away} ({league_name})")
                 continue
 
-            match_time = fixture.get('date', '')
-            if match_time:
-                try:
-                    dt = datetime.fromisoformat(match_time.replace("Z", "+00:00")) + timedelta(hours=TIMEZONE_OFFSET)
-                    match_time = dt.strftime("%d.%m.%Y %H:%M")
-                except Exception:
-                    match_time = "?"
+            # === ПАРСИНГ ВРЕМЕНИ (улучшенный) ===
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
 
             hfd = football_api.get_form(ht.get('id'))
             afd = football_api.get_form(at.get('id'))
