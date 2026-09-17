@@ -1,182 +1,240 @@
 // sw.js — Service Worker для PWA
+// Quantum Bet Tracker v16
 
-const CACHE_NAME = 'quantum-bet-tracker-v15';
-const STATIC_CACHE_NAME = 'quantum-bet-tracker-static-v15';
+const CACHE_VERSION = 'v16';
+const CACHE_NAME = `quantum-bet-tracker-${CACHE_VERSION}`;
+const STATIC_CACHE_NAME = `quantum-bet-tracker-static-${CACHE_VERSION}`;
 
-// Файлы для кеширования
+// ============================================================
+// СТАТИЧЕСКИЕ РЕСУРСЫ (кэшируются при установке)
+// ============================================================
 const STATIC_ASSETS = [
   '/',
   '/static/IMG_2820.jpeg',
   '/static/manifest.json'
 ];
 
-// Динамические ресурсы, которые кешируются при первом запросе
+// CDN ресурсы
 const DYNAMIC_ASSETS = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
 
-// Устанавливаем service worker
+// ============================================================
+// УСТАНОВКА
+// ============================================================
 self.addEventListener('install', (event) => {
-  console.log('[SW] Установка...');
+  console.log(`[SW ${CACHE_VERSION}] Установка...`);
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Кеширование статики');
+        console.log(`[SW ${CACHE_VERSION}] Кэширование статики`);
         return cache.addAll(STATIC_ASSETS);
       })
-      .then(() => {
-        // Кешируем динамические ресурсы (CDN)
-        return caches.open(CACHE_NAME);
-      })
+      .then(() => caches.open(CACHE_NAME))
       .then((cache) => {
+        console.log(`[SW ${CACHE_VERSION}] Кэширование CDN`);
         return cache.addAll(DYNAMIC_ASSETS).catch(() => {
-          console.log('[SW] Некоторые CDN ресурсы недоступны');
+          console.log(`[SW ${CACHE_VERSION}] Некоторые CDN ресурсы недоступны`);
         });
       })
       .then(() => {
-        console.log('[SW] Установка завершена');
+        console.log(`[SW ${CACHE_VERSION}] Установка завершена`);
         return self.skipWaiting();
+      })
+      .catch((err) => {
+        console.error(`[SW ${CACHE_VERSION}] Ошибка установки:`, err);
       })
   );
 });
 
-// Активируем service worker
+// ============================================================
+// АКТИВАЦИЯ — удаляем ВСЕ старые кэши
+// ============================================================
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Активация...');
+  console.log(`[SW ${CACHE_VERSION}] Активация...`);
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
             .filter((name) => {
+              // Удаляем все кэши, кроме текущей версии
               return name !== CACHE_NAME && name !== STATIC_CACHE_NAME;
             })
             .map((name) => {
-              console.log('[SW] Удаление старого кеша:', name);
+              console.log(`[SW ${CACHE_VERSION}] Удаление старого кэша:`, name);
               return caches.delete(name);
             })
         );
       })
       .then(() => {
-        console.log('[SW] Активация завершена');
+        console.log(`[SW ${CACHE_VERSION}] Активация завершена`);
         return self.clients.claim();
       })
   );
 });
 
-// Обрабатываем запросы
+// ============================================================
+// FETCH — обработка запросов
+// ============================================================
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // Пропускаем API запросы (они должны всегда идти на сервер)
-  if (url.pathname.startsWith('/api/') || url.pathname.includes('/api/')) {
-    // Для API используем стратегию "сначала сеть"
+  const request = event.request;
+  const url = new URL(request.url);
+
+  // ─── 1. Игнорируем не-GET запросы ───
+  // POST/PUT/DELETE никогда не кэшируем
+  if (request.method !== 'GET') {
+    return;  // пусть идёт напрямую
+  }
+
+  // ─── 2. API-запросы — СЕТЬ ПЕРВАЯ, КЭШ ТОЛЬКО ПРИ ОФЛАЙНЕ ───
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          // Кешируем успешные ответы API для офлайн-режима
+          // ⚠️ ВАЖНО: кэшируем ТОЛЬКО успешные ответы (200 OK)
+          // НЕ кэшируем 404, 500 и т.д.
           if (response && response.status === 200) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, clone);
-            });
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(request, clone))
+              .catch(() => {});
           }
           return response;
         })
         .catch(() => {
-          // Если сеть недоступна, пытаемся взять из кеша
-          return caches.match(event.request);
+          // Сеть недоступна — пробуем кэш
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              console.log(`[SW ${CACHE_VERSION}] API из кэша (офлайн):`, url.pathname);
+              return cached;
+            }
+            // В кэше нет — возвращаем JSON-ошибку
+            return new Response(JSON.stringify({
+              status: 'offline',
+              error: 'Нет сети и данных в кэше'
+            }), {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' }
+            });
+          });
         })
     );
     return;
   }
 
-  // Для статических ресурсов используем "сначала кеш, потом сеть"
-  event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Обновляем кеш в фоне
-          fetch(event.request)
-            .then((response) => {
-              if (response && response.status === 200) {
-                caches.open(STATIC_CACHE_NAME).then((cache) => {
-                  cache.put(event.request, response);
-                });
-              }
-            })
+  // ─── 3. Навигация (HTML-страницы) — СЕТЬ ПЕРВАЯ ───
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Всегда свежая версия HTML
+          const clone = response.clone();
+          caches.open(STATIC_CACHE_NAME)
+            .then((cache) => cache.put(request, clone))
             .catch(() => {});
-          return cachedResponse;
-        }
-        
-        return fetch(event.request)
-          .then((response) => {
-            // Если ресурс статический, кешируем его
-            if (response && response.status === 200) {
-              const clone = response.clone();
-              caches.open(STATIC_CACHE_NAME).then((cache) => {
-                cache.put(event.request, clone);
-              });
-            }
-            return response;
-          })
-          .catch(() => {
-            // Если ресурс не найден в кеше и сеть недоступна
-            if (event.request.mode === 'navigate') {
-              return caches.match('/index.html') || caches.match('/');
-            }
-            return new Response('Сеть недоступна', {
-              status: 503,
-              statusText: 'Service Unavailable'
-            });
-          });
-      })
+          return response;
+        })
+        .catch(() => {
+          // Офлайн — отдаём закэшированный '/'
+          return caches.match('/') || caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  // ─── 4. Всё остальное (статика) — КЭШ ПЕРВЫЙ, СЕТЬ В ФОНЕ ───
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => {
+      // Запускаем фоновое обновление даже если есть кэш
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(STATIC_CACHE_NAME)
+              .then((cache) => cache.put(request, clone))
+              .catch(() => {});
+          }
+          return networkResponse;
+        })
+        .catch(() => null);
+
+      // Если есть кэш — отдаём сразу, обновляем в фоне
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      // Нет кэша — ждём сеть
+      return fetchPromise.then((response) => {
+        if (response) return response;
+
+        // Ни кэша, ни сети — отдаём заглушку
+        return new Response('Сеть недоступна', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      });
+    })
   );
 });
 
-// Обработка push-уведомлений (опционально)
+// ============================================================
+// PUSH-УВЕДОМЛЕНИЯ
+// ============================================================
 self.addEventListener('push', (event) => {
+  console.log(`[SW ${CACHE_VERSION}] Push получен`);
   const data = event.data ? event.data.json() : {};
   const title = data.title || 'Quantum Bet Tracker';
   const options = {
     body: data.body || 'Новое обновление!',
-    icon: '/static/icons/icon-192x192.png',
-    badge: '/static/icons/icon-72x72.png',
+    icon: '/static/IMG_2820.jpeg',
+    badge: '/static/IMG_2820.jpeg',
     vibrate: [200, 100, 200],
     data: {
       url: data.url || '/'
     },
     actions: [
-      {
-        action: 'open',
-        title: 'Открыть'
-      }
+      { action: 'open', title: 'Открыть' }
     ]
   };
-  
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Обработка клика по уведомлению
+// ============================================================
+// КЛИК ПО УВЕДОМЛЕНИЮ
+// ============================================================
 self.addEventListener('notificationclick', (event) => {
+  console.log(`[SW ${CACHE_VERSION}] Клик по уведомлению`);
   event.notification.close();
-  
-  const url = event.notification.data?.url || '/';
-  
+
+  const targetUrl = event.notification.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
+        // Если уже открыто окно — фокусируемся
         for (const client of clientList) {
-          if (client.url === url && 'focus' in client) {
+          if (client.url === targetUrl && 'focus' in client) {
             return client.focus();
           }
         }
+        // Иначе открываем новое
         if (clients.openWindow) {
-          return clients.openWindow(url);
+          return clients.openWindow(targetUrl);
         }
       })
   );
+});
+
+// ============================================================
+// СООБЩЕНИЯ ОТ ГЛАВНОГО ПОТОКА (SKIP_WAITING)
+// ============================================================
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log(`[SW ${CACHE_VERSION}] SKIP_WAITING`);
+    self.skipWaiting();
+  }
 });
