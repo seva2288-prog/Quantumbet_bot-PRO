@@ -4,24 +4,24 @@
     <title>Quantum Bet Tracker</title>
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
-    
+
     <link rel="manifest" href="/static/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Quantum Tracker">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#10b981">
-    
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    
+
     <style>
         /* ============================================================
            EMERALD THEME — CSS VARIABLES
@@ -32,66 +32,68 @@
             --bg-card: rgba(13, 26, 23, 0.7);
             --bg-card-hover: rgba(16, 185, 129, 0.05);
             --bg-input: rgba(0, 0, 0, 0.4);
-            
+
             --emerald-50: #ecfdf5;
             --emerald-100: #d1fae5;
             --emerald-400: #34d399;
             --emerald-500: #10b981;
             --emerald-600: #059669;
             --emerald-700: #047857;
-            
+
             --gold-400: #fbbf24;
             --gold-500: #f59e0b;
             --red-400: #f87171;
             --red-500: #ef4444;
-            
+            --blue-400: #60a5fa;
+            --blue-500: #3b82f6;
+
             --text-primary: #ecfdf5;
             --text-secondary: rgba(236, 253, 245, 0.6);
             --text-tertiary: rgba(236, 253, 245, 0.35);
             --text-muted: rgba(236, 253, 245, 0.15);
-            
+
             --border-color: rgba(52, 211, 153, 0.08);
             --border-hover: rgba(52, 211, 153, 0.25);
-            
+
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
             --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
             --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
             --shadow-emerald: 0 0 30px rgba(16, 185, 129, 0.15);
-            
+
             --radius-sm: 8px;
             --radius-md: 14px;
             --radius-lg: 20px;
             --radius-full: 999px;
-            
+
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+
         [data-theme="light"] {
             --bg-primary: #f0fdf4;
             --bg-secondary: #ffffff;
             --bg-card: rgba(255, 255, 255, 0.85);
             --bg-card-hover: rgba(16, 185, 129, 0.05);
             --bg-input: rgba(0, 0, 0, 0.04);
-            
+
             --text-primary: #064e3b;
             --text-secondary: rgba(6, 78, 59, 0.65);
             --text-tertiary: rgba(6, 78, 59, 0.45);
             --text-muted: rgba(6, 78, 59, 0.15);
-            
+
             --border-color: rgba(16, 185, 129, 0.12);
             --border-hover: rgba(16, 185, 129, 0.35);
-            
+
             --shadow-sm: 0 2px 8px rgba(6, 78, 59, 0.08);
             --shadow-md: 0 4px 20px rgba(6, 78, 59, 0.1);
             --shadow-lg: 0 8px 40px rgba(6, 78, 59, 0.15);
             --shadow-emerald: 0 0 30px rgba(16, 185, 129, 0.08);
         }
-        
+
         /* ============================================================
            RESET
            ============================================================ */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
+
         html, body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
@@ -104,9 +106,9 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-        
+
         body { padding-bottom: 100px; }
-        
+
         /* ============================================================
            LOADING SCREEN
            ============================================================ */
@@ -120,12 +122,12 @@
             overflow: hidden;
         }
         #loadingScreen.hidden { opacity: 0; pointer-events: none; }
-        
+
         .loading-bg-1 {
             position: absolute; top: -30%; left: -20%; width: 150%; height: 160%;
-            background: radial-gradient(ellipse at 40% 50%, 
-                rgba(16, 185, 129, 0.08) 0%, 
-                rgba(5, 150, 105, 0.04) 25%, 
+            background: radial-gradient(ellipse at 40% 50%,
+                rgba(16, 185, 129, 0.08) 0%,
+                rgba(5, 150, 105, 0.04) 25%,
                 transparent 70%);
             transform: rotate(-15deg);
             filter: blur(80px);
@@ -133,9 +135,9 @@
         }
         .loading-bg-2 {
             position: absolute; bottom: -20%; right: -20%; width: 130%; height: 140%;
-            background: radial-gradient(ellipse at 60% 40%, 
-                rgba(52, 211, 153, 0.06) 0%, 
-                rgba(245, 158, 11, 0.03) 30%, 
+            background: radial-gradient(ellipse at 60% 40%,
+                rgba(52, 211, 153, 0.06) 0%,
+                rgba(245, 158, 11, 0.03) 30%,
                 transparent 70%);
             transform: rotate(25deg);
             filter: blur(100px);
@@ -149,7 +151,7 @@
             0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
             100% { opacity: 0.9; transform: rotate(20deg) scale(1.12); }
         }
-        
+
         .loading-stars { position: absolute; inset: 0; pointer-events: none; }
         .loading-star {
             position: absolute; border-radius: 50%;
@@ -160,7 +162,7 @@
             0% { opacity: 0.1; transform: scale(0.7); }
             100% { opacity: 0.8; transform: scale(1.3); }
         }
-        
+
         .loading-logo { position: relative; z-index: 1; text-align: center; }
         .loading-logo-main {
             font-size: 62px; font-weight: 800;
@@ -195,7 +197,7 @@
             letter-spacing: 4px;
             text-transform: uppercase;
         }
-        
+
         /* ============================================================
            BACKGROUND
            ============================================================ */
@@ -206,9 +208,9 @@
         }
         .milky-way-1 {
             position: absolute; top: -20%; left: -10%; width: 120%; height: 140%;
-            background: radial-gradient(ellipse at 40% 50%, 
-                rgba(16, 185, 129, 0.05) 0%, 
-                rgba(5, 150, 105, 0.03) 25%, 
+            background: radial-gradient(ellipse at 40% 50%,
+                rgba(16, 185, 129, 0.05) 0%,
+                rgba(5, 150, 105, 0.03) 25%,
                 transparent 70%);
             transform: rotate(-15deg);
             filter: blur(80px);
@@ -216,9 +218,9 @@
         }
         .milky-way-2 {
             position: absolute; bottom: -10%; right: -10%; width: 100%; height: 120%;
-            background: radial-gradient(ellipse at 60% 40%, 
-                rgba(52, 211, 153, 0.04) 0%, 
-                rgba(245, 158, 11, 0.02) 30%, 
+            background: radial-gradient(ellipse at 60% 40%,
+                rgba(52, 211, 153, 0.04) 0%,
+                rgba(245, 158, 11, 0.02) 30%,
                 transparent 70%);
             transform: rotate(25deg);
             filter: blur(100px);
@@ -237,7 +239,7 @@
             background: var(--emerald-400);
             animation: twinkle var(--duration) ease-in-out infinite alternate;
         }
-        
+
         /* ============================================================
            LAYOUT
            ============================================================ */
@@ -249,9 +251,9 @@
             position: relative;
             z-index: 1;
         }
-        
+
         /* ============================================================
-           HEADER
+           HEADER (с кнопкой настроек)
            ============================================================ */
         .header {
             display: flex;
@@ -285,7 +287,7 @@
             letter-spacing: 0.5px;
         }
         .header-controls { display: flex; align-items: center; gap: 8px; }
-        
+
         .status-pill {
             display: flex; align-items: center; gap: 6px;
             padding: 5px 12px;
@@ -307,7 +309,7 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.5; transform: scale(0.7); }
         }
-        
+
         .icon-btn {
             width: 34px; height: 34px;
             display: flex; align-items: center; justify-content: center;
@@ -327,7 +329,7 @@
             transform: translateY(-1px);
         }
         .icon-btn:active { transform: scale(0.94); }
-        
+
         /* ============================================================
            SEARCH BAR
            ============================================================ */
@@ -359,7 +361,7 @@
             opacity: 0.5;
             pointer-events: none;
         }
-        
+
         /* ============================================================
            CARDS
            ============================================================ */
@@ -381,16 +383,16 @@
         }
         .card.emerald {
             border-color: rgba(16, 185, 129, 0.2);
-            background: linear-gradient(135deg, 
-                rgba(16, 185, 129, 0.04) 0%, 
+            background: linear-gradient(135deg,
+                rgba(16, 185, 129, 0.04) 0%,
                 var(--bg-card) 100%);
         }
-        
+
         @keyframes fadeSlideIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
+
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -407,7 +409,7 @@
             letter-spacing: 1px;
         }
         .card-header .emerald-title { color: var(--emerald-400); }
-        
+
         /* ============================================================
            STATS GRID
            ============================================================ */
@@ -420,7 +422,7 @@
         @media (max-width: 480px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
-        
+
         .stat-card {
             padding: 12px 10px;
             border-radius: var(--radius-sm);
@@ -457,6 +459,7 @@
         .stat-card .value.red { color: var(--red-400); }
         .stat-card .value.gold { color: var(--gold-400); }
         .stat-card .value.emerald { color: var(--emerald-400); }
+        .stat-card .value.blue { color: var(--blue-400); }
         .stat-card .label {
             font-size: 9px;
             color: var(--text-tertiary);
@@ -465,7 +468,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         /* ============================================================
            QUICK ACTIONS
            ============================================================ */
@@ -478,7 +481,7 @@
         @media (max-width: 480px) {
             .quick-actions { grid-template-columns: 1fr; }
         }
-        
+
         .action-btn {
             display: flex;
             align-items: center;
@@ -515,9 +518,9 @@
         .action-btn .action-label { font-size: 13px; font-weight: 700; color: inherit; }
         .action-btn .action-desc { font-size: 10px; color: var(--text-tertiary); }
         .action-btn.primary .action-desc { color: rgba(255, 255, 255, 0.7); }
-        
+
         /* ============================================================
-           BET CARDS
+           BET CARDS (со счётом 1-го тайма)
            ============================================================ */
         .bet-card {
             padding: 14px;
@@ -530,6 +533,7 @@
             position: relative;
             overflow: hidden;
             cursor: pointer;
+            touch-action: pan-y;
         }
         .bet-card:hover {
             border-color: var(--border-hover);
@@ -538,8 +542,8 @@
         }
         .bet-card.active {
             border-color: rgba(16, 185, 129, 0.35);
-            background: linear-gradient(135deg, 
-                rgba(16, 185, 129, 0.06) 0%, 
+            background: linear-gradient(135deg,
+                rgba(16, 185, 129, 0.06) 0%,
                 var(--bg-card) 100%);
         }
         .bet-card.active::before {
@@ -549,7 +553,27 @@
             width: 3px; height: 100%;
             background: linear-gradient(180deg, var(--emerald-400), var(--emerald-600));
         }
-        
+
+        /* Свайп-индикаторы */
+        .bet-card .swipe-hint {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .bet-card .swipe-hint.left { left: 12px; color: var(--emerald-400); }
+        .bet-card .swipe-hint.right { right: 12px; color: var(--red-400); }
+        .bet-card.swipe-left .swipe-hint.left { opacity: 1; }
+        .bet-card.swipe-right .swipe-hint.right { opacity: 1; }
+        .bet-card.swipe-left { transform: translateX(60px); }
+        .bet-card.swipe-right { transform: translateX(-60px); }
+
         .bet-header {
             display: flex;
             justify-content: space-between;
@@ -586,6 +610,16 @@
             font-variant-numeric: tabular-nums;
             letter-spacing: 0.5px;
         }
+        .bet-halftime {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            font-variant-numeric: tabular-nums;
+            padding: 1px 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius-full);
+            border: 1px solid var(--border-color);
+        }
         .bet-badge {
             padding: 4px 10px;
             border-radius: var(--radius-full);
@@ -598,7 +632,7 @@
         .bet-badge.bet-under { background: rgba(245, 158, 11, 0.15); color: var(--gold-400); }
         .bet-badge.bet-over { background: rgba(248, 113, 113, 0.15); color: var(--red-400); }
         .bet-badge.bet-btts { background: rgba(167, 139, 250, 0.15); color: #a78bfa; }
-        
+
         .bet-stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -622,7 +656,110 @@
         .bet-stat .stat-value.emerald { color: var(--emerald-400); }
         .bet-stat .stat-value.gold { color: var(--gold-400); }
         .bet-stat .stat-value.red { color: var(--red-400); }
-        
+
+        /* ============================================================
+           SNAPSHOT CARDS (страница «Снимки»)
+           ============================================================ */
+        .snapshot-card {
+            padding: 14px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .snapshot-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .snapshot-card.has-anomaly {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: linear-gradient(135deg,
+                rgba(245, 158, 11, 0.05) 0%,
+                var(--bg-card) 100%);
+        }
+        .snapshot-card.has-anomaly::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+        }
+
+        .snapshot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .snapshot-match {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        .snapshot-meta {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            margin-top: 3px;
+        }
+        .snapshot-badge {
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            font-size: 9px;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--emerald-400);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            white-space: nowrap;
+        }
+        .snapshot-badge.anomaly {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--gold-400);
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+
+        .snapshot-trends {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+        .snapshot-trend {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            align-items: center;
+            text-align: center;
+        }
+        .snapshot-trend .trend-label {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .snapshot-trend .trend-values {
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-primary);
+        }
+        .snapshot-trend .trend-pct {
+            font-size: 10px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .snapshot-trend .trend-pct.up { color: var(--emerald-400); }
+        .snapshot-trend .trend-pct.down { color: var(--red-400); }
+        .snapshot-trend .trend-pct.flat { color: var(--text-tertiary); }
+
         /* ============================================================
            TABLE
            ============================================================ */
@@ -660,10 +797,10 @@
         th .sort-arrow { font-size: 8px; margin-left: 4px; opacity: 0.4; }
         th.sorted .sort-arrow { opacity: 1; color: var(--emerald-400); }
         tr:hover td { background: rgba(16, 185, 129, 0.03); }
-        
+
         .profit-positive { color: var(--emerald-400); font-weight: 700; }
         .profit-negative { color: var(--red-400); font-weight: 700; }
-        
+
         /* ============================================================
            BADGES
            ============================================================ */
@@ -698,17 +835,17 @@
             color: var(--text-tertiary);
             border: 1px solid var(--border-color);
         }
-        
+
         /* ============================================================
-           BOTTOM NAV
+           BOTTOM NAV (6 вкладок — компактнее)
            ============================================================ */
         .bottom-nav {
             position: fixed;
             bottom: 16px;
             left: 50%;
             transform: translateX(-50%);
-            width: 94%;
-            max-width: 500px;
+            width: 96%;
+            max-width: 540px;
             background: rgba(7, 16, 14, 0.75);
             backdrop-filter: blur(30px) saturate(180%);
             -webkit-backdrop-filter: blur(30px) saturate(180%);
@@ -718,22 +855,22 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding: 8px 6px;
+            padding: 6px 4px;
             z-index: 1000;
             transition: var(--transition);
         }
         [data-theme="light"] .bottom-nav {
             background: rgba(255, 255, 255, 0.85);
         }
-        
+
         .nav-item {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 3px;
-            padding: 6px 10px;
-            min-width: 58px;
+            gap: 2px;
+            padding: 5px 8px;
+            min-width: 48px;
             background: transparent;
             border: none;
             border-radius: var(--radius-md);
@@ -744,14 +881,14 @@
             font-family: inherit;
         }
         .nav-item .icon {
-            font-size: 22px;
+            font-size: 20px;
             line-height: 1;
             transition: var(--transition);
         }
         .nav-item .label {
-            font-size: 9px;
+            font-size: 8.5px;
             font-weight: 700;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
         }
         .nav-item:hover { color: var(--text-secondary); }
         .nav-item.active {
@@ -764,12 +901,19 @@
             position: absolute;
             top: -1px; left: 50%;
             transform: translateX(-50%);
-            width: 18px; height: 3px;
+            width: 16px; height: 3px;
             background: linear-gradient(90deg, var(--emerald-400), var(--emerald-500));
             border-radius: var(--radius-full);
             box-shadow: 0 0 12px var(--emerald-500);
         }
-        
+
+        @media (max-width: 400px) {
+            .bottom-nav { width: 98%; padding: 5px 2px; }
+            .nav-item { min-width: 42px; padding: 4px 6px; }
+            .nav-item .icon { font-size: 18px; }
+            .nav-item .label { font-size: 8px; }
+        }
+
         /* ============================================================
            MODAL
            ============================================================ */
@@ -786,7 +930,7 @@
         }
         .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        
+
         .modal {
             background: var(--bg-secondary);
             border-radius: var(--radius-lg);
@@ -798,11 +942,14 @@
             overflow-y: auto;
             animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
+        .modal.modal-large {
+            max-width: 700px;
+        }
         @keyframes modalSlideIn {
             from { opacity: 0; transform: scale(0.9) translateY(20px); }
             to { opacity: 1; transform: scale(1) translateY(0); }
         }
-        
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -825,7 +972,7 @@
             background: var(--bg-card-hover);
             color: var(--text-primary);
         }
-        
+
         .modal-field { margin-bottom: 12px; }
         .modal-field label {
             display: block;
@@ -865,7 +1012,14 @@
             margin-top: 18px;
         }
         .modal-actions .btn { flex: 1; }
-        
+
+        /* Chart в модалке движения кэфов */
+        .chart-modal-container {
+            height: 280px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
         /* ============================================================
            BUTTONS
            ============================================================ */
@@ -918,7 +1072,7 @@
             border: none;
             color: #422006;
         }
-        
+
         /* ============================================================
            FILTERS
            ============================================================ */
@@ -949,7 +1103,7 @@
             border-color: rgba(16, 185, 129, 0.4);
             color: var(--emerald-400);
         }
-        
+
         /* ============================================================
            SETTINGS
            ============================================================ */
@@ -1011,7 +1165,7 @@
             outline: none;
             border-color: var(--border-hover);
         }
-        
+
         .toggle {
             width: 42px; height: 24px;
             background: var(--bg-input);
@@ -1035,7 +1189,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
         .toggle.active .dot { left: 21px; }
-        
+
         /* ============================================================
            NOTIFICATIONS
            ============================================================ */
@@ -1077,7 +1231,7 @@
                 max-width: none;
             }
         }
-        
+
         /* ============================================================
            MISC
            ============================================================ */
@@ -1098,11 +1252,11 @@
             margin-bottom: 4px;
         }
         .no-data .desc { font-size: 11px; }
-        
+
         .skeleton {
-            background: linear-gradient(90deg, 
-                rgba(16, 185, 129, 0.04) 25%, 
-                rgba(16, 185, 129, 0.08) 50%, 
+            background: linear-gradient(90deg,
+                rgba(16, 185, 129, 0.04) 25%,
+                rgba(16, 185, 129, 0.08) 50%,
                 rgba(16, 185, 129, 0.04) 75%);
             background-size: 200% 100%;
             animation: shimmer 1.5s infinite;
@@ -1114,13 +1268,13 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
-        
+
         .chart-container { height: 180px; }
         .chart-container-lg { height: 300px; }
         @media (max-width: 480px) {
             .chart-container-lg { height: 220px; }
         }
-        
+
         .footer {
             text-align: center;
             padding: 24px 0 12px;
@@ -1129,21 +1283,21 @@
             border-top: 1px solid var(--border-color);
             margin-top: 16px;
         }
-        
+
         .page-transition { animation: pageSlide 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes pageSlide {
             from { opacity: 0; transform: translateX(20px); }
             to { opacity: 1; transform: translateX(0); }
         }
-        
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { 
-            background: var(--border-color); 
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
             border-radius: var(--radius-full);
         }
         ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
-        
+
         #pwa-install-banner, #pwa-update-banner {
             position: fixed;
             left: 50%;
@@ -1174,7 +1328,7 @@
             from { opacity: 0; transform: translateX(-50%) translateY(30px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
-        
+
         #keepAliveStatus {
             position: fixed;
             bottom: 90px;
@@ -1189,8 +1343,7 @@
             font-family: 'JetBrains Mono', monospace;
             border: 1px solid var(--border-color);
         }
-        
-        /* Auto-import status */
+
         .auto-import-status {
             font-size: 10px;
             color: var(--text-tertiary);
@@ -1205,6 +1358,47 @@
         .auto-import-status.active {
             color: var(--emerald-400);
             border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        /* ============================================================
+           STRATEGY COMPARISON (Аналитика)
+           ============================================================ */
+        .strategy-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .strategy-bar:last-child { border-bottom: none; }
+        .strategy-bar .strategy-name {
+            font-size: 12px;
+            font-weight: 700;
+            min-width: 90px;
+        }
+        .strategy-bar .strategy-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            position: relative;
+        }
+        .strategy-bar .strategy-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: linear-gradient(90deg, var(--emerald-500), var(--emerald-400));
+            transition: width 0.5s ease;
+        }
+        .strategy-bar .strategy-fill.negative {
+            background: linear-gradient(90deg, var(--red-500), var(--red-400));
+        }
+        .strategy-bar .strategy-value {
+            font-size: 11px;
+            font-weight: 700;
+            min-width: 60px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
     </style>
 </head>
@@ -1238,7 +1432,7 @@
      ============================================================ -->
 <div class="container">
 
-    <!-- HEADER -->
+    <!-- HEADER (с кнопкой ⚙️) -->
     <header class="header">
         <div class="header-left">
             <div class="header-title">💎 Quantum Tracker</div>
@@ -1251,6 +1445,7 @@
             </div>
             <button class="icon-btn" onclick="cycleTheme()" id="themeBtn" title="Тема">🌙</button>
             <button class="icon-btn" onclick="refreshData()" title="Обновить">🔄</button>
+            <button class="icon-btn" onclick="openSettings()" title="Настройки">⚙️</button>
         </div>
     </header>
 
@@ -1258,8 +1453,7 @@
          PAGE: DASHBOARD
          ============================================================ -->
     <div id="page-dashboard" class="page">
-        
-        <!-- QUICK ACTIONS -->
+
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
                 <span class="action-icon">🚀</span>
@@ -1275,16 +1469,15 @@
                     <span class="action-desc">Активные + история</span>
                 </span>
             </button>
-            <button class="action-btn" onclick="switchPage('analytics')">
-                <span class="action-icon">📈</span>
+            <button class="action-btn" onclick="switchPage('snapshots')">
+                <span class="action-icon">📸</span>
                 <span class="action-text">
-                    <span class="action-label">Аналитика</span>
-                    <span class="action-desc">ROI, Winrate</span>
+                    <span class="action-label">Снимки</span>
+                    <span class="action-desc">Движение кэфов</span>
                 </span>
             </button>
         </div>
 
-        <!-- BANK & STATS -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value" id="statBank">$1000</div>
@@ -1304,7 +1497,6 @@
             </div>
         </div>
 
-        <!-- ACTIVE MATCHES -->
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🎯 Свежие ставки</h2>
@@ -1319,7 +1511,6 @@
             </div>
         </div>
 
-        <!-- X2 SUMMARY -->
         <div class="card">
             <div class="card-header">
                 <h2 class="emerald-title">🔥 X2 Стратегия</h2>
@@ -1343,7 +1534,20 @@
             </div>
         </div>
 
-        <!-- PROFIT CHART -->
+        <!-- Аномалии кэфов (быстрый блок) -->
+        <div class="card" id="anomaliesCard" style="display:none;">
+            <div class="card-header">
+                <h2 class="emerald-title">🎯 Аномалии кэфов</h2>
+                <button class="btn btn-outline" onclick="switchPage('snapshots')" style="padding:4px 10px;font-size:10px;">
+                    Все →
+                </button>
+            </div>
+            <div id="anomaliesList">
+                <div class="skeleton" style="width:80%"></div>
+                <div class="skeleton" style="width:60%"></div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2>📊 Прибыль за 7 дней</h2>
@@ -1360,7 +1564,7 @@
          PAGE: MATCHES
          ============================================================ -->
     <div id="page-matches" class="page" style="display:none;">
-        
+
         <div class="card">
             <div class="card-header">
                 <h2>🎯 Все ставки</h2>
@@ -1371,12 +1575,10 @@
                 </div>
             </div>
 
-            <!-- SEARCH -->
             <div class="search-bar">
                 <input type="text" id="matchesSearch" placeholder="Поиск матча, лиги, команды..." oninput="filterMatches()">
             </div>
 
-            <!-- FILTERS -->
             <div class="filter-group">
                 <button class="filter-btn active" data-filter="all" onclick="setMatchFilter('all')">Все</button>
                 <button class="filter-btn" data-filter="active" onclick="setMatchFilter('active')">🟢 Активные</button>
@@ -1385,7 +1587,10 @@
                 <button class="filter-btn" data-filter="pending" onclick="setMatchFilter('pending')">⏳ Ожидание</button>
             </div>
 
-            <!-- VIEW TOGGLE -->
+            <div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-bottom:8px;">
+                💡 Свайп влево = WIN &nbsp;|&nbsp; Свайп вправо = LOSS
+            </div>
+
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <span style="font-size:10px;color:var(--text-tertiary);" id="matchesCount">0 записей</span>
                 <div style="display:flex;gap:4px;">
@@ -1394,10 +1599,8 @@
                 </div>
             </div>
 
-            <!-- CARDS VIEW -->
             <div id="matchesCardsView"></div>
 
-            <!-- TABLE VIEW -->
             <div id="matchesTableView" style="display:none;">
                 <div class="table-wrapper">
                     <table>
@@ -1407,6 +1610,7 @@
                                 <th class="sortable" onclick="sortTable('date')">Дата <span class="sort-arrow">⇅</span></th>
                                 <th>Матч</th>
                                 <th>Счёт</th>
+                                <th>1-й тайм</th>
                                 <th>Ставка</th>
                                 <th class="sortable" onclick="sortTable('odds')">Кэф <span class="sort-arrow">⇅</span></th>
                                 <th class="sortable" onclick="sortTable('stake')">Сумма <span class="sort-arrow">⇅</span></th>
@@ -1421,7 +1625,6 @@
                 </div>
             </div>
 
-            <!-- SHOW ALL -->
             <div style="text-align:center;margin-top:12px;" id="showAllWrapper">
                 <button class="btn btn-outline" onclick="toggleShowAll()" id="showAllBtn">
                     📊 Показать все
@@ -1432,10 +1635,76 @@
     </div>
 
     <!-- ============================================================
+         PAGE: SNAPSHOTS (Снимки кэфов)
+         ============================================================ -->
+    <div id="page-snapshots" class="page" style="display:none;">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">📸 Снимки кэфов</h2>
+                <button class="btn btn-outline" onclick="refreshSnapshots()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Обновить
+                </button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                История движения коэффициентов. Бот делает снимки каждые 30 минут для матчей в ближайшие 2 часа.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>📊 Фильтры</h2>
+            </div>
+
+            <div class="filter-group">
+                <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">
+                    🌐 Все
+                </button>
+                <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">
+                    📅 За 7 дней
+                </button>
+                <button class="filter-btn" data-snapfilter="anomaly" onclick="setSnapshotFilter('anomaly')">
+                    🎯 Только аномалии
+                </button>
+            </div>
+
+            <div class="filter-group">
+                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">
+                    Сортировка:
+                </span>
+                <button class="filter-btn active" data-snapsort="recent" onclick="setSnapshotSort('recent')">
+                    🕐 Свежие
+                </button>
+                <button class="filter-btn" data-snapsort="anomaly" onclick="setSnapshotSort('anomaly')">
+                    📈 Аномалии
+                </button>
+                <button class="filter-btn" data-snapsort="count" onclick="setSnapshotSort('count')">
+                    🔢 По снимкам
+                </button>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="snapshotsSearch" placeholder="Поиск матча, лиги, команды..." oninput="filterSnapshots()">
+            </div>
+
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;" id="snapshotsCount">
+                Загрузка...
+            </div>
+        </div>
+
+        <div id="snapshotsList">
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
          PAGE: ANALYTICS
          ============================================================ -->
     <div id="page-analytics" class="page" style="display:none;">
-        
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value" id="aTotal">0</div>
@@ -1471,11 +1740,12 @@
 
         <div class="card">
             <div class="card-header">
-                <h2>🎯 По стратегиям</h2>
+                <h2>🎯 Сравнение стратегий</h2>
             </div>
-            <div id="strategyBreakdown">
+            <div id="strategyBars">
+                <div class="skeleton" style="width:80%"></div>
+                <div class="skeleton" style="width:60%"></div>
                 <div class="skeleton" style="width:70%"></div>
-                <div class="skeleton" style="width:50%"></div>
             </div>
         </div>
 
@@ -1505,7 +1775,7 @@
          PAGE: X2
          ============================================================ -->
     <div id="page-x2" class="page" style="display:none;">
-        
+
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🔥 X2 Стратегия</h2>
@@ -1568,10 +1838,19 @@
     </div>
 
     <!-- ============================================================
-         PAGE: SETTINGS
+         PAGE: SETTINGS (открывается из header)
          ============================================================ -->
     <div id="page-settings" class="page" style="display:none;">
-        
+
+        <div class="card">
+            <div class="card-header">
+                <h2>⚙️ Настройки</h2>
+                <button class="btn btn-outline" onclick="closeSettings()" style="padding:4px 10px;font-size:10px;">
+                    ← Назад
+                </button>
+            </div>
+        </div>
+
         <div class="setting-group">
             <h2>💰 Банк</h2>
             <div class="setting-item">
@@ -1705,6 +1984,24 @@
         </div>
 
         <div class="setting-group">
+            <h2>📸 Снимки кэфов</h2>
+            <div class="setting-item">
+                <div>
+                    <div class="label">Всего снимков</div>
+                    <div class="desc">В базе данных</div>
+                </div>
+                <span style="color:var(--emerald-400);font-weight:700;" id="snapshotCountSettings">0</span>
+            </div>
+            <div class="setting-item" style="border-bottom:none;">
+                <div>
+                    <div class="label">Размер</div>
+                    <div class="desc">JSON файла odds_history</div>
+                </div>
+                <span style="color:var(--text-tertiary);font-size:11px;" id="snapshotSizeSettings">0 KB</span>
+            </div>
+        </div>
+
+        <div class="setting-group">
             <h2>📱 Приложение</h2>
             <div class="setting-item">
                 <div>
@@ -1731,9 +2028,9 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v17 Emerald • 2026</div>
+                    <div class="desc">v18 Emerald • 2026</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v17.0</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v18.0</span>
             </div>
         </div>
 
@@ -1741,13 +2038,13 @@
 
     <!-- FOOTER -->
     <div class="footer">
-        💎 Quantum Tracker v17 Emerald © 2026
+        💎 Quantum Tracker v18 Emerald © 2026
     </div>
 
 </div>
 
 <!-- ============================================================
-     BOTTOM NAVIGATION
+     BOTTOM NAVIGATION — 6 ВКЛАДОК
      ============================================================ -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
@@ -1758,6 +2055,10 @@
         <span class="icon">🎯</span>
         <span class="label">Матчи</span>
     </button>
+    <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
+        <span class="icon">📸</span>
+        <span class="label">Снимки</span>
+    </button>
     <button class="nav-item" data-page="analytics" onclick="switchPage('analytics')">
         <span class="icon">📈</span>
         <span class="label">Аналитика</span>
@@ -1766,7 +2067,7 @@
         <span class="icon">🔥</span>
         <span class="label">X2</span>
     </button>
-    <button class="nav-item" data-page="settings" onclick="switchPage('settings')">
+    <button class="nav-item" onclick="openSettings()">
         <span class="icon">⚙️</span>
         <span class="label">Ещё</span>
     </button>
@@ -1928,6 +2229,23 @@
 </div>
 
 <!-- ============================================================
+     MODAL: SNAPSHOT CHART (движение кэфов)
+     ============================================================ -->
+<div class="modal-overlay" id="snapshotChartModal">
+    <div class="modal modal-large">
+        <div class="modal-header">
+            <h3 id="snapshotChartTitle">📈 Движение кэфов</h3>
+            <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
+        </div>
+        <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
+        <div class="chart-modal-container">
+            <canvas id="snapshotChart"></canvas>
+        </div>
+        <div id="snapshotChartStats"></div>
+    </div>
+</div>
+
+<!-- ============================================================
      TOAST CONTAINER
      ============================================================ -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
@@ -1941,6 +2259,7 @@ const AUTO_REFRESH_MS = 60000;
 const KEEPALIVE_MS = 180000;
 const AUTO_IMPORT_MS = 180000;
 const ITEMS_LIMIT = 50;
+const SWIPE_THRESHOLD = 100;
 
 // ============================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -1948,7 +2267,9 @@ const ITEMS_LIMIT = 50;
 let cachedData = null;
 let chartInstance = null;
 let analyticsChartInstance = null;
+let snapshotChartInstance = null;
 let currentPage = 'dashboard';
+let previousPage = 'dashboard';
 let isLoading = false;
 let x2Data = [];
 let editingX2Index = null;
@@ -1965,6 +2286,13 @@ let showAllItems = false;
 let sortBy = 'date';
 let sortDir = 'desc';
 let themeMode = 'auto';
+
+// Снимки
+let snapshotsData = [];
+let snapshotFilter = 'all';
+let snapshotSort = 'recent';
+let snapshotsSearchQuery = '';
+let currentSnapshotFixture = null;
 
 // ============================================================
 // ХАПТИК
@@ -2042,7 +2370,7 @@ function hideLoadingScreen() {
 }
 
 // ============================================================
-// ТЕМА (Dark / Light / Auto)
+// ТЕМА
 // ============================================================
 function getSystemTheme() {
     return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -2089,6 +2417,7 @@ function setTheme(mode) {
 // ============================================================
 function switchPage(page) {
     if (page === currentPage) return;
+    previousPage = currentPage;
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) navBtn.classList.add('active');
@@ -2101,18 +2430,39 @@ function switchPage(page) {
     }
     currentPage = page;
     haptic(6);
+
     if (page === 'dashboard') loadPageData('dashboard');
     else if (page === 'matches') loadPageData('matches');
     else if (page === 'analytics') loadPageData('analytics');
     else if (page === 'x2') renderX2Page();
-    else if (page === 'settings') renderSettings();
+    else if (page === 'snapshots') loadSnapshots();
 }
 
-// Свайпы
+function openSettings() {
+    previousPage = currentPage;
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    const target = document.getElementById('page-settings');
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('page-transition');
+    }
+    currentPage = 'settings';
+    renderSettings();
+    haptic(6);
+}
+
+function closeSettings() {
+    switchPage(previousPage || 'dashboard');
+}
+
+// ============================================================
+// СВАЙПЫ МЕЖДУ ВКЛАДКАМИ
+// ============================================================
 (function initSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
-    const pages = ['dashboard', 'matches', 'analytics', 'x2', 'settings'];
+    const pages = ['dashboard', 'matches', 'snapshots', 'analytics', 'x2'];
     document.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
@@ -2121,7 +2471,8 @@ function switchPage(page) {
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
-        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal')) return;
+        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card')) return;
+        if (currentPage === 'settings') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2149,9 +2500,15 @@ async function loadPageData(page) {
         } catch (e) {}
         cachedData = data;
         updateLastUpdate();
-        if (page === 'dashboard') renderDashboard(data);
-        else if (page === 'matches') renderMatchesPage(data);
-        else if (page === 'analytics') renderAnalytics(data);
+
+        if (page === 'dashboard') {
+            renderDashboard(data);
+            loadAnomalies();
+        } else if (page === 'matches') {
+            renderMatchesPage(data);
+        } else if (page === 'analytics') {
+            renderAnalytics(data);
+        }
         hideLoadingScreen();
     } catch (error) {
         console.error('Ошибка загрузки:', error);
@@ -2166,6 +2523,7 @@ function refreshData() {
     refreshTimeout = setTimeout(() => {
         cachedData = null;
         loadPageData(currentPage);
+        if (currentPage === 'snapshots') loadSnapshots();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -2187,12 +2545,15 @@ function renderDashboard(data) {
     document.getElementById('statProfit').textContent = (s.profit >= 0 ? '+' : '') + '$' + (s.profit || 0);
     document.getElementById('statWinrate').textContent = (s.winrate || 0) + '%';
     document.getElementById('statRoi').textContent = (s.roi || 0) + '%';
+
     const activeMatches = matches.slice(0, 3);
     renderActiveMatchesList(activeMatches);
+
     const x2Stats = calcX2Stats();
     document.getElementById('x2Total').textContent = x2Stats.total;
     document.getElementById('x2Wins').textContent = x2Stats.wins;
     document.getElementById('x2Winrate').textContent = x2Stats.winrate + '%';
+
     setTimeout(() => renderChart(data.profit_data), 50);
 }
 
@@ -2213,7 +2574,57 @@ function renderActiveMatchesList(matches) {
 }
 
 // ============================================================
-// BET CARD (✅ УЛУЧШЕННЫЙ)
+// ★ АНОМАЛИИ КЭФОВ (быстрый блок на дашборде)
+// ============================================================
+async function loadAnomalies() {
+    try {
+        const resp = await fetch(API_BASE + '/api/snapshot_anomalies?days=7&limit=3');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const container = document.getElementById('anomaliesList');
+        const card = document.getElementById('anomaliesCard');
+        if (!container || !card) return;
+
+        if (!data.anomalies || data.anomalies.length === 0) {
+            card.style.display = 'none';
+            return;
+        }
+        card.style.display = 'block';
+
+        container.innerHTML = data.anomalies.map(a => {
+            const isUp = a.anomaly_pct > 0;
+            const trendClass = isUp ? 'up' : 'down';
+            const selLabel = a.selection === '1' ? '1X' : (a.selection === 'X' ? 'X' : '2');
+            return `
+                <div class="snapshot-card has-anomaly" style="padding:10px;margin-bottom:8px;" onclick="openSnapshotFromAnomaly(${a.fixture_id})">
+                    <div style="display:flex;justify-content:space-between;gap:8px;">
+                        <div style="flex:1;min-width:0;">
+                            <div class="snapshot-match" style="font-size:13px;">${escapeHtml(a.home)} vs ${escapeHtml(a.away)}</div>
+                            <div class="snapshot-meta">🏆 ${escapeHtml(a.league || '—')}</div>
+                        </div>
+                        <div class="snapshot-badge anomaly" style="font-size:8px;">
+                            +${a.anomaly_pct.toFixed(1)}%
+                        </div>
+                    </div>
+                    <div style="margin-top:6px;font-size:11px;color:var(--text-secondary);">
+                        🎯 ${selLabel}: ${a.first_odds} → <strong style="color:var(--gold-400);">${a.max_odds}</strong>
+                        <span style="color:var(--text-tertiary);margin-left:6px;">(${a.snapshots_count} снимков)</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Ошибка аномалий:', e);
+    }
+}
+
+function openSnapshotFromAnomaly(fid) {
+    switchPage('snapshots');
+    setTimeout(() => showSnapshotChart(fid), 500);
+}
+
+// ============================================================
+// BET CARD (со счётом 1-го тайма и свайпами)
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2225,35 +2636,35 @@ function renderBetCard(m, isActive = false) {
     const matchTime = m.match_time || m.date || '—';
     const score = m.score || '-';
     const result = m.result || 'pending';
-    
+
+    // Счёт 1-го тайма
+    const htH = m.halftime_home;
+    const htA = m.halftime_away;
+    const hasHalftime = (htH !== null && htH !== undefined && htA !== null && htA !== undefined);
+
     const betClass = getBetClass(betLabel);
     const probColor = prob >= 70 ? 'emerald' : prob >= 55 ? 'gold' : 'red';
     const evColor = ev >= 15 ? 'emerald' : ev >= 5 ? 'gold' : 'red';
-    
-    // Разбиваем счёт
+
     let homeGoals = '-', awayGoals = '-';
     if (score && score !== '-' && score.includes('-')) {
         const parts = score.split('-').map(s => s.trim());
         homeGoals = parts[0];
         awayGoals = parts[1];
     }
-    
-    // Цвет счёта по результату
+
     let scoreColor = 'var(--text-secondary)';
     if (result === 'win') scoreColor = 'var(--emerald-400)';
     else if (result === 'loss') scoreColor = 'var(--red-400)';
     else if (result === 'push') scoreColor = 'var(--gold-400)';
-    
-    // Счёт показываем только для завершённых матчей
+
     const showScore = !isActive && score !== '-' && homeGoals !== '-' && awayGoals !== '-';
-    
-    // Result badge
+
     let resultBadge = '';
     if (!isActive && result && result !== 'pending') {
         resultBadge = `<span class="badge ${result}">${result.toUpperCase()}</span>`;
     }
-    
-    // Дата короткая
+
     let displayDate = matchTime;
     try {
         if (matchTime.includes('.')) {
@@ -2264,14 +2675,21 @@ function renderBetCard(m, isActive = false) {
             }
         }
     } catch (e) {}
-    
-    // Форматирование значений (✅ убрано 0% и 0)
+
     const oddsDisplay = odds > 0 ? odds.toFixed(2) : '—';
     const evDisplay = ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—';
     const probDisplay = prob > 0 ? prob.toFixed(0) + '%' : '—';
-    
+
+    const canSwipe = !isActive && (result === 'pending' || !result);
+    const itemIndex = m._index !== undefined ? m._index : -1;
+
     return `
-        <div class="bet-card ${isActive ? 'active' : ''}" onclick='showMatchDetail(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
+        <div class="bet-card ${isActive ? 'active' : ''}"
+             data-fixture="${m.fixture_id || ''}"
+             data-index="${itemIndex}"
+             onclick='handleCardClick(event, ${JSON.stringify(m).replace(/'/g, "&#39;")})'>
+            <div class="swipe-hint left">✅ WIN →</div>
+            <div class="swipe-hint right">← ❌ LOSS</div>
             <div class="bet-header">
                 <div style="flex:1;min-width:0;">
                     <div class="bet-match">${escapeHtml(m.home || '?')} vs ${escapeHtml(m.away || '?')}</div>
@@ -2279,10 +2697,13 @@ function renderBetCard(m, isActive = false) {
                     <div class="bet-time">
                         <span>📅 ${escapeHtml(displayDate)}</span>
                         ${showScore ? `
-    <span class="bet-score" style="color:${scoreColor};">
-        ${homeGoals} - ${awayGoals}
-    </span>
-` : ''}
+                            <span class="bet-score" style="color:${scoreColor};">
+                                ${homeGoals} - ${awayGoals}
+                            </span>
+                        ` : ''}
+                        ${hasHalftime && showScore ? `
+                            <span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>
+                        ` : ''}
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -2308,6 +2729,13 @@ function renderBetCard(m, isActive = false) {
     `;
 }
 
+function handleCardClick(event, m) {
+    // Если это свайп — игнорируем
+    if (event.target.closest('.swipe-hint')) return;
+    if (event.defaultPrevented) return;
+    showMatchDetail(m);
+}
+
 function getBetClass(label) {
     if (!label) return 'bet-1x';
     const l = label.toLowerCase();
@@ -2326,6 +2754,100 @@ function escapeHtml(str) {
 }
 
 // ============================================================
+// СВАЙПЫ WIN/LOSS НА КАРТОЧКАХ
+// ============================================================
+function initCardSwipes() {
+    document.querySelectorAll('.bet-card[data-index]').forEach(card => {
+        const idx = parseInt(card.dataset.index);
+        if (isNaN(idx) || idx < 0) return;
+        const item = getItemByIndex(idx);
+        if (!item || item.is_active) return;
+        if (item.result && item.result !== 'pending') return;
+
+        let startX = 0, startY = 0, currentX = 0, isSwiping = false;
+
+        card.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isSwiping = false;
+        }, { passive: true });
+
+        card.addEventListener('touchmove', (e) => {
+            if (!startX) return;
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.abs(dy) > Math.abs(dx)) return;
+            if (Math.abs(dx) < 10) return;
+            isSwiping = true;
+            currentX = dx;
+
+            if (dx > 0) {
+                card.classList.add('swipe-left');
+                card.classList.remove('swipe-right');
+            } else {
+                card.classList.add('swipe-right');
+                card.classList.remove('swipe-left');
+            }
+        }, { passive: true });
+
+        card.addEventListener('touchend', () => {
+            if (!isSwiping) {
+                startX = 0; currentX = 0;
+                return;
+            }
+            const threshold = SWIPE_THRESHOLD;
+            if (currentX > threshold) {
+                // WIN
+                haptic(30);
+                quickSetResult(idx, 'win');
+            } else if (currentX < -threshold) {
+                // LOSS
+                haptic(30);
+                quickSetResult(idx, 'loss');
+            } else {
+                card.classList.remove('swipe-left', 'swipe-right');
+            }
+            startX = 0; currentX = 0; isSwiping = false;
+        }, { passive: true });
+    });
+}
+
+async function quickSetResult(displayIndex, result) {
+    if (!cachedData) return;
+    const item = getItemByIndex(displayIndex);
+    if (!item) return;
+
+    const historyIndex = getHistoryIndex(displayIndex);
+    if (historyIndex === null) {
+        showNotification('❌ Нельзя изменить активный матч', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(API_BASE + '/api/edit_bet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                index: historyIndex,
+                result: result,
+                home_goals: item.home_goals,
+                away_goals: item.away_goals
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            const emoji = result === 'win' ? '✅' : result === 'loss' ? '❌' : '🔄';
+            showNotification(`${emoji} Результат: ${result.toUpperCase()}`, 'success');
+            refreshData();
+        } else {
+            showNotification('❌ Ошибка: ' + data.error, 'error');
+        }
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
 // MATCHES PAGE
 // ============================================================
 function renderMatchesPage(data) {
@@ -2334,7 +2856,7 @@ function renderMatchesPage(data) {
     const history = data.history || [];
     const matches = data.matches || [];
     let allItems = buildAllItems(history, matches);
-    
+
     if (matchesFilter !== 'all') {
         if (matchesFilter === 'active') allItems = allItems.filter(i => i.is_active);
         else allItems = allItems.filter(i => i.result === matchesFilter);
@@ -2352,9 +2874,9 @@ function renderMatchesPage(data) {
     const total = allItems.length;
     const limit = showAllItems ? total : ITEMS_LIMIT;
     const displayed = allItems.slice(0, limit);
-    
+
     document.getElementById('matchesCount').textContent = total + ' записей';
-    
+
     const showAllWrap = document.getElementById('showAllWrapper');
     if (total > ITEMS_LIMIT) {
         showAllWrap.style.display = 'block';
@@ -2364,7 +2886,10 @@ function renderMatchesPage(data) {
     } else {
         showAllWrap.style.display = 'none';
     }
-    
+
+    // Добавляем индексы для свайпов
+    displayed.forEach((item, i) => item._index = i);
+
     if (viewMode === 'cards') renderCardsView(displayed);
     else renderTableView(displayed);
 }
@@ -2385,6 +2910,8 @@ function renderCardsView(items) {
         return;
     }
     container.innerHTML = items.map(item => renderBetCard(item, item.is_active)).join('');
+    // Инициализируем свайпы после рендера
+    setTimeout(initCardSwipes, 100);
 }
 
 function renderTableView(items) {
@@ -2394,7 +2921,7 @@ function renderTableView(items) {
     tableContainer.style.display = 'block';
     const tbody = document.getElementById('matchesTableBody');
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="11" class="no-data" style="padding:30px;text-align:center;">Нет данных</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="no-data" style="padding:30px;text-align:center;">Нет данных</td></tr>`;
         return;
     }
     tbody.innerHTML = items.map((item, idx) => {
@@ -2402,12 +2929,15 @@ function renderTableView(items) {
         const profitStr = item.profit > 0 ? '+' + item.profit : item.profit;
         const oddsStr = item.odds > 0 ? item.odds.toFixed(2) : '—';
         const evStr = item.ev !== 0 ? item.ev + '%' : '—';
+        const htStr = (item.halftime_home != null && item.halftime_away != null)
+            ? `${item.halftime_home}-${item.halftime_away}` : '—';
         return `
             <tr>
                 <td>${idx + 1}</td>
                 <td style="font-size:10px;white-space:nowrap;">${item.date}</td>
                 <td><strong>${escapeHtml(item.home)}</strong> vs <strong>${escapeHtml(item.away)}</strong></td>
                 <td>${item.score}</td>
+                <td>${htStr}</td>
                 <td>${escapeHtml(item.bet)}</td>
                 <td>${oddsStr}</td>
                 <td>$${item.stake}</td>
@@ -2443,7 +2973,9 @@ function buildAllItems(history, matches) {
                 total_xg: m.total_xg || 0,
                 fixture_id: m.fixture_id,
                 best_bet: best,
-                bets: m.bets || []
+                bets: m.bets || [],
+                halftime_home: null,
+                halftime_away: null
             });
         });
     }
@@ -2467,7 +2999,9 @@ function buildAllItems(history, matches) {
                 total_xg: 0,
                 fixture_id: h.fixture_id,
                 best_bet: { label: h.bet, odds: h.odds, ev: h.ev, prob: h.prob },
-                bets: []
+                bets: [],
+                halftime_home: h.halftime_home,
+                halftime_away: h.halftime_away
             });
         });
     }
@@ -2490,6 +3024,32 @@ function sortItems(items) {
             default: return 0;
         }
     });
+}
+
+function getItemByIndex(index) {
+    if (!cachedData) return null;
+    let all = sortItems(buildAllItems(cachedData.history || [], cachedData.matches || []));
+    const limit = showAllItems ? all.length : ITEMS_LIMIT;
+    all = all.slice(0, limit);
+    return all[index] || null;
+}
+
+function getHistoryIndex(displayIndex) {
+    if (!cachedData) return null;
+    const history = cachedData.history || [];
+    let all = sortItems(buildAllItems(history, cachedData.matches || []));
+    const limit = showAllItems ? all.length : ITEMS_LIMIT;
+    all = all.slice(0, limit);
+    const item = all[displayIndex];
+    if (!item || item.type !== 'history') return null;
+    for (let i = 0; i < history.length; i++) {
+        const h = history[i];
+        const sameHome = (h.home || '') === item.home;
+        const sameAway = (h.away || '') === item.away;
+        const sameDate = (h.date || '') === item.date;
+        if (sameHome && sameAway && sameDate) return i;
+    }
+    return null;
 }
 
 // ============================================================
@@ -2541,11 +3101,12 @@ function showMatchDetail(match) {
     title.textContent = `${match.home} vs ${match.away}`;
     const best = match.best_bet || {};
     const bets = match.bets || [];
-    
+
     let html = `
         <div style="text-align:center;margin-bottom:16px;">
             <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">${match.league || ''}</div>
             <div style="font-size:12px;color:var(--text-secondary);">${match.date || match.match_time || ''}</div>
+            ${match.halftime_home != null ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">1-й тайм: ${match.halftime_home}-${match.halftime_away}</div>` : ''}
         </div>
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
             <div class="stat-card">
@@ -2582,6 +3143,351 @@ function closeMatchDetail() {
 }
 
 // ============================================================
+// ★ SNAPSHOTS (Снимки кэфов) — НОВАЯ СТРАНИЦА
+// ============================================================
+async function loadSnapshots() {
+    const container = document.getElementById('snapshotsList');
+    const countEl = document.getElementById('snapshotsCount');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="skeleton" style="height:100px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+    `;
+    countEl.textContent = 'Загрузка...';
+
+    try {
+        let url = API_BASE + '/api/snapshots?days=7&limit=100';
+        if (snapshotFilter === 'anomaly') {
+            url += '&only_anomaly=true';
+        }
+        const resp = await fetch(url + '&t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        snapshotsData = data.matches || [];
+        renderSnapshots();
+    } catch (e) {
+        console.error('Ошибка загрузки снимков:', e);
+        container.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Ошибка загрузки</div>
+                <div class="desc">${e.message}</div>
+                <button class="btn btn-primary" onclick="loadSnapshots()" style="margin-top:12px;">🔄 Повторить</button>
+            </div>
+        `;
+        countEl.textContent = 'Ошибка';
+    }
+}
+
+function refreshSnapshots() {
+    loadSnapshots();
+    showNotification('🔄 Обновление снимков...', '');
+}
+
+function setSnapshotFilter(filter) {
+    snapshotFilter = filter;
+    document.querySelectorAll('.filter-btn[data-snapfilter]').forEach(b => {
+        b.classList.toggle('active', b.dataset.snapfilter === filter);
+    });
+    haptic(6);
+    loadSnapshots();
+}
+
+function setSnapshotSort(sort) {
+    snapshotSort = sort;
+    document.querySelectorAll('.filter-btn[data-snapsort]').forEach(b => {
+        b.classList.toggle('active', b.dataset.snapsort === sort);
+    });
+    haptic(6);
+    renderSnapshots();
+}
+
+function filterSnapshots() {
+    snapshotsSearchQuery = document.getElementById('snapshotsSearch').value.toLowerCase();
+    renderSnapshots();
+}
+
+function renderSnapshots() {
+    const container = document.getElementById('snapshotsList');
+    const countEl = document.getElementById('snapshotsCount');
+    if (!container) return;
+
+    let filtered = [...snapshotsData];
+
+    // Поиск
+    if (snapshotsSearchQuery) {
+        const q = snapshotsSearchQuery;
+        filtered = filtered.filter(s =>
+            (s.home && s.home.toLowerCase().includes(q)) ||
+            (s.away && s.away.toLowerCase().includes(q)) ||
+            (s.league && s.league.toLowerCase().includes(q))
+        );
+    }
+
+    // Сортировка
+    if (snapshotSort === 'recent') {
+        filtered.sort((a, b) => (b.last_time || '').localeCompare(a.last_time || ''));
+    } else if (snapshotSort === 'count') {
+        filtered.sort((a, b) => (b.snapshot_count || 0) - (a.snapshot_count || 0));
+    } else if (snapshotSort === 'anomaly') {
+        filtered.sort((a, b) => {
+            const aMax = a.anomalies && a.anomalies.length ? Math.max(...a.anomalies.map(x => Math.abs(x.trend))) : 0;
+            const bMax = b.anomalies && b.anomalies.length ? Math.max(...b.anomalies.map(x => Math.abs(x.trend))) : 0;
+            return bMax - aMax;
+        });
+    }
+
+    countEl.textContent = `${filtered.length} матчей со снимками`;
+
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Нет снимков</div>
+                <div class="desc">Снимки делаются каждые 30 минут для матчей в ближайшие 2 часа</div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = filtered.map(s => renderSnapshotCard(s)).join('');
+}
+
+function renderSnapshotCard(s) {
+    const hasAnomaly = s.anomalies && s.anomalies.length > 0;
+    const first = s.first || {};
+    const last = s.last || {};
+
+    // Форматируем время
+    let lastTimeStr = '';
+    try {
+        if (s.last_time) {
+            const dt = new Date(s.last_time);
+            lastTimeStr = dt.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+    } catch (e) {}
+
+    // Тренды для 1/X/2
+    const trendHtml = ['1', 'X', '2'].map(sel => {
+        const f = first[sel] || 0;
+        const l = last[sel] || 0;
+        let pct = 0;
+        if (f > 0 && l > 0) pct = ((l / f) - 1) * 100;
+        const pctClass = pct > 0.5 ? 'up' : pct < -0.5 ? 'down' : 'flat';
+        const pctStr = pct !== 0 ? (pct > 0 ? '+' : '') + pct.toFixed(1) + '%' : '=';
+        const selLabel = sel === '1' ? '1X' : sel;
+        return `
+            <div class="snapshot-trend">
+                <span class="trend-label">${selLabel}</span>
+                <span class="trend-values">${f > 0 ? f.toFixed(2) : '—'}</span>
+                <span class="trend-values">→ ${l > 0 ? l.toFixed(2) : '—'}</span>
+                <span class="trend-pct ${pctClass}">${pctStr}</span>
+            </div>
+        `;
+    }).join('');
+
+    let anomalyHtml = '';
+    if (hasAnomaly) {
+        anomalyHtml = s.anomalies.slice(0, 2).map(a => {
+            const selLabel = a.selection === '1' ? '1X' : a.selection;
+            const isUp = a.trend > 0;
+            return `<span style="display:inline-block;margin-right:6px;font-size:10px;color:var(--gold-400);">
+                🎯 ${selLabel}: ${a.first} → ${a.last} (${isUp ? '+' : ''}${a.trend}%)
+            </span>`;
+        }).join('');
+    }
+
+    return `
+        <div class="snapshot-card ${hasAnomaly ? 'has-anomaly' : ''}" onclick="showSnapshotChart(${s.fixture_id})">
+            <div class="snapshot-header">
+                <div style="flex:1;min-width:0;">
+                    <div class="snapshot-match">${escapeHtml(s.home)} vs ${escapeHtml(s.away)}</div>
+                    <div class="snapshot-meta">🏆 ${escapeHtml(s.league || '—')}</div>
+                    <div class="snapshot-meta">📅 ${escapeHtml(s.match_time || '—')}</div>
+                    <div class="snapshot-meta">📸 ${s.snapshot_count} снимков • обновлено ${lastTimeStr}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                    ${hasAnomaly ? `<div class="snapshot-badge anomaly">🎯 Аномалия</div>` : `<div class="snapshot-badge">📸 ${s.snapshot_count}</div>`}
+                </div>
+            </div>
+            <div class="snapshot-trends">
+                ${trendHtml}
+            </div>
+            ${anomalyHtml ? `<div style="padding-top:8px;margin-top:8px;border-top:1px solid var(--border-color);">${anomalyHtml}</div>` : ''}
+        </div>
+    `;
+}
+
+async function showSnapshotChart(fixtureId) {
+    const modal = document.getElementById('snapshotChartModal');
+    const title = document.getElementById('snapshotChartTitle');
+    const info = document.getElementById('snapshotChartInfo');
+    const statsEl = document.getElementById('snapshotChartStats');
+    currentSnapshotFixture = fixtureId;
+
+    modal.classList.add('active');
+    title.textContent = '📈 Движение кэфов';
+    info.textContent = 'Загрузка...';
+    statsEl.innerHTML = '';
+
+    try {
+        const resp = await fetch(API_BASE + `/api/snapshots/${fixtureId}?t=` + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.status !== 'ok') throw new Error(data.error || 'Unknown error');
+
+        const m = data.match || {};
+        title.textContent = `📈 ${m.home || '?'} vs ${m.away || '?'}`;
+        info.innerHTML = `
+            🏆 ${escapeHtml(m.league || '—')} &nbsp;•&nbsp;
+            📅 ${escapeHtml(m.match_time || '—')} &nbsp;•&nbsp;
+            📸 ${data.history.length} снимков
+        `;
+
+        renderSnapshotChart(data.history);
+        renderSnapshotStats(data.history);
+    } catch (e) {
+        console.error('Ошибка графика снимков:', e);
+        info.textContent = '❌ Ошибка загрузки: ' + e.message;
+    }
+}
+
+function renderSnapshotChart(history) {
+    const ctx = document.getElementById('snapshotChart');
+    if (!ctx || !history || history.length === 0) return;
+    if (snapshotChartInstance) snapshotChartInstance.destroy();
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const textColor = isLight ? 'rgba(6, 78, 59, 0.6)' : 'rgba(236, 253, 245, 0.6)';
+    const gridColor = isLight ? 'rgba(6, 78, 59, 0.06)' : 'rgba(52, 211, 153, 0.05)';
+
+    // Собираем данные по времени
+    const labels = history.map(h => {
+        try {
+            const dt = new Date(h.created_at);
+            return dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        } catch { return '?'; }
+    });
+
+    const data1 = history.map(h => h.odds['1'] || null);
+    const dataX = history.map(h => h.odds['X'] || null);
+    const data2 = history.map(h => h.odds['2'] || null);
+
+    snapshotChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '1X (хозяева)',
+                    data: data1,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    spanGaps: true
+                },
+                {
+                    label: 'X (ничья)',
+                    data: dataX,
+                    borderColor: '#fbbf24',
+                    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    spanGaps: true
+                },
+                {
+                    label: '2 (гости)',
+                    data: data2,
+                    borderColor: '#f87171',
+                    backgroundColor: 'rgba(248, 113, 113, 0.08)',
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    spanGaps: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: textColor, font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => items[0]?.label || '',
+                        label: (item) => `${item.dataset.label}: ${item.parsed.y?.toFixed(2) || '—'}`
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
+                y: {
+                    ticks: { color: textColor, font: { size: 9 } },
+                    grid: { color: gridColor }
+                }
+            }
+        }
+    });
+}
+
+function renderSnapshotStats(history) {
+    const statsEl = document.getElementById('snapshotChartStats');
+    if (!statsEl || !history || history.length === 0) return;
+
+    // Считаем статистику по каждому исходу
+    const stats = {};
+    ['1', 'X', '2'].forEach(sel => {
+        const values = history.map(h => h.odds[sel]).filter(v => v > 0);
+        if (values.length === 0) return;
+        const first = values[0];
+        const last = values[values.length - 1];
+        const max = Math.max(...values);
+        const min = Math.min(...values);
+        const pct = ((last / first) - 1) * 100;
+        stats[sel] = { first, last, max, min, pct, count: values.length };
+    });
+
+    const rows = ['1', 'X', '2'].map(sel => {
+        if (!stats[sel]) return '';
+        const s = stats[sel];
+        const selLabel = sel === '1' ? '1X' : sel;
+        const pctClass = s.pct > 0.5 ? 'up' : s.pct < -0.5 ? 'down' : 'flat';
+        const pctStr = s.pct !== 0 ? (s.pct > 0 ? '+' : '') + s.pct.toFixed(1) + '%' : '=';
+        return `
+            <div style="display:grid;grid-template-columns:60px 1fr 1fr 1fr 80px;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-color);font-size:12px;align-items:center;">
+                <strong style="color:var(--emerald-400);">${selLabel}</strong>
+                <span style="color:var(--text-tertiary);">Старт: <strong style="color:var(--text-primary);">${s.first.toFixed(2)}</strong></span>
+                <span style="color:var(--text-tertiary);">Макс: <strong style="color:var(--gold-400);">${s.max.toFixed(2)}</strong></span>
+                <span style="color:var(--text-tertiary);">Мин: <strong style="color:var(--red-400);">${s.min.toFixed(2)}</strong></span>
+                <span class="trend-pct ${pctClass}" style="text-align:right;">${pctStr}</span>
+            </div>
+        `;
+    }).join('');
+
+    statsEl.innerHTML = `
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;">
+            📊 Статистика
+        </div>
+        ${rows}
+    `;
+}
+
+function closeSnapshotChart() {
+    document.getElementById('snapshotChartModal').classList.remove('active');
+    if (snapshotChartInstance) {
+        snapshotChartInstance.destroy();
+        snapshotChartInstance = null;
+    }
+    currentSnapshotFixture = null;
+}
+
+// ============================================================
 // ANALYTICS
 // ============================================================
 function renderAnalytics(data) {
@@ -2597,7 +3503,7 @@ function renderAnalytics(data) {
     document.getElementById('aLosses').textContent = losses;
     document.getElementById('aAvgOdds').textContent = avgOdds;
     setTimeout(() => renderAnalyticsChart(), 100);
-    renderStrategyBreakdown(history);
+    renderStrategyBars(history);
     renderBetTypeBreakdown(history);
     renderLeagueBreakdown(history);
 }
@@ -2659,15 +3565,18 @@ function renderAnalyticsChart() {
     });
 }
 
-function renderStrategyBreakdown(history) {
-    const container = document.getElementById('strategyBreakdown');
+// ★ Сравнение стратегий — вертикальные полосы
+function renderStrategyBars(history) {
+    const container = document.getElementById('strategyBars');
     if (!container) return;
+
     const strategies = {
-        '70%+': { wins: 0, losses: 0, profit: 0, stake: 0 },
-        'X2': { wins: 0, losses: 0, profit: 0, stake: 0 },
-        'ТМ 2.5': { wins: 0, losses: 0, profit: 0, stake: 0 },
-        'Другое': { wins: 0, losses: 0, profit: 0, stake: 0 }
+        '70%+': { wins: 0, losses: 0, profit: 0, stake: 0, label: '70%+ матчи' },
+        'X2': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'X2 Стратегия' },
+        'ТМ 2.5': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'ТМ 2.5' },
+        'Другое': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'Другое' }
     };
+
     history.forEach(b => {
         if (!b.result || b.result === 'pending') return;
         let key = 'Другое';
@@ -2675,27 +3584,45 @@ function renderStrategyBreakdown(history) {
         if (bet.includes('x2')) key = 'X2';
         else if (bet.includes('тм') || bet.includes('under')) key = 'ТМ 2.5';
         else if (bet.includes('1x') || bet.includes('п1') || bet.includes('п2')) key = '70%+';
+
         const s = strategies[key];
         if (b.result === 'win') s.wins++;
         else if (b.result === 'loss') s.losses++;
         s.profit += b.profit || 0;
         s.stake += b.stake || 0;
     });
-    container.innerHTML = Object.entries(strategies).map(([name, s]) => {
+
+    // Находим максимум по модулю ROI для нормирования
+    const entries = Object.entries(strategies).filter(([_, s]) => (s.wins + s.losses) > 0);
+    let maxAbsRoi = 1;
+    entries.forEach(([_, s]) => {
+        const roi = s.stake > 0 ? (s.profit / s.stake * 100) : 0;
+        maxAbsRoi = Math.max(maxAbsRoi, Math.abs(roi));
+    });
+
+    if (entries.length === 0) {
+        container.innerHTML = `<div class="no-data" style="padding:20px;"><div class="desc">Нет данных</div></div>`;
+        return;
+    }
+
+    container.innerHTML = entries.map(([key, s]) => {
         const total = s.wins + s.losses;
-        if (total === 0) return '';
-        const wr = (s.wins / total * 100).toFixed(0);
-        const roi = s.stake > 0 ? (s.profit / s.stake * 100).toFixed(1) : 0;
-        const profitColor = s.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        const wr = total > 0 ? (s.wins / total * 100) : 0;
+        const roi = s.stake > 0 ? (s.profit / s.stake * 100) : 0;
+        const isPositive = roi >= 0;
+        const fillPct = Math.min(Math.abs(roi) / maxAbsRoi * 100, 100);
+        const fillClass = isPositive ? '' : 'negative';
+        const valueColor = s.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+
         return `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-color);">
-                <div>
-                    <div style="font-weight:700;font-size:13px;">${name}</div>
-                    <div style="font-size:10px;color:var(--text-tertiary);">${total} ставок</div>
+            <div class="strategy-bar">
+                <div class="strategy-name" style="color:${valueColor};">${s.label}</div>
+                <div class="strategy-track">
+                    <div class="strategy-fill ${fillClass}" style="width:${fillPct}%;"></div>
                 </div>
-                <div style="text-align:right;">
-                    <div style="font-weight:700;font-size:13px;color:${profitColor};">${s.profit >= 0 ? '+' : ''}$${s.profit.toFixed(2)}</div>
-                    <div style="font-size:10px;color:var(--text-tertiary);">WR ${wr}% · ROI ${roi}%</div>
+                <div class="strategy-value" style="color:${valueColor};">
+                    ${s.profit >= 0 ? '+' : ''}$${s.profit.toFixed(2)}
+                    <div style="font-size:9px;color:var(--text-tertiary);">WR ${wr.toFixed(0)}% · ROI ${roi.toFixed(0)}%</div>
                 </div>
             </div>
         `;
@@ -2787,6 +3714,7 @@ function renderX2List() {
         const profitStr = m.result === 'win' ? `+$${m.profit}` : m.result === 'loss' ? `-$${m.stake}` : '$0';
         const resultEmoji = m.result === 'win' ? '✅' : m.result === 'loss' ? '❌' : m.result === 'push' ? '🔄' : '⏳';
         const oddsStr = m.odds > 0 ? m.odds : '—';
+        const probStr = m.prob > 0 ? m.prob + '%' : '—';
         return `
             <div class="bet-card" onclick="editX2Match(${realIdx})">
                 <div class="bet-header">
@@ -2808,8 +3736,8 @@ function renderX2List() {
                         <span class="stat-value">${oddsStr}</span>
                     </div>
                     <div class="bet-stat">
-                        <span class="stat-label">Сумма</span>
-                        <span class="stat-value">$${m.stake || 0}</span>
+                        <span class="stat-label">Prob</span>
+                        <span class="stat-value gold">${probStr}</span>
                     </div>
                     <div class="bet-stat">
                         <span class="stat-label">Прибыль</span>
@@ -2865,9 +3793,6 @@ function setX2Filter(filter) {
     renderX2List();
 }
 
-// ============================================================
-// X2 MODAL
-// ============================================================
 function openX2Modal(data) {
     const modal = document.getElementById('x2Modal');
     const title = document.getElementById('x2ModalTitle');
@@ -2955,7 +3880,7 @@ function clearAllX2() {
 }
 
 // ============================================================
-// ✅ AUTO-IMPORT X2 (С ДЕДУПЛИКАЦИЕЙ ПО ИМЕНИ МАТЧА)
+// AUTO-IMPORT X2 (дедупликация по имени)
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
@@ -2964,51 +3889,48 @@ async function autoImportX2FromLogs() {
         const data = await resp.json();
         const logText = data.log || '';
         if (!logText.trim()) return;
-        
+
         const lines = logText.split('\n');
         let newCount = 0;
-        
-        // ✅ Собираем уникальные матчи из лога (Map: matchName → info)
+
         const uniqueMatches = new Map();
-        
+
         for (const line of lines) {
             if (!line.includes('нет мотивации') && !line.includes('no motivation')) continue;
-            
+
             const m = line.match(/([A-Za-zА-Яа-яÀ-ÿ\s.\-']+?)\s+vs\s+([A-Za-zА-Яа-яÀ-ÿ\s.\-']+?)\s*\|/);
             if (!m) continue;
-            
+
             const home = m[1].trim();
             const away = m[2].trim();
             const matchName = home + ' vs ' + away;
-            
+
             if (uniqueMatches.has(matchName)) continue;
-            
+
             const dateMatch = line.match(/^(\d{4}-\d{2}-\d{2})/);
             const logDate = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0,10);
-            
+
             const xgMatch = line.match(/XG:\s*([\d.]+)/i);
             const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
-            
+
             const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
             let favorite = home, underdog = away;
             if (posMatch) {
                 const hp = parseInt(posMatch[1]), ap = parseInt(posMatch[2]);
                 if (hp > ap) { favorite = away; underdog = home; }
             }
-            
+
             uniqueMatches.set(matchName, {
                 home, away, favorite, underdog,
                 date: logDate,
                 note: 'Авто-импорт' + (xg ? ' | XG: ' + xg : '')
             });
         }
-        
-        // ✅ Добавляем только те, которых нет в x2Data (по имени матча!)
+
         const existingNames = new Set(x2Data.map(x => x.match));
-        
+
         for (const [matchName, info] of uniqueMatches) {
             if (existingNames.has(matchName)) continue;
-            
             x2Data.push({
                 id: Date.now() + Math.random() * 1000 + newCount,
                 date: info.date,
@@ -3024,7 +3946,7 @@ async function autoImportX2FromLogs() {
             });
             newCount++;
         }
-        
+
         if (newCount > 0) {
             saveX2Data();
             showNotification(`🤖 Добавлено ${newCount} X2`, 'success');
@@ -3125,6 +4047,19 @@ function renderSettings() {
     document.getElementById('bankInput').value = bank;
     document.getElementById('x2CountSettings').textContent = x2Data.length;
     document.getElementById('themeSelect').value = themeMode;
+    // Счётчик снимков
+    if (cachedData && cachedData.stats) {
+        // Опционально: получить размер снимков
+    }
+    fetch(API_BASE + '/api/keepalive')
+        .then(() => fetch(API_BASE + '/api/snapshots?days=30&limit=1'))
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.count !== undefined) {
+                document.getElementById('snapshotCountSettings').textContent = data.count + ' матчей';
+            }
+        })
+        .catch(() => {});
 }
 
 async function updateBank() {
@@ -3172,11 +4107,12 @@ async function applyBotSettings() {
 function exportCSV() {
     if (!cachedData || !cachedData.history) return;
     const history = cachedData.history;
-    const headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'EV%', 'Prob%', 'Сумма', 'Результат', 'Прибыль', 'Букмекер'];
+    const headers = ['Дата', 'Матч', 'Счёт', '1-й тайм', 'Ставка', 'Кэф', 'EV%', 'Prob%', 'Сумма', 'Результат', 'Прибыль', 'Букмекер'];
     const rows = history.map(b => [
         b.date || '',
         `${b.home || ''} vs ${b.away || ''}`,
         (b.home_goals != null && b.away_goals != null) ? `${b.home_goals}-${b.away_goals}` : '-',
+        (b.halftime_home != null && b.halftime_away != null) ? `${b.halftime_home}-${b.halftime_away}` : '-',
         b.bet || '', b.odds || 0, b.ev || 0, b.prob || 0, b.stake || 0,
         b.result || 'pending', b.profit || 0, b.bookmaker || '—'
     ]);
@@ -3196,7 +4132,7 @@ function exportCSV() {
 // ============================================================
 function exportProject() {
     const projectData = {
-        version: '17.0',
+        version: '18.0',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -3355,6 +4291,10 @@ function updateAllCharts(isLight) {
         analyticsChartInstance.destroy();
         renderAnalyticsChart();
     }
+    if (snapshotChartInstance) {
+        snapshotChartInstance.destroy();
+        if (currentSnapshotFixture) showSnapshotChart(currentSnapshotFixture);
+    }
 }
 
 // ============================================================
@@ -3383,6 +4323,8 @@ function startAutoRefresh() {
             if (currentPage === 'dashboard' || currentPage === 'matches') {
                 cachedData = null;
                 loadPageData(currentPage);
+            } else if (currentPage === 'snapshots') {
+                loadSnapshots();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -3508,6 +4450,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ============================================================
 Object.assign(window, {
     cycleTheme, setTheme, switchPage, refreshData,
+    openSettings, closeSettings,
     filterMatches, setMatchFilter, setViewMode, sortTable, toggleShowAll,
     showMatchDetail, closeMatchDetail,
     showAddMatchModal, hideAddMatchModal, saveManualMatch,
@@ -3517,8 +4460,13 @@ Object.assign(window, {
     exportX2Excel, setX2Filter, openX2ImportModal, closeX2ImportModal,
     importX2Excel, autoImportX2FromLogs,
     installPWA, hideInstallBanner, updatePWA, checkForUpdates,
-    runBotUpdate, renderAnalyticsChart
+    runBotUpdate, renderAnalyticsChart,
+    // Snapshot page
+    loadSnapshots, refreshSnapshots, setSnapshotFilter, setSnapshotSort,
+    filterSnapshots, showSnapshotChart, closeSnapshotChart,
+    openSnapshotFromAnomaly, loadAnomalies,
+    quickSetResult
 });
 </script>
 </body>
-</html> 
+</html>
