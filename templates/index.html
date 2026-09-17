@@ -5,6 +5,7 @@
     <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='IMG_2820.jpeg') }}">
     
+    <!-- PWA Meta -->
     <link rel="manifest" href="/static/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,6 +13,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#7c3aed">
     <meta name="msapplication-TileColor" content="#7c3aed">
+    <meta name="msapplication-TileImage" content="/static/icons/icon-144x144.png">
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -22,58 +24,101 @@
            ЭКРАН ЗАГРУЗКИ
            ============================================================ */
         #loadingScreen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: #050510;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             z-index: 99999;
-            transition: opacity 0.6s ease;
+            transition: opacity 0.8s ease;
             overflow: hidden;
         }
-        #loadingScreen.hidden { opacity: 0; pointer-events: none; }
         #loadingScreen .milky-way {
-            position: absolute; top: -20%; left: -10%; width: 120%; height: 140%;
-            background: radial-gradient(ellipse at 40% 50%, rgba(100, 80, 180, 0.06) 0%, rgba(60, 40, 120, 0.04) 20%, rgba(30, 20, 80, 0.02) 50%, transparent 80%);
-            transform: rotate(-15deg); filter: blur(60px);
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 120%;
+            height: 140%;
+            background: radial-gradient(ellipse at 40% 50%, 
+                rgba(100, 80, 180, 0.06) 0%, 
+                rgba(60, 40, 120, 0.04) 20%, 
+                rgba(30, 20, 80, 0.02) 50%,
+                transparent 80%);
+            transform: rotate(-15deg);
+            filter: blur(60px);
             animation: loadingMilkyPulse 12s ease-in-out infinite alternate;
         }
         #loadingScreen .milky-way-2 {
-            position: absolute; bottom: -10%; right: -10%; width: 100%; height: 120%;
-            background: radial-gradient(ellipse at 60% 40%, rgba(140, 100, 200, 0.04) 0%, rgba(80, 50, 150, 0.03) 30%, transparent 70%);
-            transform: rotate(25deg); filter: blur(80px);
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 100%;
+            height: 120%;
+            background: radial-gradient(ellipse at 60% 40%, 
+                rgba(140, 100, 200, 0.04) 0%, 
+                rgba(80, 50, 150, 0.03) 30%, 
+                transparent 70%);
+            transform: rotate(25deg);
+            filter: blur(80px);
             animation: loadingMilkyPulse2 15s ease-in-out infinite alternate;
         }
-        #loadingScreen .logo { position: relative; z-index: 1; text-align: center; }
+        #loadingScreen .logo {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
         #loadingScreen .logo-text {
-            font-size: 56px; font-weight: 700;
+            font-size: 56px;
+            font-weight: 700;
             background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             background-clip: text;
             animation: pulse 2s ease-in-out infinite;
             letter-spacing: 3px;
             text-shadow: 0 0 60px rgba(124, 58, 237, 0.15);
         }
         #loadingScreen .logo-sub {
-            margin-top: 6px; color: rgba(255,255,255,0.15);
-            font-size: 14px; letter-spacing: 8px; font-weight: 300;
+            margin-top: 6px;
+            color: rgba(255,255,255,0.15);
+            font-size: 14px;
+            letter-spacing: 8px;
+            font-weight: 300;
         }
         #loadingScreen .spinner {
-            margin-top: 30px; width: 32px; height: 32px;
-            margin-left: auto; margin-right: auto;
+            margin-top: 30px;
+            width: 32px;
+            height: 32px;
+            margin-left: auto;
+            margin-right: auto;
             border: 2px solid rgba(167,139,250,0.08);
             border-top: 2px solid #a78bfa;
-            border-radius: 50%; animation: spin 0.8s linear infinite;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
         #loadingScreen .loading-text {
-            margin-top: 14px; color: rgba(255,255,255,0.08);
-            font-size: 10px; letter-spacing: 3px;
+            margin-top: 14px;
+            color: rgba(255,255,255,0.08);
+            font-size: 10px;
+            letter-spacing: 3px;
         }
         #loadingScreen .loading-stars {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
         }
         #loadingScreen .loading-star {
-            position: absolute; border-radius: 50%; background: white;
+            position: absolute;
+            border-radius: 50%;
+            background: white;
             animation: loadingTwinkle var(--duration) ease-in-out infinite alternate;
         }
         
@@ -81,7 +126,10 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.7; transform: scale(0.97); }
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         @keyframes loadingMilkyPulse {
             0% { opacity: 0.6; transform: rotate(-15deg) scale(1); }
             100% { opacity: 1; transform: rotate(-10deg) scale(1.05); }
@@ -98,10 +146,14 @@
         /* ============================================================
            ОСНОВНЫЕ СТИЛИ
            ============================================================ */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
         body {
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             background: #050510;
             color: #e8e8f0;
             min-height: 100vh;
@@ -111,89 +163,240 @@
             transition: background 0.3s ease, color 0.3s ease;
         }
         
-        body.light-theme { background: #f0f0f5; color: #1a1a2e; }
+        body.light-theme {
+            background: #f0f0f5;
+            color: #1a1a2e;
+        }
         
-        /* Light theme overrides */
-        body.light-theme .card,
-        body.light-theme .header,
-        body.light-theme .x2-card {
+        body.light-theme .card {
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(16px);
             border: 1px solid rgba(0, 0, 0, 0.06);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
         }
-        body.light-theme .stat-card { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 0, 0, 0.06); }
-        body.light-theme .stat-card .label { color: rgba(0, 0, 0, 0.5); }
-        body.light-theme .metrics-grid .metric-item { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 0, 0, 0.06); }
-        body.light-theme .metrics-grid .metric-item .label { color: rgba(0, 0, 0, 0.5); }
-        body.light-theme .metrics-grid .metric-item .value { color: #1a1a2e; }
-        body.light-theme .card-header h2 { color: rgba(0, 0, 0, 0.5); }
-        body.light-theme table { color: #1a1a2e; }
-        body.light-theme th { color: rgba(0, 0, 0, 0.5); background: rgba(0, 0, 0, 0.02); }
-        body.light-theme td { border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
-        body.light-theme tr:hover td { background: rgba(0, 0, 0, 0.02); }
-        body.light-theme .edit-row { background: rgba(0, 0, 0, 0.03); }
-        body.light-theme .edit-row input, body.light-theme .edit-row select {
-            background: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a2e;
-        }
-        body.light-theme .setting-group { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 0, 0, 0.06); }
-        body.light-theme .setting-group h2 { color: rgba(0, 0, 0, 0.5); }
-        body.light-theme .setting-item .label { color: #1a1a2e; }
-        body.light-theme .setting-item .desc { color: rgba(0, 0, 0, 0.4); }
-        body.light-theme .input-group input { background: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a2e; }
-        body.light-theme .no-data { color: rgba(0, 0, 0, 0.4); }
-        body.light-theme .footer { color: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(0, 0, 0, 0.05); }
-        body.light-theme .stars-container { background: radial-gradient(ellipse at 30% 50%, #e8e8f0 0%, #d0d0dd 100%); opacity: 0.3; }
-        body.light-theme .star { background: #7c3aed; opacity: 0.2 !important; }
-        body.light-theme .modal { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a2e; }
-        body.light-theme .modal-header h3 { color: #7c3aed; }
-        body.light-theme .modal-field label { color: rgba(0, 0, 0, 0.4); }
-        body.light-theme .modal-field input, body.light-theme .modal-field select {
-            background: rgba(0, 0, 0, 0.04); border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a2e;
-        }
-        body.light-theme .modal-close { color: rgba(0, 0, 0, 0.5); background: rgba(0, 0, 0, 0.05); }
-        body.light-theme .sim-stat { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 0, 0, 0.06); }
-        body.light-theme .chart-controls select { background: rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.1); color: #1a1a2e; }
-        body.light-theme .chart-controls select option { background: #fff; color: #1a1a2e; }
-        body.light-theme .filter-group .filter-btn { color: rgba(0, 0, 0, 0.4); }
-        body.light-theme .filter-group .filter-btn.active { background: rgba(124, 58, 237, 0.1); color: #7c3aed; }
         
-        /* Badge styles */
-        .badge {
-            display: inline-block; padding: 1px 8px; border-radius: 10px;
-            font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+        body.light-theme .header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
         }
-        .badge.win { background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.1); }
-        .badge.loss { background: rgba(248, 113, 113, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.1); }
-        .badge.push { background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.1); }
-        .badge.pending { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .badge.x2-win { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.15); }
-        .badge.x2-loss { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.15); }
-        .badge.x2-push { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.15); }
-        .badge.x2-pending { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); }
         
-        body.light-theme .badge.win { background: rgba(52, 211, 153, 0.15); color: #059669; }
-        body.light-theme .badge.loss { background: rgba(248, 113, 113, 0.15); color: #dc2626; }
-        body.light-theme .badge.push { background: rgba(251, 191, 36, 0.15); color: #d97706; }
-        body.light-theme .badge.pending { background: rgba(0, 0, 0, 0.04); color: rgba(0, 0, 0, 0.4); }
+        body.light-theme .stat-card {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .stat-card .label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .metrics-grid .metric-item {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .metrics-grid .metric-item .label {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .metrics-grid .metric-item .value {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .card-header h2 {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .bottom-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .bottom-nav .nav-item {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active {
+            color: #7c3aed;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active::after {
+            background: linear-gradient(90deg, #7c3aed, #a78bfa);
+        }
+        
+        body.light-theme .setting-group {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .setting-group h2 {
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        body.light-theme .setting-item .label {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .setting-item .desc {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .input-group input {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .no-data {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        
+        body.light-theme .footer {
+            color: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme table {
+            color: #1a1a2e;
+        }
+        
+        body.light-theme th {
+            color: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        body.light-theme td {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme tr:hover td {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        body.light-theme .edit-row {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        
+        body.light-theme .edit-row input, 
+        body.light-theme .edit-row select {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .edit-btn {
+            color: rgba(0, 0, 0, 0.3);
+        }
+        
+        body.light-theme .edit-btn:hover {
+            color: #7c3aed;
+        }
+        
+        body.light-theme .stars-container {
+            background: radial-gradient(ellipse at 30% 50%, #e8e8f0 0%, #d0d0dd 100%);
+            opacity: 0.3;
+        }
+        
+        body.light-theme .milky-way {
+            background: radial-gradient(ellipse at 40% 50%, 
+                rgba(100, 80, 180, 0.1) 0%, 
+                rgba(60, 40, 120, 0.06) 20%, 
+                rgba(30, 20, 80, 0.03) 50%,
+                transparent 80%);
+        }
+        
+        body.light-theme .star {
+            background: #7c3aed;
+            opacity: 0.2 !important;
+        }
+        
+        body.light-theme .badge.win {
+            background: rgba(52, 211, 153, 0.15);
+            color: #059669;
+            border: 1px solid rgba(52, 211, 153, 0.15);
+        }
+        
+        body.light-theme .badge.loss {
+            background: rgba(248, 113, 113, 0.15);
+            color: #dc2626;
+            border: 1px solid rgba(248, 113, 113, 0.15);
+        }
+        
+        body.light-theme .badge.push {
+            background: rgba(251, 191, 36, 0.15);
+            color: #d97706;
+            border: 1px solid rgba(251, 191, 36, 0.15);
+        }
+        
+        body.light-theme .badge.pending {
+            background: rgba(0, 0, 0, 0.04);
+            color: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme .chart-controls select {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            color: #1a1a2e;
+        }
+        
+        body.light-theme .chart-details {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        
+        body.light-theme .sim-stat {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        
+        body.light-theme .x2-card {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
         
         .stars-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0; pointer-events: none; overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
             background: radial-gradient(ellipse at 30% 50%, #0a0a20 0%, #04040e 100%);
             transition: background 0.3s ease;
         }
         
         .milky-way {
-            position: absolute; top: -20%; left: -10%; width: 120%; height: 140%;
-            background: radial-gradient(ellipse at 40% 50%, rgba(100, 80, 180, 0.06) 0%, rgba(60, 40, 120, 0.04) 20%, rgba(30, 20, 80, 0.02) 50%, transparent 80%);
-            transform: rotate(-15deg); filter: blur(60px);
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 120%;
+            height: 140%;
+            background: radial-gradient(ellipse at 40% 50%, 
+                rgba(100, 80, 180, 0.06) 0%, 
+                rgba(60, 40, 120, 0.04) 20%, 
+                rgba(30, 20, 80, 0.02) 50%,
+                transparent 80%);
+            transform: rotate(-15deg);
+            filter: blur(60px);
             animation: milkyPulse 12s ease-in-out infinite alternate;
         }
+        
         .milky-way-2 {
-            position: absolute; bottom: -10%; right: -10%; width: 100%; height: 120%;
-            background: radial-gradient(ellipse at 60% 40%, rgba(140, 100, 200, 0.04) 0%, rgba(80, 50, 150, 0.03) 30%, transparent 70%);
-            transform: rotate(25deg); filter: blur(80px);
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 100%;
+            height: 120%;
+            background: radial-gradient(ellipse at 60% 40%, 
+                rgba(140, 100, 200, 0.04) 0%, 
+                rgba(80, 50, 150, 0.03) 30%, 
+                transparent 70%);
+            transform: rotate(25deg);
+            filter: blur(80px);
             animation: milkyPulse2 15s ease-in-out infinite alternate;
         }
         
@@ -207,7 +410,9 @@
         }
         
         .star {
-            position: absolute; border-radius: 50%; background: white;
+            position: absolute;
+            border-radius: 50%;
+            background: white;
             animation: twinkle var(--duration) ease-in-out infinite alternate;
             transition: background 0.3s ease;
         }
@@ -218,35 +423,58 @@
         }
         
         .container {
-            max-width: 1400px; margin: 0 auto;
-            padding: 12px; padding-bottom: 90px;
-            position: relative; z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 12px;
+            padding-bottom: 90px;
+            position: relative;
+            z-index: 1;
         }
         
-        /* ============================================================
-           HEADER
-           ============================================================ */
         .header {
-            display: flex; justify-content: space-between; align-items: center;
-            flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
             padding: 12px 16px;
             background: rgba(20, 20, 35, 0.7);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.06);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
             transition: all 0.3s ease;
         }
         .header h1 {
-            font-size: 18px; font-weight: 700;
+            font-size: 18px;
+            font-weight: 700;
             background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             background-clip: text;
+            text-shadow: 0 0 30px rgba(124, 58, 237, 0.15);
         }
-        .header-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .status { display: flex; align-items: center; gap: 5px; color: #34d399; font-size: 10px; font-weight: 500; }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #34d399;
+            font-size: 10px;
+            font-weight: 500;
+        }
         .status-dot {
-            width: 7px; height: 7px; background: #34d399; border-radius: 50%;
+            width: 7px;
+            height: 7px;
+            background: #34d399;
+            border-radius: 50%;
             animation: pulse-dot 2s ease-in-out infinite;
             box-shadow: 0 0 12px rgba(52, 211, 153, 0.3);
         }
@@ -258,30 +486,30 @@
         .theme-toggle {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 50%; width: 30px; height: 30px;
-            font-size: 13px; cursor: pointer;
-            transition: all 0.3s ease; color: #e8e8f0;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #e8e8f0;
         }
         .theme-toggle:hover {
-            transform: scale(1.1); border-color: #7c3aed;
+            transform: scale(1.1);
+            border-color: #7c3aed;
             box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
         }
         
-        /* ============================================================
-           CARDS
-           ============================================================ */
         .card {
             background: rgba(20, 20, 35, 0.6);
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 14px; padding: 14px; margin-bottom: 12px;
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
             transition: all 0.4s ease;
-            animation: fadeInUp 0.4s ease;
-        }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
         }
         .card:hover {
             border-color: rgba(124, 58, 237, 0.15);
@@ -290,26 +518,29 @@
         
         .x2-card {
             background: rgba(20, 20, 35, 0.6);
-            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(167, 139, 250, 0.15);
-            border-radius: 14px; padding: 14px; margin-bottom: 12px;
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            animation: fadeInUp 0.4s ease;
+            transition: all 0.4s ease;
         }
-        
-        .card-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 10px; flex-wrap: wrap; gap: 6px;
+        .x2-card:hover {
+            border-color: rgba(124, 58, 237, 0.25);
+            box-shadow: 0 4px 40px rgba(124, 58, 237, 0.08);
         }
-        .card-header h2 { color: rgba(255, 255, 255, 0.5); font-size: 13px; font-weight: 600; }
-        .card-header h2.x2-title { color: #a78bfa; }
         
         .stats-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px; margin-bottom: 14px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
         }
         .stat-card {
-            padding: 12px 10px; border-radius: 12px;
+            padding: 12px 10px;
+            border-radius: 12px;
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.05);
             text-align: center;
@@ -322,164 +553,397 @@
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
         }
         .stat-card .value {
-            font-size: 20px; font-weight: 700;
+            font-size: 20px;
+            font-weight: 700;
             background: linear-gradient(135deg, #c4b5fd, #a78bfa);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        .stat-card .value.green { background: linear-gradient(135deg, #34d399, #6ee7b7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .stat-card .value.red { background: linear-gradient(135deg, #f87171, #fca5a5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .stat-card .value.gold { background: linear-gradient(135deg, #fbbf24, #fcd34d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .stat-card .label { color: rgba(255, 255, 255, 0.5); font-size: 10px; margin-top: 4px; font-weight: 500; }
+        .stat-card .value.green {
+            background: linear-gradient(135deg, #34d399, #6ee7b7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .value.red {
+            background: linear-gradient(135deg, #f87171, #fca5a5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .value.gold {
+            background: linear-gradient(135deg, #fbbf24, #fcd34d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .stat-card .label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 10px;
+            margin-top: 4px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
         
         .stats-grid-x2 {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 8px; margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
         }
         .stat-card-x2 {
-            padding: 10px 8px; border-radius: 10px;
+            padding: 10px 8px;
+            border-radius: 10px;
             background: rgba(167, 139, 250, 0.05);
             border: 1px solid rgba(167, 139, 250, 0.08);
             text-align: center;
             transition: all 0.4s ease;
         }
-        .stat-card-x2:hover { border-color: rgba(124, 58, 237, 0.3); transform: translateY(-2px); }
-        .stat-card-x2 .value { font-size: 18px; font-weight: 700; color: #a78bfa; }
+        .stat-card-x2:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+            transform: translateY(-2px);
+        }
+        .stat-card-x2 .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #a78bfa;
+        }
         .stat-card-x2 .value.green { color: #34d399; }
         .stat-card-x2 .value.red { color: #f87171; }
         .stat-card-x2 .value.gold { color: #fbbf24; }
-        .stat-card-x2 .label { color: rgba(255, 255, 255, 0.4); font-size: 9px; margin-top: 3px; font-weight: 500; }
+        .stat-card-x2 .label {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 9px;
+            margin-top: 3px;
+            font-weight: 500;
+        }
         
         .metrics-grid {
-            display: grid; grid-template-columns: 1fr 1fr;
-            gap: 10px; margin-bottom: 14px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
         }
         .metrics-grid .metric-item {
             background: rgba(255, 255, 255, 0.03);
-            padding: 10px 14px; border-radius: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.05);
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
             transition: all 0.4s ease;
         }
-        .metrics-grid .metric-item:hover { border-color: rgba(124, 58, 237, 0.15); background: rgba(255, 255, 255, 0.05); }
-        .metrics-grid .metric-item .label { color: rgba(255, 255, 255, 0.5); font-size: 12px; font-weight: 500; }
-        .metrics-grid .metric-item .value { font-size: 18px; font-weight: 700; color: #e8e8f0; }
+        .metrics-grid .metric-item:hover {
+            border-color: rgba(124, 58, 237, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .metrics-grid .metric-item .label {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .metrics-grid .metric-item .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #e8e8f0;
+        }
         .metrics-grid .metric-item .value.green { color: #34d399; }
         .metrics-grid .metric-item .value.gold { color: #fbbf24; }
         .metrics-grid .metric-item .value.red { color: #f87171; }
         
-        /* ============================================================
-           TABLE
-           ============================================================ */
-        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px; }
-        th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            min-width: 700px;
+        }
+        th, td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
         th {
             color: rgba(255, 255, 255, 0.4);
-            font-weight: 600; font-size: 9px;
-            text-transform: uppercase; letter-spacing: 0.5px;
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             background: rgba(255, 255, 255, 0.02);
-            position: sticky; top: 0;
-            cursor: pointer;
-            user-select: none;
+            position: sticky;
+            top: 0;
         }
-        th:hover { color: #a78bfa; }
-        th .sort-arrow { font-size: 8px; margin-left: 2px; opacity: 0.5; }
-        th.sorted .sort-arrow { opacity: 1; color: #a78bfa; }
-        tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .badge.win {
+            background: rgba(52, 211, 153, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(52, 211, 153, 0.1);
+        }
+        .badge.loss {
+            background: rgba(248, 113, 113, 0.12);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.1);
+        }
+        .badge.push {
+            background: rgba(251, 191, 36, 0.12);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.1);
+        }
+        .badge.pending {
+            background: rgba(255, 255, 255, 0.04);
+            color: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .badge.x2-win { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.15); }
+        .badge.x2-loss { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.15); }
+        .badge.x2-push { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.15); }
+        .badge.x2-pending { background: rgba(255, 255, 255, 0.04); color: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); }
         
         .profit-positive { color: #34d399; font-weight: 600; }
         .profit-negative { color: #f87171; font-weight: 600; }
         
-        .edit-row { display: none; }
-        .edit-row.active { display: table-row; }
-        .edit-row td { padding: 6px 8px; background: rgba(167, 139, 250, 0.05); }
-        .edit-row input, .edit-row select {
-            padding: 2px 6px; border-radius: 4px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(0, 0, 0, 0.4); color: #e8e8f0;
-            font-size: 10px; height: 26px;
-        }
-        .edit-row input:focus, .edit-row select:focus { outline: none; border-color: rgba(124, 58, 237, 0.3); }
-        .edit-btn { cursor: pointer; color: rgba(255, 255, 255, 0.3); transition: all 0.3s ease; user-select: none; }
-        .edit-btn:hover { color: #a78bfa; transform: scale(1.15); }
-        
         /* ============================================================
-           BOTTOM NAV (iOS Glass)
+           УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION
            ============================================================ */
         .bottom-nav {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 92%; max-width: 480px;
-            background: rgba(20, 20, 35, 0.5);
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(30px) saturate(180%);
             -webkit-backdrop-filter: blur(30px) saturate(180%);
             border-radius: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            display: flex; justify-content: space-around; align-items: center;
-            padding: 10px 8px; z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 8px;
+            z-index: 1000;
             transition: all 0.3s ease;
         }
+        
+        body:not(.light-theme) .bottom-nav {
+            background: rgba(20, 20, 35, 0.5);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        
         body.light-theme .bottom-nav {
             background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(30px) saturate(180%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
             border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
         }
         
         .bottom-nav .nav-item {
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             text-decoration: none;
             color: rgba(255, 255, 255, 0.4);
             font-size: 11px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 8px 18px; border-radius: 18px;
-            border: none; background: transparent; cursor: pointer;
-            min-width: 64px; position: relative;
+            padding: 8px 18px;
+            border-radius: 18px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            min-width: 64px;
+            position: relative;
             -webkit-tap-highlight-color: transparent;
-            user-select: none; gap: 4px;
+            user-select: none;
+            gap: 4px;
         }
+        
         .bottom-nav .nav-item .icon {
-            font-size: 26px; line-height: 1.2;
+            font-size: 26px;
+            line-height: 1.2;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        
         .bottom-nav .nav-item .label {
-            font-size: 10px; font-weight: 600;
+            font-size: 10px;
+            font-weight: 600;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             opacity: 0.6;
         }
+        
         .bottom-nav .nav-item.active {
             color: #a78bfa;
             background: rgba(167, 139, 250, 0.12);
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
-        .bottom-nav .nav-item.active .icon { transform: scale(1.05); text-shadow: 0 0 20px rgba(167, 139, 250, 0.3); }
-        .bottom-nav .nav-item.active .label { opacity: 1; color: #a78bfa; }
-        body.light-theme .bottom-nav .nav-item.active { background: rgba(124, 58, 237, 0.08); color: #7c3aed; }
-        body.light-theme .bottom-nav .nav-item.active .label { color: #7c3aed; }
+        
+        .bottom-nav .nav-item.active .icon {
+            transform: scale(1.05);
+            text-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+        }
+        
+        .bottom-nav .nav-item.active .label {
+            opacity: 1;
+            color: #a78bfa;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active {
+            background: rgba(124, 58, 237, 0.08);
+            color: #7c3aed;
+        }
+        
+        body.light-theme .bottom-nav .nav-item.active .label {
+            color: #7c3aed;
+        }
         
         .bottom-nav .nav-item.active::before {
-            content: ''; position: absolute; top: -1px; left: 50%;
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 50%;
             transform: translateX(-50%);
-            width: 20px; height: 3px;
+            width: 20px;
+            height: 3px;
             background: linear-gradient(90deg, #7c3aed, #a78bfa);
             border-radius: 4px;
             box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
         }
-        .bottom-nav .nav-item:active { transform: scale(0.88); transition: transform 0.1s; }
-        .bottom-nav .nav-item:hover { color: rgba(255, 255, 255, 0.7); }
+        
+        body.light-theme .bottom-nav .nav-item.active::before {
+            background: linear-gradient(90deg, #6d28d9, #7c3aed);
+        }
+        
+        .bottom-nav .nav-item:active {
+            transform: scale(0.88);
+            transition: transform 0.1s;
+        }
+        
+        .bottom-nav .nav-item:hover {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        body.light-theme .bottom-nav .nav-item:hover {
+            color: rgba(0, 0, 0, 0.6);
+        }
+        
+        .bottom-nav::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 15%;
+            right: 15%;
+            height: 30%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+        
+        body.light-theme .bottom-nav::after {
+            background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%);
+        }
+        
+        .bottom-nav::before {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 10%;
+            right: 10%;
+            height: 20px;
+            background: radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(10px);
+            pointer-events: none;
+            opacity: 0.3;
+        }
+        
+        body.light-theme .bottom-nav::before {
+            opacity: 0.1;
+        }
+        
+        @media (max-width: 768px) {
+            .bottom-nav {
+                bottom: 16px;
+                width: 94%;
+                padding: 8px 6px;
+                border-radius: 24px;
+            }
+            .bottom-nav .nav-item {
+                padding: 6px 12px;
+                min-width: 50px;
+            }
+            .bottom-nav .nav-item .icon {
+                font-size: 22px;
+            }
+            .bottom-nav .nav-item .label {
+                font-size: 9px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .bottom-nav {
+                bottom: 12px;
+                width: 96%;
+                padding: 6px 4px;
+                border-radius: 20px;
+            }
+            .bottom-nav .nav-item {
+                padding: 4px 8px;
+                min-width: 42px;
+            }
+            .bottom-nav .nav-item .icon {
+                font-size: 18px;
+            }
+            .bottom-nav .nav-item .label {
+                font-size: 8px;
+            }
+        }
         
         /* ============================================================
-           MODAL
+           МОДАЛЬНОЕ ОКНО
            ============================================================ */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(10px);
             z-index: 9999;
             display: none;
-            justify-content: center; align-items: center;
+            justify-content: center;
+            align-items: center;
             padding: 20px;
         }
         .modal-overlay.active { display: flex; }
@@ -487,64 +951,103 @@
             background: rgba(20,20,35,0.95);
             border-radius: 16px;
             border: 1px solid rgba(167,139,250,0.15);
-            padding: 24px; max-width: 500px; width: 100%;
-            max-height: 90vh; overflow-y: auto;
-            animation: modalIn 0.3s ease;
-        }
-        @keyframes modalIn {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            padding: 24px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-header {
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 16px;
         }
-        .modal-header h3 { color: #a78bfa; margin: 0; font-size: 18px; }
+        .modal-header h3 {
+            color: #a78bfa;
+            margin: 0;
+            font-size: 18px;
+        }
         .modal-close {
             background: rgba(255,255,255,0.05);
-            border: none; border-radius: 50%;
-            width: 30px; height: 30px; font-size: 16px;
-            color: rgba(255,255,255,0.5); cursor: pointer;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            font-size: 16px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
             transition: all 0.3s ease;
         }
-        .modal-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
-        .modal-field { margin-bottom: 12px; }
+        .modal-close:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .modal-field {
+            margin-bottom: 12px;
+        }
         .modal-field label {
-            font-size: 11px; color: rgba(255,255,255,0.3);
-            display: block; margin-bottom: 4px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.3);
+            display: block;
+            margin-bottom: 4px;
         }
         .modal-field input, .modal-field select {
-            width: 100%; padding: 8px 12px;
+            width: 100%;
+            padding: 8px 12px;
             background: rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 6px; color: #e8e8f0; font-size: 13px;
+            border-radius: 6px;
+            color: #e8e8f0;
+            font-size: 13px;
         }
         .modal-field input:focus, .modal-field select:focus {
-            outline: none; border-color: rgba(124,58,237,0.3);
+            outline: none;
+            border-color: rgba(124,58,237,0.3);
         }
-        .modal-field .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
-        .modal-actions .btn { flex: 1; padding: 10px; text-align: center; font-size: 13px; }
+        .modal-field .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .modal-actions .btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+        }
         
         /* ============================================================
-           SETTINGS
+           НАСТРОЙКИ
            ============================================================ */
         .setting-group {
             background: rgba(20, 20, 35, 0.5);
             backdrop-filter: blur(12px);
-            padding: 10px; border-radius: 10px;
+            padding: 10px;
+            border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.04);
             margin-bottom: 8px;
         }
         .setting-group h2 {
             color: rgba(255, 255, 255, 0.4);
-            font-size: 12px; font-weight: 600;
-            margin-bottom: 6px; letter-spacing: 0.3px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
         }
         .setting-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            flex-wrap: wrap; gap: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            flex-wrap: wrap;
+            gap: 4px;
         }
         .setting-item:last-child { border-bottom: none; }
         .setting-item .label { font-size: 12px; color: #e8e8f0; }
@@ -554,81 +1057,312 @@
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.06);
             color: #e8e8f0;
-            padding: 4px 6px; border-radius: 4px;
-            width: 80px; font-size: 11px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            width: 80px;
+            font-size: 11px;
         }
         .input-group button {
             background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white; border: none;
-            padding: 4px 10px; border-radius: 4px;
-            cursor: pointer; font-size: 11px;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
             transition: all 0.3s ease;
         }
-        .input-group button:hover { box-shadow: 0 0 20px rgba(124, 58, 237, 0.2); }
-        
+        .input-group button:hover {
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+        }
         .toggle {
-            width: 36px; height: 20px;
+            width: 36px;
+            height: 20px;
             background: rgba(255, 255, 255, 0.06);
-            border-radius: 10px; cursor: pointer;
-            position: relative; transition: 0.3s ease;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            transition: 0.3s ease;
         }
         .toggle.active { background: rgba(124, 58, 237, 0.5); }
         .toggle .dot {
-            width: 14px; height: 14px;
-            background: #fff; border-radius: 50%;
-            position: absolute; top: 3px; left: 3px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            position: absolute;
+            top: 3px;
+            left: 3px;
             transition: 0.3s ease;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
         .toggle.active .dot { left: 19px; }
-        
         .file-input-label {
             display: inline-block;
             padding: 4px 10px;
             background: linear-gradient(135deg, #7c3aed, #6d28d9);
-            color: white; border-radius: 4px;
-            cursor: pointer; font-size: 11px;
-            transition: all 0.3s ease;
-        }
-        .file-input-label:hover { box-shadow: 0 0 20px rgba(124, 58, 237, 0.2); }
-        .import-status { color: rgba(255, 255, 255, 0.3); font-size: 10px; margin-top: 4px; }
-        
-        /* ============================================================
-           BUTTONS
-           ============================================================ */
-        .btn {
-            padding: 6px 16px; border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: #e8e8f0; cursor: pointer;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
             font-size: 11px;
             transition: all 0.3s ease;
-            font-family: inherit;
         }
-        .btn:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(124, 58, 237, 0.3); }
-        .btn-primary { background: linear-gradient(135deg, #7c3aed, #6d28d9); border: none; color: white; }
-        .btn-primary:hover { box-shadow: 0 0 20px rgba(124, 58, 237, 0.3); transform: translateY(-1px); }
-        .btn-success { background: linear-gradient(135deg, #34d399, #059669); border: none; color: white; }
-        .btn-success:hover { box-shadow: 0 0 20px rgba(52, 211, 153, 0.3); transform: translateY(-1px); }
-        .btn-danger { background: linear-gradient(135deg, #f87171, #dc2626); border: none; color: white; }
-        .btn-danger:hover { box-shadow: 0 0 20px rgba(248, 113, 113, 0.3); transform: translateY(-1px); }
-        .btn-outline { background: transparent; border: 1px solid rgba(255, 255, 255, 0.15); }
-        .btn-outline:hover { background: rgba(255, 255, 255, 0.05); }
-        .btn-purple { background: linear-gradient(135deg, #a78bfa, #7c3aed); border: none; color: white; }
-        .btn-purple:hover { box-shadow: 0 0 20px rgba(167, 139, 250, 0.3); transform: translateY(-1px); }
+        .file-input-label:hover {
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+        }
+        .import-status { color: rgba(255, 255, 255, 0.3); font-size: 10px; margin-top: 4px; }
         
-        /* ============================================================
-           MISC
-           ============================================================ */
+        .sim-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .sim-stat {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .sim-stat .value { font-size: 18px; font-weight: 700; }
+        .sim-stat .value.green { color: #34d399; }
+        .sim-stat .value.red { color: #f87171; }
+        .sim-stat .value.gold { color: #fbbf24; }
+        .sim-stat .label { color: rgba(255, 255, 255, 0.35); font-size: 10px; margin-top: 4px; }
+        
+        .slider-container { margin: 10px 0; }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .chart-controls select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: #e8e8f0;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .chart-controls select:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .chart-controls select option {
+            background: #1a1a2e;
+            color: #e8e8f0;
+        }
+        
+        .chart-details {
+            margin-top: 10px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: none;
+        }
+        .chart-details.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .chart-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .chart-details-item {
+            padding: 6px;
+        }
+        .chart-details-item .label {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .chart-details-item .value {
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        
+        .chart-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        
+        .patterns-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .patterns-table th {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .patterns-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .patterns-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .pattern-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin: 6px 0;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+        }
+        .pattern-metrics .metric {
+            text-align: center;
+        }
+        .pattern-metrics .metric .label {
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+        }
+        .pattern-metrics .metric .value {
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 1px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: rgba(20, 20, 35, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 10px;
+            color: #e8e8f0;
+            font-size: 13px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            max-width: 400px;
+        }
+        .notification.success { border-color: rgba(52, 211, 153, 0.3); }
+        .notification.error { border-color: rgba(248, 113, 113, 0.3); }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100px); }
+        }
+        
+        .btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: #e8e8f0;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            color: white;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #34d399, #059669);
+            border: none;
+            color: white;
+        }
+        .btn-success:hover {
+            box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f87171, #dc2626);
+            border: none;
+            color: white;
+        }
+        .btn-danger:hover {
+            box-shadow: 0 0 20px rgba(248, 113, 113, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .btn-purple {
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            border: none;
+            color: white;
+        }
+        .btn-purple:hover {
+            box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+            transform: translateY(-1px);
+        }
+        
         .no-data {
-            text-align: center; padding: 30px 0;
+            text-align: center;
+            padding: 30px 0;
             color: rgba(255, 255, 255, 0.3);
         }
-        .no-data .emoji { font-size: 40px; margin-bottom: 10px; }
+        .no-data .emoji {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
         
-        .loader { text-align: center; padding: 40px 0; }
+        .loader {
+            text-align: center;
+            padding: 40px 0;
+        }
         .loader .spinner {
-            width: 32px; height: 32px;
+            width: 32px;
+            height: 32px;
             margin: 0 auto 10px;
             border: 2px solid rgba(167, 139, 250, 0.08);
             border-top: 2px solid #a78bfa;
@@ -636,84 +1370,194 @@
             animation: spin 0.8s linear infinite;
         }
         
-        .skeleton {
-            background: linear-gradient(90deg, 
-                rgba(255,255,255,0.03) 25%, 
-                rgba(255,255,255,0.06) 50%, 
-                rgba(255,255,255,0.03) 75%);
-            background-size: 200% 100%;
-            animation: skeletonShine 1.5s infinite;
-            border-radius: 6px;
-            height: 20px;
-            margin: 8px 0;
+        .edit-row {
+            display: none;
         }
-        @keyframes skeletonShine {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+        .edit-row.active {
+            display: table-row;
+        }
+        .edit-row td {
+            padding: 6px 8px;
+            background: rgba(167, 139, 250, 0.05);
+        }
+        .edit-row input, .edit-row select {
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(0, 0, 0, 0.4);
+            color: #e8e8f0;
+            font-size: 10px;
+            height: 26px;
+        }
+        .edit-row input:focus, .edit-row select:focus {
+            outline: none;
+            border-color: rgba(124, 58, 237, 0.3);
+        }
+        .edit-btn {
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        .edit-btn:hover {
+            color: #a78bfa;
         }
         
         .footer {
-            text-align: center; padding: 20px 0 10px;
+            text-align: center;
+            padding: 20px 0 10px;
             color: rgba(255, 255, 255, 0.15);
             font-size: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.03);
             margin-top: 10px;
         }
         
-        .chart-container { height: 150px; }
-        .chart-container-large { height: 350px; }
-        
-        .x2-badge {
-            background: linear-gradient(135deg, #a78bfa, #7c3aed);
-            color: white; padding: 2px 10px;
-            border-radius: 12px; font-size: 10px; font-weight: 700;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-header h2 {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .card-header h2.x2-title {
+            color: #a78bfa;
+        }
+        .chart-container {
+            height: 150px;
+        }
+        .chart-container-large {
+            height: 350px;
         }
         
-        .filter-group { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        @media (max-width: 768px) {
+            .chart-container-large {
+                height: 250px;
+            }
+        }
+        
+        /* X2 секция */
+        .x2-badge {
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
         .filter-group .filter-btn {
-            padding: 4px 12px; border-radius: 12px;
+            padding: 4px 12px;
+            border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.06);
             background: rgba(255, 255, 255, 0.03);
             color: rgba(255, 255, 255, 0.4);
-            cursor: pointer; font-size: 10px;
+            cursor: pointer;
+            font-size: 10px;
             transition: all 0.3s ease;
-            font-family: inherit;
         }
-        .filter-group .filter-btn:hover { border-color: rgba(124, 58, 237, 0.3); }
+        .filter-group .filter-btn:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+        }
         .filter-group .filter-btn.active {
             background: rgba(124, 58, 237, 0.15);
             border-color: rgba(124, 58, 237, 0.3);
             color: #a78bfa;
         }
         
+        body.light-theme .filter-group .filter-btn {
+            color: rgba(0, 0, 0, 0.4);
+        }
+        body.light-theme .filter-group .filter-btn.active {
+            background: rgba(124, 58, 237, 0.1);
+            color: #7c3aed;
+        }
+        
         .x2-top-matches {
-            display: grid; grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px; margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
         }
         .x2-top-match {
             background: rgba(167, 139, 250, 0.05);
             border: 1px solid rgba(167, 139, 250, 0.08);
-            border-radius: 8px; padding: 10px;
+            border-radius: 8px;
+            padding: 10px;
             text-align: center;
             transition: all 0.3s ease;
         }
-        .x2-top-match:hover { border-color: rgba(124, 58, 237, 0.3); transform: translateY(-2px); }
-        .x2-top-match .position { font-size: 20px; font-weight: 700; color: #fbbf24; }
-        .x2-top-match .match-name { font-size: 11px; font-weight: 600; margin: 4px 0; }
-        .x2-top-match .profit { font-size: 14px; font-weight: 700; color: #34d399; }
+        .x2-top-match:hover {
+            border-color: rgba(124, 58, 237, 0.3);
+            transform: translateY(-2px);
+        }
+        .x2-top-match .position {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        .x2-top-match .match-name {
+            font-size: 11px;
+            font-weight: 600;
+            margin: 4px 0;
+        }
+        .x2-top-match .profit {
+            font-size: 14px;
+            font-weight: 700;
+            color: #34d399;
+        }
         
+        @media (max-width: 768px) {
+            .x2-top-matches {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Стили для X2 импорта */
+        .x2-import-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .x2-import-actions .btn {
+            padding: 4px 12px;
+            font-size: 10px;
+        }
+        
+        /* Keep-Alive статус */
         #keepAliveStatus {
-            position: fixed; bottom: 80px; right: 15px;
-            font-size: 9px; color: rgba(255,255,255,0.15);
+            position: fixed;
+            bottom: 80px;
+            right: 15px;
+            font-size: 9px;
+            color: rgba(255,255,255,0.15);
             z-index: 999;
             background: rgba(0,0,0,0.3);
-            padding: 3px 8px; border-radius: 10px;
+            padding: 3px 8px;
+            border-radius: 10px;
             backdrop-filter: blur(5px);
             font-family: monospace;
         }
+        body.light-theme #keepAliveStatus {
+            color: rgba(0,0,0,0.15);
+            background: rgba(255,255,255,0.3);
+        }
         
+        /* Стиль для статуса авто-импорта */
         .auto-import-status {
-            font-size: 10px; color: rgba(255,255,255,0.3);
+            font-size: 10px;
+            color: rgba(255,255,255,0.3);
             padding: 4px 8px;
             background: rgba(255,255,255,0.02);
             border-radius: 4px;
@@ -723,22 +1567,35 @@
             color: #34d399;
             border: 1px solid rgba(52,211,153,0.1);
         }
-        
-        #pwa-install-banner, #pwa-update-banner {
-            position: fixed; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px;
+
+        /* PWA баннеры */
+        #pwa-install-banner,
+        #pwa-update-banner {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
             background: rgba(20, 20, 35, 0.95);
             backdrop-filter: blur(20px);
             border-radius: 16px;
             padding: 16px 20px;
             z-index: 9998;
             box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             gap: 12px;
             animation: slideUp 0.4s ease;
         }
-        #pwa-install-banner { bottom: 100px; border: 1px solid rgba(167, 139, 250, 0.2); }
-        #pwa-update-banner { top: 20px; border: 1px solid rgba(52, 211, 153, 0.3); }
+        #pwa-install-banner {
+            bottom: 100px;
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+        #pwa-update-banner {
+            top: 20px;
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
         
         @keyframes slideUp {
             from { transform: translateX(-50%) translateY(30px); opacity: 0; }
@@ -749,49 +1606,19 @@
             to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         
-        .notification {
-            position: fixed; top: 20px; right: 20px;
-            padding: 12px 20px;
-            background: rgba(20, 20, 35, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(167, 139, 250, 0.2);
-            border-radius: 10px;
-            color: #e8e8f0; font-size: 13px;
-            z-index: 9999;
-            animation: slideIn 0.3s ease;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-            max-width: 400px;
+        .pwa-mode .bottom-nav {
+            padding-bottom: env(safe-area-inset-bottom, 10px);
         }
-        .notification.success { border-color: rgba(52, 211, 153, 0.3); }
-        .notification.error { border-color: rgba(248, 113, 113, 0.3); }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(100px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideOut {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100px); }
-        }
-        
-        @media (max-width: 768px) {
-            .bottom-nav { bottom: 16px; width: 94%; padding: 8px 6px; border-radius: 24px; }
-            .bottom-nav .nav-item { padding: 6px 12px; min-width: 50px; }
-            .bottom-nav .nav-item .icon { font-size: 22px; }
-            .bottom-nav .nav-item .label { font-size: 9px; }
-            .x2-top-matches { grid-template-columns: 1fr; }
-            .chart-container-large { height: 250px; }
-        }
-        @media (max-width: 480px) {
-            .bottom-nav { bottom: 12px; width: 96%; padding: 6px 4px; border-radius: 20px; }
-            .bottom-nav .nav-item { padding: 4px 8px; min-width: 42px; }
-            .bottom-nav .nav-item .icon { font-size: 18px; }
-            .bottom-nav .nav-item .label { font-size: 8px; }
-            .notification { top: auto; bottom: 100px; right: 10px; left: 10px; max-width: none; }
+        .pwa-mode .container {
+            padding-top: env(safe-area-inset-top, 10px);
         }
     </style>
 </head>
 <body>
 
+<!-- ============================================================
+     ЭКРАН ЗАГРУЗКИ
+     ============================================================ -->
 <div id="loadingScreen">
     <div class="milky-way"></div>
     <div class="milky-way-2"></div>
@@ -817,19 +1644,15 @@
                 <span class="status-dot"></span>
                 <span>Система активна</span>
                 <span style="color:rgba(255,255,255,0.2);">|</span>
-                <span style="color:rgba(255,255,255,0.2);">v16 PRO</span>
+                <span style="color:rgba(255,255,255,0.2);">v15 X2 PRO</span>
             </div>
-            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Переключить тему">🌙</button>
-            <button class="theme-toggle" onclick="refreshData()" title="Обновить данные" style="font-size:12px;">🔄</button>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+            <button class="theme-toggle" onclick="refreshData()" style="font-size:12px;">🔄</button>
         </div>
     </div>
 
     <div id="page-dashboard" class="page active">
-        <div id="dashboard-content">
-            <div class="card"><div class="skeleton" style="width:60%;"></div><div class="skeleton" style="width:40%;"></div></div>
-            <div class="card"><div class="skeleton" style="height:80px;"></div></div>
-            <div class="card"><div class="skeleton" style="width:80%;"></div><div class="skeleton"></div><div class="skeleton"></div></div>
-        </div>
+        <div id="dashboard-content"></div>
     </div>
     <div id="page-x2" class="page" style="display:none;">
         <div id="x2-content"></div>
@@ -838,9 +1661,10 @@
         <div id="settings-content"></div>
     </div>
 
-    <div class="footer">Quantum Bet Tracker v16 PRO © 2026</div>
+    <div class="footer">Quantum Bet Tracker v15 X2 PRO © 2026</div>
 </div>
 
+<!-- УВЕЛИЧЕННАЯ IOS GLASS NAVIGATION -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard">
         <span class="icon">📊</span>
@@ -856,74 +1680,76 @@
     </button>
 </nav>
 
-<!-- MODAL: X2 -->
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ X2 -->
 <div class="modal-overlay" id="x2Modal">
     <div class="modal">
         <div class="modal-header">
             <h3 id="x2ModalTitle">➕ Добавить X2 матч</h3>
             <button class="modal-close" onclick="closeX2Modal()">✖</button>
         </div>
-        <div class="modal-field">
-            <label>📅 Дата</label>
-            <input type="date" id="x2Date">
-        </div>
-        <div class="modal-field">
-            <label>🏟️ Матч</label>
-            <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>🏆 Фаворит</label>
-                    <input type="text" id="x2Favorite" placeholder="Al-Ettifaq">
-                </div>
-                <div>
-                    <label>📉 Аутсайдер</label>
-                    <input type="text" id="x2Underdog" placeholder="Al-Faisaly">
+        <div id="x2ModalBody">
+            <div class="modal-field">
+                <label>📅 Дата</label>
+                <input type="date" id="x2Date">
+            </div>
+            <div class="modal-field">
+                <label>🏟️ Матч</label>
+                <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
+            </div>
+            <div class="modal-field">
+                <div class="row">
+                    <div>
+                        <label>🏆 Фаворит</label>
+                        <input type="text" id="x2Favorite" placeholder="Al-Ettifaq">
+                    </div>
+                    <div>
+                        <label>📉 Аутсайдер</label>
+                        <input type="text" id="x2Underdog" placeholder="Al-Faisaly">
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>📊 Коэффициент X2</label>
-                    <input type="number" id="x2Odds" step="0.01" placeholder="2.00">
-                </div>
-                <div>
-                    <label>💰 Сумма</label>
-                    <input type="number" id="x2Stake" step="0.5" placeholder="100">
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>⚽ Счёт</label>
-                    <input type="text" id="x2Score" placeholder="0:0">
-                </div>
-                <div>
-                    <label>📊 Результат</label>
-                    <select id="x2Result">
-                        <option value="pending">⏳ PENDING</option>
-                        <option value="win">✅ WIN</option>
-                        <option value="loss">❌ LOSS</option>
-                        <option value="push">🔄 PUSH</option>
-                    </select>
+            <div class="modal-field">
+                <div class="row">
+                    <div>
+                        <label>📊 Коэффициент X2</label>
+                        <input type="number" id="x2Odds" step="0.01" placeholder="2.00">
+                    </div>
+                    <div>
+                        <label>💰 Сумма</label>
+                        <input type="number" id="x2Stake" step="0.5" placeholder="100">
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="modal-field">
-            <label>📝 Примечание</label>
-            <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
-            <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
+            <div class="modal-field">
+                <div class="row">
+                    <div>
+                        <label>⚽ Счёт</label>
+                        <input type="text" id="x2Score" placeholder="0:0">
+                    </div>
+                    <div>
+                        <label>📊 Результат</label>
+                        <select id="x2Result">
+                            <option value="pending">⏳ PENDING</option>
+                            <option value="win">✅ WIN</option>
+                            <option value="loss">❌ LOSS</option>
+                            <option value="push">🔄 PUSH</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-field">
+                <label>📝 Примечание</label>
+                <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
+                <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL: X2 IMPORT -->
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ ИМПОРТА X2 EXCEL -->
 <div class="modal-overlay" id="x2ImportModal">
     <div class="modal">
         <div class="modal-header">
@@ -945,7 +1771,7 @@
     </div>
 </div>
 
-<!-- MODAL: ADD MATCH -->
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ МАТЧЕЙ -->
 <div class="modal-overlay" id="addMatchModal">
     <div class="modal">
         <div class="modal-header">
@@ -991,52 +1817,21 @@
         </div>
     </div>
 </div>
+
 <script>
     // ============================================================
     // КОНФИГУРАЦИЯ
     // ============================================================
     const API_BASE = window.location.origin;
-    const AUTO_REFRESH_MS = 60000;      // авто-обновление UI каждые 60 сек
-    const KEEPALIVE_MS = 180000;        // пинг сервера каждые 3 мин
-    const AUTO_IMPORT_MS = 180000;      // авто-импорт X2 из логов каждые 3 мин
-    const ITEMS_INITIAL_LIMIT = 50;     // лимит строк до "Показать все"
-
+    
     // ============================================================
-    // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-    // ============================================================
-    let cachedData = null;
-    let chartInstance = null;
-    let currentPage = 'dashboard';
-    let isLoading = false;
-    let editingIndex = null;
-    let x2Data = [];
-    let editingX2Index = null;
-    let currentFilter = 'all';
-    let keepAliveInterval = null;
-    let autoImportInterval = null;
-    let autoRefreshInterval = null;
-    let deferredPrompt = null;
-    let refreshTimeout = null;
-    let showAllItems = false;
-    let sortBy = 'date';
-    let sortDir = 'desc';
-
-    // ============================================================
-    // ХАПТИК
-    // ============================================================
-    function haptic(ms = 10) {
-        if (navigator.vibrate) {
-            try { navigator.vibrate(ms); } catch (e) {}
-        }
-    }
-
-    // ============================================================
-    // ЗВЁЗДЫ
+    // ЗВЁЗДЫ ДЛЯ ЭКРАНА ЗАГРУЗКИ
     // ============================================================
     (function generateLoadingStars() {
         const container = document.getElementById('loadingStars');
         if (!container) return;
-        for (let i = 0; i < 150; i++) {
+        const count = 150;
+        for (let i = 0; i < count; i++) {
             const star = document.createElement('div');
             star.className = 'loading-star';
             const size = 0.5 + Math.random() * 2.5;
@@ -1051,10 +1846,330 @@
         }
     })();
 
+    // ============================================================
+    // СКРЫТИЕ ЭКРАНА ЗАГРУЗКИ
+    // ============================================================
+    function hideLoadingScreen() {
+        const loading = document.getElementById('loadingScreen');
+        if (loading) {
+            loading.style.opacity = '0';
+            setTimeout(function() {
+                loading.style.display = 'none';
+            }, 800);
+        }
+    }
+
+    window.addEventListener('load', function() {
+        setTimeout(hideLoadingScreen, 600);
+        loadPageData('dashboard');
+        startKeepAlive();
+        startAutoImportX2();
+        registerPWA();
+    });
+
+    // ============================================================
+    // PWA РЕГИСТРАЦИЯ
+    // ============================================================
+    function registerPWA() {
+        // Проверяем поддержку Service Worker
+        if ('serviceWorker' in navigator) {
+            // Регистрируем Service Worker
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('✅ Service Worker зарегистрирован:', registration);
+                    
+                    // Проверяем обновления
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('🔄 Обновление Service Worker...');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('🔄 Новая версия готова');
+                                showUpdateBanner();
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.warn('⚠️ Ошибка регистрации Service Worker:', error);
+                });
+            
+            // Отслеживаем изменения
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                console.log('🔄 Обновление страницы...');
+                window.location.reload();
+            });
+        } else {
+            console.warn('⚠️ Service Worker не поддерживается');
+        }
+
+        // Проверяем, установлено ли приложение
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('📱 Приложение запущено в режиме PWA');
+            document.body.classList.add('pwa-mode');
+        }
+
+        // Обработка установки PWA
+        let deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('📲 Приложение можно установить');
+            showInstallBanner();
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ Приложение установлено!');
+            hideInstallBanner();
+            showNotification('✅ Приложение успешно установлено!', 'success');
+        });
+    }
+
+    // ============================================================
+    // БАННЕРЫ ДЛЯ УСТАНОВКИ И ОБНОВЛЕНИЯ PWA
+    // ============================================================
+    let deferredPrompt = null;
+
+    function showInstallBanner() {
+        const existing = document.getElementById('pwa-install-banner');
+        if (existing) return;
+        
+        const banner = document.createElement('div');
+        banner.id = 'pwa-install-banner';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;flex:1;">
+                <span style="font-size:24px;">📲</span>
+                <div>
+                    <div style="font-weight:600;font-size:14px;">Установить приложение</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);">Добавьте на главный экран</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button onclick="installPWA()" style="
+                    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+                    border: none;
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 10px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                ">Установить</button>
+                <button onclick="hideInstallBanner()" style="
+                    background: transparent;
+                    border: none;
+                    color: rgba(255,255,255,0.3);
+                    font-size: 18px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                ">✖</button>
+            </div>
+        `;
+        
+        document.body.appendChild(banner);
+    }
+
+    window.installPWA = function() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('✅ Пользователь установил приложение');
+                } else {
+                    console.log('❌ Пользователь отклонил установку');
+                }
+                deferredPrompt = null;
+                hideInstallBanner();
+            });
+        }
+    };
+
+    window.hideInstallBanner = function() {
+        const banner = document.getElementById('pwa-install-banner');
+        if (banner) {
+            banner.style.animation = 'slideDown 0.3s ease';
+            setTimeout(() => banner.remove(), 300);
+        }
+    };
+
+    function showUpdateBanner() {
+        const existing = document.getElementById('pwa-update-banner');
+        if (existing) return;
+        
+        const banner = document.createElement('div');
+        banner.id = 'pwa-update-banner';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;flex:1;">
+                <span style="font-size:20px;">🔄</span>
+                <div>
+                    <div style="font-weight:600;font-size:13px;">Доступно обновление</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">Нажмите для обновления приложения</div>
+                </div>
+            </div>
+            <button onclick="updatePWA()" style="
+                background: linear-gradient(135deg, #34d399, #059669);
+                border: none;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 10px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">Обновить</button>
+        `;
+        
+        document.body.appendChild(banner);
+    }
+
+    window.updatePWA = function() {
+        navigator.serviceWorker.ready.then((registration) => {
+            registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+        });
+        const banner = document.getElementById('pwa-update-banner');
+        if (banner) banner.remove();
+    };
+
+    // ============================================================
+    // KEEP-ALIVE — приложение само себя будит
+    // ============================================================
+    function startKeepAlive() {
+        keepAliveInterval = setInterval(function() {
+            fetch(API_BASE + '/api/all_data?t=' + Date.now())
+                .then(response => response.json())
+                .then(data => {
+                    console.log('🔄 Keep-Alive: пинг успешен', new Date().toLocaleTimeString());
+                    updateKeepAliveStatus('✅', new Date().toLocaleTimeString());
+                    if (cachedData) {
+                        cachedData = data;
+                    }
+                    fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
+                })
+                .catch(err => {
+                    console.warn('⚠️ Keep-Alive: пинг не удался', err);
+                    updateKeepAliveStatus('❌', new Date().toLocaleTimeString());
+                });
+        }, 180000);
+
+        const statusEl = document.createElement('div');
+        statusEl.id = 'keepAliveStatus';
+        statusEl.textContent = '🔄 Автопинг активен';
+        document.body.appendChild(statusEl);
+        
+        setTimeout(function() {
+            fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
+        }, 5000);
+    }
+
+    function updateKeepAliveStatus(icon, time) {
+        const el = document.getElementById('keepAliveStatus');
+        if (el) {
+            el.textContent = icon + ' ' + time;
+        }
+    }
+
+    // ============================================================
+    // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ БОТА
+    // ============================================================
+    function startAutoImportX2() {
+        autoImportInterval = setInterval(function() {
+            autoImportX2FromLogs();
+        }, 180000);
+        setTimeout(function() {
+            autoImportX2FromLogs();
+        }, 5000);
+    }
+
+    async function autoImportX2FromLogs() {
+        try {
+            console.log('🤖 Авто-импорт X2 из логов...');
+            const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
+            if (!response.ok) {
+                console.warn('⚠️ Не удалось получить логи');
+                return;
+            }
+            const data = await response.json();
+            const logText = data.log || '';
+            if (!logText || logText.trim() === '') {
+                console.log('📭 Логи пусты');
+                return;
+            }
+            const lines = logText.split('\n');
+            let newMatches = 0;
+            let totalFound = 0;
+            
+            for (const line of lines) {
+                if (line.includes('нет мотивации') || line.includes('no motivation')) {
+                    totalFound++;
+                    const matchMatch = line.match(/([A-Za-z\s]+)\s+vs\s+([A-Za-z\s]+)/i);
+                    if (!matchMatch) continue;
+                    const home = matchMatch[1].trim();
+                    const away = matchMatch[2].trim();
+                    const matchName = home + ' vs ' + away;
+                    const today = new Date().toISOString().slice(0,10);
+                    const exists = x2Data.some(m => m.match === matchName && m.date === today);
+                    if (exists) continue;
+                    const xgMatch = line.match(/XG:\s*([\d.]+)/i);
+                    const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
+                    let favorite = home;
+                    let underdog = away;
+                    const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
+                    if (posMatch) {
+                        const homePos = parseInt(posMatch[1]);
+                        const awayPos = parseInt(posMatch[2]);
+                        if (homePos < awayPos) {
+                            favorite = home;
+                            underdog = away;
+                        } else {
+                            favorite = away;
+                            underdog = home;
+                        }
+                    }
+                    const newMatch = {
+                        id: Date.now() + Math.random() * 1000 + newMatches,
+                        date: today,
+                        match: matchName,
+                        favorite: favorite,
+                        underdog: underdog,
+                        odds: 0,
+                        stake: 0,
+                        score: '-',
+                        result: 'pending',
+                        profit: 0,
+                        note: 'Авто-импорт из логов бота' + (xg ? ' | XG: ' + xg : '')
+                    };
+                    x2Data.push(newMatch);
+                    newMatches++;
+                }
+            }
+            
+            if (newMatches > 0) {
+                saveX2Data();
+                showNotification('🤖 Добавлено ' + newMatches + ' X2 матчей из логов!', 'success');
+                if (currentPage === 'x2') renderX2Page();
+                if (currentPage === 'dashboard') loadPageData('dashboard');
+            } else if (totalFound > 0) {
+                console.log('📭 Найдено ' + totalFound + ' матчей с "нет мотивации", но все уже добавлены');
+            } else {
+                console.log('📭 Матчей с "нет мотивации" в логах не найдено');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка авто-импорта X2:', error);
+        }
+    }
+
+    // ============================================================
+    // ЗВЁЗДЫ ДЛЯ ОСНОВНОГО ФОНА
+    // ============================================================
     (function generateStars() {
         const container = document.getElementById('starsContainer');
-        if (!container) return;
-        for (let i = 0; i < 250; i++) {
+        const count = 250;
+        for (let i = 0; i < count; i++) {
             const star = document.createElement('div');
             star.className = 'star';
             const size = 0.5 + Math.random() * 2.5;
@@ -1070,13 +2185,82 @@
     })();
 
     // ============================================================
-    // ЭКРАН ЗАГРУЗКИ
+    // ПЕРЕМЕННЫЕ
     // ============================================================
-    function hideLoadingScreen() {
-        const loading = document.getElementById('loadingScreen');
-        if (loading && !loading.classList.contains('hidden')) {
-            loading.classList.add('hidden');
+    let cachedData = null;
+    let chartInstance = null;
+    let currentPage = 'dashboard';
+    let isLoading = false;
+    let matchesCache = null;
+    let editingIndex = null;
+    let x2Data = [];
+    let editingX2Index = null;
+    let currentFilter = 'all';
+    let keepAliveInterval = null;
+    let autoImportInterval = null;
+
+    // Загружаем X2 данные из localStorage
+    function loadX2Data() {
+        try {
+            const saved = localStorage.getItem('x2_matches');
+            if (saved) {
+                x2Data = JSON.parse(saved);
+            } else {
+                x2Data = [
+                    {
+                        id: Date.now(),
+                        date: '2026-09-08',
+                        match: 'Al-Ettifaq vs Al-Faisaly',
+                        favorite: 'Al-Ettifaq',
+                        underdog: 'Al-Faisaly',
+                        odds: 2.00,
+                        stake: 100,
+                        score: '0:0',
+                        result: 'win',
+                        profit: 100,
+                        note: 'Нет мотивации у фаворита'
+                    },
+                    {
+                        id: Date.now() + 1,
+                        date: '2026-09-08',
+                        match: 'Al-Hazm vs Al Taawon',
+                        favorite: 'Al-Taawon',
+                        underdog: 'Al-Hazm',
+                        odds: 1.80,
+                        stake: 100,
+                        score: '1:0',
+                        result: 'win',
+                        profit: 80,
+                        note: 'Аутсайдер дома'
+                    }
+                ];
+                saveX2Data();
+            }
+        } catch (e) {
+            x2Data = [];
         }
+    }
+
+    function saveX2Data() {
+        localStorage.setItem('x2_matches', JSON.stringify(x2Data));
+    }
+
+    // ============================================================
+    // УВЕДОМЛЕНИЯ
+    // ============================================================
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = 'notification' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 300);
+        }, 3000);
     }
 
     // ============================================================
@@ -1085,57 +2269,47 @@
     function toggleTheme() {
         const body = document.body;
         const btn = document.getElementById('themeBtn');
-        const isLight = body.classList.toggle('light-theme');
-        btn.textContent = isLight ? '☀️' : '🌙';
-        localStorage.setItem('theme', isLight ? 'light' : 'dark');
-        updateAllCharts(isLight);
-        haptic(8);
+        if (body.classList.contains('light-theme')) {
+            body.classList.remove('light-theme');
+            btn.textContent = '🌙';
+            localStorage.setItem('theme', 'dark');
+            updateAllCharts(false);
+        } else {
+            body.classList.add('light-theme');
+            btn.textContent = '☀️';
+            localStorage.setItem('theme', 'light');
+            updateAllCharts(true);
+        }
     }
 
     function updateAllCharts(isLight) {
-        if (!chartInstance) return;
         const color = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
         const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
-        chartInstance.options.plugins.legend.labels.color = color;
-        chartInstance.options.scales.x.ticks.color = color;
-        chartInstance.options.scales.y.ticks.color = color;
-        chartInstance.options.scales.x.grid.color = gridColor;
-        chartInstance.options.scales.y.grid.color = gridColor;
-        chartInstance.update();
+        if (chartInstance) {
+            chartInstance.options.plugins.legend.labels.color = color;
+            chartInstance.options.scales.x.ticks.color = color;
+            chartInstance.options.scales.y.ticks.color = color;
+            chartInstance.options.scales.x.grid.color = gridColor;
+            chartInstance.options.scales.y.grid.color = gridColor;
+            chartInstance.update();
+        }
     }
 
-    // Системная тема (если нет сохранённой)
-    (function initTheme() {
-        const saved = localStorage.getItem('theme');
-        const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
-        const useLight = saved ? saved === 'light' : prefersLight;
-        if (useLight) {
-            document.body.classList.add('light-theme');
-            document.getElementById('themeBtn').textContent = '☀️';
-        }
-    })();
-
-    // ============================================================
-    // УВЕДОМЛЕНИЯ
-    // ============================================================
-    function showNotification(message, type = '') {
-        const notification = document.createElement('div');
-        notification.className = 'notification' + (type ? ' ' + type : '');
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        document.getElementById('themeBtn').textContent = '☀️';
+    } else {
+        document.body.classList.remove('light-theme');
+        document.getElementById('themeBtn').textContent = '🌙';
     }
 
     // ============================================================
     // НАВИГАЦИЯ
     // ============================================================
     document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
             const page = this.dataset.page;
-            haptic(6);
             switchPage(page);
         });
     });
@@ -1143,8 +2317,7 @@
     function switchPage(page) {
         if (page === currentPage) return;
         document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
-        const btn = document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`);
-        if (btn) btn.classList.add('active');
+        document.querySelector(`.bottom-nav .nav-item[data-page="${page}"]`).classList.add('active');
         document.querySelectorAll('.page').forEach(p => {
             p.style.display = 'none';
             p.classList.remove('active');
@@ -1163,37 +2336,32 @@
     // ============================================================
     async function loadPageData(page) {
         if (isLoading) return;
-        const contentEl = document.getElementById(page + '-content');
-        isLoading = true;
-
-        if (page !== 'x2' && !cachedData) {
-            contentEl.innerHTML = `
-                <div class="card"><div class="skeleton" style="width:60%;"></div><div class="skeleton" style="width:40%;"></div></div>
-                <div class="card"><div class="skeleton" style="height:80px;"></div></div>
-            `;
+        const contentId = page + '-content';
+        const contentEl = document.getElementById(contentId);
+        if (page !== 'dashboard' && cachedData && contentEl.innerHTML && page !== 'x2') {
+            return;
         }
-
+        isLoading = true;
+        if (page !== 'x2') {
+            contentEl.innerHTML = '<div class="loader active"><div class="spinner"></div><div style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:6px;">Загрузка...</div></div>';
+        }
         try {
             const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
-            if (!response.ok) throw new Error('Сервер: ' + response.status);
+            if (!response.ok) {
+                throw new Error('Сервер вернул ошибку: ' + response.status);
+            }
             const data = await response.json();
-
-            // Мержим матчи
             try {
-                const matchesResp = await fetch(API_BASE + '/api/matches?t=' + Date.now());
-                if (matchesResp.ok) {
-                    const matches = await matchesResp.json();
-                    if (Array.isArray(matches) && matches.length > 0) {
-                        data.matches = matches;
-                    }
+                const matchesData = await loadMatches();
+                if (matchesData && matchesData.length > 0) {
+                    data.matches = matchesData;
+                    console.log('✅ Загружено матчей:', matchesData.length);
                 }
             } catch (e) {
                 console.log('Матчи не загружены отдельно');
             }
-
             cachedData = data;
-
-            switch (page) {
+            switch(page) {
                 case 'dashboard': renderDashboard(data); break;
                 case 'x2': renderX2Page(); break;
                 case 'settings': renderSettings(data); break;
@@ -1222,23 +2390,303 @@
     }
 
     function refreshData() {
-        if (refreshTimeout) clearTimeout(refreshTimeout);
-        refreshTimeout = setTimeout(() => {
-            cachedData = null;
-            loadPageData(currentPage);
-        }, 250);
+        cachedData = null;
+        matchesCache = null;
+        loadPageData(currentPage);
         showNotification('🔄 Обновление данных...', '');
     }
 
+    async function loadMatches() {
+        try {
+            const response = await fetch(API_BASE + '/api/matches?t=' + Date.now());
+            if (response.ok) {
+                const data = await response.json();
+                matchesCache = data;
+                return data;
+            }
+            return null;
+        } catch (e) {
+            console.log('Ошибка загрузки матчей:', e);
+            return null;
+        }
+    }
+
     // ============================================================
-    // ПОСТРОЕНИЕ ЕДИНОГО СПИСКА ЭЛЕМЕНТОВ
+    // РЕДАКТИРОВАНИЕ СТАВКИ
     // ============================================================
-    function buildAllItems(history, matches) {
-        const allItems = [];
+    function toggleEdit(index) {
+        const row = document.getElementById('edit-row-' + index);
+        if (row) {
+            row.classList.toggle('active');
+            if (row.classList.contains('active')) {
+                editingIndex = index;
+                const item = getItemByIndex(index);
+                if (item) {
+                    document.getElementById('edit_home_' + index).value = item.home || '';
+                    document.getElementById('edit_away_' + index).value = item.away || '';
+                    document.getElementById('edit_score_' + index).value = item.score || '';
+                    document.getElementById('edit_bet_' + index).value = item.bet || '';
+                    document.getElementById('edit_odds_' + index).value = item.odds || 0;
+                    document.getElementById('edit_stake_' + index).value = item.stake || 0;
+                    document.getElementById('edit_ev_' + index).value = item.ev || 0;
+                    document.getElementById('edit_marker_' + index).value = item.marker || '';
+                    document.getElementById('edit_result_' + index).value = item.result || 'pending';
+                }
+            } else {
+                editingIndex = null;
+            }
+        }
+    }
+
+    function getItemByIndex(index) {
+        if (!cachedData) return null;
+        const history = cachedData.history || [];
+        const matches = cachedData.matches || [];
+        let allItems = [];
+        if (matches && matches.length > 0) {
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
+                allItems.push({
+                    type: 'match',
+                    date: match.match_time || 'Сегодня',
+                    home: match.home || 'Unknown',
+                    away: match.away || 'Unknown',
+                    score: '-',
+                    bet: bestBet.label || '—',
+                    odds: bestBet.odds || 0,
+                    stake: bestBet.stake || 0,
+                    ev: bestBet.ev || 0,
+                    result: 'pending',
+                    profit: 0,
+                    marker: bestBet.marker_stake || '',
+                    is_active: true
+                });
+            });
+        }
+        if (history && history.length > 0) {
+            history.forEach((bet) => {
+                allItems.push({
+                    type: 'history',
+                    date: bet.date || '-',
+                    home: bet.home || 'Unknown',
+                    away: bet.away || 'Unknown',
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    bet: bet.bet || '—',
+                    odds: bet.odds || 0,
+                    stake: bet.stake || 0,
+                    ev: bet.ev || 0,
+                    result: bet.result || 'pending',
+                    profit: bet.profit || 0,
+                    marker: bet.marker_stake || '',
+                    is_active: false
+                });
+            });
+        }
+        allItems.sort((a, b) => {
+            if (a.is_active && !b.is_active) return -1;
+            if (!a.is_active && b.is_active) return 1;
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
+        });
+        allItems = allItems.slice(0, 50);
+        if (index < allItems.length) {
+            return allItems[index];
+        }
+        return null;
+    }
+
+    function getHistoryIndex(displayIndex) {
+        if (!cachedData) return null;
+        const history = cachedData.history || [];
+        const matches = cachedData.matches || [];
+        let allItems = [];
+        if (matches && matches.length > 0) {
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
+                allItems.push({
+                    type: 'match',
+                    date: match.match_time || 'Сегодня',
+                    home: match.home || 'Unknown',
+                    away: match.away || 'Unknown',
+                    score: '-',
+                    bet: bestBet.label || '—',
+                    odds: bestBet.odds || 0,
+                    stake: bestBet.stake || 0,
+                    ev: bestBet.ev || 0,
+                    result: 'pending',
+                    profit: 0,
+                    marker: bestBet.marker_stake || '',
+                    is_active: true
+                });
+            });
+        }
+        if (history && history.length > 0) {
+            history.forEach((bet) => {
+                allItems.push({
+                    type: 'history',
+                    date: bet.date || '-',
+                    home: bet.home || 'Unknown',
+                    away: bet.away || 'Unknown',
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    bet: bet.bet || '—',
+                    odds: bet.odds || 0,
+                    stake: bet.stake || 0,
+                    ev: bet.ev || 0,
+                    result: bet.result || 'pending',
+                    profit: bet.profit || 0,
+                    marker: bet.marker_stake || '',
+                    is_active: false
+                });
+            });
+        }
+        allItems.sort((a, b) => {
+            if (a.is_active && !b.is_active) return -1;
+            if (!a.is_active && b.is_active) return 1;
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
+        });
+        allItems = allItems.slice(0, 50);
+        if (displayIndex < allItems.length && allItems[displayIndex].type === 'history') {
+            return history.length - 1 - allItems.slice(0, displayIndex + 1).filter(i => i.type === 'history').length;
+        }
+        return null;
+    }
+
+    async function saveEdit(index) {
+        const score = document.getElementById('edit_score_' + index).value;
+        let home_goals = null, away_goals = null;
+        if (score && score.includes('-')) {
+            const parts = score.split('-');
+            home_goals = parseInt(parts[0].trim());
+            away_goals = parseInt(parts[1].trim());
+        }
+        const data = {
+            home: document.getElementById('edit_home_' + index).value,
+            away: document.getElementById('edit_away_' + index).value,
+            home_goals: home_goals,
+            away_goals: away_goals,
+            bet: document.getElementById('edit_bet_' + index).value,
+            odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
+            stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
+            ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
+            marker: document.getElementById('edit_marker_' + index).value || '',
+            result: document.getElementById('edit_result_' + index).value,
+            index: getHistoryIndex(index)
+        };
+        if (data.index === null) {
+            showNotification('❌ Нельзя редактировать активный матч', 'error');
+            return;
+        }
+        try {
+            const response = await fetch(API_BASE + '/api/edit_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('✅ Ставка обновлена!', 'success');
+                toggleEdit(index);
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + result.error, 'error');
+            }
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
+    }
+
+    async function deleteBet(index) {
+        if (!confirm('Удалить эту ставку?')) return;
+        const historyIndex = getHistoryIndex(index);
+        if (historyIndex === null) {
+            showNotification('❌ Нельзя удалить активный матч', 'error');
+            return;
+        }
+        try {
+            const response = await fetch(API_BASE + '/api/delete_bet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: historyIndex })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('✅ Ставка удалена!', 'success');
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + result.error, 'error');
+            }
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
+    }
+
+    // ============================================================
+    // ДОБАВЛЕНИЕ МАТЧА
+    // ============================================================
+    function showAddMatchModal() {
+        document.getElementById('addMatchModal').classList.add('active');
+    }
+
+    function hideAddMatchModal() {
+        document.getElementById('addMatchModal').classList.remove('active');
+        document.getElementById('matchNameInput').value = '';
+        document.getElementById('matchScoreInput').value = '';
+        document.getElementById('matchBetInput').value = '';
+        document.getElementById('matchOddsInput').value = '1.85';
+        document.getElementById('matchStakeInput').value = '42.87';
+        document.getElementById('matchResultSelect').value = 'win';
+    }
+
+    async function saveManualMatch() {
+        const matchName = document.getElementById('matchNameInput').value;
+        const score = document.getElementById('matchScoreInput').value;
+        const bet = document.getElementById('matchBetInput').value;
+        const odds = parseFloat(document.getElementById('matchOddsInput').value) || 1.85;
+        const stake = parseFloat(document.getElementById('matchStakeInput').value) || 42.87;
+        const result = document.getElementById('matchResultSelect').value;
+        if (!matchName) {
+            alert('❌ Введите название матча!');
+            return;
+        }
+        try {
+            const response = await fetch(API_BASE + '/api/add_manual_match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    match: matchName,
+                    score: score || '-',
+                    result: result,
+                    stake: stake,
+                    bet: bet || 'Ручная ставка',
+                    odds: odds,
+                    bookmaker: 'Ручное добавление'
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Матч добавлен!', 'success');
+                hideAddMatchModal();
+                refreshData();
+            } else {
+                showNotification('❌ Ошибка: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('❌ Ошибка: ' + error, 'error');
+        }
+    }
+
+    // ============================================================
+    // РЕНДЕР ДАШБОРДА
+    // ============================================================
+    function renderDashboard(data) {
+        const s = data.stats || {};
+        const history = data.history || [];
+        const matches = data.matches || [];
+
+        let allItems = [];
 
         if (matches && matches.length > 0) {
-            matches.forEach(match => {
-                const bestBet = match.best_bet || (match.bets && match.bets[0]) || {};
+            matches.forEach((match) => {
+                const bestBet = match.best_bet || match.bets?.[0] || {};
                 allItems.push({
                     type: 'match',
                     date: match.match_time || 'Сегодня',
@@ -1262,7 +2710,7 @@
         }
 
         if (history && history.length > 0) {
-            history.forEach(bet => {
+            history.forEach((bet) => {
                 allItems.push({
                     type: 'history',
                     date: bet.date || '-',
@@ -1270,7 +2718,7 @@
                     away: bet.away || 'Unknown',
                     home_goals: bet.home_goals,
                     away_goals: bet.away_goals,
-                    score: (bet.home_goals != null && bet.away_goals != null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
+                    score: (bet.home_goals !== null && bet.away_goals !== null) ? bet.home_goals + ' - ' + bet.away_goals : '-',
                     bet: bet.bet || '—',
                     odds: bet.odds || 0,
                     stake: bet.stake || 0,
@@ -1285,104 +2733,17 @@
             });
         }
 
-        return allItems;
-    }
-
-    function sortItems(items) {
-        const dir = sortDir === 'asc' ? 1 : -1;
-        return items.sort((a, b) => {
+        allItems.sort((a, b) => {
             if (a.is_active && !b.is_active) return -1;
             if (!a.is_active && b.is_active) return 1;
-            switch (sortBy) {
-                case 'date':
-                    try { return dir * (new Date(a.date) - new Date(b.date)); } catch { return 0; }
-                case 'odds':
-                    return dir * ((a.odds || 0) - (b.odds || 0));
-                case 'stake':
-                    return dir * ((a.stake || 0) - (b.stake || 0));
-                case 'ev':
-                    return dir * ((a.ev || 0) - (b.ev || 0));
-                case 'profit':
-                    return dir * ((a.profit || 0) - (b.profit || 0));
-                case 'result':
-                    return dir * ((a.result || '').localeCompare(b.result || ''));
-                default:
-                    return 0;
-            }
+            try { return new Date(b.date) - new Date(a.date); } catch { return 0; }
         });
-    }
 
-    function getItemByIndex(index) {
-        if (!cachedData) return null;
-        let all = sortItems(buildAllItems(cachedData.history || [], cachedData.matches || []));
-        const limit = showAllItems ? all.length : ITEMS_INITIAL_LIMIT;
-        all = all.slice(0, limit);
-        return all[index] || null;
-    }
-
-    function getHistoryIndex(displayIndex) {
-        if (!cachedData) return null;
-        const history = cachedData.history || [];
-        let all = sortItems(buildAllItems(history, cachedData.matches || []));
-        const limit = showAllItems ? all.length : ITEMS_INITIAL_LIMIT;
-        all = all.slice(0, limit);
-        const item = all[displayIndex];
-        if (!item || item.type !== 'history') return null;
-
-        // Находим реальный индекс в history
-        for (let i = 0; i < history.length; i++) {
-            const h = history[i];
-            const sameHome = (h.home || '') === item.home;
-            const sameAway = (h.away || '') === item.away;
-            const sameDate = (h.date || '') === item.date;
-            if (sameHome && sameAway && sameDate) return i;
-        }
-        return null;
-    }
-
-    // ============================================================
-    // СОРТИРОВКА
-    // ============================================================
-    function sortTable(field) {
-        if (sortBy === field) {
-            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            sortBy = field;
-            sortDir = 'desc';
-        }
-        haptic(6);
-        if (cachedData) renderDashboard(cachedData);
-    }
-
-    function toggleShowAll() {
-        showAllItems = !showAllItems;
-        haptic(6);
-        if (cachedData) renderDashboard(cachedData);
-    }
-
-    // ============================================================
-    // РЕНДЕР ДАШБОРДА
-    // ============================================================
-    function renderDashboard(data) {
-        const s = data.stats || {};
-        const history = data.history || [];
-        const matches = data.matches || [];
-
-        let allItems = sortItems(buildAllItems(history, matches));
-        const totalItems = allItems.length;
-        const limit = showAllItems ? totalItems : ITEMS_INITIAL_LIMIT;
-        const displayed = allItems.slice(0, limit);
+        allItems = allItems.slice(0, 50);
 
         const totalBets = allItems.filter(i => i.type === 'history').length;
         const activeMatches = allItems.filter(i => i.type === 'match').length;
         const x2Stats = calcX2Stats();
-
-        // Заголовки таблицы с сортировкой
-        const sortArrow = (field) => {
-            if (sortBy !== field) return '<span class="sort-arrow">⇅</span>';
-            return `<span class="sort-arrow">${sortDir === 'asc' ? '▲' : '▼'}</span>`;
-        };
-        const thClass = (field) => sortBy === field ? 'sorted' : '';
 
         let html = `
             <div class="stats-grid">
@@ -1429,7 +2790,7 @@
             <div class="card">
                 <div class="card-header">
                     <h2>📈 График прибыли</h2>
-                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">Кликните на точку</span>
+                    <span style="font-size:9px;color:rgba(255,255,255,0.3);">За последние 7 дней</span>
                 </div>
                 <div class="chart-container">
                     <canvas id="profitChart"></canvas>
@@ -1440,51 +2801,33 @@
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
                     <h2 style="color:rgba(255,255,255,0.5);font-size:13px;">📋 Все ставки и матчи</h2>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${totalItems} (активных: ${activeMatches})</span>
-                        ${totalItems > ITEMS_INITIAL_LIMIT ? `
-                            <button class="btn btn-outline" onclick="toggleShowAll()" style="padding:4px 10px;font-size:10px;">
-                                ${showAllItems ? '📉 Свернуть' : `📊 Показать все (${totalItems})`}
-                            </button>
-                        ` : ''}
+                        <span style="color:rgba(255,255,255,0.3);font-size:11px;">Всего: ${allItems.length} (активных: ${activeMatches})</span>
                         <button class="btn btn-primary" onclick="showAddMatchModal()" style="padding:4px 12px;font-size:11px;">➕ Добавить матч</button>
                     </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
                         <thead><tr>
-                            <th>#</th>
-                            <th class="${thClass('date')}" onclick="sortTable('date')">Дата${sortArrow('date')}</th>
-                            <th>Матч</th>
-                            <th>Счёт</th>
-                            <th>Ставка</th>
-                            <th class="${thClass('odds')}" onclick="sortTable('odds')">Кэф${sortArrow('odds')}</th>
-                            <th class="${thClass('stake')}" onclick="sortTable('stake')">Сумма${sortArrow('stake')}</th>
-                            <th>Маркер</th>
-                            <th class="${thClass('ev')}" onclick="sortTable('ev')">EV${sortArrow('ev')}</th>
-                            <th class="${thClass('result')}" onclick="sortTable('result')">Результат${sortArrow('result')}</th>
-                            <th class="${thClass('profit')}" onclick="sortTable('profit')">Прибыль${sortArrow('profit')}</th>
-                            <th>✏️</th>
+                            <th>#</th><th>Дата</th><th>Матч</th><th>Счёт</th><th>Ставка</th><th>Кэф</th><th>Сумма</th><th>Маркер</th><th>EV</th><th>Результат</th><th>Прибыль</th><th>✏️</th>
                         </tr></thead>
                         <tbody>
         `;
 
-        if (displayed.length === 0) {
+        if (allItems.length === 0) {
             html += `<tr><td colspan="12" class="no-data"><div class="emoji">📭</div>Нет данных</td></tr>`;
         } else {
-            displayed.forEach((item, idx) => {
+            allItems.forEach((item, idx) => {
                 const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
                 const isActive = item.is_active;
                 const rowStyle = isActive ? 'background:rgba(167,139,250,0.05);' : '';
                 const markerDisplay = item.marker || '-';
-                const betEmoji = getBetEmoji(item.bet);
-
                 html += `
                     <tr style="${rowStyle}">
                         <td>${idx + 1}</td>
                         <td style="font-size:9px;white-space:nowrap;">${item.date}</td>
                         <td><strong>${item.home}</strong> vs <strong>${item.away}</strong></td>
                         <td>${item.score}</td>
-                        <td>${betEmoji} ${item.bet}${isActive ? ' 🟢' : ''}</td>
+                        <td>${item.bet}${isActive ? ' 🟢' : ''}</td>
                         <td>${item.odds}</td>
                         <td>$${item.stake}</td>
                         <td style="font-size:9px;font-family:monospace;color:rgba(167,139,250,0.6);">${markerDisplay}</td>
@@ -1492,10 +2835,7 @@
                         <td><span class="badge ${item.result}">${item.result}</span></td>
                         <td class="${profitClass}">${item.profit > 0 ? '+' : ''}$${item.profit}</td>
                         <td>
-                            ${!isActive ? `
-                                <span class="edit-btn" title="Редактировать" onclick="toggleEdit(${idx})">✏️</span>
-                                <span class="edit-btn" title="Скопировать" onclick="copyMatch('${escapeJs(item.home)}','${escapeJs(item.away)}','${escapeJs(item.bet)}',${item.odds},${item.ev})" style="font-size:9px;">📋</span>
-                            ` : '<span style="color:rgba(255,255,255,0.1);font-size:11px;">—</span>'}
+                            ${!isActive ? `<span class="edit-btn" onclick="toggleEdit(${idx})">✏️</span>` : '<span style="color:rgba(255,255,255,0.1);font-size:11px;">—</span>'}
                         </td>
                     </tr>
                     <tr id="edit-row-${idx}" class="edit-row">
@@ -1509,7 +2849,7 @@
                                 <input type="number" id="edit_stake_${idx}" step="0.5" style="width:60px;" placeholder="Сумма">
                                 <input type="text" id="edit_marker_${idx}" style="width:100px;" placeholder="Маркер">
                                 <input type="number" id="edit_ev_${idx}" step="0.1" style="width:50px;" placeholder="EV">
-                                <select id="edit_result_${idx}">
+                                <select id="edit_result_${idx}" style="padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.4);color:#e8e8f0;font-size:10px;">
                                     <option value="win">✅ WIN</option>
                                     <option value="loss">❌ LOSS</option>
                                     <option value="push">🔄 PUSH</option>
@@ -1525,37 +2865,71 @@
             });
         }
 
-        html += `</tbody></table></div></div>`;
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
 
         document.getElementById('dashboard-content').innerHTML = html;
+        addModalHTML();
         setTimeout(() => renderChart(data.profit_data), 50);
     }
 
-    function getBetEmoji(bet) {
-        if (!bet) return '';
-        const b = bet.toLowerCase();
-        if (b.includes('тм') || b.includes('under')) return '🔽';
-        if (b.includes('тб') || b.includes('over')) return '🔼';
-        if (b.includes('1x')) return '🏠';
-        if (b.includes('x2')) return '✈️';
-        if (b.includes('обз') || b.includes('btts')) return '🥅';
-        if (b.includes('п1')) return '🏠';
-        if (b.includes('п2')) return '✈️';
-        return '🎯';
-    }
-
-    function escapeJs(str) {
-        return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
-    }
-
-    function copyMatch(home, away, bet, odds, ev) {
-        const text = `🎯 ${home} vs ${away}\n💰 ${bet} @ ${odds}\n📊 EV: ${ev}%`;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => {
-                showNotification('📋 Скопировано для Telegram!', 'success');
-                haptic(15);
-            });
-        }
+    // ============================================================
+    // МОДАЛЬНОЕ ОКНО
+    // ============================================================
+    function addModalHTML() {
+        if (document.getElementById('addMatchModal')) return;
+        const modalHTML = `
+            <div class="modal-overlay" id="addMatchModal">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>➕ Добавить матч</h3>
+                        <button class="modal-close" onclick="hideAddMatchModal()">✖</button>
+                    </div>
+                    <div class="modal-field">
+                        <label>🏟️ Название матча</label>
+                        <input type="text" id="matchNameInput" placeholder="Например: Real Madrid vs Barcelona">
+                    </div>
+                    <div class="modal-field">
+                        <label>⚽ Счёт</label>
+                        <input type="text" id="matchScoreInput" placeholder="2-1">
+                    </div>
+                    <div class="modal-field">
+                        <label>📊 Ставка</label>
+                        <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
+                    </div>
+                    <div class="modal-field">
+                        <div class="row">
+                            <div>
+                                <label>💰 Коэффициент</label>
+                                <input type="number" id="matchOddsInput" value="1.85" step="0.01">
+                            </div>
+                            <div>
+                                <label>💵 Сумма</label>
+                                <input type="number" id="matchStakeInput" value="42.87" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-field">
+                        <label>📊 Результат</label>
+                        <select id="matchResultSelect">
+                            <option value="win">✅ WIN (Выигрыш)</option>
+                            <option value="loss">❌ LOSS (Проигрыш)</option>
+                            <option value="push">🔄 PUSH (Возврат)</option>
+                            <option value="pending">⏳ PENDING (Ожидание)</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
+                        <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
     // ============================================================
@@ -1564,11 +2938,12 @@
     function renderChart(profitData) {
         const ctx = document.getElementById('profitChart');
         if (!ctx) return;
-        if (chartInstance) chartInstance.destroy();
-
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
         const isLight = document.body.classList.contains('light-theme');
         const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
@@ -1590,27 +2965,26 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                onClick: (e) => {
-                    const points = chartInstance.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-                    if (points.length) {
-                        const idx = points[0].index;
-                        const date = chartInstance.data.labels[idx];
-                        const profit = chartInstance.data.datasets[0].data[idx];
-                        showNotification(`📅 ${date}: ${profit >= 0 ? '+' : ''}$${profit}`, '');
-                    }
-                },
                 plugins: {
-                    legend: { labels: { color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', font: { size: 9 } } }
+                    legend: {
+                        labels: {
+                            color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
+                            font: { size: 9 }
+                        }
+                    }
                 },
                 scales: {
                     x: {
-                        ticks: { color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)', font: { size: 8 } },
+                        ticks: {
+                            color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
+                            font: { size: 8 }
+                        },
                         grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' }
                     },
                     y: {
                         ticks: {
                             color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
-                            callback: (v) => '$' + v,
+                            callback: function(value) { return '$' + value; },
                             font: { size: 8 }
                         },
                         grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)' }
@@ -1618,160 +2992,6 @@
                 }
             }
         });
-    }
-
-    // ============================================================
-    // РЕДАКТИРОВАНИЕ СТАВКИ
-    // ============================================================
-    function toggleEdit(index) {
-        const row = document.getElementById('edit-row-' + index);
-        if (!row) return;
-        row.classList.toggle('active');
-        if (row.classList.contains('active')) {
-            editingIndex = index;
-            const item = getItemByIndex(index);
-            if (item) {
-                document.getElementById('edit_home_' + index).value = item.home || '';
-                document.getElementById('edit_away_' + index).value = item.away || '';
-                document.getElementById('edit_score_' + index).value = item.score === '-' ? '' : item.score;
-                document.getElementById('edit_bet_' + index).value = item.bet || '';
-                document.getElementById('edit_odds_' + index).value = item.odds || 0;
-                document.getElementById('edit_stake_' + index).value = item.stake || 0;
-                document.getElementById('edit_ev_' + index).value = item.ev || 0;
-                document.getElementById('edit_marker_' + index).value = item.marker || '';
-                document.getElementById('edit_result_' + index).value = item.result || 'pending';
-            }
-        } else {
-            editingIndex = null;
-        }
-        haptic(6);
-    }
-
-    async function saveEdit(index) {
-        const score = document.getElementById('edit_score_' + index).value;
-        let home_goals = null, away_goals = null;
-        if (score && score.includes('-')) {
-            const parts = score.split('-');
-            home_goals = parseInt(parts[0].trim());
-            away_goals = parseInt(parts[1].trim());
-        }
-
-        const data = {
-            home: document.getElementById('edit_home_' + index).value,
-            away: document.getElementById('edit_away_' + index).value,
-            home_goals: home_goals,
-            away_goals: away_goals,
-            bet: document.getElementById('edit_bet_' + index).value,
-            odds: parseFloat(document.getElementById('edit_odds_' + index).value) || 0,
-            stake: parseFloat(document.getElementById('edit_stake_' + index).value) || 0,
-            ev: parseFloat(document.getElementById('edit_ev_' + index).value) || 0,
-            marker: document.getElementById('edit_marker_' + index).value || '',
-            result: document.getElementById('edit_result_' + index).value,
-            index: getHistoryIndex(index)
-        };
-
-        if (data.index === null) {
-            showNotification('❌ Нельзя редактировать активный матч', 'error');
-            return;
-        }
-
-        try {
-            const resp = await fetch(API_BASE + '/api/edit_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await resp.json();
-            if (result.success) {
-                showNotification('✅ Ставка обновлена!', 'success');
-                haptic(15);
-                toggleEdit(index);
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e.message, 'error');
-        }
-    }
-
-    async function deleteBet(index) {
-        if (!confirm('Удалить эту ставку?')) return;
-        const historyIndex = getHistoryIndex(index);
-        if (historyIndex === null) {
-            showNotification('❌ Нельзя удалить активный матч', 'error');
-            return;
-        }
-        try {
-            const resp = await fetch(API_BASE + '/api/delete_bet', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: historyIndex })
-            });
-            const result = await resp.json();
-            if (result.success) {
-                showNotification('✅ Ставка удалена!', 'success');
-                haptic(15);
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + result.error, 'error');
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e.message, 'error');
-        }
-    }
-
-    // ============================================================
-    // ДОБАВЛЕНИЕ МАТЧА
-    // ============================================================
-    function showAddMatchModal() {
-        document.getElementById('addMatchModal').classList.add('active');
-        haptic(10);
-    }
-
-    function hideAddMatchModal() {
-        document.getElementById('addMatchModal').classList.remove('active');
-        ['matchNameInput','matchScoreInput','matchBetInput'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('matchOddsInput').value = '1.85';
-        document.getElementById('matchStakeInput').value = '42.87';
-        document.getElementById('matchResultSelect').value = 'win';
-    }
-
-    async function saveManualMatch() {
-        const matchName = document.getElementById('matchNameInput').value.trim();
-        const score = document.getElementById('matchScoreInput').value.trim();
-        const bet = document.getElementById('matchBetInput').value.trim();
-        const odds = parseFloat(document.getElementById('matchOddsInput').value) || 1.85;
-        const stake = parseFloat(document.getElementById('matchStakeInput').value) || 42.87;
-        const result = document.getElementById('matchResultSelect').value;
-
-        if (!matchName) {
-            alert('❌ Введите название матча!');
-            return;
-        }
-
-        try {
-            const resp = await fetch(API_BASE + '/api/add_manual_match', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    match: matchName, score: score || '-',
-                    result, stake, bet: bet || 'Ручная ставка',
-                    odds, bookmaker: 'Ручное добавление'
-                })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showNotification('✅ Матч добавлен!', 'success');
-                haptic(20);
-                hideAddMatchModal();
-                refreshData();
-            } else {
-                showNotification('❌ Ошибка: ' + data.error, 'error');
-            }
-        } catch (error) {
-            showNotification('❌ Ошибка: ' + error.message, 'error');
-        }
     }
 
     // ============================================================
@@ -1784,7 +3004,7 @@
 
         let html = `
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">🔥 X2 Стратегия</h2>
-            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Аутсайдер не проиграет (X2)</div>
+            <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Аутсайдер не проиграет (X2) — ставка на команду, которая ниже в таблице</div>
             
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
                 <span class="auto-import-status active">🤖 Авто-импорт активен (каждые 3 мин)</span>
@@ -1804,7 +3024,9 @@
 
             ${x2Data.filter(m => m.result === 'win').length > 0 ? `
             <div class="card">
-                <div class="card-header"><h2>🏆 Топ-3 прибыльных X2 матча</h2></div>
+                <div class="card-header">
+                    <h2>🏆 Топ-3 прибыльных X2 матча</h2>
+                </div>
                 <div class="x2-top-matches">
                     ${x2Data.filter(m => m.result === 'win').sort((a,b) => b.profit - a.profit).slice(0,3).map((m, i) => `
                         <div class="x2-top-match">
@@ -1821,10 +3043,11 @@
             <div class="x2-card">
                 <div class="card-header">
                     <h2 class="x2-title">📋 Таблица X2 матчей</h2>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <div class="x2-import-actions">
                         <button class="btn btn-purple" onclick="openX2Modal()" style="padding:4px 12px;font-size:10px;">➕ Добавить</button>
-                        <button class="btn btn-success" onclick="openX2ImportModal()" style="padding:4px 10px;font-size:10px;">📤 Импорт</button>
+                        <button class="btn btn-success" onclick="openX2ImportModal()" style="padding:4px 10px;font-size:10px;">📤 Импорт Excel</button>
                         <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
+                        <button class="btn btn-outline" onclick="renderX2Page()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
                     </div>
                 </div>
                 <div class="filter-group">
@@ -1834,6 +3057,7 @@
                     <button class="filter-btn ${currentFilter === 'push' ? 'active' : ''}" onclick="setX2Filter('push')">🔄 PUSH</button>
                     <button class="filter-btn ${currentFilter === 'pending' ? 'active' : ''}" onclick="setX2Filter('pending')">⏳ PENDING</button>
                 </div>
+
                 <div class="table-wrapper">
                     <table>
                         <thead><tr>
@@ -1864,8 +3088,8 @@
                         <td class="${profitClass}">${profitStr}</td>
                         <td style="font-size:9px;color:rgba(255,255,255,0.3);">${m.note || '-'}</td>
                         <td>
-                            <span class="edit-btn" title="Редактировать" onclick="editX2Match(${realIdx})">✏️</span>
-                            <span class="edit-btn" title="Удалить" onclick="deleteX2Match(${realIdx})" style="color:rgba(255,255,255,0.2);">🗑️</span>
+                            <span class="edit-btn" onclick="editX2Match(${realIdx})">✏️</span>
+                            <span class="edit-btn" onclick="deleteX2Match(${realIdx})" style="color:rgba(255,255,255,0.2);">🗑️</span>
                         </td>
                     </tr>
                 `;
@@ -1876,6 +3100,9 @@
         document.getElementById('x2-content').innerHTML = html;
     }
 
+    // ============================================================
+    // X2 ФУНКЦИИ
+    // ============================================================
     function calcX2Stats() {
         const total = x2Data.length;
         const wins = x2Data.filter(m => m.result === 'win').length;
@@ -1883,8 +3110,8 @@
         const pushes = x2Data.filter(m => m.result === 'push').length;
         const pending = x2Data.filter(m => m.result === 'pending').length;
         const totalProfit = x2Data.reduce((sum, m) => sum + (m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0), 0);
-        const totalStake = x2Data.reduce((sum, m) => sum + (m.stake || 0), 0);
-        const winrate = (wins + losses) > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
+        const totalStake = x2Data.reduce((sum, m) => sum + m.stake, 0);
+        const winrate = total > 0 ? Math.round((wins / total) * 100) : 0;
         const roi = totalStake > 0 ? Math.round((totalProfit / totalStake) * 100) : 0;
         return { total, wins, losses, pushes, pending, totalProfit, winrate, roi };
     }
@@ -1896,26 +3123,7 @@
 
     function setX2Filter(filter) {
         currentFilter = filter;
-        localStorage.setItem('x2_filter', filter);
-        haptic(6);
         renderX2Page();
-    }
-
-    // ============================================================
-    // X2 CRUD
-    // ============================================================
-    function loadX2Data() {
-        try {
-            const saved = localStorage.getItem('x2_matches');
-            x2Data = saved ? JSON.parse(saved) : [];
-            currentFilter = localStorage.getItem('x2_filter') || 'all';
-        } catch (e) {
-            x2Data = [];
-        }
-    }
-
-    function saveX2Data() {
-        localStorage.setItem('x2_matches', JSON.stringify(x2Data));
     }
 
     function openX2Modal(data) {
@@ -1936,12 +3144,17 @@
         } else {
             title.textContent = '➕ Добавить X2 матч';
             document.getElementById('x2Date').value = new Date().toISOString().slice(0,10);
-            ['x2Match','x2Favorite','x2Underdog','x2Odds','x2Stake','x2Score','x2Note'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('x2Match').value = '';
+            document.getElementById('x2Favorite').value = '';
+            document.getElementById('x2Underdog').value = '';
+            document.getElementById('x2Odds').value = '';
+            document.getElementById('x2Stake').value = '';
+            document.getElementById('x2Score').value = '';
             document.getElementById('x2Result').value = 'pending';
+            document.getElementById('x2Note').value = '';
             editingX2Index = null;
         }
         modal.classList.add('active');
-        haptic(10);
     }
 
     function closeX2Modal() {
@@ -1972,7 +3185,7 @@
 
         const data = { date, match, favorite, underdog, odds, stake, score, result, profit, note };
 
-        if (editingX2Index !== null && editingX2Index >= 0) {
+        if (editingX2Index !== null && editingX2Index >= 0 && editingX2Index < x2Data.length) {
             x2Data[editingX2Index] = { ...x2Data[editingX2Index], ...data };
             showNotification('✅ X2 матч обновлен!', 'success');
         } else {
@@ -1982,14 +3195,15 @@
         }
 
         saveX2Data();
-        haptic(20);
         closeX2Modal();
         renderX2Page();
-        if (currentPage === 'dashboard' && cachedData) renderDashboard(cachedData);
+        if (currentPage === 'dashboard') loadPageData('dashboard');
     }
 
     function editX2Match(index) {
-        if (index >= 0 && index < x2Data.length) openX2Modal(x2Data[index]);
+        if (index >= 0 && index < x2Data.length) {
+            openX2Modal(x2Data[index]);
+        }
     }
 
     function deleteX2Match(index) {
@@ -1997,16 +3211,15 @@
             if (confirm(`Удалить X2 матч: ${x2Data[index].match}?`)) {
                 x2Data.splice(index, 1);
                 saveX2Data();
-                haptic(15);
                 renderX2Page();
-                if (currentPage === 'dashboard' && cachedData) renderDashboard(cachedData);
+                if (currentPage === 'dashboard') loadPageData('dashboard');
                 showNotification('🗑️ X2 матч удален', '');
             }
         }
     }
 
     // ============================================================
-    // ИМПОРТ/ЭКСПОРТ X2
+    // ИМПОРТ X2 ИЗ EXCEL
     // ============================================================
     function openX2ImportModal() {
         document.getElementById('x2ImportModal').classList.add('active');
@@ -2021,15 +3234,17 @@
     function importX2Excel() {
         const fileInput = document.getElementById('x2ImportFile');
         const statusEl = document.getElementById('x2ImportStatus');
-        if (!fileInput.files || !fileInput.files.length) {
+        
+        if (!fileInput.files || fileInput.files.length === 0) {
             statusEl.textContent = '❌ Выберите файл!';
             statusEl.style.color = '#f87171';
             return;
         }
+        
         const file = fileInput.files[0];
         statusEl.textContent = '⏳ Чтение файла...';
         statusEl.style.color = 'rgba(255,255,255,0.3)';
-
+        
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
@@ -2037,14 +3252,16 @@
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const json = XLSX.utils.sheet_to_json(sheet);
-
-                if (!json.length) {
+                
+                if (json.length === 0) {
                     statusEl.textContent = '❌ Файл пуст!';
                     statusEl.style.color = '#f87171';
                     return;
                 }
-
-                let imported = 0, errors = 0;
+                
+                let imported = 0;
+                let errors = 0;
+                
                 json.forEach(row => {
                     try {
                         const match = row['Матч'] || row['match'] || '';
@@ -2056,36 +3273,57 @@
                         const score = row['Счёт'] || row['score'] || '-';
                         const result = (row['Результат'] || row['result'] || 'pending').toLowerCase();
                         const note = row['Примечание'] || row['note'] || '';
-
-                        if (!match || !favorite || !underdog) { errors++; return; }
-                        if (x2Data.some(m => m.match === match && m.date === date)) { errors++; return; }
-
+                        
+                        if (!match || !favorite || !underdog) {
+                            errors++;
+                            return;
+                        }
+                        
+                        const exists = x2Data.some(m => m.match === match && m.date === date);
+                        if (exists) {
+                            errors++;
+                            return;
+                        }
+                        
                         let profit = 0;
                         if (result === 'win') profit = Math.round((stake * odds - stake) * 100) / 100;
                         else if (result === 'loss') profit = -stake;
-
+                        else if (result === 'push') profit = 0;
+                        
                         x2Data.push({
                             id: Date.now() + Math.random() * 1000 + imported,
-                            date, match, favorite, underdog, odds, stake, score, result, profit,
+                            date: date,
+                            match: match,
+                            favorite: favorite,
+                            underdog: underdog,
+                            odds: odds,
+                            stake: stake,
+                            score: score,
+                            result: result,
+                            profit: profit,
                             note: note || 'Импорт из Excel'
                         });
                         imported++;
-                    } catch (err) { errors++; }
+                    } catch (err) {
+                        errors++;
+                    }
                 });
-
+                
                 if (imported > 0) {
                     saveX2Data();
-                    statusEl.textContent = `✅ Импортировано ${imported}! Ошибок: ${errors}`;
+                    statusEl.textContent = `✅ Импортировано ${imported} матчей! Ошибок: ${errors}`;
                     statusEl.style.color = '#34d399';
-                    showNotification(`✅ Импортировано ${imported} X2 матчей!`, 'success');
+                    showNotification(`✅ Импортировано ${imported} X2 матчей из Excel!`, 'success');
                     renderX2Page();
-                    setTimeout(closeX2ImportModal, 1500);
+                    if (currentPage === 'dashboard') loadPageData('dashboard');
+                    setTimeout(closeX2ImportModal, 2000);
                 } else {
-                    statusEl.textContent = `❌ Импорт не удался. Ошибок: ${errors}`;
+                    statusEl.textContent = `❌ Не удалось импортировать матчи. Ошибок: ${errors}`;
                     statusEl.style.color = '#f87171';
                 }
+                
             } catch (error) {
-                statusEl.textContent = '❌ Ошибка чтения: ' + error.message;
+                statusEl.textContent = '❌ Ошибка чтения файла: ' + error.message;
                 statusEl.style.color = '#f87171';
             }
         };
@@ -2093,7 +3331,10 @@
     }
 
     function exportX2Excel() {
-        if (!x2Data.length) { showNotification('❌ Нет данных', 'error'); return; }
+        if (x2Data.length === 0) {
+            showNotification('❌ Нет данных для экспорта', 'error');
+            return;
+        }
         const data = x2Data.map((m, i) => ({
             '#': i + 1,
             'Дата': m.date,
@@ -2103,7 +3344,7 @@
             'Кэф X2': m.odds,
             'Сумма': m.stake,
             'Счёт': m.score || '-',
-            'Результат': (m.result || '').toUpperCase(),
+            'Результат': m.result.toUpperCase(),
             'Прибыль': m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0,
             'Примечание': m.note || ''
         }));
@@ -2111,75 +3352,19 @@
         const ws = XLSX.utils.json_to_sheet(data);
         XLSX.utils.book_append_sheet(wb, ws, 'X2 Стратегия');
         XLSX.writeFile(wb, `x2_strategy_${new Date().toISOString().slice(0,10)}.xlsx`);
-        showNotification('✅ X2 экспортирован!', 'success');
-    }
-
-    // ============================================================
-    // АВТО-ИМПОРТ X2 ИЗ ЛОГОВ
-    // ============================================================
-    async function autoImportX2FromLogs() {
-        try {
-            console.log('🤖 Авто-импорт X2 из логов...');
-            const response = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
-            if (!response.ok) {
-                console.log('⚠️ /api/matches_log недоступен');
-                return;
-            }
-            const data = await response.json();
-            const logText = data.log || '';
-            if (!logText.trim()) return;
-
-            const lines = logText.split('\n');
-            let newMatches = 0;
-            for (const line of lines) {
-                if (line.includes('нет мотивации') || line.includes('no motivation')) {
-                    const matchMatch = line.match(/([A-Za-zА-Яа-я\s.'-]+)\s+vs\s+([A-Za-zА-Яа-я\s.'-]+)/i);
-                    if (!matchMatch) continue;
-                    const home = matchMatch[1].trim();
-                    const away = matchMatch[2].trim();
-                    const matchName = home + ' vs ' + away;
-                    const today = new Date().toISOString().slice(0,10);
-                    if (x2Data.some(m => m.match === matchName && m.date === today)) continue;
-
-                    const xgMatch = line.match(/XG:\s*([\d.]+)/i);
-                    const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
-
-                    let favorite = home, underdog = away;
-                    const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
-                    if (posMatch) {
-                        const hp = parseInt(posMatch[1]), ap = parseInt(posMatch[2]);
-                        if (hp > ap) { favorite = away; underdog = home; }
-                    }
-
-                    x2Data.push({
-                        id: Date.now() + Math.random() * 1000 + newMatches,
-                        date: today, match: matchName, favorite, underdog,
-                        odds: 0, stake: 0, score: '-', result: 'pending', profit: 0,
-                        note: 'Авто-импорт из логов' + (xg ? ' | XG: ' + xg : '')
-                    });
-                    newMatches++;
-                }
-            }
-
-            if (newMatches > 0) {
-                saveX2Data();
-                showNotification(`🤖 Добавлено ${newMatches} X2 матчей!`, 'success');
-                if (currentPage === 'x2') renderX2Page();
-                if (currentPage === 'dashboard' && cachedData) renderDashboard(cachedData);
-            }
-        } catch (error) {
-            console.error('❌ Авто-импорт X2:', error);
-        }
+        showNotification('✅ X2 экспортирован в Excel!', 'success');
     }
 
     // ============================================================
     // НАСТРОЙКИ
     // ============================================================
     function renderSettings(data) {
-        const bank = (data && data.stats) ? (data.stats.bank || 1000) : 1000;
-        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
-
-        document.getElementById('settings-content').innerHTML = `
+        const bank = data.stats ? data.stats.bank : 1000;
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {
+            anomaly_detection: false
+        };
+        
+        let html = `
             <h2 style="font-size:18px;color:#a78bfa;margin-bottom:4px;">⚙️ Настройки</h2>
             <div style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:10px;">Управление приложением</div>
             
@@ -2194,61 +3379,113 @@
                 </div>
             </div>
             
+            <div class="setting-group" style="border:1px solid rgba(167,139,250,0.15);">
+                <h2>🕵️ Детектор дробных сумм</h2>
+                <div class="setting-item">
+                    <div>
+                        <div class="label" style="font-size:13px;font-weight:600;">Включить детектор</div>
+                        <div class="desc">Анализирует суммы с 3+ знаками после запятой</div>
+                    </div>
+                    <div class="toggle ${settings.anomaly_detection ? 'active' : ''}" onclick="toggleSetting('anomaly_detection', this)">
+                        <div class="dot"></div>
+                    </div>
+                </div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);padding:6px 0;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px;">
+                    📌 Анализируются: 45.125, 40.7253125, 42.86875<br>
+                    ⏭️ Пропускаются: 50, 47.5, 45.12
+                </div>
+            </div>
+            
             <div class="setting-group">
                 <h2>💾 Проект</h2>
                 <div class="setting-item">
                     <div>
                         <div class="label">Сохранить проект</div>
-                        <div class="desc">Скачать данные в JSON</div>
+                        <div class="desc">Скачать все данные и настройки в JSON</div>
                     </div>
-                    <button class="btn btn-success" onclick="exportProject()">💾 Сохранить</button>
+                    <button class="btn btn-success" onclick="exportProject()" style="background:rgba(52,211,153,0.1);border-color:rgba(52,211,153,0.2);color:#34d399;">
+                        💾 Сохранить
+                    </button>
                 </div>
                 <div class="setting-item" style="border-bottom:none;">
                     <div>
                         <div class="label">Загрузить проект</div>
-                        <div class="desc">Восстановить из файла</div>
+                        <div class="desc">Восстановить данные из сохраненного файла</div>
                     </div>
-                    <label class="file-input-label" for="projectFileInput">📂 Загрузить</label>
-                    <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
+                    <div class="input-group">
+                        <label class="file-input-label" for="projectFileInput" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.2);">
+                            📂 Загрузить
+                        </label>
+                        <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
+                    </div>
                 </div>
             </div>
             
             <div class="setting-group">
                 <h2>📊 Экспорт / Импорт</h2>
                 <div class="setting-item">
-                    <div><div class="label">Экспорт</div><div class="desc">Скачать историю в Excel</div></div>
+                    <div><div class="label">Экспорт данных</div><div class="desc">Скачать историю в Excel</div></div>
                     <button class="btn btn-primary" onclick="window.location.href='/export'">📥 Скачать</button>
                 </div>
                 <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Импорт</div><div class="desc">Загрузить историю из Excel</div></div>
+                    <div><div class="label">Импорт данных</div><div class="desc">Загрузить историю из Excel</div></div>
                     <div class="input-group">
-                        <label class="file-input-label" for="importFileInput">📤 Выбрать</label>
+                        <label class="file-input-label" for="importFileInput">📤 Выбрать файл</label>
                         <input type="file" id="importFileInput" accept=".xlsx,.csv" style="display:none" onchange="importExcel(event)">
+                        <span id="fileName" style="color:rgba(255,255,255,0.3);font-size:10px;">Файл не выбран</span>
                     </div>
                 </div>
                 <div id="importStatus" class="import-status"></div>
             </div>
 
-            <div class="setting-group">
-                <h2>🔥 X2 Стратегия</h2>
+            <div class="setting-group" style="border:2px solid rgba(167,139,250,0.15);">
+                <h2 style="color:#a78bfa;">🔥 X2 Стратегия</h2>
                 <div class="setting-item">
-                    <div><div class="label">Всего X2 матчей</div></div>
+                    <div><div class="label">Всего X2 матчей</div><div class="desc">Собрано в таблице X2</div></div>
                     <span style="color:#a78bfa;font-weight:700;">${x2Data.length}</span>
                 </div>
                 <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Очистить все X2</div><div class="desc">Удалить все данные X2</div></div>
+                    <div><div class="label">Очистить все X2 данные</div><div class="desc">Удалить все матчи из X2 таблицы</div></div>
                     <button class="btn btn-danger" onclick="clearAllX2()" style="padding:4px 12px;font-size:11px;">🗑️ Очистить</button>
                 </div>
             </div>
 
-            <div class="setting-group">
-                <h2>📱 PWA</h2>
+            <div class="setting-group" style="border:1px solid rgba(52,211,153,0.15);">
+                <h2 style="color:#34d399;">🔄 Keep-Alive</h2>
                 <div class="setting-item" style="border-bottom:none;">
-                    <div><div class="label">Установить приложение</div><div class="desc">Добавьте на главный экран</div></div>
-                    <button class="btn btn-purple" onclick="installPWA()">📲 Установить</button>
+                    <div>
+                        <div class="label">Автопинг активен</div>
+                        <div class="desc">Приложение само себя будит каждые 3 минуты</div>
+                    </div>
+                    <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
+                </div>
+            </div>
+
+            <div class="setting-group" style="border:1px solid rgba(251,191,36,0.15);">
+                <h2 style="color:#fbbf24;">🤖 Авто-импорт X2</h2>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Авто-импорт из логов</div>
+                        <div class="desc">Автоматически добавляет X2 матчи из логов бота каждые 3 минуты</div>
+                    </div>
+                    <span style="color:#34d399;font-size:11px;">✅ АКТИВЕН</span>
+                </div>
+            </div>
+
+            <div class="setting-group" style="border:1px solid rgba(167,139,250,0.15);">
+                <h2 style="color:#a78bfa;">📱 PWA</h2>
+                <div class="setting-item" style="border-bottom:none;">
+                    <div>
+                        <div class="label">Установить приложение</div>
+                        <div class="desc">Добавьте на главный экран для лучшего опыта</div>
+                    </div>
+                    <button class="btn btn-purple" onclick="installPWA()" style="padding:4px 12px;font-size:11px;">
+                        📲 Установить
+                    </button>
                 </div>
             </div>
         `;
+        document.getElementById('settings-content').innerHTML = html;
     }
 
     function clearAllX2() {
@@ -2256,95 +3493,39 @@
             x2Data = [];
             saveX2Data();
             renderX2Page();
-            if (currentPage === 'dashboard' && cachedData) renderDashboard(cachedData);
+            if (currentPage === 'dashboard') loadPageData('dashboard');
             showNotification('🗑️ Все X2 матчи удалены', '');
-            haptic(20);
-        }
-    }
-
-    async function updateBank() {
-        const value = document.getElementById('bankInput').value;
-        try {
-            const resp = await fetch(API_BASE + '/api/bank', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bank: parseFloat(value) })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showNotification('✅ Банк обновлен: $' + data.bank, 'success');
-                haptic(15);
-                refreshData();
-            }
-        } catch (e) {
-            showNotification('❌ Ошибка: ' + e.message, 'error');
         }
     }
 
     // ============================================================
-    // ИМПОРТ EXCEL (основной)
-    // ============================================================
-    function importExcel(event) {
-        const file = event.target.files[0];
-        const statusDiv = document.getElementById('importStatus');
-        if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
-        statusDiv.textContent = '⏳ Загрузка...';
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                if (!json.length) { statusDiv.textContent = '❌ Файл пуст'; return; }
-
-                fetch(API_BASE + '/api/import_excel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: json })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        statusDiv.textContent = `✅ Импортировано ${data.count}!`;
-                        setTimeout(() => refreshData(), 1500);
-                    } else {
-                        statusDiv.textContent = '❌ Ошибка: ' + data.error;
-                    }
-                })
-                .catch(err => statusDiv.textContent = '❌ Ошибка: ' + err.message);
-            } catch (error) {
-                statusDiv.textContent = '❌ Ошибка: ' + error.message;
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    // ============================================================
-    // ЭКСПОРТ / ИМПОРТ ПРОЕКТА
+    // ЭКСПОРТ/ИМПОРТ ПРОЕКТА
     // ============================================================
     function exportProject() {
         const projectData = {
-            version: '2.0',
+            version: '1.0',
             exportDate: new Date().toISOString(),
+            exportedAt: new Date().toLocaleString(),
             settings: JSON.parse(localStorage.getItem('bot_settings')) || {},
             theme: localStorage.getItem('theme') || 'dark',
-            data: cachedData,
+            data: cachedData || null,
             x2Data: x2Data
         };
-
+        
         if (!projectData.data) {
             showNotification('⏳ Загрузка данных...', '');
             fetch(API_BASE + '/api/all_data')
-                .then(r => r.json())
+                .then(response => response.json())
                 .then(data => {
                     projectData.data = data;
                     downloadProjectFile(projectData);
                 })
-                .catch(err => showNotification('❌ Ошибка: ' + err.message, 'error'));
+                .catch(error => {
+                    showNotification('❌ Ошибка загрузки данных: ' + error, 'error');
+                });
             return;
         }
+        
         downloadProjectFile(projectData);
     }
 
@@ -2352,6 +3533,7 @@
         const json = JSON.stringify(projectData, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
+        
         const link = document.createElement('a');
         link.href = url;
         link.download = `quantum_bet_project_${new Date().toISOString().slice(0,10)}.json`;
@@ -2359,28 +3541,49 @@
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        showNotification('✅ Проект сохранен!', 'success');
+        
+        showNotification('✅ Проект успешно сохранен!', 'success');
     }
 
     function importProject(event) {
         const file = event.target.files[0];
         if (!file) return;
-        showNotification('⏳ Загрузка...', '');
-
+        
+        showNotification('⏳ Загрузка файла...', '');
+        
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
                 const projectData = JSON.parse(e.target.result);
-                if (!projectData.version) { showNotification('❌ Неверный формат', 'error'); return; }
-
-                if (projectData.settings) localStorage.setItem('bot_settings', JSON.stringify(projectData.settings));
+                
+                if (!projectData.version) {
+                    showNotification('❌ Неверный формат файла!', 'error');
+                    return;
+                }
+                
+                if (projectData.settings) {
+                    localStorage.setItem('bot_settings', JSON.stringify(projectData.settings));
+                }
+                
                 if (projectData.theme) {
                     localStorage.setItem('theme', projectData.theme);
-                    document.body.classList.toggle('light-theme', projectData.theme === 'light');
+                    if (projectData.theme === 'light') {
+                        document.body.classList.add('light-theme');
+                        document.getElementById('themeBtn').textContent = '☀️';
+                    } else {
+                        document.body.classList.remove('light-theme');
+                        document.getElementById('themeBtn').textContent = '🌙';
+                    }
                 }
-                if (projectData.x2Data) { x2Data = projectData.x2Data; saveX2Data(); }
 
+                if (projectData.x2Data) {
+                    x2Data = projectData.x2Data;
+                    saveX2Data();
+                }
+                
                 if (projectData.data && projectData.data.history) {
+                    showNotification('⏳ Отправка данных на сервер...', '');
+                    
                     fetch(API_BASE + '/api/import_project', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2389,22 +3592,25 @@
                             stats: projectData.data.stats
                         })
                     })
-                    .then(r => r.json())
+                    .then(response => response.json())
                     .then(result => {
                         if (result.success) {
-                            showNotification(`✅ Загружено ${result.count || 0} ставок!`, 'success');
+                            showNotification(`✅ Проект загружен! Импортировано ${result.count || 0} ставок.`, 'success');
                             refreshData();
                         } else {
-                            showNotification('❌ Ошибка: ' + result.error, 'error');
+                            showNotification('❌ Ошибка загрузки: ' + result.error, 'error');
                         }
                     })
-                    .catch(err => showNotification('❌ Ошибка: ' + err.message, 'error'));
+                    .catch(error => {
+                        showNotification('❌ Ошибка: ' + error, 'error');
+                    });
                 } else {
-                    showNotification('✅ Настройки загружены!', 'success');
+                    showNotification('✅ Настройки загружены! Данные не найдены.', 'success');
                     refreshData();
                 }
+                
             } catch (error) {
-                showNotification('❌ Ошибка чтения: ' + error.message, 'error');
+                showNotification('❌ Ошибка чтения файла: ' + error, 'error');
             }
         };
         reader.readAsText(file);
@@ -2412,175 +3618,120 @@
     }
 
     // ============================================================
-    // KEEP-ALIVE
+    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
     // ============================================================
-    function startKeepAlive() {
-        keepAliveInterval = setInterval(() => {
-            fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
-            updateKeepAliveStatus('✅', new Date().toLocaleTimeString());
-        }, KEEPALIVE_MS);
-
-        const statusEl = document.createElement('div');
-        statusEl.id = 'keepAliveStatus';
-        statusEl.textContent = '🔄 Пинг активен';
-        document.body.appendChild(statusEl);
-
-        setTimeout(() => {
-            fetch(API_BASE + '/api/keepalive?t=' + Date.now()).catch(() => {});
-        }, 5000);
-    }
-
-    function updateKeepAliveStatus(icon, time) {
-        const el = document.getElementById('keepAliveStatus');
-        if (el) el.textContent = icon + ' ' + time;
-    }
-
-    // ============================================================
-    // АВТО-ОБНОВЛЕНИЕ UI
-    // ============================================================
-    function startAutoRefresh() {
-        autoRefreshInterval = setInterval(() => {
-            if (currentPage === 'dashboard' && !isLoading && document.visibilityState === 'visible') {
-                cachedData = null;
-                loadPageData('dashboard');
+    async function updateBank() {
+        const value = document.getElementById('bankInput').value;
+        try {
+            const response = await fetch(API_BASE + '/api/bank', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bank: parseFloat(value) })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showNotification('✅ Банк обновлен: $' + data.bank, 'success');
+                refreshData();
             }
-        }, AUTO_REFRESH_MS);
+        } catch (e) {
+            showNotification('❌ Ошибка: ' + e, 'error');
+        }
     }
 
-    // ============================================================
-    // PWA
-    // ============================================================
-    function registerPWA() {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(registration => {
-                    console.log('✅ SW зарегистрирован');
-                    registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                showUpdateBanner();
-                            }
-                        });
-                    });
+    function toggleSetting(key, element) {
+        const settings = JSON.parse(localStorage.getItem('bot_settings')) || {};
+        element.classList.toggle('active');
+        settings[key] = element.classList.contains('active');
+        localStorage.setItem('bot_settings', JSON.stringify(settings));
+        refreshData();
+    }
+
+    function importExcel(event) {
+        const file = event.target.files[0];
+        const statusDiv = document.getElementById('importStatus');
+        const fileNameSpan = document.getElementById('fileName');
+        if (!file) { statusDiv.textContent = '❌ Файл не выбран'; return; }
+        fileNameSpan.textContent = '📄 ' + file.name;
+        statusDiv.textContent = '⏳ Загрузка файла...';
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet);
+                if (json.length === 0) {
+                    statusDiv.textContent = '❌ Файл пуст или неправильный формат';
+                    return;
+                }
+                statusDiv.textContent = '⏳ Отправка данных на сервер...';
+                fetch(API_BASE + '/api/import_excel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: json })
                 })
-                .catch(err => console.warn('⚠️ SW ошибка:', err));
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusDiv.textContent = '✅ Импортировано ' + data.count + ' ставок! Страница обновится...';
+                        setTimeout(() => refreshData(), 1500);
+                    } else {
+                        statusDiv.textContent = '❌ Ошибка: ' + data.error;
+                    }
+                })
+                .catch(error => { statusDiv.textContent = '❌ Ошибка: ' + error; });
+            } catch (error) {
+                statusDiv.textContent = '❌ Ошибка чтения файла: ' + error;
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
 
-            let refreshing = false;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (refreshing) return;
-                refreshing = true;
-                window.location.reload();
-            });
+    document.getElementById('importFileInput').addEventListener('change', function() {
+        if (this.files.length > 0) {
+            document.getElementById('fileName').textContent = '📄 ' + this.files[0].name;
         }
-
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            document.body.classList.add('pwa-mode');
-        }
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            showInstallBanner();
-        });
-
-        window.addEventListener('appinstalled', () => {
-            hideInstallBanner();
-            showNotification('✅ Приложение установлено!', 'success');
-        });
-    }
-
-    function showInstallBanner() {
-        if (document.getElementById('pwa-install-banner')) return;
-        const banner = document.createElement('div');
-        banner.id = 'pwa-install-banner';
-        banner.innerHTML = `
-            <div style="display:flex;align-items:center;gap:12px;flex:1;">
-                <span style="font-size:24px;">📲</span>
-                <div>
-                    <div style="font-weight:600;font-size:14px;">Установить приложение</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.4);">Добавьте на главный экран</div>
-                </div>
-            </div>
-            <div style="display:flex;gap:6px;">
-                <button onclick="installPWA()" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;color:white;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">Установить</button>
-                <button onclick="hideInstallBanner()" style="background:transparent;border:none;color:rgba(255,255,255,0.3);font-size:18px;cursor:pointer;padding:4px 8px;">✖</button>
-            </div>
-        `;
-        document.body.appendChild(banner);
-    }
-
-    function installPWA() {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(() => {
-                deferredPrompt = null;
-                hideInstallBanner();
-            });
-        }
-    }
-
-    function hideInstallBanner() {
-        const b = document.getElementById('pwa-install-banner');
-        if (b) b.remove();
-    }
-
-    function showUpdateBanner() {
-        if (document.getElementById('pwa-update-banner')) return;
-        const banner = document.createElement('div');
-        banner.id = 'pwa-update-banner';
-        banner.innerHTML = `
-            <div style="display:flex;align-items:center;gap:10px;flex:1;">
-                <span style="font-size:20px;">🔄</span>
-                <div>
-                    <div style="font-weight:600;font-size:13px;">Доступно обновление</div>
-                    <div style="font-size:10px;color:rgba(255,255,255,0.4);">Нажмите для обновления</div>
-                </div>
-            </div>
-            <button onclick="updatePWA()" style="background:linear-gradient(135deg,#34d399,#059669);border:none;color:white;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">Обновить</button>
-        `;
-        document.body.appendChild(banner);
-    }
-
-    function updatePWA() {
-        navigator.serviceWorker.ready.then(reg => {
-            reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-        });
-        document.getElementById('pwa-update-banner')?.remove();
-    }
+    });
 
     // ============================================================
     // ЗАПУСК
     // ============================================================
-    window.addEventListener('load', () => {
+    document.addEventListener('DOMContentLoaded', function() {
         loadX2Data();
         loadPageData('dashboard');
-        startKeepAlive();
-        startAutoRefresh();
-        startAutoImportX2();
-        registerPWA();
     });
 
-    function startAutoImportX2() {
-        autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
-        setTimeout(autoImportX2FromLogs, 5000);
-    }
-
-    // ============================================================
-    // ЭКСПОРТ ФУНКЦИЙ В WINDOW
-    // ============================================================
-    Object.assign(window, {
-        toggleTheme, refreshData, switchPage,
-        toggleEdit, saveEdit, deleteBet,
-        showAddMatchModal, hideAddMatchModal, saveManualMatch,
-        updateBank, importExcel,
-        exportProject, importProject, clearAllX2,
-        openX2Modal, closeX2Modal, saveX2Match, editX2Match, deleteX2Match,
-        exportX2Excel, setX2Filter, openX2ImportModal, closeX2ImportModal,
-        importX2Excel, autoImportX2FromLogs,
-        installPWA, hideInstallBanner, updatePWA,
-        sortTable, toggleShowAll, copyMatch
-    });
+    // Экспорт функций
+    window.toggleTheme = toggleTheme;
+    window.refreshData = refreshData;
+    window.switchPage = switchPage;
+    window.toggleEdit = toggleEdit;
+    window.saveEdit = saveEdit;
+    window.deleteBet = deleteBet;
+    window.showAddMatchModal = showAddMatchModal;
+    window.hideAddMatchModal = hideAddMatchModal;
+    window.saveManualMatch = saveManualMatch;
+    window.runSimulation = runSimulation;
+    window.updateBank = updateBank;
+    window.toggleSetting = toggleSetting;
+    window.importExcel = importExcel;
+    window.exportProject = exportProject;
+    window.importProject = importProject;
+    window.clearAllX2 = clearAllX2;
+    window.openX2Modal = openX2Modal;
+    window.closeX2Modal = closeX2Modal;
+    window.saveX2Match = saveX2Match;
+    window.editX2Match = editX2Match;
+    window.deleteX2Match = deleteX2Match;
+    window.exportX2Excel = exportX2Excel;
+    window.setX2Filter = setX2Filter;
+    window.openX2ImportModal = openX2ImportModal;
+    window.closeX2ImportModal = closeX2ImportModal;
+    window.importX2Excel = importX2Excel;
+    window.autoImportX2FromLogs = autoImportX2FromLogs;
+    window.installPWA = installPWA;
+    window.hideInstallBanner = hideInstallBanner;
+    window.updatePWA = updatePWA;
 </script>
 </body>
 </html>
