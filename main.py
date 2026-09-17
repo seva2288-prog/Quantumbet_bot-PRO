@@ -408,12 +408,12 @@ def schedule_auto_backup():
     scheduler.add_job(
         func=send_auto_backup,
         trigger='cron',
-        hour=3, minute=0,
+        hour=0, minute=0,        # 00:00 UTC = 03:00 МСК ★ ПАТЧ 4
         id='auto_backup',
         replace_existing=True
     )
     scheduler.start()
-    logger.info("⏰ Автобэкап: каждый день в 3:00")
+    logger.info("⏰ Автобэкап: каждый день в 3:00 МСК (00:00 UTC)")
 
 
 # ============================================================
@@ -806,7 +806,8 @@ class FootballAPI:
 
     def find_fixture_by_teams(self, home_team, away_team):
         try:
-            today = datetime.now().strftime('%Y-%m-%d')
+            # ★ ПАТЧ 5: today по МСК
+            today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
             data = self._make_request('/fixtures', {'date': today, 'status': 'FT'})
             if data and 'response' in data:
                 for f in data['response']:
@@ -1304,7 +1305,8 @@ def update_odds_for_matches(matches):
 # ============================================================
 def get_matches_with_factors():
     all_matches = []
-    today = datetime.now().strftime('%Y-%m-%d')
+    # ★ ПАТЧ 1: today по МСК
+    today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
     total_leagues = len(all_leagues)
 
@@ -1890,7 +1892,8 @@ def find_top_matches_with_tm25(matches):
         storage.save_cache(cache)
 
     history = storage.load_history()
-    today_str = datetime.now().strftime('%Y-%m-%d')
+    # ★ ПАТЧ 2: today_str по МСК
+    today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     existing = {
         (h.get('home'), h.get('away'), h.get('date', '').split()[0])
         for h in history
@@ -1907,7 +1910,8 @@ def find_top_matches_with_tm25(matches):
             'league': md.get('league'), 'bet': bb.get('label', '—'),
             'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
             'ev': bb.get('ev', 0), 'result': 'pending', 'profit': 0,
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            # ★ ПАТЧ 3: date в историю по МСК
+            'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
             'fixture_id': md.get('fixture_id'),
             'bookmaker': bb.get('bookmaker', '—'),
             'engine': Config.PREDICTION_ENGINE,
