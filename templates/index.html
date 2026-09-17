@@ -2279,10 +2279,10 @@ function renderBetCard(m, isActive = false) {
                     <div class="bet-time">
                         <span>📅 ${escapeHtml(displayDate)}</span>
                         ${showScore ? `
-                            <span class="bet-score" style="color:${scoreColor};">
-                                🏠 ${homeGoals} - ${awayGoals} ✈️
-                            </span>
-                        ` : ''}
+    <span class="bet-score" style="color:${scoreColor};">
+        ${homeGoals} - ${awayGoals}
+    </span>
+` : ''}
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
