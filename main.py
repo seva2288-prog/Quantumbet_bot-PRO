@@ -38,11 +38,22 @@ TIMEZONE_OFFSET = 3
 
 cache_lock = Lock()
 
-# X2 файл для серверного хранилища
 X2_FILE = '/data/x2_data.json' if os.path.exists('/data') else 'x2_data.json'
 
 # ============================================================
-# МАРКЕРЫ
+# UTF-8 ПРИНУДИТЕЛЬНО
+# ============================================================
+@app.after_request
+def force_utf8(response):
+    if response.mimetype == 'text/html':
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    elif response.mimetype == 'application/json':
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+    return response
+
+
+# ============================================================
+# МАРКЕРЫ (обратная совместимость)
 # ============================================================
 MARKERS = {
     42.86875000000006: ('under', 1.95, 'ТМ 2.5'),
@@ -221,7 +232,7 @@ class SmartCache:
 
 
 # ============================================================
-# ОБРАБОТКА ОШИБОК
+# ОБРАБОТКА ОШИБОК API
 # ============================================================
 class APIError(Exception): pass
 class APIErrorRetry(Exception): pass
@@ -307,11 +318,29 @@ def send_telegram(text: str, parse_mode: str = 'HTML'):
 
 
 # ============================================================
-# MATCHES LOG (для X2 авто-импорта)
+# MATCHES LOG (для X2 — с дедупликацией)
 # ============================================================
+_logged_matches_today = set()
+
+
 def log_no_motivation_match(home, away, hp, ap, total_xg, league_name=''):
-    """Записывает матч без мотивации в matches_log.txt (для X2-стратегии)."""
+    """
+    Записывает матч без мотивации в matches_log.txt.
+    Дедупликация: один матч пишется ОДИН раз за день.
+    """
     try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        key = f"{today}_{home}_{away}"
+        
+        if key in _logged_matches_today:
+            return
+        
+        _logged_matches_today.add(key)
+        
+        # Ограничиваем размер кэша
+        if len(_logged_matches_today) > 5000:
+            _logged_matches_today.clear()
+        
         log_path = 'matches_log.txt'
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M')} | {home} vs {away} | "
@@ -337,7 +366,7 @@ def trim_matches_log():
 
 
 # ============================================================
-# FOOTBALL API (Ultra)
+# FOOTBALL API
 # ============================================================
 class FootballAPI:
     def __init__(self, api_key=None, base_url=None):
@@ -349,7 +378,7 @@ class FootballAPI:
         self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60)
         self.retry_manager = RetryManager(max_retries=3, base_delay=1)
         self.error_stats = defaultdict(int)
-        logger.info(f"🔑 Football API ключ: {self.api_key[:8]}..." if self.api_key else "❌ FOOTBALL API КЛЮЧ НЕ НАЙДЕН!")
+        logger.info(f"🔑 Football API: {self.api_key[:8]}..." if self.api_key else "❌ API КЛЮЧ НЕ НАЙДЕН!")
 
     def _make_request(self, endpoint, params=None):
         try:
@@ -763,7 +792,7 @@ football_api = FootballAPI()
 
 
 # ============================================================
-# ODDS API (резервный источник)
+# ODDS API
 # ============================================================
 class OddsAPIClient:
     def __init__(self, api_key=None):
@@ -832,7 +861,6 @@ class OddsAPIClient:
                 event_away = event.get('away_team', '').lower()
                 home_lower = home_team.lower()
                 away_lower = away_team.lower()
-                # ✅ ИСПРАВЛЕНО: используем скобки вместо `\`
                 if ((home_lower in event_home or event_home in home_lower)
                     and (away_lower in event_away or event_away in away_lower)):
                     result = self._extract_odds(event)
@@ -925,7 +953,7 @@ auto_bet = AutoBet()
 
 
 # ============================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ВСПОМОГАТЕЛЬНЫЕ
 # ============================================================
 def get_motivation(position):
     if position <= 2: return 'title_race'
@@ -973,14 +1001,14 @@ def export_to_excel():
     ws = wb.active
     ws.title = "Ставки"
 
-    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Сумма",
+    headers = ["Дата", "Матч", "Счёт", "Ставка", "Коэф", "EV%", "Prob%", "Сумма",
                "Результат", "Прибыль", "Букмекер"]
     ws.append(headers)
 
     for col in range(1, len(headers) + 1):
         c = ws.cell(row=1, column=col)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        c.fill = PatternFill(start_color="10b981", end_color="10b981", fill_type="solid")
         c.alignment = Alignment(horizontal="center")
 
     total_profit = 0
@@ -1002,6 +1030,7 @@ def export_to_excel():
             bet.get('bet', ''),
             bet.get('odds', 0),
             bet.get('ev', 0),
+            bet.get('prob', 0),
             bet.get('stake', 0),
             result,
             profit,
@@ -1009,7 +1038,7 @@ def export_to_excel():
         ])
 
     ws.append([])
-    ws.append(["ИТОГО", "", "", "", "", "", "", "", round(total_profit, 2), ""])
+    ws.append(["ИТОГО", "", "", "", "", "", "", "", "", round(total_profit, 2), ""])
 
     output = io.BytesIO()
     wb.save(output)
@@ -1039,7 +1068,7 @@ def get_profit_data(history):
         profits.append(round(day_profit, 2))
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m') for i in range(days - 1, -1, -1)]
     return {'dates': dates, 'profits': profits}
-  # ============================================================
+    # ============================================================
 # ВЕРОЯТНОСТИ
 # ============================================================
 def calculate_poisson_probability(home_xg, away_xg):
@@ -1508,7 +1537,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ПОТОК 1: 70%+ МАТЧИ
+# ПОТОК 1: 70%+
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -1543,7 +1572,6 @@ def find_top_matches(matches):
 
             league_lower = league_name.lower()
             if any(bad in league_lower for bad in blacklist):
-                logger.info(f"⏭️ [70%+] ЧС: {home} vs {away} ({league_name})")
                 continue
 
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
@@ -1595,7 +1623,7 @@ def find_top_matches(matches):
             hm = get_motivation(hp); am = get_motivation(ap)
 
             if hm == 'mid_table' and am == 'mid_table':
-                # ✅ ЛОГ ДЛЯ X2 СТРАТЕГИИ
+                # ✅ ЛОГ ДЛЯ X2 (с дедупликацией)
                 log_no_motivation_match(home, away, hp, ap, total_xg, league_name)
                 continue
 
@@ -1603,7 +1631,6 @@ def find_top_matches(matches):
                 continue
 
             if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6:
-                logger.info(f"⏭️ Топ-матч: {home} vs {away}")
                 continue
 
             home_data = standings.get(home, {}) if standings else {}
@@ -1709,7 +1736,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ПОТОК 2: ТМ 2.5 (ЕДИНЫЙ ЦИКЛ)
+# ПОТОК 2: ТМ 2.5 (единый цикл)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -1789,7 +1816,6 @@ def find_tm25_matches(matches):
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
 
-            # PREMIUM
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV
                 and p_under >= PREMIUM_MIN_PROB):
@@ -1816,7 +1842,6 @@ def find_tm25_matches(matches):
                 logger.info(f"🔥 PREMIUM: {home} vs {away} | EV: {ev_under*100:.1f}%")
                 continue
 
-            # STANDARD
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV
                 and p_under >= STANDARD_MIN_PROB):
@@ -1916,16 +1941,20 @@ def find_top_matches_with_tm25(matches):
     today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0]) for h in history}
     added = 0
+
     for md in filtered:
         bb = md.get('best_bet', {})
         key = (md.get('home'), md.get('away'), today_str)
         if key in existing: continue
         existing.add(key)
+        # ✅ ДОБАВЛЕН PROB В ИСТОРИЮ
         history.append({
             'home': md.get('home'), 'away': md.get('away'),
             'league': md.get('league'), 'bet': bb.get('label', '—'),
             'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
-            'ev': bb.get('ev', 0), 'result': 'pending', 'profit': 0,
+            'ev': bb.get('ev', 0),
+            'prob': bb.get('prob', 0),
+            'result': 'pending', 'profit': 0,
             'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
             'fixture_id': md.get('fixture_id'),
             'bookmaker': bb.get('bookmaker', '—'),
@@ -2182,7 +2211,7 @@ def schedule_auto_backup():
 
 
 # ============================================================
-# ВЕРИФИКАЦИЯ / УВЕДОМЛЕНИЯ / СТРАТЕГИИ
+# ВЕРИФИКАЦИЯ
 # ============================================================
 class BetVerificationSystem:
     def __init__(self):
@@ -2196,12 +2225,8 @@ class BetVerificationSystem:
         o = bet_data.get('odds', 0)
         if o < self.thresholds['min_odds']: self.warnings.append(f"Низкий кэф: {o}")
         if o > self.thresholds['max_odds']: self.warnings.append(f"Высокий кэф: {o}")
-        if bet_data.get('ev', 0) < self.thresholds['min_ev']: self.warnings.append(f"Низкий EV")
-        if bet_data.get('prob', 0) < self.thresholds['min_prob']: self.warnings.append(f"Низкая Prob")
-        stake = bet_data.get('stake', 0)
-        bank = storage.load_bank()
-        if bank > 0 and (stake / bank) * 100 > self.thresholds['max_stake_percent']:
-            self.warnings.append(f"Ставка > 10% банка")
+        if bet_data.get('ev', 0) < self.thresholds['min_ev']: self.warnings.append("Низкий EV")
+        if bet_data.get('prob', 0) < self.thresholds['min_prob']: self.warnings.append("Низкая Prob")
         if not self.warnings:
             return {'status': '✅', 'message': 'OK'}
         return {'status': '⚠️', 'warnings': self.warnings}
@@ -2210,6 +2235,9 @@ class BetVerificationSystem:
 verification_system = BetVerificationSystem()
 
 
+# ============================================================
+# УВЕДОМЛЕНИЯ
+# ============================================================
 class NotificationSystem:
     def __init__(self):
         self.last_notification = {}
@@ -2265,6 +2293,9 @@ class NotificationSystem:
 notification_system = NotificationSystem()
 
 
+# ============================================================
+# СТРАТЕГИИ
+# ============================================================
 class StrategyTester:
     def __init__(self):
         self.strategies = {
@@ -2291,6 +2322,9 @@ class StrategyTester:
 strategy_tester = StrategyTester()
 
 
+# ============================================================
+# BOT STATE
+# ============================================================
 class BotState:
     def __init__(self):
         self.state_file = 'bot_state.json'
@@ -2594,7 +2628,6 @@ def keepalive():
     return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
 
 
-# ★★★ НОВЫЙ ЭНДПОИНТ: matches_log для авто-импорта X2 ★★★
 @app.route('/api/matches_log', methods=['GET'])
 def api_matches_log():
     """Возвращает matches_log.txt для авто-импорта X2."""
@@ -2625,7 +2658,6 @@ def api_matches_log():
         return jsonify({'log': '', 'error': str(e)}), 500
 
 
-# ★★★ НОВЫЙ ЭНДПОИНТ: серверное хранилище X2 ★★★
 @app.route('/api/x2_data', methods=['GET'])
 def api_x2_data_get():
     try:
@@ -2655,7 +2687,6 @@ def api_x2_data_post():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-# Импорт Excel / проекта
 @app.route('/api/import_excel', methods=['POST'])
 def import_excel():
     try:
@@ -2688,6 +2719,7 @@ def import_excel():
                 'odds': float(row.get('Коэф', 1.85)),
                 'stake': float(row.get('Сумма', 0)),
                 'ev': float(row.get('EV%', 0)),
+                'prob': float(row.get('Prob%', 0)),
                 'result': row.get('Результат', 'pending'),
                 'profit': float(row.get('Прибыль', 0)),
                 'date': row.get('Дата', '') or datetime.now().strftime('%Y-%m-%d %H:%M'),
@@ -2736,7 +2768,7 @@ def edit_bet():
         history = storage.load_history()
         if index >= len(history):
             return jsonify({'error': 'Не найдено'}), 404
-        for field in ['home', 'away', 'bet', 'odds', 'stake', 'ev', 'result', 'bookmaker']:
+        for field in ['home', 'away', 'bet', 'odds', 'stake', 'ev', 'prob', 'result', 'bookmaker']:
             if field in data:
                 history[index][field] = data[field]
         history[index]['home_goals'] = data.get('home_goals')
@@ -2803,7 +2835,7 @@ def add_manual_match():
         history.append({
             'home': home or 'Unknown', 'away': away or 'Unknown',
             'league': 'Ручное добавление',
-            'bet': bet_type, 'odds': odds, 'stake': stake, 'ev': 0,
+            'bet': bet_type, 'odds': odds, 'stake': stake, 'ev': 0, 'prob': 0,
             'result': result, 'profit': profit,
             'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
             'home_goals': hg, 'away_goals': ag,
@@ -2891,8 +2923,9 @@ if __name__ == "__main__":
     logger.info(f"🚫 Blacklist: {len(Config.BLACKLIST_LEAGUES)}")
     logger.info(f"🌦️ Погода: {'вкл' if Config.WEATHER_ENABLED else 'выкл'}")
     logger.info(f"📈 Stats: {'вкл' if getattr(Config, 'STATS_ENABLED', True) else 'выкл'}")
-    logger.info(f"✅ Новые эндпоинты: /api/matches_log, /api/x2_data")
-    logger.info(f"📄 matches_log пишется при 'нет мотивации'")
+    logger.info(f"✅ /api/matches_log, /api/x2_data готовы")
+    logger.info(f"✅ log_no_motivation_match с дедупликацией")
+    logger.info(f"✅ prob добавлен в историю")
     logger.info("=" * 60)
 
     app.run(host='0.0.0.0', port=port)
