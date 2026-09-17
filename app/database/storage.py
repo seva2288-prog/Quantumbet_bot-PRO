@@ -125,6 +125,10 @@ class Storage:
             bet.setdefault('bookmaker', '—')
             bet.setdefault('engine', None)
             bet.setdefault('weather_reason', None)
+            # ★ НОВОЕ: prob и 1-й тайм
+            bet.setdefault('prob', 0)
+            bet.setdefault('halftime_home', None)
+            bet.setdefault('halftime_away', None)
             normalized.append(bet)
         return normalized
 
@@ -165,7 +169,7 @@ class Storage:
             self._atomic_write('cache', cache)
 
     # ============================================================
-    # ★ NEW: ИСТОРИЯ КЭФОВ (для line movement и CLV)
+    # ИСТОРИЯ КЭФОВ (для line movement и CLV)
     # ============================================================
     def _odds_history_path(self):
         return self._path('odds_history')
@@ -361,6 +365,117 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ get_odds_history_size: {e}")
             return {'matches': 0, 'snapshots': 0, 'size_kb': 0}
+
+    # ============================================================
+    # ★ NEW: МЕТОДЫ ДЛЯ СНИМКОВ КЭФОВ (для веб-приложения)
+    # ============================================================
+    def get_all_snapshots(self):
+        """
+        Возвращает ВСЕ снимки в плоском виде:
+        [{'fixture_id': int, 'market': str, 'selection': str,
+          'odds': float, 'bookmaker': str, 'created_at': str}, ...]
+        Отсортировано по времени (сначала свежие).
+        """
+        try:
+            data = self._read('odds_history', {})
+            if not isinstance(data, dict):
+                return []
+
+            flat = []
+            for fid_str, markets in data.items():
+                try:
+                    fid = int(fid_str)
+                except (ValueError, TypeError):
+                    fid = fid_str
+                for market, selections in markets.items():
+                    for selection, snapshots in selections.items():
+                        for s in snapshots:
+                            flat.append({
+                                'fixture_id': fid,
+                                'market': market,
+                                'selection': selection,
+                                'odds': s.get('odds', 0),
+                                'bookmaker': s.get('bookmaker', '—'),
+                                'created_at': s.get('ts', '')
+                            })
+            flat.sort(key=lambda x: x['created_at'], reverse=True)
+            return flat
+        except Exception as e:
+            logger.error(f"❌ get_all_snapshots: {e}")
+            return []
+
+    def get_snapshots_since(self, cutoff_iso):
+        """
+        Возвращает снимки с created_at >= cutoff_iso.
+        cutoff_iso — строка ISO, например '2026-09-10T00:00:00'.
+
+        Устойчиво к разным форматам даты:
+          - '2026-09-10 00:00:00' → приводится к 'T'
+          - '2026-09-10T00:00:00' → используется как есть
+          - '2026-09-10' → добавляется T00:00:00
+        """
+        try:
+            all_snaps = self.get_all_snapshots()
+
+            # Приводим cutoff к ISO-формату
+            cutoff_clean = str(cutoff_iso).strip().replace(' ', 'T')
+            if 'T' not in cutoff_clean:
+                cutoff_clean += 'T00:00:00'
+
+            result = []
+            for s in all_snaps:
+                created = str(s.get('created_at', '')).strip().replace(' ', 'T')
+                if created and created >= cutoff_clean:
+                    result.append(s)
+            return result
+        except Exception as e:
+            logger.error(f"❌ get_snapshots_since: {e}")
+            return []
+
+    def get_snapshots_by_fixture(self, fixture_id):
+        """
+        Возвращает ВСЕ снимки для одного матча в плоском виде.
+        Отсортировано по времени (сначала старые).
+        """
+        try:
+            data = self._read('odds_history', {})
+            if not isinstance(data, dict):
+                return []
+
+            fid_key = str(fixture_id)
+            if fid_key not in data:
+                return []
+
+            flat = []
+            for market, selections in data[fid_key].items():
+                for selection, snapshots in selections.items():
+                    for s in snapshots:
+                        flat.append({
+                            'fixture_id': fixture_id,
+                            'market': market,
+                            'selection': selection,
+                            'odds': s.get('odds', 0),
+                            'bookmaker': s.get('bookmaker', '—'),
+                            'created_at': s.get('ts', '')
+                        })
+            flat.sort(key=lambda x: x['created_at'], reverse=False)
+            return flat
+        except Exception as e:
+            logger.error(f"❌ get_snapshots_by_fixture: {e}")
+            return []
+
+    def get_unique_fixtures_with_snapshots(self, days=7):
+        """
+        Возвращает уникальные fixture_id, для которых есть снимки за N дней.
+        Используется для отображения списка матчей со снимками.
+        """
+        try:
+            cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+            snaps = self.get_snapshots_since(cutoff)
+            return sorted(set(s['fixture_id'] for s in snaps), reverse=True)
+        except Exception as e:
+            logger.error(f"❌ get_unique_fixtures_with_snapshots: {e}")
+            return []
 
     # ============================================================
     # ПОЛНЫЙ БЭКАП
