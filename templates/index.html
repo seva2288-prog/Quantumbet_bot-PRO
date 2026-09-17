@@ -15,11 +15,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -29,7 +27,6 @@
            EMERALD THEME — CSS VARIABLES
            ============================================================ */
         :root {
-            /* Dark theme (default) */
             --bg-primary: #07100e;
             --bg-secondary: #0d1a17;
             --bg-card: rgba(13, 26, 23, 0.7);
@@ -67,7 +64,6 @@
             --radius-full: 999px;
             
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            --transition-fast: all 0.15s ease;
         }
         
         [data-theme="light"] {
@@ -154,10 +150,7 @@
             100% { opacity: 0.9; transform: rotate(20deg) scale(1.12); }
         }
         
-        .loading-stars {
-            position: absolute; inset: 0;
-            pointer-events: none;
-        }
+        .loading-stars { position: absolute; inset: 0; pointer-events: none; }
         .loading-star {
             position: absolute; border-radius: 50%;
             background: var(--emerald-400);
@@ -168,13 +161,9 @@
             100% { opacity: 0.8; transform: scale(1.3); }
         }
         
-        .loading-logo {
-            position: relative; z-index: 1;
-            text-align: center;
-        }
+        .loading-logo { position: relative; z-index: 1; text-align: center; }
         .loading-logo-main {
-            font-size: 62px;
-            font-weight: 800;
+            font-size: 62px; font-weight: 800;
             background: linear-gradient(135deg, var(--emerald-400), var(--emerald-600));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -208,13 +197,12 @@
         }
         
         /* ============================================================
-           BACKGROUND (stars + milky-way)
+           BACKGROUND
            ============================================================ */
         .stars-container {
             position: fixed; inset: 0;
             z-index: 0; pointer-events: none;
             overflow: hidden;
-            transition: background 0.4s ease;
         }
         .milky-way-1 {
             position: absolute; top: -20%; left: -10%; width: 120%; height: 140%;
@@ -244,7 +232,6 @@
             0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
             100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); }
         }
-        
         .star {
             position: absolute; border-radius: 50%;
             background: var(--emerald-400);
@@ -282,12 +269,9 @@
             box-shadow: var(--shadow-md);
             transition: var(--transition);
         }
-        .header-left {
-            display: flex; flex-direction: column; gap: 2px;
-        }
+        .header-left { display: flex; flex-direction: column; gap: 2px; }
         .header-title {
-            font-size: 17px;
-            font-weight: 800;
+            font-size: 17px; font-weight: 800;
             background: linear-gradient(135deg, var(--emerald-400), var(--emerald-600));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -300,9 +284,7 @@
             font-weight: 500;
             letter-spacing: 0.5px;
         }
-        .header-controls {
-            display: flex; align-items: center; gap: 8px;
-        }
+        .header-controls { display: flex; align-items: center; gap: 8px; }
         
         .status-pill {
             display: flex; align-items: center; gap: 6px;
@@ -344,18 +326,12 @@
             border-color: var(--border-hover);
             transform: translateY(-1px);
         }
-        .icon-btn:active {
-            transform: scale(0.94);
-        }
+        .icon-btn:active { transform: scale(0.94); }
         
         /* ============================================================
            SEARCH BAR
            ============================================================ */
-        .search-bar {
-            position: relative;
-            margin-bottom: 14px;
-            animation: fadeSlideIn 0.4s ease;
-        }
+        .search-bar { position: relative; margin-bottom: 14px; }
         .search-bar input {
             width: 100%;
             padding: 11px 16px 11px 42px;
@@ -368,9 +344,7 @@
             font-family: inherit;
             transition: var(--transition);
         }
-        .search-bar input::placeholder {
-            color: var(--text-tertiary);
-        }
+        .search-bar input::placeholder { color: var(--text-tertiary); }
         .search-bar input:focus {
             outline: none;
             border-color: var(--border-hover);
@@ -379,8 +353,7 @@
         .search-bar::before {
             content: '🔍';
             position: absolute;
-            left: 15px;
-            top: 50%;
+            left: 15px; top: 50%;
             transform: translateY(-50%);
             font-size: 14px;
             opacity: 0.5;
@@ -433,9 +406,7 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        .card-header .emerald-title {
-            color: var(--emerald-400);
-        }
+        .card-header .emerald-title { color: var(--emerald-400); }
         
         /* ============================================================
            STATS GRID
@@ -470,9 +441,7 @@
             opacity: 0;
             transition: var(--transition);
         }
-        .stat-card:hover::before {
-            opacity: 1;
-        }
+        .stat-card:hover::before { opacity: 1; }
         .stat-card:hover {
             border-color: var(--border-hover);
             transform: translateY(-2px);
@@ -487,6 +456,7 @@
         .stat-card .value.green { color: var(--emerald-400); }
         .stat-card .value.red { color: var(--red-400); }
         .stat-card .value.gold { color: var(--gold-400); }
+        .stat-card .value.emerald { color: var(--emerald-400); }
         .stat-card .label {
             font-size: 9px;
             color: var(--text-tertiary);
@@ -497,7 +467,7 @@
         }
         
         /* ============================================================
-           QUICK ACTIONS (главный дашборд)
+           QUICK ACTIONS
            ============================================================ */
         .quick-actions {
             display: grid;
@@ -523,15 +493,15 @@
             text-align: left;
             position: relative;
             overflow: hidden;
+            font-family: inherit;
+            color: var(--text-primary);
         }
         .action-btn:hover {
             border-color: var(--border-hover);
             transform: translateY(-2px);
             box-shadow: var(--shadow-emerald);
         }
-        .action-btn:active {
-            transform: scale(0.98);
-        }
+        .action-btn:active { transform: scale(0.98); }
         .action-btn.primary {
             background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
             border: none;
@@ -540,30 +510,14 @@
         .action-btn.primary:hover {
             box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
         }
-        .action-btn .action-icon {
-            font-size: 22px;
-            line-height: 1;
-        }
-        .action-btn .action-text {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        .action-btn .action-label {
-            font-size: 13px;
-            font-weight: 700;
-            color: inherit;
-        }
-        .action-btn .action-desc {
-            font-size: 10px;
-            color: var(--text-tertiary);
-        }
-        .action-btn.primary .action-desc {
-            color: rgba(255, 255, 255, 0.7);
-        }
+        .action-btn .action-icon { font-size: 22px; line-height: 1; }
+        .action-btn .action-text { display: flex; flex-direction: column; gap: 2px; }
+        .action-btn .action-label { font-size: 13px; font-weight: 700; color: inherit; }
+        .action-btn .action-desc { font-size: 10px; color: var(--text-tertiary); }
+        .action-btn.primary .action-desc { color: rgba(255, 255, 255, 0.7); }
         
         /* ============================================================
-           BET CARDS (mobile-first)
+           BET CARDS
            ============================================================ */
         .bet-card {
             padding: 14px;
@@ -575,6 +529,7 @@
             transition: var(--transition);
             position: relative;
             overflow: hidden;
+            cursor: pointer;
         }
         .bet-card:hover {
             border-color: var(--border-hover);
@@ -620,6 +575,16 @@
             font-size: 10px;
             color: var(--text-tertiary);
             margin-top: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .bet-score {
+            font-weight: 800;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.5px;
         }
         .bet-badge {
             padding: 4px 10px;
@@ -641,11 +606,7 @@
             padding-top: 10px;
             border-top: 1px solid var(--border-color);
         }
-        .bet-stat {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
+        .bet-stat { display: flex; flex-direction: column; gap: 2px; }
         .bet-stat .stat-label {
             font-size: 9px;
             color: var(--text-tertiary);
@@ -663,7 +624,7 @@
         .bet-stat .stat-value.red { color: var(--red-400); }
         
         /* ============================================================
-           TABLE (для десктопа)
+           TABLE
            ============================================================ */
         .table-wrapper {
             overflow-x: auto;
@@ -695,21 +656,10 @@
             user-select: none;
             white-space: nowrap;
         }
-        th:hover {
-            color: var(--emerald-400);
-        }
-        th .sort-arrow {
-            font-size: 8px;
-            margin-left: 4px;
-            opacity: 0.4;
-        }
-        th.sorted .sort-arrow {
-            opacity: 1;
-            color: var(--emerald-400);
-        }
-        tr:hover td {
-            background: rgba(16, 185, 129, 0.03);
-        }
+        th:hover { color: var(--emerald-400); }
+        th .sort-arrow { font-size: 8px; margin-left: 4px; opacity: 0.4; }
+        th.sorted .sort-arrow { opacity: 1; color: var(--emerald-400); }
+        tr:hover td { background: rgba(16, 185, 129, 0.03); }
         
         .profit-positive { color: var(--emerald-400); font-weight: 700; }
         .profit-negative { color: var(--red-400); font-weight: 700; }
@@ -803,24 +753,18 @@
             font-weight: 700;
             letter-spacing: 0.3px;
         }
-        .nav-item:hover {
-            color: var(--text-secondary);
-        }
+        .nav-item:hover { color: var(--text-secondary); }
         .nav-item.active {
             color: var(--emerald-400);
             background: rgba(16, 185, 129, 0.1);
         }
-        .nav-item.active .icon {
-            transform: scale(1.15);
-        }
+        .nav-item.active .icon { transform: scale(1.15); }
         .nav-item.active::before {
             content: '';
             position: absolute;
-            top: -1px;
-            left: 50%;
+            top: -1px; left: 50%;
             transform: translateX(-50%);
-            width: 18px;
-            height: 3px;
+            width: 18px; height: 3px;
             background: linear-gradient(90deg, var(--emerald-400), var(--emerald-500));
             border-radius: var(--radius-full);
             box-shadow: 0 0 12px var(--emerald-500);
@@ -840,10 +784,7 @@
             align-items: center;
             padding: 20px;
         }
-        .modal-overlay.active {
-            display: flex;
-            animation: fadeIn 0.2s ease;
-        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
         .modal {
@@ -868,11 +809,7 @@
             align-items: center;
             margin-bottom: 18px;
         }
-        .modal-header h3 {
-            color: var(--emerald-400);
-            font-size: 16px;
-            font-weight: 800;
-        }
+        .modal-header h3 { color: var(--emerald-400); font-size: 16px; font-weight: 800; }
         .modal-close {
             width: 32px; height: 32px;
             display: flex; align-items: center; justify-content: center;
@@ -889,9 +826,7 @@
             color: var(--text-primary);
         }
         
-        .modal-field {
-            margin-bottom: 12px;
-        }
+        .modal-field { margin-bottom: 12px; }
         .modal-field label {
             display: block;
             font-size: 10px;
@@ -957,17 +892,13 @@
             border-color: var(--border-hover);
             transform: translateY(-1px);
         }
-        .btn:active {
-            transform: scale(0.97);
-        }
+        .btn:active { transform: scale(0.97); }
         .btn-primary {
             background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
             border: none;
             color: white;
         }
-        .btn-primary:hover {
-            box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
-        }
+        .btn-primary:hover { box-shadow: 0 0 25px rgba(16, 185, 129, 0.4); }
         .btn-success {
             background: linear-gradient(135deg, var(--emerald-500), var(--emerald-400));
             border: none;
@@ -986,22 +917,6 @@
             background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
             border: none;
             color: #422006;
-        }
-        
-        /* Ripple эффект */
-        .btn::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 0; height: 0;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.5s, height 0.5s;
-        }
-        .btn:active::after {
-            width: 300px;
-            height: 300px;
         }
         
         /* ============================================================
@@ -1064,9 +979,7 @@
             gap: 8px;
             flex-wrap: wrap;
         }
-        .setting-item:last-child {
-            border-bottom: none;
-        }
+        .setting-item:last-child { border-bottom: none; }
         .setting-item .label {
             font-size: 13px;
             color: var(--text-primary);
@@ -1100,8 +1013,7 @@
         }
         
         .toggle {
-            width: 42px;
-            height: 24px;
+            width: 42px; height: 24px;
             background: var(--bg-input);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-full);
@@ -1114,19 +1026,15 @@
             border-color: var(--emerald-500);
         }
         .toggle .dot {
-            width: 16px;
-            height: 16px;
+            width: 16px; height: 16px;
             background: white;
             border-radius: 50%;
             position: absolute;
-            top: 3px;
-            left: 3px;
+            top: 3px; left: 3px;
             transition: var(--transition);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
-        .toggle.active .dot {
-            left: 21px;
-        }
+        .toggle.active .dot { left: 21px; }
         
         /* ============================================================
            NOTIFICATIONS
@@ -1160,7 +1068,6 @@
             from { opacity: 1; transform: translateX(0); }
             to { opacity: 0; transform: translateX(100px); }
         }
-        
         @media (max-width: 480px) {
             .notification {
                 top: auto;
@@ -1190,9 +1097,7 @@
             color: var(--text-secondary);
             margin-bottom: 4px;
         }
-        .no-data .desc {
-            font-size: 11px;
-        }
+        .no-data .desc { font-size: 11px; }
         
         .skeleton {
             background: linear-gradient(90deg, 
@@ -1210,12 +1115,6 @@
             100% { background-position: -200% 0; }
         }
         
-        .divider {
-            height: 1px;
-            background: var(--border-color);
-            margin: 12px 0;
-        }
-        
         .chart-container { height: 180px; }
         .chart-container-lg { height: 300px; }
         @media (max-width: 480px) {
@@ -1231,26 +1130,20 @@
             margin-top: 16px;
         }
         
-        .page-transition {
-            animation: pageSlide 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .page-transition { animation: pageSlide 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes pageSlide {
             from { opacity: 0; transform: translateX(20px); }
             to { opacity: 1; transform: translateX(0); }
         }
         
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { 
             background: var(--border-color); 
             border-radius: var(--radius-full);
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--border-hover);
-        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
         
-        /* PWA banners */
         #pwa-install-banner, #pwa-update-banner {
             position: fixed;
             left: 50%;
@@ -1295,6 +1188,23 @@
             backdrop-filter: blur(10px);
             font-family: 'JetBrains Mono', monospace;
             border: 1px solid var(--border-color);
+        }
+        
+        /* Auto-import status */
+        .auto-import-status {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            padding: 4px 8px;
+            background: rgba(16, 185, 129, 0.05);
+            border-radius: var(--radius-full);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid rgba(16, 185, 129, 0.1);
+        }
+        .auto-import-status.active {
+            color: var(--emerald-400);
+            border-color: rgba(16, 185, 129, 0.3);
         }
     </style>
 </head>
@@ -1345,7 +1255,7 @@
     </header>
 
     <!-- ============================================================
-         PAGE: DASHBOARD (Главная)
+         PAGE: DASHBOARD
          ============================================================ -->
     <div id="page-dashboard" class="page">
         
@@ -1394,7 +1304,7 @@
             </div>
         </div>
 
-        <!-- ACTIVE MATCHES (свежие) -->
+        <!-- ACTIVE MATCHES -->
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🎯 Свежие ставки</h2>
@@ -1447,7 +1357,7 @@
     </div>
 
     <!-- ============================================================
-         PAGE: MATCHES (Матчи)
+         PAGE: MATCHES
          ============================================================ -->
     <div id="page-matches" class="page" style="display:none;">
         
@@ -1475,7 +1385,7 @@
                 <button class="filter-btn" data-filter="pending" onclick="setMatchFilter('pending')">⏳ Ожидание</button>
             </div>
 
-            <!-- VIEW TOGGLE (Cards/Table) -->
+            <!-- VIEW TOGGLE -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <span style="font-size:10px;color:var(--text-tertiary);" id="matchesCount">0 записей</span>
                 <div style="display:flex;gap:4px;">
@@ -1522,11 +1432,10 @@
     </div>
 
     <!-- ============================================================
-         PAGE: ANALYTICS (Аналитика)
+         PAGE: ANALYTICS
          ============================================================ -->
     <div id="page-analytics" class="page" style="display:none;">
         
-        <!-- KPI Cards -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value" id="aTotal">0</div>
@@ -1546,7 +1455,6 @@
             </div>
         </div>
 
-        <!-- PROFIT CHART (30 days) -->
         <div class="card">
             <div class="card-header">
                 <h2>📈 Динамика прибыли</h2>
@@ -1561,7 +1469,6 @@
             </div>
         </div>
 
-        <!-- STRATEGY BREAKDOWN -->
         <div class="card">
             <div class="card-header">
                 <h2>🎯 По стратегиям</h2>
@@ -1572,7 +1479,6 @@
             </div>
         </div>
 
-        <!-- BY BET TYPE -->
         <div class="card">
             <div class="card-header">
                 <h2>💎 По типам ставок</h2>
@@ -1583,7 +1489,6 @@
             </div>
         </div>
 
-        <!-- BY LEAGUE -->
         <div class="card">
             <div class="card-header">
                 <h2>🏆 По лигам</h2>
@@ -1597,7 +1502,7 @@
     </div>
 
     <!-- ============================================================
-         PAGE: X2 (Стратегия)
+         PAGE: X2
          ============================================================ -->
     <div id="page-x2" class="page" style="display:none;">
         
@@ -1605,7 +1510,7 @@
             <div class="card-header">
                 <h2 class="emerald-title">🔥 X2 Стратегия</h2>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <button class="btn btn-purple" onclick="openX2Modal()" style="padding:5px 12px;font-size:11px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;">
+                    <button class="btn" onclick="openX2Modal()" style="padding:5px 12px;font-size:11px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;">
                         ➕ Добавить
                     </button>
                     <button class="btn btn-outline" onclick="autoImportX2FromLogs()" style="padding:5px 10px;font-size:11px;">
@@ -1637,7 +1542,6 @@
             </div>
         </div>
 
-        <!-- X2 FILTERS -->
         <div class="card">
             <div class="card-header">
                 <h2>📋 Все X2 матчи</h2>
@@ -1649,10 +1553,10 @@
             </div>
 
             <div class="filter-group">
-                <button class="filter-btn active" onclick="setX2Filter('all')">Все</button>
-                <button class="filter-btn" onclick="setX2Filter('win')">✅ WIN</button>
-                <button class="filter-btn" onclick="setX2Filter('loss')">❌ LOSS</button>
-                <button class="filter-btn" onclick="setX2Filter('pending')">⏳ Ожидание</button>
+                <button class="filter-btn active" data-x2filter="all" onclick="setX2Filter('all')">Все</button>
+                <button class="filter-btn" data-x2filter="win" onclick="setX2Filter('win')">✅ WIN</button>
+                <button class="filter-btn" data-x2filter="loss" onclick="setX2Filter('loss')">❌ LOSS</button>
+                <button class="filter-btn" data-x2filter="pending" onclick="setX2Filter('pending')">⏳ Ожидание</button>
             </div>
 
             <div id="x2List">
@@ -1664,11 +1568,10 @@
     </div>
 
     <!-- ============================================================
-         PAGE: SETTINGS (Настройки)
+         PAGE: SETTINGS
          ============================================================ -->
     <div id="page-settings" class="page" style="display:none;">
         
-        <!-- BANK -->
         <div class="setting-group">
             <h2>💰 Банк</h2>
             <div class="setting-item">
@@ -1683,7 +1586,6 @@
             </div>
         </div>
 
-        <!-- THEME -->
         <div class="setting-group">
             <h2>🎨 Тема</h2>
             <div class="setting-item">
@@ -1701,7 +1603,6 @@
             </div>
         </div>
 
-        <!-- BOT SETTINGS -->
         <div class="setting-group">
             <h2>🤖 Настройки бота</h2>
             <div class="setting-item">
@@ -1742,7 +1643,6 @@
             </div>
         </div>
 
-        <!-- EXPORT / IMPORT -->
         <div class="setting-group">
             <h2>💾 Данные</h2>
             <div class="setting-item">
@@ -1784,7 +1684,6 @@
             </div>
         </div>
 
-        <!-- X2 SECTION -->
         <div class="setting-group">
             <h2>🔥 X2 Стратегия</h2>
             <div class="setting-item">
@@ -1805,7 +1704,6 @@
             </div>
         </div>
 
-        <!-- PWA -->
         <div class="setting-group">
             <h2>📱 Приложение</h2>
             <div class="setting-item">
@@ -1828,7 +1726,6 @@
             </div>
         </div>
 
-        <!-- ABOUT -->
         <div class="setting-group">
             <h2>ℹ️ О приложении</h2>
             <div class="setting-item" style="border-bottom:none;">
@@ -2035,13 +1932,7 @@
      ============================================================ -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
-<!-- ============================================================
-     SCRIPTS PLACEHOLDER (Part 3)
-     ============================================================ -->
-<!-- <script>...</script> из Части 3 -->
-</body>
-</html>
-<script>
+   <script>
 // ============================================================
 // КОНФИГУРАЦИЯ
 // ============================================================
@@ -2059,13 +1950,11 @@ let chartInstance = null;
 let analyticsChartInstance = null;
 let currentPage = 'dashboard';
 let isLoading = false;
-let editingIndex = null;
 let x2Data = [];
 let editingX2Index = null;
-let currentFilter = 'all';
-let x2CurrentFilter = 'all';
 let matchesSearchQuery = '';
 let matchesFilter = 'all';
+let x2CurrentFilter = 'all';
 let viewMode = 'cards';
 let keepAliveInterval = null;
 let autoImportInterval = null;
@@ -2075,8 +1964,7 @@ let refreshTimeout = null;
 let showAllItems = false;
 let sortBy = 'date';
 let sortDir = 'desc';
-let themeMode = 'dark';
-let currentMatchDetail = null;
+let themeMode = 'auto';
 
 // ============================================================
 // ХАПТИК
@@ -2093,13 +1981,11 @@ function haptic(ms = 10) {
 function showNotification(message, type = '') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
-    
     const toast = document.createElement('div');
     toast.className = 'notification' + (type ? ' ' + type : '');
     toast.textContent = message;
     toast.style.pointerEvents = 'auto';
     container.appendChild(toast);
-    
     setTimeout(() => {
         toast.style.animation = 'slideOutRight 0.3s ease';
         setTimeout(() => toast.remove(), 300);
@@ -2109,12 +1995,12 @@ function showNotification(message, type = '') {
 // ============================================================
 // ЗВЁЗДЫ
 // ============================================================
-(function generateStars(containerId, count) {
-    const container = document.getElementById(containerId);
+(function generateLoadingStars() {
+    const container = document.getElementById('loadingStars');
     if (!container) return;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < 150; i++) {
         const star = document.createElement('div');
-        star.className = containerId === 'loadingStars' ? 'loading-star' : 'star';
+        star.className = 'loading-star';
         const size = 0.5 + Math.random() * 2.5;
         star.style.width = size + 'px';
         star.style.height = size + 'px';
@@ -2125,7 +2011,7 @@ function showNotification(message, type = '') {
         star.style.opacity = 0.2 + Math.random() * 0.6;
         container.appendChild(star);
     }
-})('loadingStars', 150);
+})();
 
 (function generateBgStars() {
     const container = document.getElementById('starsContainer');
@@ -2165,20 +2051,13 @@ function getSystemTheme() {
 function applyTheme(mode) {
     themeMode = mode;
     localStorage.setItem('theme', mode);
-    
     let actualTheme = mode;
     if (mode === 'auto') actualTheme = getSystemTheme();
-    
     document.documentElement.setAttribute('data-theme', actualTheme);
-    
     const btn = document.getElementById('themeBtn');
-    if (btn) {
-        btn.textContent = actualTheme === 'dark' ? '🌙' : '☀️';
-    }
-    
+    if (btn) btn.textContent = actualTheme === 'dark' ? '🌙' : '☀️';
     const sel = document.getElementById('themeSelect');
     if (sel) sel.value = mode;
-    
     updateAllCharts(actualTheme === 'light');
 }
 
@@ -2188,7 +2067,8 @@ function cycleTheme() {
     const nextMode = modes[(idx + 1) % modes.length];
     applyTheme(nextMode);
     haptic(8);
-    showNotification(`🎨 Тема: ${nextMode === 'auto' ? 'Авто' : nextMode === 'dark' ? 'Тёмная' : 'Светлая'}`, '');
+    const labels = { dark: 'Тёмная', light: 'Светлая', auto: 'Авто' };
+    showNotification(`🎨 Тема: ${labels[nextMode]}`, '');
 }
 
 function setTheme(mode) {
@@ -2196,11 +2076,9 @@ function setTheme(mode) {
     haptic(10);
 }
 
-// Инициализация темы
 (function initTheme() {
     const saved = localStorage.getItem('theme') || 'auto';
     applyTheme(saved);
-    
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
         if (themeMode === 'auto') applyTheme('auto');
     });
@@ -2211,11 +2089,9 @@ function setTheme(mode) {
 // ============================================================
 function switchPage(page) {
     if (page === currentPage) return;
-    
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) navBtn.classList.add('active');
-    
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     const target = document.getElementById('page-' + page);
     if (target) {
@@ -2223,11 +2099,8 @@ function switchPage(page) {
         target.classList.add('page-transition');
         setTimeout(() => target.classList.remove('page-transition'), 400);
     }
-    
     currentPage = page;
     haptic(6);
-    
-    // Загружаем данные для страницы
     if (page === 'dashboard') loadPageData('dashboard');
     else if (page === 'matches') loadPageData('matches');
     else if (page === 'analytics') loadPageData('analytics');
@@ -2235,23 +2108,20 @@ function switchPage(page) {
     else if (page === 'settings') renderSettings();
 }
 
-// Свайпы между вкладками
+// Свайпы
 (function initSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
     const pages = ['dashboard', 'matches', 'analytics', 'x2', 'settings'];
-    
     document.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
     }, { passive: true });
-    
     document.addEventListener('touchend', (e) => {
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
-        if (e.target.closest('input, textarea, .table-wrapper, .chart-container')) return;
-        
+        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal')) return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2264,13 +2134,10 @@ function switchPage(page) {
 async function loadPageData(page) {
     if (isLoading) return;
     isLoading = true;
-    
     try {
         const response = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
         if (!response.ok) throw new Error('Сервер: ' + response.status);
         const data = await response.json();
-        
-        // Загрузка матчей отдельно
         try {
             const mResp = await fetch(API_BASE + '/api/matches?t=' + Date.now());
             if (mResp.ok) {
@@ -2280,21 +2147,17 @@ async function loadPageData(page) {
                 }
             }
         } catch (e) {}
-        
         cachedData = data;
         updateLastUpdate();
-        
         if (page === 'dashboard') renderDashboard(data);
         else if (page === 'matches') renderMatchesPage(data);
         else if (page === 'analytics') renderAnalytics(data);
-        
         hideLoadingScreen();
     } catch (error) {
         console.error('Ошибка загрузки:', error);
         showNotification('❌ Ошибка: ' + error.message, 'error');
         hideLoadingScreen();
     }
-    
     isLoading = false;
 }
 
@@ -2319,32 +2182,23 @@ function updateLastUpdate() {
 // ============================================================
 function renderDashboard(data) {
     const s = data.stats || {};
-    const history = data.history || [];
     const matches = data.matches || [];
-    
     document.getElementById('statBank').textContent = '$' + (s.bank || 1000);
-    document.getElementById('statProfit').textContent = (s.total_profit >= 0 ? '+' : '') + '$' + (s.total_profit || 0);
+    document.getElementById('statProfit').textContent = (s.profit >= 0 ? '+' : '') + '$' + (s.profit || 0);
     document.getElementById('statWinrate').textContent = (s.winrate || 0) + '%';
     document.getElementById('statRoi').textContent = (s.roi || 0) + '%';
-    
-    // Активные матчи
     const activeMatches = matches.slice(0, 3);
     renderActiveMatchesList(activeMatches);
-    
-    // X2 stats
     const x2Stats = calcX2Stats();
     document.getElementById('x2Total').textContent = x2Stats.total;
     document.getElementById('x2Wins').textContent = x2Stats.wins;
     document.getElementById('x2Winrate').textContent = x2Stats.winrate + '%';
-    
-    // Chart
     setTimeout(() => renderChart(data.profit_data), 50);
 }
 
 function renderActiveMatchesList(matches) {
     const container = document.getElementById('activeMatchesList');
     if (!container) return;
-    
     if (!matches || matches.length === 0) {
         container.innerHTML = `
             <div class="no-data">
@@ -2355,12 +2209,11 @@ function renderActiveMatchesList(matches) {
         `;
         return;
     }
-    
     container.innerHTML = matches.map(m => renderBetCard(m, true)).join('');
 }
 
 // ============================================================
-// BET CARD (универсальный)
+// BET CARD (✅ УЛУЧШЕННЫЙ)
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2368,29 +2221,69 @@ function renderBetCard(m, isActive = false) {
     const odds = best.odds || m.odds || 0;
     const ev = best.ev || m.ev || 0;
     const prob = best.prob || m.prob || 0;
-    const xg = m.total_xg || 0;
     const league = m.league || '—';
     const matchTime = m.match_time || m.date || '—';
     const score = m.score || '-';
+    const result = m.result || 'pending';
     
     const betClass = getBetClass(betLabel);
     const probColor = prob >= 70 ? 'emerald' : prob >= 55 ? 'gold' : 'red';
     const evColor = ev >= 15 ? 'emerald' : ev >= 5 ? 'gold' : 'red';
     
-    // Result badge
-    let resultBadge = '';
-    if (!isActive && m.result) {
-        const cls = m.result;
-        resultBadge = `<span class="badge ${cls}">${m.result.toUpperCase()}</span>`;
+    // Разбиваем счёт
+    let homeGoals = '-', awayGoals = '-';
+    if (score && score !== '-' && score.includes('-')) {
+        const parts = score.split('-').map(s => s.trim());
+        homeGoals = parts[0];
+        awayGoals = parts[1];
     }
     
+    // Цвет счёта по результату
+    let scoreColor = 'var(--text-secondary)';
+    if (result === 'win') scoreColor = 'var(--emerald-400)';
+    else if (result === 'loss') scoreColor = 'var(--red-400)';
+    else if (result === 'push') scoreColor = 'var(--gold-400)';
+    
+    // Счёт показываем только для завершённых матчей
+    const showScore = !isActive && score !== '-' && homeGoals !== '-' && awayGoals !== '-';
+    
+    // Result badge
+    let resultBadge = '';
+    if (!isActive && result && result !== 'pending') {
+        resultBadge = `<span class="badge ${result}">${result.toUpperCase()}</span>`;
+    }
+    
+    // Дата короткая
+    let displayDate = matchTime;
+    try {
+        if (matchTime.includes('.')) {
+            const parts = matchTime.split(' ');
+            const datePart = parts[0].split('.');
+            if (datePart.length >= 2) {
+                displayDate = `${datePart[0]}.${datePart[1]}` + (parts[1] ? ' ' + parts[1] : '');
+            }
+        }
+    } catch (e) {}
+    
+    // Форматирование значений (✅ убрано 0% и 0)
+    const oddsDisplay = odds > 0 ? odds.toFixed(2) : '—';
+    const evDisplay = ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—';
+    const probDisplay = prob > 0 ? prob.toFixed(0) + '%' : '—';
+    
     return `
-        <div class="bet-card ${isActive ? 'active' : ''}" onclick="showMatchDetail(${JSON.stringify(m).replace(/"/g, '&quot;')})">
+        <div class="bet-card ${isActive ? 'active' : ''}" onclick='showMatchDetail(${JSON.stringify(m).replace(/'/g, "&#39;")})'>
             <div class="bet-header">
                 <div style="flex:1;min-width:0;">
                     <div class="bet-match">${escapeHtml(m.home || '?')} vs ${escapeHtml(m.away || '?')}</div>
                     <div class="bet-league">🏆 ${escapeHtml(league)}</div>
-                    <div class="bet-time">📅 ${escapeHtml(matchTime)}</div>
+                    <div class="bet-time">
+                        <span>📅 ${escapeHtml(displayDate)}</span>
+                        ${showScore ? `
+                            <span class="bet-score" style="color:${scoreColor};">
+                                🏠 ${homeGoals} - ${awayGoals} ✈️
+                            </span>
+                        ` : ''}
+                    </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
                     <span class="bet-badge ${betClass}">${escapeHtml(betLabel)}</span>
@@ -2400,15 +2293,15 @@ function renderBetCard(m, isActive = false) {
             <div class="bet-stats">
                 <div class="bet-stat">
                     <span class="stat-label">Кэф</span>
-                    <span class="stat-value">${odds.toFixed(2)}</span>
+                    <span class="stat-value">${oddsDisplay}</span>
                 </div>
                 <div class="bet-stat">
                     <span class="stat-label">EV</span>
-                    <span class="stat-value ${evColor}">${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%</span>
+                    <span class="stat-value ${evColor}">${evDisplay}</span>
                 </div>
                 <div class="bet-stat">
                     <span class="stat-label">Prob</span>
-                    <span class="stat-value ${probColor}">${prob.toFixed(0)}%</span>
+                    <span class="stat-value ${probColor}">${probDisplay}</span>
                 </div>
             </div>
         </div>
@@ -2438,58 +2331,42 @@ function escapeHtml(str) {
 function renderMatchesPage(data) {
     if (!data) data = cachedData;
     if (!data) return;
-    
     const history = data.history || [];
     const matches = data.matches || [];
-    
     let allItems = buildAllItems(history, matches);
     
-    // Apply filters
     if (matchesFilter !== 'all') {
-        if (matchesFilter === 'active') {
-            allItems = allItems.filter(i => i.is_active);
-        } else {
-            allItems = allItems.filter(i => i.result === matchesFilter);
-        }
+        if (matchesFilter === 'active') allItems = allItems.filter(i => i.is_active);
+        else allItems = allItems.filter(i => i.result === matchesFilter);
     }
-    
-    // Apply search
     if (matchesSearchQuery) {
         const q = matchesSearchQuery.toLowerCase();
-        allItems = allItems.filter(i => 
+        allItems = allItems.filter(i =>
             (i.home && i.home.toLowerCase().includes(q)) ||
             (i.away && i.away.toLowerCase().includes(q)) ||
             (i.league && i.league.toLowerCase().includes(q)) ||
             (i.bet && i.bet.toLowerCase().includes(q))
         );
     }
-    
-    // Sort
     allItems = sortItems(allItems);
-    
     const total = allItems.length;
     const limit = showAllItems ? total : ITEMS_LIMIT;
     const displayed = allItems.slice(0, limit);
     
     document.getElementById('matchesCount').textContent = total + ' записей';
     
-    // Toggle show-all button
     const showAllWrap = document.getElementById('showAllWrapper');
     if (total > ITEMS_LIMIT) {
         showAllWrap.style.display = 'block';
-        document.getElementById('showAllBtn').textContent = showAllItems 
-            ? '📉 Свернуть' 
+        document.getElementById('showAllBtn').textContent = showAllItems
+            ? '📉 Свернуть'
             : `📊 Показать все (${total})`;
     } else {
         showAllWrap.style.display = 'none';
     }
     
-    // Render based on view mode
-    if (viewMode === 'cards') {
-        renderCardsView(displayed);
-    } else {
-        renderTableView(displayed);
-    }
+    if (viewMode === 'cards') renderCardsView(displayed);
+    else renderTableView(displayed);
 }
 
 function renderCardsView(items) {
@@ -2497,7 +2374,6 @@ function renderCardsView(items) {
     const tableContainer = document.getElementById('matchesTableView');
     tableContainer.style.display = 'none';
     container.style.display = 'block';
-    
     if (items.length === 0) {
         container.innerHTML = `
             <div class="no-data">
@@ -2508,7 +2384,6 @@ function renderCardsView(items) {
         `;
         return;
     }
-    
     container.innerHTML = items.map(item => renderBetCard(item, item.is_active)).join('');
 }
 
@@ -2517,17 +2392,16 @@ function renderTableView(items) {
     const tableContainer = document.getElementById('matchesTableView');
     cardsContainer.style.display = 'none';
     tableContainer.style.display = 'block';
-    
     const tbody = document.getElementById('matchesTableBody');
-    
     if (items.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" class="no-data" style="padding:30px;text-align:center;">Нет данных</td></tr>`;
         return;
     }
-    
     tbody.innerHTML = items.map((item, idx) => {
         const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
         const profitStr = item.profit > 0 ? '+' + item.profit : item.profit;
+        const oddsStr = item.odds > 0 ? item.odds.toFixed(2) : '—';
+        const evStr = item.ev !== 0 ? item.ev + '%' : '—';
         return `
             <tr>
                 <td>${idx + 1}</td>
@@ -2535,25 +2409,19 @@ function renderTableView(items) {
                 <td><strong>${escapeHtml(item.home)}</strong> vs <strong>${escapeHtml(item.away)}</strong></td>
                 <td>${item.score}</td>
                 <td>${escapeHtml(item.bet)}</td>
-                <td>${item.odds}</td>
+                <td>${oddsStr}</td>
                 <td>$${item.stake}</td>
-                <td>${item.ev}%</td>
+                <td>${evStr}</td>
                 <td><span class="badge ${item.result}">${item.result}</span></td>
                 <td class="${profitClass}">${profitStr}</td>
-                <td>
-                    ${!item.is_active ? `<span style="cursor:pointer;" onclick="editBet(${idx})">✏️</span>` : ''}
-                </td>
+                <td>—</td>
             </tr>
         `;
     }).join('');
 }
 
-// ============================================================
-// BUILD ITEMS
-// ============================================================
 function buildAllItems(history, matches) {
     const items = [];
-    
     if (matches && matches.length) {
         matches.forEach(m => {
             const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2562,8 +2430,6 @@ function buildAllItems(history, matches) {
                 date: m.match_time || 'Сегодня',
                 home: m.home || 'Unknown',
                 away: m.away || 'Unknown',
-                home_goals: null,
-                away_goals: null,
                 score: '-',
                 bet: best.label || '—',
                 odds: best.odds || 0,
@@ -2581,7 +2447,6 @@ function buildAllItems(history, matches) {
             });
         });
     }
-    
     if (history && history.length) {
         history.forEach(h => {
             items.push({
@@ -2589,8 +2454,6 @@ function buildAllItems(history, matches) {
                 date: h.date || '-',
                 home: h.home || 'Unknown',
                 away: h.away || 'Unknown',
-                home_goals: h.home_goals,
-                away_goals: h.away_goals,
                 score: (h.home_goals != null && h.away_goals != null) ? h.home_goals + ' - ' + h.away_goals : '-',
                 bet: h.bet || '—',
                 odds: h.odds || 0,
@@ -2608,7 +2471,6 @@ function buildAllItems(history, matches) {
             });
         });
     }
-    
     return items;
 }
 
@@ -2657,15 +2519,8 @@ function setViewMode(mode) {
 }
 
 function sortTable(field) {
-    if (sortBy === field) {
-        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-        sortBy = field;
-        sortDir = 'desc';
-    }
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.classList.toggle('sorted', th.textContent.toLowerCase().includes(field));
-    });
+    if (sortBy === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortBy = field; sortDir = 'desc'; }
     haptic(6);
     renderMatchesPage();
 }
@@ -2677,16 +2532,13 @@ function toggleShowAll() {
 }
 
 // ============================================================
-// MATCH DETAIL MODAL
+// MATCH DETAIL
 // ============================================================
 function showMatchDetail(match) {
-    currentMatchDetail = match;
     const modal = document.getElementById('matchDetailModal');
     const body = document.getElementById('matchDetailBody');
     const title = document.getElementById('matchDetailTitle');
-    
     title.textContent = `${match.home} vs ${match.away}`;
-    
     const best = match.best_bet || {};
     const bets = match.bets || [];
     
@@ -2695,7 +2547,6 @@ function showMatchDetail(match) {
             <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">${match.league || ''}</div>
             <div style="font-size:12px;color:var(--text-secondary);">${match.date || match.match_time || ''}</div>
         </div>
-        
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
             <div class="stat-card">
                 <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
@@ -2711,7 +2562,6 @@ function showMatchDetail(match) {
             </div>
         </div>
     `;
-    
     if (bets.length > 1) {
         html += `<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Все ставки</div>`;
         html += bets.slice(0, 7).map(b => {
@@ -2722,7 +2572,6 @@ function showMatchDetail(match) {
             </div>`;
         }).join('');
     }
-    
     body.innerHTML = html;
     modal.classList.add('active');
     haptic(8);
@@ -2730,7 +2579,6 @@ function showMatchDetail(match) {
 
 function closeMatchDetail() {
     document.getElementById('matchDetailModal').classList.remove('active');
-    currentMatchDetail = null;
 }
 
 // ============================================================
@@ -2739,49 +2587,34 @@ function closeMatchDetail() {
 function renderAnalytics(data) {
     if (!data) data = cachedData;
     if (!data) return;
-    
     const history = data.history || [];
     const total = history.length;
     const wins = history.filter(b => b.result === 'win').length;
     const losses = history.filter(b => b.result === 'loss').length;
     const avgOdds = total > 0 ? (history.reduce((s, b) => s + (b.odds || 0), 0) / total).toFixed(2) : 0;
-    
     document.getElementById('aTotal').textContent = total;
     document.getElementById('aWins').textContent = wins;
     document.getElementById('aLosses').textContent = losses;
     document.getElementById('aAvgOdds').textContent = avgOdds;
-    
-    // Charts
     setTimeout(() => renderAnalyticsChart(), 100);
-    
-    // Strategy breakdown
     renderStrategyBreakdown(history);
-    
-    // Bet type breakdown
     renderBetTypeBreakdown(history);
-    
-    // League breakdown
     renderLeagueBreakdown(history);
 }
 
 function renderAnalyticsChart() {
     const ctx = document.getElementById('analyticsChart');
     if (!ctx || !cachedData) return;
-    
     const period = parseInt(document.getElementById('analyticsPeriod').value) || 30;
     const history = cachedData.history || [];
-    
-    // Build data for period
     const labels = [];
     const profits = [];
     let cumulative = 0;
-    
     for (let i = period - 1; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().slice(0, 10);
         labels.push(date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
-        
         const dayProfit = history.reduce((sum, b) => {
             const bDate = (b.date || '').split(' ')[0];
             if (bDate === dateStr && b.result) {
@@ -2789,17 +2622,13 @@ function renderAnalyticsChart() {
             }
             return sum;
         }, 0);
-        
         cumulative += dayProfit;
         profits.push(cumulative);
     }
-    
     if (analyticsChartInstance) analyticsChartInstance.destroy();
-    
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const textColor = isLight ? 'rgba(6, 78, 59, 0.6)' : 'rgba(236, 253, 245, 0.6)';
     const gridColor = isLight ? 'rgba(6, 78, 59, 0.06)' : 'rgba(52, 211, 153, 0.05)';
-    
     analyticsChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -2821,9 +2650,7 @@ function renderAnalyticsChart() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: textColor, font: { size: 10 } } }
-            },
+            plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
             scales: {
                 x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
                 y: { ticks: { color: textColor, callback: v => '$' + v, font: { size: 9 } }, grid: { color: gridColor } }
@@ -2835,14 +2662,12 @@ function renderAnalyticsChart() {
 function renderStrategyBreakdown(history) {
     const container = document.getElementById('strategyBreakdown');
     if (!container) return;
-    
     const strategies = {
         '70%+': { wins: 0, losses: 0, profit: 0, stake: 0 },
         'X2': { wins: 0, losses: 0, profit: 0, stake: 0 },
         'ТМ 2.5': { wins: 0, losses: 0, profit: 0, stake: 0 },
         'Другое': { wins: 0, losses: 0, profit: 0, stake: 0 }
     };
-    
     history.forEach(b => {
         if (!b.result || b.result === 'pending') return;
         let key = 'Другое';
@@ -2850,14 +2675,12 @@ function renderStrategyBreakdown(history) {
         if (bet.includes('x2')) key = 'X2';
         else if (bet.includes('тм') || bet.includes('under')) key = 'ТМ 2.5';
         else if (bet.includes('1x') || bet.includes('п1') || bet.includes('п2')) key = '70%+';
-        
         const s = strategies[key];
         if (b.result === 'win') s.wins++;
         else if (b.result === 'loss') s.losses++;
         s.profit += b.profit || 0;
         s.stake += b.stake || 0;
     });
-    
     container.innerHTML = Object.entries(strategies).map(([name, s]) => {
         const total = s.wins + s.losses;
         if (total === 0) return '';
@@ -2882,7 +2705,6 @@ function renderStrategyBreakdown(history) {
 function renderBetTypeBreakdown(history) {
     const container = document.getElementById('betTypeBreakdown');
     if (!container) return;
-    
     const types = {};
     history.forEach(b => {
         if (!b.result || b.result === 'pending') return;
@@ -2891,13 +2713,7 @@ function renderBetTypeBreakdown(history) {
         if (b.result === 'win') types[bet].wins++;
         else if (b.result === 'loss') types[bet].losses++;
     });
-    
-    const sorted = Object.entries(types).sort((a, b) => {
-        const aT = a[1].wins + a[1].losses;
-        const bT = b[1].wins + b[1].losses;
-        return bT - aT;
-    }).slice(0, 6);
-    
+    const sorted = Object.entries(types).sort((a, b) => (b[1].wins + b[1].losses) - (a[1].wins + a[1].losses)).slice(0, 6);
     container.innerHTML = sorted.map(([name, s]) => {
         const total = s.wins + s.losses;
         const wr = (s.wins / total * 100).toFixed(0);
@@ -2914,7 +2730,6 @@ function renderBetTypeBreakdown(history) {
 function renderLeagueBreakdown(history) {
     const container = document.getElementById('leagueBreakdown');
     if (!container) return;
-    
     const leagues = {};
     history.forEach(b => {
         if (!b.result || b.result === 'pending') return;
@@ -2924,11 +2739,8 @@ function renderLeagueBreakdown(history) {
         else if (b.result === 'loss') leagues[league].losses++;
         leagues[league].profit += b.profit || 0;
     });
-    
     const sorted = Object.entries(leagues).sort((a, b) => b[1].profit - a[1].profit).slice(0, 8);
-    
     container.innerHTML = sorted.map(([name, s]) => {
-        const total = s.wins + s.losses;
         const color = s.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
         return `
             <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
@@ -2945,24 +2757,20 @@ function renderLeagueBreakdown(history) {
 function renderX2Page() {
     loadX2Data();
     const stats = calcX2Stats();
-    
     document.getElementById('x2TotalFull').textContent = stats.total;
     document.getElementById('x2WinsFull').textContent = stats.wins;
     document.getElementById('x2LossesFull').textContent = stats.losses;
     document.getElementById('x2RoiFull').textContent = stats.roi + '%';
-    
     renderX2List();
 }
 
 function renderX2List() {
     const container = document.getElementById('x2List');
     if (!container) return;
-    
     let filtered = x2Data;
     if (x2CurrentFilter !== 'all') {
         filtered = filtered.filter(m => m.result === x2CurrentFilter);
     }
-    
     if (filtered.length === 0) {
         container.innerHTML = `
             <div class="no-data">
@@ -2973,15 +2781,14 @@ function renderX2List() {
         `;
         return;
     }
-    
-    container.innerHTML = filtered.map((m, idx) => {
+    container.innerHTML = filtered.map((m) => {
         const realIdx = x2Data.indexOf(m);
         const profitColor = m.profit > 0 ? 'var(--emerald-400)' : m.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
         const profitStr = m.result === 'win' ? `+$${m.profit}` : m.result === 'loss' ? `-$${m.stake}` : '$0';
         const resultEmoji = m.result === 'win' ? '✅' : m.result === 'loss' ? '❌' : m.result === 'push' ? '🔄' : '⏳';
-        
+        const oddsStr = m.odds > 0 ? m.odds : '—';
         return `
-            <div class="bet-card" style="cursor:pointer;" onclick="editX2Match(${realIdx})">
+            <div class="bet-card" onclick="editX2Match(${realIdx})">
                 <div class="bet-header">
                     <div style="flex:1;">
                         <div class="bet-match">${escapeHtml(m.match)}</div>
@@ -2998,7 +2805,7 @@ function renderX2List() {
                 <div class="bet-stats">
                     <div class="bet-stat">
                         <span class="stat-label">Кэф</span>
-                        <span class="stat-value">${m.odds || '—'}</span>
+                        <span class="stat-value">${oddsStr}</span>
                     </div>
                     <div class="bet-stat">
                         <span class="stat-label">Сумма</span>
@@ -3035,7 +2842,6 @@ function loadX2Data() {
 
 function saveX2Data() {
     localStorage.setItem('x2_matches', JSON.stringify(x2Data));
-    // Пытаемся сохранить на сервере (фоновая синхронизация)
     syncX2ToServer();
 }
 
@@ -3053,12 +2859,15 @@ function setX2Filter(filter) {
     x2CurrentFilter = filter;
     localStorage.setItem('x2_filter', filter);
     document.querySelectorAll('#page-x2 .filter-btn').forEach(b => {
-        b.classList.toggle('active', b.textContent.toLowerCase().includes(filter));
+        b.classList.toggle('active', b.dataset.x2filter === filter);
     });
     haptic(6);
     renderX2List();
 }
 
+// ============================================================
+// X2 MODAL
+// ============================================================
 function openX2Modal(data) {
     const modal = document.getElementById('x2Modal');
     const title = document.getElementById('x2ModalTitle');
@@ -3100,18 +2909,14 @@ function saveX2Match() {
     const score = document.getElementById('x2Score').value.trim();
     const result = document.getElementById('x2Result').value;
     const note = document.getElementById('x2Note').value.trim();
-    
     if (!match || !favorite || !underdog || !odds || !stake) {
         showNotification('❌ Заполните все поля', 'error');
         return;
     }
-    
     let profit = 0;
     if (result === 'win') profit = Math.round((stake * odds - stake) * 100) / 100;
     else if (result === 'loss') profit = -stake;
-    
     const data = { date, match, favorite, underdog, odds, stake, score, result, profit, note };
-    
     if (editingX2Index !== null && editingX2Index >= 0) {
         x2Data[editingX2Index] = { ...x2Data[editingX2Index], ...data };
         showNotification('✅ X2 обновлён', 'success');
@@ -3120,7 +2925,6 @@ function saveX2Match() {
         x2Data.push(data);
         showNotification('✅ X2 добавлен', 'success');
     }
-    
     saveX2Data();
     haptic(20);
     closeX2Modal();
@@ -3151,72 +2955,88 @@ function clearAllX2() {
 }
 
 // ============================================================
-// AUTO-IMPORT X2
+// ✅ AUTO-IMPORT X2 (С ДЕДУПЛИКАЦИЕЙ ПО ИМЕНИ МАТЧА)
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
-        showNotification('🔄 Импорт X2...', '');
         const resp = await fetch(API_BASE + '/api/matches_log?t=' + Date.now());
-        if (!resp.ok) {
-            showNotification('❌ Логи недоступны', 'error');
-            return;
-        }
+        if (!resp.ok) return;
         const data = await resp.json();
         const logText = data.log || '';
-        if (!logText.trim()) {
-            showNotification('📭 Логи пусты', '');
-            return;
-        }
+        if (!logText.trim()) return;
         
         const lines = logText.split('\n');
         let newCount = 0;
+        
+        // ✅ Собираем уникальные матчи из лога (Map: matchName → info)
+        const uniqueMatches = new Map();
+        
         for (const line of lines) {
-            if (line.includes('нет мотивации') || line.includes('no motivation')) {
-                const m = line.match(/([A-Za-zА-Яа-я\s.\-']+)\s+vs\s+([A-Za-zА-Яа-я\s.\-']+)/i);
-                if (!m) continue;
-                const home = m[1].trim();
-                const away = m[2].trim();
-                const matchName = home + ' vs ' + away;
-                const today = new Date().toISOString().slice(0,10);
-                if (x2Data.some(x => x.match === matchName && x.date === today)) continue;
-                
-                const xgMatch = line.match(/XG:\s*([\d.]+)/i);
-                const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
-                
-                let favorite = home, underdog = away;
-                const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
-                if (posMatch) {
-                    const hp = parseInt(posMatch[1]), ap = parseInt(posMatch[2]);
-                    if (hp > ap) { favorite = away; underdog = home; }
-                }
-                
-                x2Data.push({
-                    id: Date.now() + Math.random() * 1000 + newCount,
-                    date: today,
-                    match: matchName,
-                    favorite, underdog,
-                    odds: 0, stake: 0, score: '-',
-                    result: 'pending', profit: 0,
-                    note: 'Авто-импорт' + (xg ? ' | XG: ' + xg : '')
-                });
-                newCount++;
+            if (!line.includes('нет мотивации') && !line.includes('no motivation')) continue;
+            
+            const m = line.match(/([A-Za-zА-Яа-яÀ-ÿ\s.\-']+?)\s+vs\s+([A-Za-zА-Яа-яÀ-ÿ\s.\-']+?)\s*\|/);
+            if (!m) continue;
+            
+            const home = m[1].trim();
+            const away = m[2].trim();
+            const matchName = home + ' vs ' + away;
+            
+            if (uniqueMatches.has(matchName)) continue;
+            
+            const dateMatch = line.match(/^(\d{4}-\d{2}-\d{2})/);
+            const logDate = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0,10);
+            
+            const xgMatch = line.match(/XG:\s*([\d.]+)/i);
+            const xg = xgMatch ? parseFloat(xgMatch[1]) : null;
+            
+            const posMatch = line.match(/H:\s*#(\d+),\s*A:\s*#(\d+)/i);
+            let favorite = home, underdog = away;
+            if (posMatch) {
+                const hp = parseInt(posMatch[1]), ap = parseInt(posMatch[2]);
+                if (hp > ap) { favorite = away; underdog = home; }
             }
+            
+            uniqueMatches.set(matchName, {
+                home, away, favorite, underdog,
+                date: logDate,
+                note: 'Авто-импорт' + (xg ? ' | XG: ' + xg : '')
+            });
+        }
+        
+        // ✅ Добавляем только те, которых нет в x2Data (по имени матча!)
+        const existingNames = new Set(x2Data.map(x => x.match));
+        
+        for (const [matchName, info] of uniqueMatches) {
+            if (existingNames.has(matchName)) continue;
+            
+            x2Data.push({
+                id: Date.now() + Math.random() * 1000 + newCount,
+                date: info.date,
+                match: matchName,
+                favorite: info.favorite,
+                underdog: info.underdog,
+                odds: 0,
+                stake: 0,
+                score: '-',
+                result: 'pending',
+                profit: 0,
+                note: info.note
+            });
+            newCount++;
         }
         
         if (newCount > 0) {
             saveX2Data();
             showNotification(`🤖 Добавлено ${newCount} X2`, 'success');
             if (currentPage === 'x2') renderX2Page();
-        } else {
-            showNotification('📭 Новых X2 матчей нет', '');
         }
     } catch (e) {
-        showNotification('❌ Ошибка: ' + e.message, 'error');
+        console.error('Auto-import X2 error:', e);
     }
 }
 
 // ============================================================
-// IMPORT / EXPORT X2
+// IMPORT/EXPORT X2
 // ============================================================
 function openX2ImportModal() {
     document.getElementById('x2ImportModal').classList.add('active');
@@ -3352,12 +3172,12 @@ async function applyBotSettings() {
 function exportCSV() {
     if (!cachedData || !cachedData.history) return;
     const history = cachedData.history;
-    const headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'EV%', 'Сумма', 'Результат', 'Прибыль', 'Букмекер'];
+    const headers = ['Дата', 'Матч', 'Счёт', 'Ставка', 'Кэф', 'EV%', 'Prob%', 'Сумма', 'Результат', 'Прибыль', 'Букмекер'];
     const rows = history.map(b => [
         b.date || '',
         `${b.home || ''} vs ${b.away || ''}`,
         (b.home_goals != null && b.away_goals != null) ? `${b.home_goals}-${b.away_goals}` : '-',
-        b.bet || '', b.odds || 0, b.ev || 0, b.stake || 0,
+        b.bet || '', b.odds || 0, b.ev || 0, b.prob || 0, b.stake || 0,
         b.result || 'pending', b.profit || 0, b.bookmaker || '—'
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
@@ -3472,11 +3292,10 @@ async function saveManualMatch() {
 }
 
 // ============================================================
-// BOT: RUN UPDATE
+// BOT RUN UPDATE
 // ============================================================
 function runBotUpdate() {
-    showNotification('🚀 Запуск бота в Telegram', '');
-    showNotification('💬 Отправьте /update боту в Telegram', '');
+    showNotification('🚀 Отправьте /update в Telegram', '');
     haptic(20);
 }
 
@@ -3487,10 +3306,8 @@ function renderChart(profitData) {
     const ctx = document.getElementById('profitChart');
     if (!ctx) return;
     if (chartInstance) chartInstance.destroy();
-    
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const data = profitData || { dates: ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'], profits: [0,0,0,0,0,0,0] };
-    
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -3548,15 +3365,9 @@ function startKeepAlive() {
         try {
             await fetch(API_BASE + '/api/keepalive?t=' + Date.now());
             const el = document.getElementById('keepAliveStatus');
-            if (!el) {
-                const statusEl = document.createElement('div');
-                statusEl.id = 'keepAliveStatus';
-                document.body.appendChild(statusEl);
-            }
-            document.getElementById('keepAliveStatus').textContent = '✅ ' + new Date().toLocaleTimeString();
+            if (el) el.textContent = '✅ ' + new Date().toLocaleTimeString();
         } catch (e) {}
     }, KEEPALIVE_MS);
-    
     const el = document.createElement('div');
     el.id = 'keepAliveStatus';
     el.textContent = '🔄 Пинг активен';
@@ -3593,13 +3404,11 @@ function registerPWA() {
             });
         }).catch(() => {});
     }
-    
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
         showInstallBanner();
     });
-    
     window.addEventListener('appinstalled', () => {
         hideInstallBanner();
         showNotification('✅ Приложение установлено', 'success');
@@ -3666,11 +3475,9 @@ function updatePWA() {
 function checkForUpdates() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistration().then(reg => {
-            if (reg) {
-                reg.update().then(() => {
-                    showNotification('✅ Проверка обновлений выполнена', 'success');
-                });
-            }
+            if (reg) reg.update().then(() => {
+                showNotification('✅ Проверка выполнена', 'success');
+            });
         });
     }
 }
@@ -3679,43 +3486,31 @@ function checkForUpdates() {
 // ЗАПУСК
 // ============================================================
 window.addEventListener('load', async () => {
-    // Restore view mode
     viewMode = localStorage.getItem('viewMode') || 'cards';
     setViewMode(viewMode);
-    
-    // Load data
     await loadPageData('dashboard');
-    
-    // Start background tasks
     startKeepAlive();
     startAutoRefresh();
     autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
     setTimeout(autoImportX2FromLogs, 5000);
-    
-    // PWA
     registerPWA();
 });
 
-// ============================================================
-// ЗАКРЫТИЕ МОДАЛОК ПО КЛИКУ ВНЕ
-// ============================================================
+// Закрытие модалок по клику вне
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            overlay.classList.remove('active');
-        }
+        if (e.target === overlay) overlay.classList.remove('active');
     });
 });
 
 // ============================================================
-// ЭКСПОРТ ФУНКЦИЙ
+// ЭКСПОРТ В WINDOW
 // ============================================================
 Object.assign(window, {
     cycleTheme, setTheme, switchPage, refreshData,
     filterMatches, setMatchFilter, setViewMode, sortTable, toggleShowAll,
     showMatchDetail, closeMatchDetail,
     showAddMatchModal, hideAddMatchModal, saveManualMatch,
-    editBet: (i) => { showNotification('✏️ Редактирование в таблице', ''); },
     updateBank, applyBotSettings, exportCSV,
     exportProject, importProject, clearAllX2,
     openX2Modal, closeX2Modal, saveX2Match, editX2Match, deleteX2Match,
@@ -3726,4 +3521,4 @@ Object.assign(window, {
 });
 </script>
 </body>
-</html>
+</html> 
