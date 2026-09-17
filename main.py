@@ -851,8 +851,8 @@ class OddsAPIClient:
                 away_lower = away_team.lower()  
   
                 # ★ ИСПРАВЛЕНО: было event_lower (не существует) → стало away_lower  
-                if (home_lower in event_home or event_home in home_lower) and \  
-                   (away_lower in event_away or event_away in away_lower):  
+                if ((home_lower in event_home or event_home in home_lower)
+    and (away_lower in event_away or event_away in away_lower)):  
                     result = self._extract_odds(event)  
                     self.cache[cache_key] = result  
                     return result  
