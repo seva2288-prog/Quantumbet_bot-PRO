@@ -3651,6 +3651,7 @@ def health():
                 'roi': autobets_state.get('roi', 0),
                 'winrate': autobets_state.get('winrate', 0),
                 'pending': autobets_state.get('pending', 0),
+                'live_count': autobets_state.get('live_count', 0),   # ★ ДОБАВЛЕНО
                 'avg_clv': autobets_state.get('avg_clv', 0),
                 'clv_count': autobets_state.get('clv_count', 0),
             },
