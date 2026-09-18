@@ -3823,66 +3823,6 @@ if __name__ == "__main__":
     schedule_auto_backup()
     schedule_autobet()
 
-
-# ============================================================
-# ★ РЕГИСТРАЦИЯ КОМАНД В TELEGRAM (для кнопки "Меню")
-# ============================================================
-def register_bot_commands():
-    """Регистрирует список команд в Telegram для кнопки 'Меню'."""
-    try:
-        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
-        
-        commands = [
-            # 🚀 Основные
-            {"command": "update",         "description": "🔍 Полный поиск матчей на сегодня"},
-            {"command": "today",          "description": "🎯 ТОП-5 матчей из кэша"},
-            {"command": "analyze",        "description": "📊 Анализ конкретного матча"},
-            {"command": "status",         "description": "🤖 Статус бота"},
-            {"command": "stop",           "description": "🛑 Остановить поиск"},
-            {"command": "reset_search",   "description": "🔄 Сбросить флаг поиска"},
-            
-            # 💰 Банк и статистика
-            {"command": "bank",           "description": "💰 Текущий банк"},
-            {"command": "stats",          "description": "📊 Общая статистика"},
-            {"command": "report",         "description": "📅 Отчёт за 7 дней"},
-            {"command": "bettypes",       "description": "🎲 Статистика по типам ставок"},
-            {"command": "timestats",      "description": "🕐 Статистика по времени"},
-            {"command": "strategies",     "description": "📈 Сравнение стратегий"},
-            {"command": "team",           "description": "🏟️ Статистика по команде"},
-            
-            # 💸 Автоставки
-            {"command": "autobet",        "description": "💸 Вкл/выкл автоставки"},
-            {"command": "autobet_state",  "description": "📊 Состояние автоставок (банк, ROI, CLV)"},
-            
-            # 📊 CLV-анализ
-            {"command": "clv",            "description": "📊 Средний Closing Line Value"},
-            
-            # 🎯 Grid Search
-            {"command": "grid_search",    "description": "🎯 Автопоиск лучшей стратегии"},
-            
-            # 📝 История
-            {"command": "result",         "description": "✏️ Ручной ввод результата"},
-            {"command": "update_results", "description": "🔄 Обновить pending-ставки"},
-            {"command": "export",         "description": "📥 Экспорт в Excel"},
-            
-            # 💾 Резервное копирование
-            {"command": "backup",         "description": "💾 Создать бэкап"},
-            
-            # ℹ️ Прочее
-            {"command": "help",           "description": "ℹ️ Справка по всем командам"},
-        ]
-        
-        r = requests.post(url, json={"commands": commands}, timeout=10)
-        if r.status_code == 200 and r.json().get('ok'):
-            logger.info(f"✅ Команды зарегистрированы: {len(commands)}")
-            return True
-        else:
-            logger.error(f"❌ Ошибка регистрации команд: {r.text}")
-            return False
-    except Exception as e:
-        logger.error(f"❌ register_bot_commands: {e}")
-        return False
-
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=snapshot_odds_for_upcoming,
