@@ -3170,11 +3170,9 @@ def webhook():
                     msg += "\n💡 Запусти <b>/snapshot</b> для нового снимка"
 
                     send_telegram(msg)
-                except Exception as e:
-                    logger.exception(f"Ошибка /snapshots: {леноe}")
-                    send_telegram(f"❌
-
- Ошибка /snapshots|: {e}")
+                eexcept Exception as e:
+                    logger.exception(f"Ошибка /snapshots: {e}")
+                    send_telegram(f"❌ Ошибка /snapshots: {e}")
 
             # ★★★ НОВАЯ Ком КОМАНДА /snapshot — ручной запуск снимка
             elif text == '/snapshot':
