@@ -1,4 +1,5 @@
-"""Управление данными бота (банк, история, статистика, кэш, история кэфов)"""
+"""Управление данными бота (банк, история, статистика, кэш, история кэфов,
+   ★ автоставки, ★ симуляции стратегий, ★ X2 матчи)"""
 import json
 import os
 import shutil
@@ -15,19 +16,28 @@ class Storage:
     """
     Хранилище JSON с защитой от конкурентной записи и битых файлов.
     Атомарная запись через tempfile + os.replace().
+
+    ★ Версия 2.0:
+      - autobets.json     — виртуальные автоставки
+      - simulations.json  — сохранённые симуляции стратегий
+      - x2_matches.json   — X2 матчи
     """
 
     def __init__(self, data_dir='data'):
         self.data_dir = data_dir
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # Блокировки на каждый файл — Flask + APScheduler + фоновые потоки
+        # Блокировки на каждый файл
         self._locks = {
             'bank': threading.Lock(),
             'history': threading.Lock(),
             'stats': threading.Lock(),
             'cache': threading.Lock(),
             'odds_history': threading.Lock(),
+            # ★ НОВЫЕ
+            'autobets': threading.Lock(),
+            'simulations': threading.Lock(),
+            'x2_matches': threading.Lock(),
         }
 
         self._default_stats = {
@@ -125,7 +135,6 @@ class Storage:
             bet.setdefault('bookmaker', '—')
             bet.setdefault('engine', None)
             bet.setdefault('weather_reason', None)
-            # ★ НОВОЕ: prob и 1-й тайм
             bet.setdefault('prob', 0)
             bet.setdefault('halftime_home', None)
             bet.setdefault('halftime_away', None)
@@ -175,20 +184,7 @@ class Storage:
         return self._path('odds_history')
 
     def save_odds_snapshot(self, fixture_id, market, selection, odds, bookmaker='—'):
-        """
-        Сохраняет снимок кэфа в odds_history.json.
-        Структура файла:
-        {
-          "fixture_id": {
-             "1X2": {
-                "1": [{"odds": 1.80, "bookmaker": "Pinnacle", "ts": "2026-09-13T14:30:00"}, ...],
-                "X": [...],
-                "2": [...]
-             },
-             "BTTS": { ... }
-          }
-        }
-        """
+        """Сохраняет снимок кэфа в odds_history.json."""
         if not fixture_id or not odds or odds <= 1.01:
             return False
 
@@ -209,7 +205,6 @@ class Storage:
                 snapshots = data[fid_key][market_key][selection_key]
                 ts_now = datetime.now().isoformat(timespec='seconds')
 
-                # Не пишем дубли в течение 60 секунд (защита от двойных вызовов)
                 if snapshots:
                     last = snapshots[-1]
                     try:
@@ -218,7 +213,6 @@ class Storage:
                             return False
                     except Exception:
                         pass
-                    # Если кэф не изменился с последнего раза — тоже не пишем
                     if abs(last.get('odds', 0) - odds) < 0.001:
                         return False
 
@@ -241,36 +235,26 @@ class Storage:
             fid_key = str(fixture_id)
             if fid_key not in data:
                 return []
-
             entry = data[fid_key]
-
-            # Фильтр по market/selection, если заданы
             if market and selection:
                 return list(entry.get(str(market), {}).get(str(selection), []))
             if market:
                 return {sel: list(vals) for sel, vals in entry.get(str(market), {}).items()}
-
-            # Всё по матчу
             return entry
         except Exception as e:
             logger.error(f"❌ get_odds_history: {e}")
             return []
 
     def get_latest_odds_before(self, fixture_id, market, selection, before_iso):
-        """
-        Последний снимок кэфа ДО указанного времени.
-        Используется для CLV — берём кэф за 10-15 минут до старта.
-        """
+        """Последний снимок кэфа ДО указанного времени."""
         try:
             snapshots = self.get_odds_history(fixture_id, market, selection)
             if not snapshots:
                 return None
-
             try:
                 before_dt = datetime.fromisoformat(before_iso)
             except Exception:
                 return None
-
             latest = None
             for s in snapshots:
                 try:
@@ -278,7 +262,7 @@ class Storage:
                     if ts <= before_dt:
                         latest = s
                     else:
-                        break  # снимки отсортированы по времени
+                        break
                 except Exception:
                     continue
             return latest
@@ -367,15 +351,10 @@ class Storage:
             return {'matches': 0, 'snapshots': 0, 'size_kb': 0}
 
     # ============================================================
-    # ★ NEW: МЕТОДЫ ДЛЯ СНИМКОВ КЭФОВ (для веб-приложения)
+    # СНИМКИ КЭФОВ (плоский вид — для веб-приложения)
     # ============================================================
     def get_all_snapshots(self):
-        """
-        Возвращает ВСЕ снимки в плоском виде:
-        [{'fixture_id': int, 'market': str, 'selection': str,
-          'odds': float, 'bookmaker': str, 'created_at': str}, ...]
-        Отсортировано по времени (сначала свежие).
-        """
+        """Все снимки в плоском виде, отсортировано по времени (свежие первыми)."""
         try:
             data = self._read('odds_history', {})
             if not isinstance(data, dict):
@@ -405,19 +384,9 @@ class Storage:
             return []
 
     def get_snapshots_since(self, cutoff_iso):
-        """
-        Возвращает снимки с created_at >= cutoff_iso.
-        cutoff_iso — строка ISO, например '2026-09-10T00:00:00'.
-
-        Устойчиво к разным форматам даты:
-          - '2026-09-10 00:00:00' → приводится к 'T'
-          - '2026-09-10T00:00:00' → используется как есть
-          - '2026-09-10' → добавляется T00:00:00
-        """
+        """Снимки с created_at >= cutoff_iso."""
         try:
             all_snaps = self.get_all_snapshots()
-
-            # Приводим cutoff к ISO-формату
             cutoff_clean = str(cutoff_iso).strip().replace(' ', 'T')
             if 'T' not in cutoff_clean:
                 cutoff_clean += 'T00:00:00'
@@ -433,10 +402,7 @@ class Storage:
             return []
 
     def get_snapshots_by_fixture(self, fixture_id):
-        """
-        Возвращает ВСЕ снимки для одного матча в плоском виде.
-        Отсортировано по времени (сначала старые).
-        """
+        """Все снимки для одного матча (сначала старые)."""
         try:
             data = self._read('odds_history', {})
             if not isinstance(data, dict):
@@ -465,10 +431,7 @@ class Storage:
             return []
 
     def get_unique_fixtures_with_snapshots(self, days=7):
-        """
-        Возвращает уникальные fixture_id, для которых есть снимки за N дней.
-        Используется для отображения списка матчей со снимками.
-        """
+        """Уникальные fixture_id, для которых есть снимки за N дней."""
         try:
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
             snaps = self.get_snapshots_since(cutoff)
@@ -476,6 +439,252 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ get_unique_fixtures_with_snapshots: {e}")
             return []
+
+    # ============================================================
+    # ★ АВТОСТАВКИ (autobets.json)
+    # ============================================================
+    def autobet_load_all(self):
+        """Возвращает список всех автоставок."""
+        data = self._read('autobets', [])
+        return data if isinstance(data, list) else []
+
+    def autobet_save_all(self, bets):
+        """Полностью перезаписывает файл автоставок."""
+        with self._locks['autobets']:
+            if not isinstance(bets, list):
+                logger.error("❌ autobet_save_all: не список")
+                return False
+            self._backup('autobets')
+            try:
+                self._atomic_write('autobets', bets)
+                return True
+            except Exception as e:
+                logger.error(f"❌ autobet_save_all: {e}")
+                return False
+
+    def autobet_insert(self, match_key, home, away, league, match_time,
+                       fixture_id, bet_label, bet_type, odds, stake,
+                       ev, prob, bookmaker):
+        """Добавляет автоставку, если её ещё нет. Возвращает True если добавлена."""
+        with self._locks['autobets']:
+            try:
+                bets = self._read('autobets', [])
+                if not isinstance(bets, list):
+                    bets = []
+
+                # Проверка на дубликат
+                for b in bets:
+                    if b.get('match_key') == match_key:
+                        return False
+
+                bets.append({
+                    'id': len(bets) + 1,
+                    'match_key': match_key,
+                    'home': home,
+                    'away': away,
+                    'league': league,
+                    'match_time': match_time,
+                    'fixture_id': fixture_id,
+                    'bet_label': bet_label,
+                    'bet_type': bet_type,
+                    'odds': float(odds),
+                    'stake': float(stake),
+                    'ev': float(ev),
+                    'prob': float(prob),
+                    'bookmaker': bookmaker,
+                    'result': 'pending',
+                    'profit': 0,
+                    'home_goals': None,
+                    'away_goals': None,
+                    'halftime_home': None,
+                    'halftime_away': None,
+                    'created_at': datetime.now().isoformat(timespec='seconds'),
+                    'settled_at': None,
+                })
+
+                self._atomic_write('autobets', bets)
+                return True
+            except Exception as e:
+                logger.error(f"❌ autobet_insert: {e}")
+                return False
+
+    def autobet_get_state(self, default_bank=1000.0):
+        """Возвращает агрегированное состояние автоставок."""
+        try:
+            bets = self.autobet_load_all()
+            total_staked = 0.0
+            total_profit = 0.0
+            wins = losses = pending = 0
+
+            for b in bets:
+                total_staked += float(b.get('stake', 0) or 0)
+                total_profit += float(b.get('profit', 0) or 0)
+                r = b.get('result', 'pending')
+                if r == 'win':
+                    wins += 1
+                elif r == 'loss':
+                    losses += 1
+                elif r == 'pending':
+                    pending += 1
+
+            total_bets = len(bets)
+            current_bank = default_bank + total_profit
+            roi = (total_profit / total_staked * 100) if total_staked > 0 else 0
+            winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+
+            return {
+                'bank': round(current_bank, 2),
+                'start_bank': default_bank,
+                'total_profit': round(total_profit, 2),
+                'total_staked': round(total_staked, 2),
+                'total_bets': total_bets,
+                'wins': wins,
+                'losses': losses,
+                'pending': pending,
+                'roi': round(roi, 1),
+                'winrate': round(winrate, 1),
+            }
+        except Exception as e:
+            logger.error(f"❌ autobet_get_state: {e}")
+            return {
+                'bank': default_bank, 'start_bank': default_bank,
+                'total_profit': 0, 'total_staked': 0, 'total_bets': 0,
+                'wins': 0, 'losses': 0, 'pending': 0, 'roi': 0, 'winrate': 0,
+            }
+
+    def autobet_get_history(self, limit=100):
+        """История автоставок (свежие первыми)."""
+        try:
+            bets = self.autobet_load_all()
+            bets_sorted = sorted(bets, key=lambda x: x.get('created_at', ''), reverse=True)
+            return bets_sorted[:limit]
+        except Exception as e:
+            logger.error(f"❌ autobet_get_history: {e}")
+            return []
+
+    def autobet_get_pending(self):
+        """Все pending-автоставки."""
+        try:
+            bets = self.autobet_load_all()
+            return [b for b in bets if b.get('result') == 'pending']
+        except Exception as e:
+            logger.error(f"❌ autobet_get_pending: {e}")
+            return []
+
+    def autobet_settle(self, match_key, result, profit,
+                       home_goals=None, away_goals=None,
+                       halftime_home=None, halftime_away=None):
+        """Обновляет результат автоставки по match_key."""
+        with self._locks['autobets']:
+            try:
+                bets = self._read('autobets', [])
+                if not isinstance(bets, list):
+                    return False
+
+                updated = False
+                for b in bets:
+                    if b.get('match_key') == match_key and b.get('result') == 'pending':
+                        b['result'] = result
+                        b['profit'] = float(profit)
+                        b['home_goals'] = home_goals
+                        b['away_goals'] = away_goals
+                        b['halftime_home'] = halftime_home
+                        b['halftime_away'] = halftime_away
+                        b['settled_at'] = datetime.now().isoformat(timespec='seconds')
+                        updated = True
+                        break
+
+                if updated:
+                    self._atomic_write('autobets', bets)
+                return updated
+            except Exception as e:
+                logger.error(f"❌ autobet_settle: {e}")
+                return False
+
+    def autobet_reset(self):
+        """Полностью очищает автоставки."""
+        with self._locks['autobets']:
+            try:
+                self._backup('autobets')
+                self._atomic_write('autobets', [])
+                return True
+            except Exception as e:
+                logger.error(f"❌ autobet_reset: {e}")
+                return False
+
+    # ============================================================
+    # ★ СИМУЛЯЦИИ СТРАТЕГИЙ (simulations.json)
+    # ============================================================
+    def save_simulation(self, name, params, result):
+        """Сохраняет результат симуляции в JSON."""
+        with self._locks['simulations']:
+            try:
+                sims = self._read('simulations', [])
+                if not isinstance(sims, list):
+                    sims = []
+
+                sims.append({
+                    'id': len(sims) + 1,
+                    'name': name,
+                    'params': params,
+                    'total_bets': result.get('total_bets', 0),
+                    'wins': result.get('wins', 0),
+                    'losses': result.get('losses', 0),
+                    'pushes': result.get('pushes', 0),
+                    'profit': result.get('profit', 0),
+                    'roi': result.get('roi', 0),
+                    'winrate': result.get('winrate', 0),
+                    'max_drawdown': result.get('max_drawdown', 0),
+                    'created_at': datetime.now().isoformat(timespec='seconds'),
+                })
+
+                self._atomic_write('simulations', sims)
+                return True
+            except Exception as e:
+                logger.error(f"❌ save_simulation: {e}")
+                return False
+
+    def get_simulations(self, limit=50):
+        """Возвращает сохранённые симуляции (свежие первыми)."""
+        try:
+            sims = self._read('simulations', [])
+            if not isinstance(sims, list):
+                return []
+            sims_sorted = sorted(sims, key=lambda x: x.get('created_at', ''), reverse=True)
+            return sims_sorted[:limit]
+        except Exception as e:
+            logger.error(f"❌ get_simulations: {e}")
+            return []
+
+    # ============================================================
+    # ★ X2 МАТЧИ (x2_matches.json)
+    # ============================================================
+    def x2_load(self):
+        """Загружает X2 матчи."""
+        data = self._read('x2_matches', [])
+        return data if isinstance(data, list) else []
+
+    def x2_save_all(self, matches):
+        """Полностью перезаписывает X2 данные."""
+        with self._locks['x2_matches']:
+            if not isinstance(matches, list):
+                logger.error("❌ x2_save_all: не список")
+                return False
+            self._backup('x2_matches')
+            try:
+                self._atomic_write('x2_matches', matches)
+                return True
+            except Exception as e:
+                logger.error(f"❌ x2_save_all: {e}")
+                return False
+
+    def x2_count(self):
+        """Количество X2 матчей."""
+        try:
+            return len(self.x2_load())
+        except Exception as e:
+            logger.error(f"❌ x2_count: {e}")
+            return 0
 
     # ============================================================
     # ПОЛНЫЙ БЭКАП
@@ -487,10 +696,14 @@ class Storage:
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
             dst = os.path.join(backup_dir, f'backup_{ts}')
             os.makedirs(dst, exist_ok=True)
-            for name in ('bank', 'history', 'stats', 'cache', 'odds_history'):
+
+            files = ('bank', 'history', 'stats', 'cache', 'odds_history',
+                     'autobets', 'simulations', 'x2_matches')
+            for name in files:
                 src = self._path(name)
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(dst, f'{name}.json'))
+
             logger.info(f"💾 Бэкап: {dst}")
             return dst
         except Exception as e:
