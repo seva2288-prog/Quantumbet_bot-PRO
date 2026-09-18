@@ -2885,7 +2885,8 @@ def load_bot_settings():
 
 
 # ============================================================
-# WEBHOOK ★ ДОБАВЛЕНЫ команды /live, /force_settle, /debug_pending
+# WEBHOOK ★ ДОБАВЛЕНЫ команды /live, /force_settle, /debug_pending,
+#          /snapshots, /snapshot
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -2992,7 +2993,7 @@ def webhook():
                         msg += f"⚽ Live-счёт обновлён: <b>{live}</b>\n"
                     send_telegram(msg)
 
-            # ★★★ НОВАЯ КОМАНДА /live
+            # ★★★ КОМАНДА /live — активные live-матчи
             elif text == '/live':
                 try:
                     bets = storage.autobet_load_all()
@@ -3045,7 +3046,7 @@ def webhook():
                     logger.exception(f"Ошибка /live: {e}")
                     send_telegram(f"❌ Ошибка /live: {e}")
 
-            # ★★★ НОВАЯ КОМАНДА /force_settle
+            # ★★★ КОМАНДА /force_settle — принудительное обновление
             elif text == '/force_settle':
                 send_telegram("🔧 Принудительное обновление всех pending...")
                 try:
@@ -3062,7 +3063,7 @@ def webhook():
                     logger.exception(f"Ошибка /force_settle: {e}")
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # ★★★ НОВАЯ КОМАНДА /debug_pending
+            # ★★★ КОМАНДА /debug_pending — диагностика
             elif text == '/debug_pending':
                 try:
                     bets = storage.autobet_load_all()
@@ -3100,6 +3101,92 @@ def webhook():
                         send_telegram(msg)
                 except Exception as e:
                     logger.exception(f"Ошибка /debug_pending: {e}")
+                    send_telegram(f"❌ Ошибка: {e}")
+
+            # ★★★ НОВАЯ КОМАНДА /snapshots — статистика снимков
+            elif text == '/snapshots':
+                try:
+                    # Общая статистика
+                    stats = storage.get_odds_history_size()
+
+                    # Свежие снимки за 7 дней
+                    cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                    recent = storage.get_snapshots_since(cutoff)
+
+                    # Уникальные матчи
+                    unique_fixtures = set(s.get('fixture_id') for s in recent if s.get('fixture_id'))
+
+                    # Топ матчей по количеству снимков
+                    fixture_counts = defaultdict(int)
+                    for s in recent:
+                        fid = s.get('fixture_id')
+                        if fid:
+                            fixture_counts[fid] += 1
+
+                    top_fixtures = sorted(fixture_counts.items(), key=lambda x: -x[1])[:5]
+
+                    # Загрузка кэша для имён
+                    cache = storage.load_cache()
+                    all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+                    match_lookup = {m.get('fixture_id'): m for m in all_matches if m.get('fixture_id')}
+
+                    msg = f"📸 <b>СТАТИСТИКА СНИМКОВ</b>\n"
+                    msg += "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    msg += f"🎯 Уникальных матчей: <b>{stats['matches']}</b>\n"
+                    msg += f"📊 Всего снимков: <b>{stats['snapshots']}</b>\n"
+                    msg += f"💾 Размер БД: <b>{stats['size_kb']} КБ</b>\n"
+                    msg += f"📅 За 7 дней: <b>{len(recent)}</b> снимков ({len(unique_fixtures)} матчей)\n\n"
+
+                    if top_fixtures:
+                        msg += "🔥 <b>ТОП-5 по снимкам:</b>\n"
+                        for fid, count in top_fixtures:
+                            m = match_lookup.get(fid, {})
+                            home = m.get('home', f'ID:{fid}')
+                            away = m.get('away', '')
+                            if away:
+                                msg += f"  • {home} vs {away} — <b>{count}</b>\n"
+                            else:
+                                msg += f"  • fixture_id={fid} — <b>{count}</b>\n"
+                        msg += "\n"
+
+                    # Последние 3 свежих снимка
+                    if recent:
+                        msg += "🕐 <b>Последние снимки:</b>\n"
+                        for s in recent[:3]:
+                            fid = s.get('fixture_id')
+                            m = match_lookup.get(fid, {})
+                            home = m.get('home', f'ID:{fid}')
+                            away = m.get('away', '')
+                            sel = s.get('selection', '?')
+                            odd = s.get('odds', 0)
+                            created = s.get('created_at', '')[:16]
+                            sel_label = '1X' if sel == '1' else sel
+                            if away:
+                                msg += f"  • {home} vs {away}\n"
+                                msg += f"    🎯 {sel_label} @ {odd} | {created}\n"
+                            else:
+                                msg += f"  • ID:{fid} {sel_label} @ {odd} | {created}\n"
+
+                    msg += "\n💡 Запусти <b>/snapshot</b> для нового снимка"
+
+                    send_telegram(msg)
+                except Exception as e:
+                    logger.exception(f"Ошибка /snapshots: {леноe}")
+                    send_telegram(f"❌
+
+ Ошибка /snapshots|: {e}")
+
+            # ★★★ НОВАЯ Ком КОМАНДА /snapshot — ручной запуск снимка
+            elif text == '/snapshot':
+                send_telegram("📸 Делаю снимок кэфов...")
+                try:
+                    n = snapshot_odds_for_upcoming()
+                    if n > 0:
+                        send_telegram(f"✅ Создано <b>{n}</b> снимков")
+                    else:
+                        send_telegram("📭 Нечего снимать (нет матчей в ближайшие 3 часа)")
+                except Exception as e:
+                    logger.exception(f"Ошибка /snapshot: {e}")
                     send_telegram(f"❌ Ошибка: {e}")
 
             elif text.startswith('/result '):
@@ -3927,6 +4014,8 @@ def register_bot_commands():
             {"command": "update", "description": "🔍 Полный поиск матчей"},
             {"command": "today", "description": "🎯 ТОП-5 матчей из кэша"},
             {"command": "live", "description": "⚽ Активные live-матчи"},
+            {"command": "snapshots", "description": "📸 Статистика снимков"},
+            {"command": "snapshot", "description": "📸 Создать снимки сейчас"},
             {"command": "update_results", "description": "🔄 Обновить результаты"},
             {"command": "force_settle", "description": "🔧 Принудительно обновить pending"},
             {"command": "debug_pending", "description": "🔍 Диагностика pending"},
