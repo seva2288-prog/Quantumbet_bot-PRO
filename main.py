@@ -278,13 +278,8 @@ class RetryManager:
 
 
 # ============================================================
-# ★ TELEGRAM с Rate Limit
+# TELEGRAM
 # ============================================================
-_telegram_lock = Lock()
-_last_telegram_send = 0
-TELEGRAM_MIN_INTERVAL = 0.05  # 50 мс = 20 сообщений/сек макс
-
-
 def send_error_to_telegram(error_text: str):
     try:
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
@@ -300,45 +295,19 @@ def send_error_to_telegram(error_text: str):
 
 
 def send_telegram(text: str, parse_mode: str = 'HTML'):
-    """
-    Отправляет сообщение в Telegram.
-    ★ Защита от rate limit: не чаще 20 сообщений в секунду.
-    """
-    global _last_telegram_send
-
     targets = [Config.ADMIN_CHAT_ID]
     if Config.CHANNEL_ID and str(Config.CHANNEL_ID) != str(Config.ADMIN_CHAT_ID):
         targets.append(Config.CHANNEL_ID)
-
     for chat_id in targets:
         try:
-            # ★ Rate limit: пауза между сообщениями
-            with _telegram_lock:
-                now = time.time()
-                delta = now - _last_telegram_send
-                if delta < TELEGRAM_MIN_INTERVAL:
-                    time.sleep(TELEGRAM_MIN_INTERVAL - delta)
-                _last_telegram_send = time.time()
-
             url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
             r = requests.post(url, json={
                 'chat_id': chat_id,
                 'text': text,
                 'parse_mode': parse_mode
             }, timeout=10)
-
-            if r.status_code == 429:
-                retry_after = int(r.headers.get('Retry-After', 5))
-                logger.warning(f"⏳ Telegram rate limit: ждём {retry_after} сек")
-                time.sleep(retry_after)
-                r = requests.post(url, json={
-                    'chat_id': chat_id,
-                    'text': text,
-                    'parse_mode': parse_mode
-                }, timeout=10)
-
             if r.status_code != 200:
-                logger.error(f"❌ Ошибка отправки в {chat_id}: {r.text[:200]}")
+                logger.error(f"❌ Ошибка отправки в {chat_id}: {r.text}")
         except Exception as e:
             logger.error(f"❌ Send error → {chat_id}: {e}")
 
@@ -930,9 +899,15 @@ odds_api = OddsAPIClient()
 
 
 # ============================================================
-# AUTOBET MANAGER
+# ★ AUTOBET MANAGER — с CLV и Telegram-уведомлениями
 # ============================================================
 class AutoBetManager:
+    """
+    Управляет виртуальным банком автоставок.
+    ★ Ставит ТОЛЬКО на матчи с реальными кэфами.
+    ★ Считает CLV (Closing Line Value).
+    ★ Отправляет Telegram-уведомления о новых ставках и результатах.
+    """
     DEFAULT_BANK = 1000.0
     DEFAULT_STAKE_PCT = 0.02
 
@@ -953,6 +928,7 @@ class AutoBetManager:
             state = self.get_state()
             current_bank = state['bank']
             if current_bank <= 0:
+                logger.warning("AutoBetManager: банк исчерпан")
                 return False
 
             best_bet = match_data.get('best_bet', {})
@@ -960,6 +936,10 @@ class AutoBetManager:
                 return False
 
             if not best_bet.get('odds_updated'):
+                logger.debug(
+                    f"⏭️ Автоставка пропущена (кэф не обновлён): "
+                    f"{match_data.get('home')} vs {match_data.get('away')}"
+                )
                 return False
 
             stake = round(current_bank * self.stake_pct, 2)
@@ -994,6 +974,7 @@ class AutoBetManager:
                     f"{match_data.get('away')} | {best_bet.get('label')} | "
                     f"${stake} @ {best_bet.get('odds')}"
                 )
+                # ★ Telegram-уведомление о новой автоставке
                 try:
                     send_telegram(
                         f"💸 <b>НОВАЯ АВТОСТАВКА</b>\n\n"
@@ -1042,13 +1023,17 @@ class AutoBetManager:
                     placed += 1
 
             if placed > 0:
-                logger.info(f"💸 Автоставок размещено: {placed}")
+                logger.info(f"💸 Автоставок размещено: {placed} (из {len(valid_matches)} с реальными кэфами)")
             return placed
         except Exception as e:
             logger.error(f"place_bets_from_cache: {e}")
             return 0
 
     def settle_pending(self):
+        """
+        Обновляет результаты автоставок.
+        ★ Отправляет Telegram-уведомление о результате.
+        """
         try:
             pending = storage.autobet_get_pending()
             updated = 0
@@ -1096,6 +1081,7 @@ class AutoBetManager:
                 )
                 updated += 1
 
+                # ★ Telegram-уведомление о результате
                 try:
                     emoji = "✅" if result == 'win' else "❌" if result == 'loss' else "➖"
                     profit_str = f"+${profit:.2f}" if profit > 0 else (f"-${abs(profit):.2f}" if profit < 0 else "$0")
@@ -1120,10 +1106,19 @@ class AutoBetManager:
             logger.error(f"AutoBetManager.settle_pending: {e}")
             return 0
 
+    # ============================================================
+    # ★ CLV — Closing Line Value
+    # ============================================================
     def compute_clv_for_settled(self):
+        """
+        Считает CLV для всех автоставок, где есть fixture_id и ещё нет CLV.
+        CLV = (our_odds / closing_odds - 1) × 100
+        closing_odds — последний снимок перед началом матча (за 1 час).
+        """
         try:
             candidates = storage.autobet_get_pending_clv()
             if not candidates:
+                logger.info("📊 CLV: нет кандидатов для пересчёта")
                 return 0
 
             updated = 0
@@ -1210,9 +1205,14 @@ autobet_manager = AutoBetManager()
 
 
 # ============================================================
-# STRATEGY SIMULATOR + GRID SEARCH
+# ★ STRATEGY SIMULATOR + GRID SEARCH
 # ============================================================
 class StrategySimulator:
+    """
+    Симулирует стратегию на исторических данных.
+    ★ Добавлен Grid Search — автоподбор лучшей стратегии.
+    """
+
     def simulate(self, params, use_history=True, use_cache=True):
         all_matches = []
 
@@ -1372,7 +1372,13 @@ class StrategySimulator:
             'bets': bets_log[:100],
         }
 
+    # ============================================================
+    # ★ GRID SEARCH
+    # ============================================================
     def grid_search(self, max_combinations=200, min_bets=5):
+        """
+        Перебирает комбинации параметров и находит топ-5 по ROI.
+        """
         try:
             logger.info(f"🔍 GRID SEARCH: перебор до {max_combinations} комбинаций...")
 
@@ -1887,7 +1893,7 @@ def update_odds_for_matches(matches):
                 MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
                 MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
                 if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
-                    logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]: {home} vs {away}")
+                    logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]: {home} vs {away} — матч исключён")
                     continue
 
                 prob = best_bet.get('prob', 0) / 100
@@ -1917,7 +1923,7 @@ def update_odds_for_matches(matches):
                     logger.error(f"Ошибка записи снимка: {e}")
                 updated.append(md)
             else:
-                logger.info(f"⏭️ Кэф не найден для {home} vs {away}")
+                logger.info(f"⏭️ Кэф не найден для {home} vs {away} — матч исключён")
                 continue
         except Exception as e:
             logger.error(f"Ошибка кэфов: {e}")
@@ -2037,7 +2043,6 @@ def find_top_matches(matches):
     for match_idx, match in enumerate(matches):
         if not match or not isinstance(match, dict): continue
         if (match_idx + 1) % heartbeat_interval == 0:
-            elapsed = time.time() - find_start_time
             send_telegram(f"💓 <b>АНАЛИЗ 70%+</b> | {match_idx + 1}/{total_matches}\n🎯 Кандидатов: {len(best_matches)}")
         try:
             fixture = match.get('fixture')
@@ -2267,7 +2272,8 @@ def find_tm25_matches(matches):
                     'prob': round(p_under * 100, 1),
                     'ev': round(ev_under * 100, 1),
                     'odds': odds_tm25, 'stake': round(42.87, 2),
-                    'level': 'PREMIUM', 'odds_updated': False,
+                    'level': 'PREMIUM',
+                    'odds_updated': False,
                 }
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2292,7 +2298,8 @@ def find_tm25_matches(matches):
                     'prob': round(p_under * 100, 1),
                     'ev': round(ev_under * 100, 1),
                     'odds': odds_tm25, 'stake': round(42.87, 2),
-                    'level': 'STANDARD', 'odds_updated': False,
+                    'level': 'STANDARD',
+                    'odds_updated': False,
                 }
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2312,7 +2319,6 @@ def find_tm25_matches(matches):
     logger.info(f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}")
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     return tm25_candidates
-    
 
 # ============================================================
 # ОБЪЕДИНЕНИЕ ПОТОКОВ
@@ -2369,6 +2375,7 @@ def find_top_matches_with_tm25(matches):
         if ev < EV_MIN or ev > EV_MAX: continue
         if prob < PROB_MIN: continue
         if not bb.get('odds_updated'):
+            logger.info(f"⏭️ {m.get('home')} vs {m.get('away')}: нет реального кэфа — пропуск")
             continue
         filtered.append(m)
     logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}")
@@ -2390,7 +2397,8 @@ def find_top_matches_with_tm25(matches):
             'home': md.get('home'), 'away': md.get('away'),
             'league': md.get('league'), 'bet': bb.get('label', '—'),
             'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
-            'ev': bb.get('ev', 0), 'prob': bb.get('prob', 0),
+            'ev': bb.get('ev', 0),
+            'prob': bb.get('prob', 0),
             'result': 'pending', 'profit': 0,
             'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
             'fixture_id': md.get('fixture_id'),
@@ -2406,6 +2414,8 @@ def find_top_matches_with_tm25(matches):
         placed = autobet_manager.place_bets_from_cache()
         if placed > 0:
             logger.info(f"💸 Автоставок размещено: {placed}")
+        else:
+            logger.info(f"⏭️ Автоставок не размещено (нет матчей с реальными кэфами)")
     except Exception as e:
         logger.error(f"Ошибка автоставок: {e}")
 
@@ -2528,66 +2538,29 @@ def snapshot_odds_for_upcoming():
 
 
 # ============================================================
-# ★ SAFE JOB — обёртка для шедулеров с логированием и уведомлениями
-# ============================================================
-def safe_job(func, name):
-    """
-    Безопасная обёртка для задач в APScheduler.
-    - Логирует старт и конец
-    - При ошибке — пишет в Telegram
-    - Не даёт упасть всему шедулеру
-    """
-    def wrapper():
-        try:
-            logger.info(f"▶️ START: {name}")
-            result = func()
-            logger.info(f"✅ END: {name} | result={result}")
-            return result
-        except Exception as e:
-            logger.exception(f"❌ FAIL: {name} | {e}")
-            try:
-                send_telegram(
-                    f"❌ <b>Ошибка задачи:</b> {name}\n\n"
-                    f"<code>{str(e)[:500]}</code>"
-                )
-            except Exception:
-                pass
-            return None
-    return wrapper
-
-
-# ============================================================
-# РАСПИСАНИЯ (с safe_job и misfire_grace_time)
+# РАСПИСАНИЯ
 # ============================================================
 def schedule_updates():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=safe_job(auto_update_results, "auto_update_results"),
-        trigger='interval', hours=6,
-        id='auto_update', replace_existing=True,
-        misfire_grace_time=300, coalesce=True,
-        max_instances=1
-    )
+    scheduler.add_job(func=auto_update_results, trigger='interval',
+                      hours=6, id='auto_update', replace_existing=True)
     scheduler.start()
     logger.info("⏰ Авто-обновление: 6ч")
 
 
 def auto_update_results():
-    updated = update_pending_bets()
-    if updated > 0:
-        send_telegram(f"🔄 Авто-обновление: {updated} результатов")
-    return updated
+    try:
+        updated = update_pending_bets()
+        if updated > 0:
+            send_telegram(f"🔄 Авто-обновление: {updated} результатов")
+    except Exception as e:
+        logger.error(f"❌ Авто-обновление: {e}")
 
 
 def schedule_notifications():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=safe_job(notification_system.run_all_checks, "notifications"),
-        trigger='interval', hours=1,
-        id='notifications', replace_existing=True,
-        misfire_grace_time=300, coalesce=True,
-        max_instances=1
-    )
+    scheduler.add_job(func=lambda: notification_system.run_all_checks(),
+                      trigger='interval', hours=1, id='notifications', replace_existing=True)
     scheduler.start()
     logger.info("🔔 Уведомления: 1ч")
 
@@ -2601,16 +2574,9 @@ def schedule_performance_report():
             for f in slow:
                 msg += f"• {f['function']}: {f['avg_time']}с\n"
             send_telegram(msg)
-        return len(slow)
-
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=safe_job(report, "performance_report"),
-        trigger='interval', hours=6,
-        id='perf_report', replace_existing=True,
-        misfire_grace_time=300, coalesce=True,
-        max_instances=1
-    )
+    scheduler.add_job(func=report, trigger='interval', hours=6,
+                      id='perf_report', replace_existing=True)
     scheduler.start()
 
 
@@ -2619,27 +2585,25 @@ def schedule_autobet():
     scheduler = BackgroundScheduler()
 
     scheduler.add_job(
-        func=safe_job(autobet_manager.place_bets_from_cache, "autobet_place"),
+        func=lambda: autobet_manager.place_bets_from_cache(),
         trigger='interval', minutes=30,
         id='autobet_place', replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=60, coalesce=True
+        max_instances=1
     )
 
     scheduler.add_job(
-        func=safe_job(autobet_manager.settle_pending, "autobet_settle"),
+        func=lambda: autobet_manager.settle_pending(),
         trigger='interval', hours=2,
         id='autobet_settle', replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=300, coalesce=True
+        max_instances=1
     )
 
+    # ★ CLV-пересчёт каждые 6 часов
     scheduler.add_job(
-        func=safe_job(autobet_manager.compute_clv_for_settled, "autobet_clv"),
+        func=lambda: autobet_manager.compute_clv_for_settled(),
         trigger='interval', hours=6,
         id='autobet_clv', replace_existing=True,
-        max_instances=1,
-        misfire_grace_time=300, coalesce=True
+        max_instances=1
     )
 
     scheduler.start()
@@ -2721,20 +2685,10 @@ def send_auto_backup():
 
 def schedule_auto_backup():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=safe_job(send_auto_backup, "auto_backup"),
-        trigger='cron', hour=0, minute=0,
-        id='auto_backup', replace_existing=True,
-        misfire_grace_time=1800, coalesce=True,
-        max_instances=1
-    )
-    scheduler.add_job(
-        func=safe_job(trim_matches_log, "trim_matches_log"),
-        trigger='cron', hour=2, minute=0,
-        id='trim_log', replace_existing=True,
-        misfire_grace_time=1800, coalesce=True,
-        max_instances=1
-    )
+    scheduler.add_job(func=send_auto_backup, trigger='cron',
+                      hour=0, minute=0, id='auto_backup', replace_existing=True)
+    scheduler.add_job(func=trim_matches_log, trigger='cron',
+                      hour=2, minute=0, id='trim_log', replace_existing=True)
     scheduler.start()
     logger.info("⏰ Бэкап: 3:00 МСК | Очистка лога: 5:00 МСК")
 
@@ -2811,10 +2765,12 @@ class NotificationSystem:
         elif roi < -10: self.send_if_needed('roi_low', f"📉 ROI: {roi}%")
 
     def run_all_checks(self):
-        self.check_bank_status()
-        self.check_streaks()
-        self.check_roi()
-        return 3
+        try:
+            self.check_bank_status()
+            self.check_streaks()
+            self.check_roi()
+        except Exception as e:
+            logger.error(f"Ошибка уведомлений: {e}")
 
 
 notification_system = NotificationSystem()
@@ -3364,6 +3320,7 @@ def api_autobets_reset():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ★ CLV endpoints
 @app.route('/api/autobets/clv/compute', methods=['POST'])
 def api_autobets_clv_compute():
     try:
@@ -3518,6 +3475,7 @@ def api_simulator_presets():
     return jsonify(presets)
 
 
+# ★ Grid Search endpoint
 @app.route('/api/simulator/grid_search', methods=['POST'])
 def api_simulator_grid_search():
     try:
@@ -3836,122 +3794,38 @@ def update_settings():
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-# ★ HEALTH-CHECK (РАСШИРЕННЫЙ)
-# ============================================================
 @app.route('/health', methods=['GET'])
 def health():
-    """
-    Расширенный health-check:
-    возвращает полное состояние бота — банк, ставки, автоставки, снимки, аптайм.
-    """
+    return {"status": "ok", "time": datetime.now().isoformat()}
+
+
+@app.route('/', methods=['GET'])
+def index():
     try:
-        bank = storage.load_bank()
-        history = storage.load_history()
-        state = bot_state.state
-
-        try:
-            start_dt = datetime.fromisoformat(state.get('start_time', datetime.now().isoformat()))
-            uptime_sec = (datetime.now() - start_dt).total_seconds()
-            uptime_hours = round(uptime_sec / 3600, 2)
-        except Exception:
-            uptime_sec = 0
-            uptime_hours = 0
-
-        try:
-            autobets_state = storage.autobet_get_state(default_bank=1000.0)
-            autobets_count = autobets_state.get('total_bets', 0)
-            autobets_roi = autobets_state.get('roi', 0)
-            autobets_clv = autobets_state.get('avg_clv', 0)
-        except Exception:
-            autobets_state = {}
-            autobets_count = 0
-            autobets_roi = 0
-            autobets_clv = 0
-
-        try:
-            odds_size = storage.get_odds_history_size()
-            odds_matches = odds_size.get('matches', 0)
-            odds_snapshots = odds_size.get('snapshots', 0)
-        except Exception:
-            odds_matches = 0
-            odds_snapshots = 0
-
-        last_backup = None
-        try:
-            backup_dir = 'backups'
-            if os.path.exists(backup_dir):
-                files = sorted([f for f in os.listdir(backup_dir) if f.endswith('.zip')], reverse=True)
-                if files:
-                    last_backup = files[0]
-        except Exception:
-            pass
-
-        memory_mb = None
-        cpu_percent = None
-        try:
-            import psutil
-            process = psutil.Process()
-            memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
-            cpu_percent = round(process.cpu_percent(interval=0.1), 1)
-        except ImportError:
-            pass
-        except Exception:
-            pass
-
-        last_search = state.get('last_full_search')
-
-        return {
-            'status': 'ok',
-            'time': datetime.now().isoformat(),
-            'uptime_hours': uptime_hours,
-            'uptime_sec': int(uptime_sec),
-            'bank': bank,
-            'total_bets': len(history),
-            'last_search': last_search,
-            'search_running': state.get('search_running', False),
-            'autobets': {
-                'count': autobets_count,
-                'bank': autobets_state.get('bank', 1000),
-                'profit': autobets_state.get('total_profit', 0),
-                'roi': autobets_roi,
-                'winrate': autobets_state.get('winrate', 0),
-                'pending': autobets_state.get('pending', 0),
-                'avg_clv': autobets_clv,
-                'clv_count': autobets_state.get('clv_count', 0),
-            },
-            'odds_history': {
-                'matches': odds_matches,
-                'snapshots': odds_snapshots,
-            },
-            'last_backup': last_backup,
-            'memory_mb': memory_mb,
-            'cpu_percent': cpu_percent,
-        }
-    except Exception as e:
-        logger.exception("❌ /health error")
-        return {
-            'status': 'error',
-            'time': datetime.now().isoformat(),
-            'error': str(e)
-        }, 500
+        return render_template('index.html')
+    except Exception:
+        return (f"🤖 Quantum Bet Bot PRO | "
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 # ============================================================
-# ★ РЕГИСТРАЦИЯ КОМАНД В TELEGRAM
+# ★ РЕГИСТРАЦИЯ КОМАНД В TELEGRAM (для кнопки "Меню")
 # ============================================================
 def register_bot_commands():
     """Регистрирует список команд в Telegram для кнопки 'Меню'."""
     try:
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
-
+        
         commands = [
+            # 🚀 Основные
             {"command": "update",         "description": "🔍 Полный поиск матчей"},
             {"command": "today",          "description": "🎯 ТОП-5 матчей из кэша"},
             {"command": "analyze",        "description": "📊 Анализ матча"},
             {"command": "status",         "description": "🤖 Статус бота"},
             {"command": "stop",           "description": "🛑 Остановить поиск"},
             {"command": "reset_search",   "description": "🔄 Сбросить поиск"},
+            
+            # 💰 Банк и статистика
             {"command": "bank",           "description": "💰 Текущий банк"},
             {"command": "stats",          "description": "📊 Общая статистика"},
             {"command": "report",         "description": "📅 Отчёт за 7 дней"},
@@ -3959,17 +3833,29 @@ def register_bot_commands():
             {"command": "timestats",      "description": "🕐 По времени"},
             {"command": "strategies",     "description": "📈 Сравнение стратегий"},
             {"command": "team",           "description": "🏟️ По команде"},
+            
+            # 💸 Автоставки
             {"command": "autobet",        "description": "💸 Вкл/выкл автоставки"},
             {"command": "autobet_state",  "description": "📊 Состояние автоставок"},
+            
+            # 📊 CLV-анализ
             {"command": "clv",            "description": "📊 Средний CLV"},
+            
+            # 🎯 Grid Search
             {"command": "grid_search",    "description": "🎯 Автопоиск стратегии"},
+            
+            # 📝 История
             {"command": "result",         "description": "✏️ Ручной результат"},
             {"command": "update_results", "description": "🔄 Обновить результаты"},
             {"command": "export",         "description": "📥 Экспорт в Excel"},
+            
+            # 💾 Резервное копирование
             {"command": "backup",         "description": "💾 Создать бэкап"},
+            
+            # ℹ️ Прочее
             {"command": "help",           "description": "ℹ️ Справка по командам"},
         ]
-
+        
         r = requests.post(url, json={"commands": commands}, timeout=10)
         if r.status_code == 200 and r.json().get('ok'):
             logger.info(f"✅ Команды зарегистрированы: {len(commands)}")
@@ -3996,8 +3882,8 @@ if __name__ == "__main__":
     schedule_performance_report()
     schedule_auto_backup()
     schedule_autobet()
-
-    # ★ РЕГИСТРАЦИЯ КОМАНД
+    
+    # ★ РЕГИСТРАЦИЯ КОМАНД В TELEGRAM
     try:
         register_bot_commands()
     except Exception as e:
@@ -4005,16 +3891,14 @@ if __name__ == "__main__":
 
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
-        func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
+        func=snapshot_odds_for_upcoming,
         trigger='interval', minutes=30,
-        id='odds_snapshot', replace_existing=True,
-        max_instances=1, misfire_grace_time=60, coalesce=True
+        id='odds_snapshot', replace_existing=True, max_instances=1
     )
     odds_scheduler.add_job(
-        func=safe_job(lambda: storage.cleanup_old_odds_history(days=30), "cleanup_odds"),
+        func=lambda: storage.cleanup_old_odds_history(days=30),
         trigger='cron', hour=4, minute=0,
-        id='odds_cleanup', replace_existing=True,
-        misfire_grace_time=1800, coalesce=True
+        id='odds_cleanup', replace_existing=True
     )
     odds_scheduler.start()
     logger.info("📸 Снимки: 30 мин | Очистка: 4:00 МСК")
@@ -4031,7 +3915,5 @@ if __name__ == "__main__":
     logger.info(f"💸 Автоставки: вкл (только с реальными кэфами)")
     logger.info(f"📊 CLV-анализ: вкл")
     logger.info(f"🎯 Grid Search: вкл")
-    logger.info(f"🛡️ Safe jobs: вкл")
-    logger.info(f"⏱️ Telegram rate limit: вкл")
     logger.info("=" * 60)
     app.run(host='0.0.0.0', port=port)
