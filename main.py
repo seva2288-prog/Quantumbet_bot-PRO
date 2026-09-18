@@ -41,6 +41,11 @@ cache_lock = Lock()
 
 X2_FILE = '/data/x2_data.json' if os.path.exists('/data') else 'x2_data.json'
 
+# ★ Статусы Football API, при которых матч СЧИТАЕТСЯ ЗАВЕРШЁННЫМ
+FINAL_STATUSES = ('FT', 'AET', 'PEN')
+# ★ Статусы, при которых матч идёт (live)
+LIVE_STATUSES = ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE', 'SUSP')
+
 
 @app.after_request
 def force_utf8(response):
@@ -201,6 +206,7 @@ class SmartCache:
         self.ttl_by_type = {
             'form': 43200, 'odds': 60, 'statistics': 86400,
             'standings': 86400, 'matches': 43200, 'h2h': 604800,
+            'result': 300,   # ★ live-счёт кэшируется 5 мин
         }
 
     def get(self, key, data_type='default'):
@@ -586,25 +592,38 @@ class FootballAPI:
             logger.error(f"Ошибка травм {team_id}: {e}")
         return []
 
+    # ★★★ ИСПРАВЛЕНО: возвращаем статус матча
     @timing_decorator()
     def get_match_result(self, fixture_id):
+        """
+        Возвращает счёт + статус матча.
+        Счёт может быть как live, так и финальным — зависит от status.
+        """
         cache_key = f"result_{fixture_id}"
-        cached = self.cache.get(cache_key)
+        cached = self.cache.get(cache_key, data_type='result')
         if cached is not None:
             return cached
         try:
             data = self._make_request('/fixtures', {'id': fixture_id})
             if data and 'response' in data:
                 f = data['response'][0]
+                goals = f.get('score', {})
                 halftime = f.get('score', {}).get('halftime', {})
+                status = f.get('status', {})
                 result = {
-                    'goals': {'home': f.get('goals', {}).get('home'),
-                              'away': f.get('goals', {}).get('away')},
+                    'goals': {
+                        'home': f.get('goals', {}).get('home'),
+                        'away': f.get('goals', {}).get('away')
+                    },
                     'halftime': {
                         'home': halftime.get('home'),
                         'away': halftime.get('away')
                     },
-                    'status': f.get('status', {}).get('short', 'FT')
+                    'status': status.get('short', 'NS'),
+                    'status_long': status.get('long', ''),
+                    'minute': status.get('elapsed', 0),
+                    'is_final': status.get('short') in FINAL_STATUSES,
+                    'is_live': status.get('short') in LIVE_STATUSES
                 }
                 self.cache.set(cache_key, result)
                 return result
@@ -1019,10 +1038,16 @@ class AutoBetManager:
             logger.error(f"place_bets_from_cache: {e}")
             return 0
 
+    # ★★★ ИСПРАВЛЕНО: проверка статуса матча (FT/AET/PEN)
     def settle_pending(self):
+        """
+        Обновляет результаты автоставок ТОЛЬКО для завершённых матчей.
+        Live-счёт сохраняется отдельно в поле live_score.
+        """
         try:
             pending = storage.autobet_get_pending()
             updated = 0
+            live_updated = 0
             for b in pending:
                 fid = b.get('fixture_id')
                 home = b.get('home', '')
@@ -1036,6 +1061,27 @@ class AutoBetManager:
                     continue
                 hg = md['goals']['home']
                 ag = md['goals']['away']
+                status = md.get('status', 'NS')
+
+                # ★★★ ИСПРАВЛЕНИЕ: если матч НЕ ЗАВЕРШЁН — сохраняем live-счёт,
+                # но НЕ трогаем result/profit
+                if not md.get('is_final', False):
+                    ht = md.get('halftime', {}) or {}
+                    storage.autobet_update_live(
+                        match_key=b.get('match_key'),
+                        home_goals=hg, away_goals=ag,
+                        status=status, minute=md.get('minute', 0),
+                        halftime_home=ht.get('home'),
+                        halftime_away=ht.get('away'),
+                    )
+                    live_updated += 1
+                    logger.info(
+                        f"⚽ LIVE: {home} vs {away} | {hg}-{ag} | статус={status} "
+                        f"| {md.get('minute', 0)}'"
+                    )
+                    continue
+
+                # ★ Матч завершён — считаем результат
                 result = determine_bet_result(b.get('bet_type', ''), hg, ag)
                 if result == 'pending':
                     continue
@@ -1071,10 +1117,53 @@ class AutoBetManager:
                 except Exception as e:
                     logger.error(f"Telegram notify settle: {e}")
             if updated > 0:
-                logger.info(f"✅ Автоставки обновлены: {updated}")
+                logger.info(f"✅ Автоставки обновлены (FT): {updated}")
+            if live_updated > 0:
+                logger.info(f"⚽ Live-счёт обновлён: {live_updated}")
             return updated
         except Exception as e:
             logger.error(f"AutoBetManager.settle_pending: {e}")
+            return 0
+
+    # ★ NEW: обновление live-счёта без финализации
+    def update_live_scores(self):
+        """
+        Обновляет ТОЛЬКО live-счёт для идущих матчей.
+        Не трогает result/profit.
+        """
+        try:
+            pending = storage.autobet_get_pending()
+            updated = 0
+            for b in pending:
+                fid = b.get('fixture_id')
+                if not fid:
+                    continue
+                md = football_api.get_match_result(fid)
+                if not md or md.get('goals', {}).get('home') is None:
+                    continue
+                if md.get('is_final', False):
+                    continue  # финализируем отдельной функцией
+                hg = md['goals']['home']
+                ag = md['goals']['away']
+                status = md.get('status', 'NS')
+                ht = md.get('halftime', {}) or {}
+                storage.autobet_update_live(
+                    match_key=b.get('match_key'),
+                    home_goals=hg, away_goals=ag,
+                    status=status, minute=md.get('minute', 0),
+                    halftime_home=ht.get('home'),
+                    halftime_away=ht.get('away'),
+                )
+                updated += 1
+                logger.info(
+                    f"⚽ LIVE: {b.get('home')} vs {b.get('away')} | {hg}-{ag} "
+                    f"| статус={status} | {md.get('minute', 0)}'"
+                )
+            if updated > 0:
+                logger.info(f"⚽ Live-счёт обновлён для {updated} матчей")
+            return updated
+        except Exception as e:
+            logger.error(f"update_live_scores: {e}")
             return 0
 
     def compute_clv_for_settled(self):
@@ -2197,8 +2286,13 @@ def find_top_matches_with_tm25(matches):
 # ============================================================
 @timing_decorator()
 def update_pending_bets():
+    """
+    Обновляет результаты ставок в истории.
+    ★ Live-счёт сохраняется отдельно, финальный результат — только для FT.
+    """
     history = storage.load_history()
     updated = 0
+    live_updated = 0
     for bet in history:
         if bet.get('result') in ('pending', None):
             fid = bet.get('fixture_id')
@@ -2209,25 +2303,46 @@ def update_pending_bets():
                 md = football_api.get_match_result(fid)
                 if md:
                     hg = md['goals']['home']; ag = md['goals']['away']
-                    if hg is not None and ag is not None:
-                        result = determine_bet_result(bet.get('bet', ''), hg, ag)
-                        if result != 'pending':
-                            bet['result'] = result
-                            bet['home_goals'] = hg
-                            bet['away_goals'] = ag
-                            if md.get('halftime'):
-                                bet['halftime_home'] = md['halftime'].get('home')
-                                bet['halftime_away'] = md['halftime'].get('away')
-                            if result == 'win':
-                                bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
-                            elif result == 'loss':
-                                bet['profit'] = -bet['stake']
-                            else:
-                                bet['profit'] = 0
-                            updated += 1
-    if updated > 0:
+                    if hg is None or ag is None:
+                        continue
+
+                    # ★★★ Live-счёт (матч не завершён)
+                    if not md.get('is_final', False):
+                        bet['live_score'] = f"{hg}-{ag}"
+                        bet['live_status'] = md.get('status', '')
+                        bet['live_minute'] = md.get('minute', 0)
+                        ht = md.get('halftime', {}) or {}
+                        if ht.get('home') is not None:
+                            bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
+                        live_updated += 1
+                        continue
+
+                    # ★ Матч завершён — финализируем
+                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
+                    if result != 'pending':
+                        bet['result'] = result
+                        bet['home_goals'] = hg
+                        bet['away_goals'] = ag
+                        if md.get('halftime'):
+                            bet['halftime_home'] = md['halftime'].get('home')
+                            bet['halftime_away'] = md['halftime'].get('away')
+                        if result == 'win':
+                            bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
+                        elif result == 'loss':
+                            bet['profit'] = -bet['stake']
+                        else:
+                            bet['profit'] = 0
+                        # чистим live-поля
+                        bet.pop('live_score', None)
+                        bet.pop('live_status', None)
+                        bet.pop('live_minute', None)
+                        bet.pop('live_halftime', None)
+                        updated += 1
+    if updated > 0 or live_updated > 0:
         storage.save_history(history)
-        recalc_stats()
+        if updated > 0:
+            recalc_stats()
+    logger.info(f"🔄 update_pending_bets: FT={updated}, LIVE={live_updated}")
     return updated
 
 
@@ -2250,7 +2365,7 @@ def recalc_stats():
 
 
 # ============================================================
-# ★ СНИМКИ КЭФОВ (с fallback на Odds API)
+# СНИМКИ КЭФОВ
 # ============================================================
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot: НАЧАЛО")
@@ -2260,7 +2375,6 @@ def snapshot_odds_for_upcoming():
             matches = cache.get('all_analyzed') or cache.get('top_matches', [])
         logger.info(f"🔍 snapshot: матчей в кэше: {len(matches)}")
         if not matches:
-            logger.info("⏭️ snapshot: нет матчей")
             return 0
         now = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         in_window = 0
@@ -2277,21 +2391,17 @@ def snapshot_odds_for_upcoming():
                 except ValueError:
                     continue
                 hours_to_match = (match_dt - now).total_seconds() / 3600
-                # ★ Расширили окно: 0 < hours <= 3 (было 2)
                 if not (0 < hours_to_match <= 3):
                     continue
                 in_window += 1
                 fid = md.get('fixture_id')
-                if not fid:
-                    continue
+                if not fid: continue
 
-                # ★ Источник 1: Football API
                 fo = football_api.get_match_odds(fid)
                 odds_to_save = None
                 bookmaker = '—'
 
                 if fo:
-                    # Проверяем, есть ли хоть один валидный кэф
                     has_valid = (fo.get('home_odds', 0) > 1.01 or
                                  fo.get('away_odds', 0) > 1.01 or
                                  fo.get('draw_odds', 0) > 1.01)
@@ -2303,7 +2413,6 @@ def snapshot_odds_for_upcoming():
                         }
                         bookmaker = fo.get('bookmaker', 'Football API')
 
-                # ★ Источник 2: Odds API (fallback)
                 if not odds_to_save:
                     league = md.get('league', '')
                     odds_data = odds_api.get_odds_for_match(home, away, league)
@@ -2320,7 +2429,6 @@ def snapshot_odds_for_upcoming():
                     logger.info(f"⏭️ snapshot: нет кэфов для {home} vs {away}")
                     continue
 
-                # Сохраняем только валидные кэфы (> 1.01)
                 for sel in ['1', 'X', '2']:
                     odd = odds_to_save.get(sel, 0)
                     if odd and odd > 1.01:
@@ -2343,7 +2451,7 @@ def snapshot_odds_for_upcoming():
 
 
 # ============================================================
-# ★ SAFE JOB
+# SAFE JOB
 # ============================================================
 def safe_job(func, name):
     def wrapper():
@@ -2534,12 +2642,12 @@ verification_system = BetVerificationSystem()
 
 
 # ============================================================
-# УВЕДОМЛЕНИЯ (★ MIN_INTERVAL = 6ч)
+# УВЕДОМЛЕНИЯ (MIN_INTERVAL = 6ч)
 # ============================================================
 class NotificationSystem:
     def __init__(self):
         self.last_notification = {}
-        self.min_interval = 21600  # ★ 6 часов
+        self.min_interval = 21600
 
     def send_if_needed(self, event_type, message, force=False):
         now = time.time()
@@ -3066,6 +3174,17 @@ def api_autobets_settle():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+@app.route('/api/autobets/live', methods=['POST'])
+def api_autobets_live():
+    """★ Обновление live-счёта для идущих матчей."""
+    try:
+        updated = autobet_manager.update_live_scores()
+        return jsonify({'status': 'ok', 'updated': updated})
+    except Exception as e:
+        logger.error(f"❌ /api/autobets/live: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 @app.route('/api/autobets/reset', methods=['POST'])
 def api_autobets_reset():
     try:
@@ -3475,7 +3594,7 @@ def update_settings():
 
 
 # ============================================================
-# ★ HEALTH CHECK (расширенный)
+# HEALTH CHECK
 # ============================================================
 @app.route('/health', methods=['GET'])
 def health():
@@ -3627,8 +3746,15 @@ if __name__ == "__main__":
         trigger='cron', hour=4, minute=0, id='odds_cleanup',
         replace_existing=True, misfire_grace_time=1800, coalesce=True
     )
+    # ★ Live-счёт каждые 15 минут
+    odds_scheduler.add_job(
+        func=safe_job(autobet_manager.update_live_scores, "autobet_live"),
+        trigger='interval', minutes=15, id='autobet_live',
+        replace_existing=True, max_instances=1,
+        misfire_grace_time=60, coalesce=True
+    )
     odds_scheduler.start()
-    logger.info("📸 Снимки: 30 мин | Очистка: 4:00 МСК")
+    logger.info("📸 Снимки: 30 мин | Очистка: 4:00 МСК | Live: 15 мин")
 
     port = int(os.environ.get("PORT", 10000))
     logger.info("=" * 60)
@@ -3643,6 +3769,7 @@ if __name__ == "__main__":
     logger.info(f"📊 CLV-анализ: вкл")
     logger.info(f"🎯 Grid Search: вкл")
     logger.info(f"🛡️ Safe jobs: вкл")
+    logger.info(f"⚽ Live-счёт: вкл (каждые 15 мин)")
     logger.info(f"⏱️ Telegram rate limit: вкл")
     logger.info(f"📸 Снимки: fallback на Odds API")
     logger.info("=" * 60)
