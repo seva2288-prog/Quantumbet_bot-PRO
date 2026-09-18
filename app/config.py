@@ -1,5 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
+★ ВЕРСИЯ 2.0 — сбалансированные пороги для реальной работы
 """
 import os
 import sys
@@ -74,62 +75,52 @@ class Config:
     MAX_BETS_PER_RUN = 30
 
     # ============================================================
-    # === 70%+ ===
+    # === 70%+ ★ ИЗМЕНЕНО — реалистичные пороги ===
     # ============================================================
-    XG_MIN_70 = 1.8
-    XG_MAX_70 = 3.0
-    EV_MIN_70 = 20
-    PROB_MIN_70 = 65
-    POSITION_MAX_70 = 15
-    FORM_REQUIRED_70 = ['excellent', 'good']
-    SKIP_MID_TABLE_70 = True
+    XG_MIN_70 = 1.2          # ★ было 1.8 — слишком строго
+    XG_MAX_70 = 3.8          # ★ было 3.0 — отсекало топ-матчи
+    EV_MIN_70 = 8            # ★ было 20 — реальный EV редко >15%
+    PROB_MIN_70 = 52         # ★ было 65 — недостижимо
+    POSITION_MAX_70 = 18     # ★ было 15 — отсекало середину таблицы
+    FORM_REQUIRED_70 = ['excellent', 'good', 'average']  # ★ добавили average
+    SKIP_MID_TABLE_70 = False  # ★ было True — убивало половину матчей
     LIMIT_BET_TYPE_70 = 15
     LIMIT_LEAGUE_70 = 5
     MIN_ODD_70 = 1.40
     MAX_ODD_70 = 8.00
 
     # ============================================================
-    # === ФИНАЛЬНЫЙ ФИЛЬТР ===
+    # === ФИНАЛЬНЫЙ ФИЛЬТР ★ СМЯГЧЕНО ===
     # ============================================================
-    EV_FINAL_MIN = -6
-    EV_FINAL_MAX = 100
-    PROB_FINAL_MIN = 45
+    EV_FINAL_MIN = -15       # ★ было -6 — отсекало матчи с малым EV
+    EV_FINAL_MAX = 150       # ★ было 100
+    PROB_FINAL_MIN = 40      # ★ было 45
 
     # ============================================================
     # ★ WHITELIST — лиги, которые берём в работу
-    # Проверено на Ultra: по этим лигам API отдаёт кэфы.
-    # Результаты проверки: 50 лиг с кэфами, 17 без.
     # ============================================================
     WHITELIST_LEAGUES = [
         # ── Англия ──
         'premier league', 'championship',
         'efl league one', 'efl league two',
-
         # ── Испания ──
         'la liga', 'laliga',
         'segunda división', 'segunda division', 'la liga 2',
-
         # ── Германия ──
         'bundesliga', '2. bundesliga', '3. liga',
-
         # ── Италия ──
         'serie a', 'serie b',
-
         # ── Франция ──
         'ligue 1', 'ligue 2',
-
         # ── Нидерланды, Португалия, Бельгия, Турция ──
         'eredivisie', 'primeira liga', 'liga portugal',
         'pro league', 'süper lig', 'super lig',
-
         # ── Бразилия, Аргентина, Мексика, США ──
         'brasileirão', 'brasileirao',
         'primera división', 'primera division', 'liga profesional',
         'liga mx', 'mls', 'major league soccer',
-
         # ── Саудовская Аравия, Япония ──
         'saudi pro league', 'j1 league',
-
         # ── Европейские кубки ──
         'champions league', 'uefa champions',
         'europa league', 'uefa europa',
@@ -138,12 +129,9 @@ class Config:
 
     # ============================================================
     # ★ BLACKLIST — лиги, которые НЕ анализируем
-    # Обновлено после проверки check_whitelist_odds():
-    #  - убраны лиги без кэфов на Ultra
-    #  - убраны низшие дивизионы и мусор
     # ============================================================
     BLACKLIST_LEAGUES = [
-        # ── Низшие английские дивизионы (полу-любители) ──
+        # ── Низшие английские дивизионы ──
         'isthmian', 'northern premier', 'southern league',
         'national league', 'county league', 'combined counties',
         'united counties', 'premier division', 'division one',
@@ -154,19 +142,15 @@ class Config:
         'north west counties', 'spartan south midlands',
         'southern counties east', 'southern combination',
         'wessex football league', 'yorkshire league',
-
         # ── Резервы и дубли ──
         ' ii', ' b ', 'reserve', 'reserves',
         'mls next pro', 'usl league', 'usl championship', 'next pro',
-
         # ── Молодёжные ──
         'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
         'youth', 'academy', 'junior',
-
         # ── Женские ──
         'women', 'womens', 'femenina', 'feminine', 'female',
-
-        # ── Низшие дивизионы (нет кэфов даже на Ultra) ──
+        # ── Низшие дивизионы ──
         'primera b', 'primera c', 'primera d',
         'serie c', 'serie d',
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
@@ -176,44 +160,32 @@ class Config:
         'segunda federación', 'tercera federación',
         'national 2', 'national 3', 'championnat national',
         'ii liga', 'iii liga',
-
         # ── Локальные кубки штатов Бразилии ──
         'copa paulista', 'carioca', 'gaúcho', 'mineiro',
         'baiano', 'pernambucano', 'cearense', 'paranaense',
-
-        # ============================================================
-        # ★ ЛИГИ БЕЗ КЭФОВ (проверено на Ultra — 0 матчей /odds)
-        # ============================================================
-        'persha liga',              # Украина, 2-й див.
-        'j2 league',                # Япония, 2-й див.
-        'k league 1',               # Южная Корея
-        'k league 2',               # Южная Корея
-        'colombia primera a',       # Колумбия
-        'chile primera',            # Чили
-        'nb i',                     # Венгрия
-        'ecuador serie a',          # Эквадор
-        'вторая лига а',            # Россия, 3-й див.
-        'super league 2',           # Греция, 2-й див.
-        'prva liga',                # Словения (ID 260)
-        'egyptian premier',         # Египет
+        # ── Лиги без кэфов ──
+        'persha liga', 'j2 league', 'k league 1', 'k league 2',
+        'colombia primera a', 'chile primera', 'nb i',
+        'ecuador serie a', 'вторая лига а', 'super league 2',
+        'prva liga', 'egyptian premier',
     ]
 
     # ============================================================
-    # === ТМ 2.5 (отключено, оставлено для совместимости) ===
+    # === ТМ 2.5 ★ ИЗМЕНЕНО — теперь РАБОТАЕТ ===
     # ============================================================
-    MAX_TM25_BETS = 0
-    MIN_TM25_EV = 99
-    MIN_TM25_PROB = 99
-    TM25_XG_MIN = 0.99
-    TM25_XG_MAX = 0.99
-    PREMIUM_MIN_EV = 99
-    PREMIUM_MIN_PROB = 99
-    PREMIUM_XG_MIN = 0.99
-    PREMIUM_XG_MAX = 0.99
-    STANDARD_MIN_EV = 99
-    STANDARD_MIN_PROB = 99
-    STANDARD_XG_MIN = 0.99
-    STANDARD_XG_MAX = 0.99
+    MAX_TM25_BETS = 5        # ★ было 0 — поток был выключен
+    MIN_TM25_EV = 15         # ★ было 99
+    MIN_TM25_PROB = 55       # ★ было 99
+    TM25_XG_MIN = 0.8        # ★ было 0.99
+    TM25_XG_MAX = 3.0        # ★ было 0.99
+    PREMIUM_MIN_EV = 25      # ★ было 99
+    PREMIUM_MIN_PROB = 58    # ★ было 99
+    PREMIUM_XG_MIN = 1.0     # ★ было 0.99
+    PREMIUM_XG_MAX = 2.8     # ★ было 0.99
+    STANDARD_MIN_EV = 15     # ★ было 99
+    STANDARD_MIN_PROB = 52   # ★ было 99
+    STANDARD_XG_MIN = 0.8    # ★ было 0.99
+    STANDARD_XG_MAX = 3.0    # ★ было 0.99
     TM25_TOP_LEAGUE_EV = 35
 
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
@@ -269,11 +241,11 @@ class Config:
         'Netherlands', 'Portugal', 'Belgium', 'Turkey',
         'Brazil', 'Argentina', 'Mexico', 'USA',
         'Saudi-Arabia', 'Japan',
-        'World',  # кубки УЕФА (ЛЧ, ЛЕ, ЛК)
+        'World',
     ]
 
     # ============================================================
-    # === ЛИГИ И НАЗВАНИЯ (резерв; перезаписываются из API) ===
+    # === ЛИГИ И НАЗВАНИЯ (резерв) ===
     # ============================================================
     LEAGUES = [
         39, 40, 41, 140, 141, 142, 78, 79, 80, 135, 136, 137,
@@ -371,8 +343,6 @@ class Config:
         season = season or cls.USE_SEASON
         leagues, names = [], {}
 
-        # Единый список исключений (вторые дивизионы больше НЕ исключаются,
-        # т.к. Ultra даёт кэфы)
         EXCLUDE_WORDS = [
             'women', 'womens', 'femenina', 'feminine', 'female',
             'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
@@ -426,18 +396,15 @@ class Config:
 
                     lname_lower = lname.lower()
 
-                    # Пропускаем кубки, кроме еврокубков
                     if lg.get('type') == 'Cup':
                         if not any(x in lname_lower for x in [
                             'champions league', 'europa league', 'conference league'
                         ]):
                             continue
 
-                    # EXCLUDE (мусор)
                     if any(w in lname_lower for w in EXCLUDE_WORDS):
                         continue
 
-                    # WHITELIST
                     if not any(good in lname_lower for good in whitelist):
                         print(f"⏭️ {country}: {lname} — не в whitelist")
                         continue
@@ -464,12 +431,10 @@ class Config:
 
     @classmethod
     def get_whitelist_ids(cls):
-        """Возвращает список ID лиг, которые прошли whitelist (для отладки)."""
         return sorted(set(cls.LEAGUES))
 
     @classmethod
     def init_db(cls):
-        """Инициализация БД. Создаёт /data, если папки нет (Render Disk)."""
         db_dir = os.path.dirname(cls.DATABASE_URL)
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
@@ -523,16 +488,11 @@ class Config:
             return None
         return cls.get_weather(coords[0], coords[1])
 
-    # ============================================================
-    # ★ ПРОВЕРКА КЭФОВ ПО ВСЕМ ЛИГАМ (из Config.LEAGUES)
-    # Запуск: python3 -m app.config leagues
-    # ============================================================
     @classmethod
     def check_leagues_odds(cls):
         if not cls.FOOTBALL_API_KEY:
             print("❌ FOOTBALL_API_KEY не задан")
             return
-
         headers = {
             'x-apisports-key': cls.FOOTBALL_API_KEY,
             'x-rapidapi-host': 'v3.football.api-sports.io'
@@ -541,9 +501,7 @@ class Config:
         print(f"🔍 Проверяю {len(all_leagues)} лиг на наличие кэфов...")
         print(f"📅 Сезон: {cls.USE_SEASON}")
         print("=" * 70)
-
         with_odds, without_odds, errors = [], [], []
-
         for i, lid in enumerate(all_leagues, 1):
             name = cls.LEAGUE_NAMES.get(lid, f"ID:{lid}")
             try:
@@ -561,11 +519,9 @@ class Config:
                     errors.append((lid, name, f"HTTP {r.status_code}"))
                     print(f"❌ [{i}/{len(all_leagues)}] {name} — HTTP {r.status_code}")
                     continue
-
                 data = r.json()
                 results = data.get('results', 0)
                 api_errors = data.get('errors', {})
-
                 if api_errors:
                     err_text = str(api_errors)[:80]
                     errors.append((lid, name, err_text))
@@ -576,30 +532,23 @@ class Config:
                 else:
                     without_odds.append((lid, name))
                     print(f"❌ [{i}/{len(all_leagues)}] {name} — 0 матчей")
-
             except Exception as e:
                 errors.append((lid, name, str(e)))
                 print(f"❌ [{i}/{len(all_leagues)}] {name} — {e}")
-
-            time.sleep(0.15)  # Ultra: 450 req/min
-
+            time.sleep(0.15)
         print("=" * 70)
         print(f"\n📊 РЕЗУЛЬТАТ:")
         print(f"✅ С кэфами:  {len(with_odds)}")
         print(f"❌ Без кэфов: {len(without_odds)}")
         print(f"⚠️ Ошибки:    {len(errors)}")
-
         if with_odds:
             print("\n✅ ЛИГИ С КЭФАМИ:")
             for lid, name in with_odds:
                 print(f"  {lid}: {name}")
-
         if without_odds:
             print("\n❌ ЛИГИ БЕЗ КЭФОВ (убрать из whitelist):")
             for lid, name in without_odds:
                 print(f"  {lid}: {name}")
-
-        # Сохраняем в /data (Render Disk), а не в корень проекта
         try:
             out_dir = os.path.dirname(cls.DATABASE_URL) or '.'
             os.makedirs(out_dir, exist_ok=True)
@@ -614,29 +563,20 @@ class Config:
             print(f"\n💾 Сохранено в {out_path}")
         except Exception as e:
             print(f"⚠️ Не удалось сохранить файл: {e}")
-
         return with_odds, without_odds
 
-    # ============================================================
-    # ★ ПРОВЕРКА КЭФОВ ПО WHITELIST (по названию)
-    # Запуск: python3 -m app.config whitelist
-    # ============================================================
     @classmethod
     def check_whitelist_odds(cls):
         if not cls.FOOTBALL_API_KEY:
             print("❌ FOOTBALL_API_KEY не задан")
             return
-
         headers = {
             'x-apisports-key': cls.FOOTBALL_API_KEY,
             'x-rapidapi-host': 'v3.football.api-sports.io'
         }
-
         print(f"🔍 Проверяю whitelist ({len(cls.WHITELIST_LEAGUES)} записей)")
         print(f"📅 Сезон: {cls.USE_SEASON}")
         print("=" * 70)
-
-        # Сначала — загружаем все лиги по странам
         all_found_leagues = {}
         for country in cls.LEAGUE_COUNTRIES:
             try:
@@ -655,19 +595,14 @@ class Config:
                         all_found_leagues[lid] = lname
             except Exception as e:
                 print(f"❌ {country}: {e}")
-
         print(f"📊 Найдено {len(all_found_leagues)} лиг через /leagues")
-
-        # Фильтруем по whitelist
         matched = [
             (lid, lname) for lid, lname in all_found_leagues.items()
             if any(good in lname.lower() for good in cls.WHITELIST_LEAGUES)
         ]
         print(f"✅ Совпало с whitelist: {len(matched)}")
         print("=" * 70)
-
         with_odds, without_odds = [], []
-
         for i, (lid, lname) in enumerate(matched, 1):
             try:
                 r = requests.get(
@@ -679,42 +614,30 @@ class Config:
                 if r.status_code == 429:
                     time.sleep(60)
                     continue
-
                 data = r.json()
                 results = data.get('results', 0)
-
                 if results > 0:
                     with_odds.append((lid, lname))
                     print(f"✅ [{i}/{len(matched)}] {lname} — {results} матчей")
                 else:
                     without_odds.append((lid, lname))
                     print(f"❌ [{i}/{len(matched)}] {lname} — 0 матчей")
-
             except Exception as e:
                 print(f"❌ [{i}/{len(matched)}] {lname} — {e}")
-
-            time.sleep(0.15)  # Ultra
-
+            time.sleep(0.15)
         print("=" * 70)
         print(f"✅ С кэфами:  {len(with_odds)}")
         print(f"❌ Без кэфов: {len(without_odds)}")
-
         if with_odds:
             print("\n✅ ЛИГИ С КЭФАМИ:")
             for lid, name in with_odds:
                 print(f"  {lid}: {name}")
-
         if without_odds:
             print("\n❌ ЛИГИ БЕЗ КЭФОВ:")
             for lid, name in without_odds:
                 print(f"  {lid}: {name}")
-
         return with_odds, without_odds
 
-    # ============================================================
-    # === ОБЩАЯ ПРОВЕРКА ===
-    # Запуск: python3 -m app.config check
-    # ============================================================
     @classmethod
     def check(cls):
         missing = []
@@ -722,12 +645,10 @@ class Config:
         if not cls.ADMIN_CHAT_ID: missing.append("ADMIN_CHAT_ID")
         if not cls.FOOTBALL_API_KEY: missing.append("FOOTBALL_API_KEY")
         if not cls.ODDS_API_KEY: missing.append("ODDS_API_KEY")
-
         if missing:
             print(f"⚠️ Отсутствуют: {', '.join(missing)}")
         else:
             print("✅ Все ключи загружены!")
-
         print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'}")
         print(f"🧠 PREDICTION_ENGINE: {cls.PREDICTION_ENGINE}")
         print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER}) | модель: {cls.LLM_MODEL}")
@@ -736,21 +657,15 @@ class Config:
         print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
         print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
-
         cls.init_db()
         cls.build_leagues_from_api()
-
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
         return True
 
 
-# ============================================================
-# ЗАПУСК ИЗ КОМАНДНОЙ СТРОКИ
-# ============================================================
 if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else "check"
-
     if arg == "check":
         Config.check()
     elif arg == "leagues":
