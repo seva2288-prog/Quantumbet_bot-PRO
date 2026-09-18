@@ -23,9 +23,6 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-        /* ============================================================
-           EMERALD THEME — CSS VARIABLES
-           ============================================================ */
         :root {
             --bg-primary: #07100e;
             --bg-secondary: #0d1a17;
@@ -89,9 +86,6 @@
             --shadow-emerald: 0 0 30px rgba(16, 185, 129, 0.08);
         }
 
-        /* ============================================================
-           RESET
-           ============================================================ */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         html, body {
@@ -836,7 +830,7 @@
         }
 
         /* ============================================================
-           BOTTOM NAV — 5 кнопок + "Ещё"
+           BOTTOM NAV
            ============================================================ */
         .bottom-nav {
             position: fixed;
@@ -914,7 +908,7 @@
         }
 
         /* ============================================================
-           ★ BOTTOM SHEET (меню "Ещё")
+           BOTTOM SHEET (меню "Ещё")
            ============================================================ */
         #moreMenuModal {
             align-items: flex-end;
@@ -1120,6 +1114,7 @@
             transform: translateY(-1px);
         }
         .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary {
             background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
             border: none;
@@ -1144,7 +1139,9 @@
             background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
             border: none;
             color: #422006;
+            font-weight: 700;
         }
+        .btn-gold:hover { box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
 
         /* ============================================================
            FILTERS
@@ -1417,25 +1414,7 @@
             border: 1px solid var(--border-color);
         }
 
-        .auto-import-status {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            padding: 4px 8px;
-            background: rgba(16, 185, 129, 0.05);
-            border-radius: var(--radius-full);
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            border: 1px solid rgba(16, 185, 129, 0.1);
-        }
-        .auto-import-status.active {
-            color: var(--emerald-400);
-            border-color: rgba(16, 185, 129, 0.3);
-        }
-
-        /* ============================================================
-           STRATEGY COMPARISON (Аналитика)
-           ============================================================ */
+        /* Strategy bars */
         .strategy-bar {
             display: flex;
             align-items: center;
@@ -1474,9 +1453,7 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* ============================================================
-           ★ SIMULATOR: слайдеры
-           ============================================================ */
+        /* Симулятор: слайдеры */
         .param-row { margin: 12px 0; }
         .param-row label {
             display: block;
@@ -1495,22 +1472,17 @@
             height: 4px;
         }
 
-        /* ============================================================
-           ★ AUTOBETS: карточки (cursor default)
-           ============================================================ */
+        /* Автоставки: карточки */
         #autobets-history .bet-card { cursor: default; }
         #autobets-history .bet-card:hover { transform: none; }
 
-        /* Скрытые страницы */
         .page { display: none; }
         .page.active { display: block; }
     </style>
 </head>
 <body>
 
-<!-- ============================================================
-     LOADING SCREEN
-     ============================================================ -->
+<!-- LOADING SCREEN -->
 <div id="loadingScreen">
     <div class="loading-bg-1"></div>
     <div class="loading-bg-2"></div>
@@ -1523,19 +1495,15 @@
     </div>
 </div>
 
-<!-- ============================================================
-     BACKGROUND
-     ============================================================ -->
+<!-- BACKGROUND -->
 <div class="stars-container" id="starsContainer">
     <div class="milky-way-1"></div>
     <div class="milky-way-2"></div>
 </div>
 
-<!-- ============================================================
-     MAIN CONTAINER
-     ============================================================ -->
 <div class="container">
 
+    <!-- HEADER -->
     <header class="header">
         <div class="header-left">
             <div class="header-title">💎 Quantum Tracker</div>
@@ -1597,6 +1565,34 @@
             <div class="stat-card">
                 <div class="value emerald" id="statRoi">0%</div>
                 <div class="label">💎 ROI</div>
+            </div>
+        </div>
+
+        <!-- ★ Виджет автоставок на дашборде -->
+        <div class="card" id="dashboardAutobetsCard">
+            <div class="card-header">
+                <h2 class="emerald-title">💸 Автоставки</h2>
+                <button class="btn btn-outline" onclick="openFromMore('autobets')" style="padding:4px 10px;font-size:10px;">
+                    Подробнее →
+                </button>
+            </div>
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 0;">
+                <div class="stat-card">
+                    <div class="value" id="dash-ab-bank">$1000</div>
+                    <div class="label">💰 Банк</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold" id="dash-ab-profit">$0</div>
+                    <div class="label">📈 Прибыль</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value emerald" id="dash-ab-roi">0%</div>
+                    <div class="label">💎 ROI</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="dash-ab-clv">+0%</div>
+                    <div class="label">📊 CLV</div>
+                </div>
             </div>
         </div>
 
@@ -1940,7 +1936,7 @@
     </div>
 
     <!-- ============================================================
-         ★ PAGE: AUTOBETS
+         PAGE: AUTOBETS
          ============================================================ -->
     <div id="page-autobets" class="page">
 
@@ -1970,6 +1966,33 @@
             <div class="stat-card">
                 <div class="value green" id="ab-winrate">0%</div>
                 <div class="label">🎯 WINRATE</div>
+            </div>
+        </div>
+
+        <!-- ★ CLV-блок -->
+        <div class="card emerald" style="margin-top: 0;">
+            <div class="card-header">
+                <h2 class="emerald-title">📊 CLV (Closing Line Value)</h2>
+                <button class="btn btn-outline" onclick="computeClv()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Пересчитать
+                </button>
+            </div>
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
+                <div class="stat-card">
+                    <div class="value emerald" id="clv-avg">+0.00%</div>
+                    <div class="label">📊 СРЕДНИЙ CLV</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="clv-positive">0%</div>
+                    <div class="label">✅ > 0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="clv-count">0</div>
+                    <div class="label">📈 ЗАМЕРОВ</div>
+                </div>
+            </div>
+            <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 8px;">
+                💡 CLV > 0 = вы ставите лучше закрытия линии → прибыль на длинной дистанции
             </div>
         </div>
 
@@ -2010,7 +2033,7 @@
     </div>
 
     <!-- ============================================================
-         ★ PAGE: SIMULATOR
+         PAGE: SIMULATOR
          ============================================================ -->
     <div id="page-simulator" class="page">
 
@@ -2073,6 +2096,11 @@
 
         <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">
             🚀 Запустить симуляцию
+        </button>
+
+        <!-- ★ Кнопка Grid Search -->
+        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">
+            🎯 Найти лучшую стратегию (Grid Search)
         </button>
 
         <div id="sim-results" style="display:none;">
@@ -2301,23 +2329,21 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v19 Emerald • 2026</div>
+                    <div class="desc">v20 Emerald • CLV + Grid Search</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v19.0</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v20.0</span>
             </div>
         </div>
 
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v19 Emerald © 2026
+        💎 Quantum Tracker v20 Emerald © 2026
     </div>
 
 </div>
 
-<!-- ============================================================
-     BOTTOM NAV — 5 кнопок + "Ещё"
-     ============================================================ -->
+<!-- BOTTOM NAV -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
         <span class="icon">📊</span>
@@ -2345,9 +2371,7 @@
     </button>
 </nav>
 
-<!-- ============================================================
-     ★ MODAL: BOTTOM SHEET "ЕЩЁ"
-     ============================================================ -->
+<!-- BOTTOM SHEET -->
 <div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
     <div class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
@@ -2365,7 +2389,7 @@
             <span class="sheet-icon">🧪</span>
             <div>
                 <div class="sheet-label">Симулятор стратегий</div>
-                <div class="sheet-desc">Проверка стратегий на истории</div>
+                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
             </div>
         </button>
 
@@ -2387,9 +2411,7 @@
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: ADD MATCH
-     ============================================================ -->
+<!-- MODAL: ADD MATCH -->
 <div class="modal-overlay" id="addMatchModal">
     <div class="modal">
         <div class="modal-header">
@@ -2436,9 +2458,7 @@
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: X2 MATCH
-     ============================================================ -->
+<!-- MODAL: X2 MATCH -->
 <div class="modal-overlay" id="x2Modal">
     <div class="modal">
         <div class="modal-header">
@@ -2505,9 +2525,7 @@
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: IMPORT X2 EXCEL
-     ============================================================ -->
+<!-- MODAL: IMPORT X2 EXCEL -->
 <div class="modal-overlay" id="x2ImportModal">
     <div class="modal">
         <div class="modal-header">
@@ -2529,9 +2547,7 @@
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: MATCH DETAIL
-     ============================================================ -->
+<!-- MODAL: MATCH DETAIL -->
 <div class="modal-overlay" id="matchDetailModal">
     <div class="modal">
         <div class="modal-header">
@@ -2542,9 +2558,7 @@
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: SNAPSHOT CHART
-     ============================================================ -->
+<!-- MODAL: SNAPSHOT CHART -->
 <div class="modal-overlay" id="snapshotChartModal">
     <div class="modal modal-large">
         <div class="modal-header">
@@ -2736,7 +2750,6 @@ function switchPage(page) {
     if (navBtn) {
         navBtn.classList.add('active');
     } else if (page === 'autobets' || page === 'simulator' || page === 'settings') {
-        // Подсвечиваем кнопку "Ещё"
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -2794,7 +2807,7 @@ function closeSettings() {
 }
 
 // ============================================================
-// ★ BOTTOM SHEET "ЕЩЁ"
+// BOTTOM SHEET
 // ============================================================
 function toggleMoreMenu() {
     const modal = document.getElementById('moreMenuModal');
@@ -2864,6 +2877,7 @@ async function loadPageData(page) {
         if (page === 'dashboard') {
             renderDashboard(data);
             loadAnomalies();
+            loadDashboardAutobets();
         } else if (page === 'matches') {
             renderMatchesPage(data);
         } else if (page === 'analytics') {
@@ -2918,6 +2932,24 @@ function renderDashboard(data) {
     setTimeout(() => renderChart(data.profit_data), 50);
 }
 
+async function loadDashboardAutobets() {
+    try {
+        const state = await fetch(API_BASE + '/api/autobets/state?t=' + Date.now()).then(r => r.json());
+        document.getElementById('dash-ab-bank').textContent = '$' + (state.bank || 0).toFixed(2);
+        const p = state.total_profit || 0;
+        const pEl = document.getElementById('dash-ab-profit');
+        pEl.textContent = (p >= 0 ? '+' : '') + '$' + p.toFixed(2);
+        pEl.style.color = p >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        document.getElementById('dash-ab-roi').textContent = (state.roi || 0) + '%';
+        const clv = state.avg_clv || 0;
+        const clvEl = document.getElementById('dash-ab-clv');
+        clvEl.textContent = (clv >= 0 ? '+' : '') + clv.toFixed(2) + '%';
+        clvEl.style.color = clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+    } catch (e) {
+        console.error('loadDashboardAutobets:', e);
+    }
+}
+
 function renderActiveMatchesList(matches) {
     const container = document.getElementById('activeMatchesList');
     if (!container) return;
@@ -2935,7 +2967,7 @@ function renderActiveMatchesList(matches) {
 }
 
 // ============================================================
-// ★ АНОМАЛИИ КЭФОВ
+// АНОМАЛИИ
 // ============================================================
 async function loadAnomalies() {
     try {
@@ -3040,7 +3072,6 @@ function renderBetCard(m, isActive = false) {
     const evDisplay = ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—';
     const probDisplay = prob > 0 ? prob.toFixed(0) + '%' : '—';
 
-    const canSwipe = !isActive && (result === 'pending' || !result);
     const itemIndex = m._index !== undefined ? m._index : -1;
 
     return `
@@ -3758,13 +3789,7 @@ function renderSnapshotChart(history) {
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: {
-                legend: { labels: { color: textColor, font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        title: (items) => items[0]?.label || '',
-                        label: (item) => `${item.dataset.label}: ${item.parsed.y?.toFixed(2) || '—'}`
-                    }
-                }
+                legend: { labels: { color: textColor, font: { size: 11 } } }
             },
             scales: {
                 x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
@@ -4097,7 +4122,6 @@ function loadX2Data() {
         x2Data = saved ? JSON.parse(saved) : [];
         x2CurrentFilter = localStorage.getItem('x2_filter') || 'all';
     } catch (e) { x2Data = []; }
-    // Загружаем с сервера асинхронно
     fetch(API_BASE + '/api/x2_data?t=' + Date.now())
         .then(r => r.json())
         .then(data => {
@@ -4396,6 +4420,8 @@ async function loadAutobets() {
         document.getElementById('ab-winrate').textContent = (state.winrate || 0) + '%';
 
         renderAutobetsHistory(history || []);
+        // ★ CLV статистика
+        loadClvStats();
     } catch (e) {
         console.error('loadAutobets:', e);
         showNotification('❌ Ошибка загрузки автоставок', 'error');
@@ -4427,6 +4453,15 @@ function renderAutobetsHistory(history) {
             ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">
                  Счёт: <strong>${b.home_goals}-${b.away_goals}</strong>${ht}
                </div>` : '';
+        // ★ CLV-строка
+        let clvStr = '';
+        if (b.clv !== undefined && b.clv !== null) {
+            const clvColor = b.clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+            clvStr = `<div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;">
+                📊 CLV: <strong style="color:${clvColor};">${b.clv >= 0 ? '+' : ''}${b.clv.toFixed(2)}%</strong>
+                ${b.closing_odds ? ` (закрытие: ${b.closing_odds.toFixed(2)})` : ''}
+            </div>`;
+        }
         return `
             <div class="bet-card" style="cursor:default;margin-bottom:8px;">
                 <div class="bet-header">
@@ -4453,6 +4488,7 @@ function renderAutobetsHistory(history) {
                     </div>
                 </div>
                 ${score}
+                ${clvStr}
             </div>
         `;
     }).join('');
@@ -4488,6 +4524,43 @@ async function autobetsReset() {
         loadAutobets();
     } catch (e) {
         showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
+// ★ CLV — Closing Line Value
+// ============================================================
+async function computeClv() {
+    showNotification('📊 Пересчитываю CLV...', '');
+    try {
+        const r = await fetch(API_BASE + '/api/autobets/clv/compute', {
+            method: 'POST'
+        }).then(r => r.json());
+        showNotification(`✅ Обновлено: ${r.updated}`, 'success');
+        loadAutobets();
+        loadClvStats();
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function loadClvStats() {
+    try {
+        const stats = await fetch(API_BASE + '/api/autobets/clv/stats?t=' + Date.now()).then(r => r.json());
+        if (stats.status !== 'ok') return;
+
+        const avgEl = document.getElementById('clv-avg');
+        const posEl = document.getElementById('clv-positive');
+        const cntEl = document.getElementById('clv-count');
+
+        if (avgEl) {
+            avgEl.textContent = (stats.avg_clv >= 0 ? '+' : '') + stats.avg_clv.toFixed(2) + '%';
+            avgEl.style.color = stats.avg_clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        }
+        if (posEl) posEl.textContent = stats.positive_rate + '%';
+        if (cntEl) cntEl.textContent = stats.count;
+    } catch (e) {
+        console.error('loadClvStats:', e);
     }
 }
 
@@ -4631,6 +4704,128 @@ async function saveSimulation() {
 }
 
 // ============================================================
+// ★ GRID SEARCH
+// ============================================================
+async function runGridSearch() {
+    if (!confirm('🎯 Запустить Grid Search?\n\nЭто переберёт ~200 комбинаций параметров и найдёт лучшую стратегию. Займёт 30-60 секунд.')) return;
+
+    showNotification('🎯 Grid Search запущен...', '');
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Поиск (30-60 сек)...';
+
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/grid_search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ max_combinations: 200, min_bets: 5 })
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        const result = r.result;
+        if (!result.top || result.top.length === 0) {
+            showNotification('❌ Не найдено стратегий с нужным количеством ставок', 'error');
+            return;
+        }
+
+        const best = result.top[0];
+        const p = best.params;
+
+        const set = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) { el.value = val; el.dispatchEvent(new Event('input')); }
+        };
+        set('sim-min-ev', p.min_ev);
+        set('sim-min-prob', p.min_prob);
+        set('sim-min-odds', p.min_odds);
+        set('sim-max-odds', p.max_odds);
+        set('sim-stake', p.stake_pct);
+
+        showNotification(
+            `🏆 Лучшая: ROI ${best.roi}% | Ставок ${best.total_bets}`,
+            'success'
+        );
+
+        await runSimulation();
+        renderGridTop5(result.top);
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🎯 Найти лучшую стратегию (Grid Search)';
+    }
+}
+
+function renderGridTop5(top) {
+    const simResults = document.getElementById('sim-results');
+    if (!simResults) return;
+
+    let gridDiv = document.getElementById('grid-top5');
+    if (gridDiv) gridDiv.remove();
+
+    gridDiv = document.createElement('div');
+    gridDiv.id = 'grid-top5';
+    gridDiv.className = 'card';
+    gridDiv.style.marginTop = '16px';
+
+    const rowsHtml = top.map((t, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        const rowStyle = i === 0 ? 'background: rgba(16,185,129,0.08); font-weight:700;' : '';
+        const roiColor = t.roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        const profitColor = t.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        return `
+            <tr style="${rowStyle}">
+                <td>${medal}</td>
+                <td>${t.params.min_ev}%</td>
+                <td>${t.params.min_prob}%</td>
+                <td>${t.params.min_odds}-${t.params.max_odds}</td>
+                <td>${t.total_bets}</td>
+                <td>${t.winrate}%</td>
+                <td style="color:${roiColor};font-weight:700;">
+                    ${t.roi >= 0 ? '+' : ''}${t.roi}%
+                </td>
+                <td style="color:${profitColor};">
+                    ${t.profit >= 0 ? '+' : ''}$${t.profit.toFixed(2)}
+                </td>
+                <td>${t.max_drawdown}%</td>
+            </tr>
+        `;
+    }).join('');
+
+    gridDiv.innerHTML = `
+        <div class="card-header">
+            <h2>🏆 ТОП-5 СТРАТЕГИЙ</h2>
+        </div>
+        <div style="overflow-x:auto;">
+            <table style="width:100%; font-size:11px; min-width:500px;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>EV</th>
+                        <th>Prob</th>
+                        <th>Кэф</th>
+                        <th>Ставок</th>
+                        <th>WR</th>
+                        <th>ROI</th>
+                        <th>Прибыль</th>
+                        <th>DD</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>
+    `;
+
+    if (simResults.parentNode) {
+        simResults.parentNode.insertBefore(gridDiv, simResults.nextSibling);
+    }
+}
+
+// ============================================================
 // SETTINGS
 // ============================================================
 function renderSettings() {
@@ -4715,7 +4910,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '19.0',
+        version: '20.0',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -5051,7 +5246,10 @@ Object.assign(window, {
     openSnapshotFromAnomaly, loadAnomalies,
     quickSetResult,
     loadAutobets, autobetsPlace, autobetsSettle, autobetsReset,
-    loadSimPresets, applySimPreset, runSimulation, saveSimulation
+    loadSimPresets, applySimPreset, runSimulation, saveSimulation,
+    // ★ Новые
+    computeClv, loadClvStats, runGridSearch, renderGridTop5,
+    loadDashboardAutobets,
 });
 </script>
 </body>
