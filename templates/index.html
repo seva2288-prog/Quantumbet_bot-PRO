@@ -253,7 +253,7 @@
         }
 
         /* ============================================================
-           HEADER (с кнопкой настроек)
+           HEADER
            ============================================================ */
         .header {
             display: flex;
@@ -520,7 +520,7 @@
         .action-btn.primary .action-desc { color: rgba(255, 255, 255, 0.7); }
 
         /* ============================================================
-           BET CARDS (со счётом 1-го тайма)
+           BET CARDS
            ============================================================ */
         .bet-card {
             padding: 14px;
@@ -554,7 +554,6 @@
             background: linear-gradient(180deg, var(--emerald-400), var(--emerald-600));
         }
 
-        /* Свайп-индикаторы */
         .bet-card .swipe-hint {
             position: absolute;
             top: 50%;
@@ -658,7 +657,7 @@
         .bet-stat .stat-value.red { color: var(--red-400); }
 
         /* ============================================================
-           SNAPSHOT CARDS (страница «Снимки»)
+           SNAPSHOT CARDS
            ============================================================ */
         .snapshot-card {
             padding: 14px;
@@ -837,7 +836,7 @@
         }
 
         /* ============================================================
-           BOTTOM NAV (6 вкладок — компактнее)
+           BOTTOM NAV — 5 кнопок + "Ещё"
            ============================================================ */
         .bottom-nav {
             position: fixed;
@@ -915,6 +914,83 @@
         }
 
         /* ============================================================
+           ★ BOTTOM SHEET (меню "Ещё")
+           ============================================================ */
+        #moreMenuModal {
+            align-items: flex-end;
+            padding: 0;
+        }
+        .bottom-sheet {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-radius: 24px 24px 0 0;
+            padding: 12px 16px 32px;
+            animation: slideUpSheet 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-height: 80vh;
+            overflow-y: auto;
+            border-top: 1px solid var(--border-color);
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+        }
+        @keyframes slideUpSheet {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .bottom-sheet-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border-hover);
+            border-radius: 999px;
+            margin: 0 auto 16px;
+            opacity: 0.5;
+        }
+        .bottom-sheet-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .sheet-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 12px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-primary);
+            font-family: inherit;
+            margin-bottom: 4px;
+        }
+        .sheet-item:hover { background: var(--bg-card-hover); }
+        .sheet-item:active { transform: scale(0.98); }
+        .sheet-icon {
+            font-size: 26px;
+            line-height: 1;
+            width: 40px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .sheet-label {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .sheet-desc {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        /* ============================================================
            MODAL
            ============================================================ */
         .modal-overlay {
@@ -942,9 +1018,7 @@
             overflow-y: auto;
             animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        .modal.modal-large {
-            max-width: 700px;
-        }
+        .modal.modal-large { max-width: 700px; }
         @keyframes modalSlideIn {
             from { opacity: 0; transform: scale(0.9) translateY(20px); }
             to { opacity: 1; transform: scale(1) translateY(0); }
@@ -1013,7 +1087,6 @@
         }
         .modal-actions .btn { flex: 1; }
 
-        /* Chart в модалке движения кэфов */
         .chart-modal-container {
             height: 280px;
             margin-bottom: 16px;
@@ -1400,6 +1473,37 @@
             text-align: right;
             font-variant-numeric: tabular-nums;
         }
+
+        /* ============================================================
+           ★ SIMULATOR: слайдеры
+           ============================================================ */
+        .param-row { margin: 12px 0; }
+        .param-row label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .param-row label span {
+            color: var(--emerald-400);
+            font-weight: 800;
+        }
+        .param-row input[type="range"] {
+            width: 100%;
+            accent-color: var(--emerald-500);
+            height: 4px;
+        }
+
+        /* ============================================================
+           ★ AUTOBETS: карточки (cursor default)
+           ============================================================ */
+        #autobets-history .bet-card { cursor: default; }
+        #autobets-history .bet-card:hover { transform: none; }
+
+        /* Скрытые страницы */
+        .page { display: none; }
+        .page.active { display: block; }
     </style>
 </head>
 <body>
@@ -1432,7 +1536,6 @@
      ============================================================ -->
 <div class="container">
 
-    <!-- HEADER (с кнопкой ⚙️) -->
     <header class="header">
         <div class="header-left">
             <div class="header-title">💎 Quantum Tracker</div>
@@ -1452,7 +1555,7 @@
     <!-- ============================================================
          PAGE: DASHBOARD
          ============================================================ -->
-    <div id="page-dashboard" class="page">
+    <div id="page-dashboard" class="page active">
 
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
@@ -1534,7 +1637,6 @@
             </div>
         </div>
 
-        <!-- Аномалии кэфов (быстрый блок) -->
         <div class="card" id="anomaliesCard" style="display:none;">
             <div class="card-header">
                 <h2 class="emerald-title">🎯 Аномалии кэфов</h2>
@@ -1563,7 +1665,7 @@
     <!-- ============================================================
          PAGE: MATCHES
          ============================================================ -->
-    <div id="page-matches" class="page" style="display:none;">
+    <div id="page-matches" class="page">
 
         <div class="card">
             <div class="card-header">
@@ -1635,9 +1737,9 @@
     </div>
 
     <!-- ============================================================
-         PAGE: SNAPSHOTS (Снимки кэфов)
+         PAGE: SNAPSHOTS
          ============================================================ -->
-    <div id="page-snapshots" class="page" style="display:none;">
+    <div id="page-snapshots" class="page">
 
         <div class="card emerald">
             <div class="card-header">
@@ -1703,7 +1805,7 @@
     <!-- ============================================================
          PAGE: ANALYTICS
          ============================================================ -->
-    <div id="page-analytics" class="page" style="display:none;">
+    <div id="page-analytics" class="page">
 
         <div class="stats-grid">
             <div class="stat-card">
@@ -1774,7 +1876,7 @@
     <!-- ============================================================
          PAGE: X2
          ============================================================ -->
-    <div id="page-x2" class="page" style="display:none;">
+    <div id="page-x2" class="page">
 
         <div class="card emerald">
             <div class="card-header">
@@ -1838,9 +1940,187 @@
     </div>
 
     <!-- ============================================================
-         PAGE: SETTINGS (открывается из header)
+         ★ PAGE: AUTOBETS
          ============================================================ -->
-    <div id="page-settings" class="page" style="display:none;">
+    <div id="page-autobets" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">💸 Автоставки</h2>
+                <button class="btn btn-outline" onclick="loadAutobets()" style="padding:4px 10px;font-size:10px;">🔄</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Виртуальный банк, который автоматически ставит на матчи бота. Реальные кэфы из кэша и снимков.
+            </div>
+        </div>
+
+        <div class="stats-grid" id="autobets-stats">
+            <div class="stat-card">
+                <div class="value" id="ab-bank">$1000</div>
+                <div class="label">💰 БАНК</div>
+            </div>
+            <div class="stat-card">
+                <div class="value gold" id="ab-profit">$0</div>
+                <div class="label">📈 ПРИБЫЛЬ</div>
+            </div>
+            <div class="stat-card">
+                <div class="value emerald" id="ab-roi">0%</div>
+                <div class="label">💎 ROI</div>
+            </div>
+            <div class="stat-card">
+                <div class="value green" id="ab-winrate">0%</div>
+                <div class="label">🎯 WINRATE</div>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <button class="action-btn primary" onclick="autobetsPlace()">
+                <span class="action-icon">▶️</span>
+                <span class="action-text">
+                    <span class="action-label">Сделать ставки</span>
+                    <span class="action-desc">Из кэша бота</span>
+                </span>
+            </button>
+            <button class="action-btn" onclick="autobetsSettle()">
+                <span class="action-icon">🔄</span>
+                <span class="action-text">
+                    <span class="action-label">Обновить</span>
+                    <span class="action-desc">Результаты</span>
+                </span>
+            </button>
+            <button class="action-btn" onclick="autobetsReset()">
+                <span class="action-icon">🗑️</span>
+                <span class="action-text">
+                    <span class="action-label">Сброс</span>
+                    <span class="action-desc">Все автоставки</span>
+                </span>
+            </button>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>📜 История автоставок</h2>
+            </div>
+            <div id="autobets-history">
+                <div class="skeleton" style="width:80%"></div>
+                <div class="skeleton" style="width:60%"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+         ★ PAGE: SIMULATOR
+         ============================================================ -->
+    <div id="page-simulator" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🧪 Симулятор стратегий</h2>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Проверьте, как работала бы стратегия на исторических данных
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>🎯 Пресеты</h2>
+            </div>
+            <div class="filter-group" id="sim-presets">
+                <div class="skeleton" style="width:100px;height:24px;"></div>
+                <div class="skeleton" style="width:100px;height:24px;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>⚙️ Параметры</h2>
+            </div>
+            <div class="param-row">
+                <label>Мин. EV: <span id="sim-min-ev-val">10</span>%</label>
+                <input type="range" id="sim-min-ev" min="-20" max="50" value="10" oninput="document.getElementById('sim-min-ev-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Мин. Prob: <span id="sim-min-prob-val">52</span>%</label>
+                <input type="range" id="sim-min-prob" min="30" max="90" value="52" oninput="document.getElementById('sim-min-prob-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Мин. кэф: <span id="sim-min-odds-val">1.4</span></label>
+                <input type="range" id="sim-min-odds" min="1.0" max="3.0" step="0.1" value="1.4" oninput="document.getElementById('sim-min-odds-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Макс. кэф: <span id="sim-max-odds-val">5.0</span></label>
+                <input type="range" id="sim-max-odds" min="2.0" max="10.0" step="0.5" value="5.0" oninput="document.getElementById('sim-max-odds-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Мин. XG: <span id="sim-min-xg-val">1.2</span></label>
+                <input type="range" id="sim-min-xg" min="0" max="3" step="0.1" value="1.2" oninput="document.getElementById('sim-min-xg-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Макс. XG: <span id="sim-max-xg-val">3.5</span></label>
+                <input type="range" id="sim-max-xg" min="2" max="5" step="0.1" value="3.5" oninput="document.getElementById('sim-max-xg-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Ставка: <span id="sim-stake-val">2.0</span>% банка</label>
+                <input type="range" id="sim-stake" min="0.5" max="10" step="0.5" value="2.0" oninput="document.getElementById('sim-stake-val').textContent=this.value">
+            </div>
+            <div class="param-row">
+                <label>Стартовый банк: $<span id="sim-bank-val">1000</span></label>
+                <input type="range" id="sim-bank" min="100" max="10000" step="100" value="1000" oninput="document.getElementById('sim-bank-val').textContent=this.value">
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">
+            🚀 Запустить симуляцию
+        </button>
+
+        <div id="sim-results" style="display:none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Результаты</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="value gold" id="sim-profit">$0</div>
+                        <div class="label">📈 ПРИБЫЛЬ</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value emerald" id="sim-roi">0%</div>
+                        <div class="label">💎 ROI</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value green" id="sim-winrate">0%</div>
+                        <div class="label">🎯 WINRATE</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="sim-bets">0</div>
+                        <div class="label">🎲 СТАВОК</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value red" id="sim-dd">0%</div>
+                        <div class="label">📉 ПРОСАДКА</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="sim-end">$0</div>
+                        <div class="label">🏁 КОНЕЦ</div>
+                    </div>
+                </div>
+                <div style="height: 250px; margin-top: 16px;">
+                    <canvas id="sim-chart"></canvas>
+                </div>
+                <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">
+                    💾 Сохранить стратегию
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+         PAGE: SETTINGS
+         ============================================================ -->
+    <div id="page-settings" class="page">
 
         <div class="card">
             <div class="card-header">
@@ -1890,7 +2170,7 @@
                     <div class="desc">Минимальный EV для 70%+</div>
                 </div>
                 <div class="input-group">
-                    <input type="number" id="settingEvMin" value="15">
+                    <input type="number" id="settingEvMin" value="8">
                 </div>
             </div>
             <div class="setting-item">
@@ -1899,7 +2179,7 @@
                     <div class="desc">Минимальная вероятность</div>
                 </div>
                 <div class="input-group">
-                    <input type="number" id="settingProbMin" value="55">
+                    <input type="number" id="settingProbMin" value="52">
                 </div>
             </div>
             <div class="setting-item">
@@ -1992,13 +2272,6 @@
                 </div>
                 <span style="color:var(--emerald-400);font-weight:700;" id="snapshotCountSettings">0</span>
             </div>
-            <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Размер</div>
-                    <div class="desc">JSON файла odds_history</div>
-                </div>
-                <span style="color:var(--text-tertiary);font-size:11px;" id="snapshotSizeSettings">0 KB</span>
-            </div>
         </div>
 
         <div class="setting-group">
@@ -2028,23 +2301,22 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v18 Emerald • 2026</div>
+                    <div class="desc">v19 Emerald • 2026</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v18.0</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v19.0</span>
             </div>
         </div>
 
     </div>
 
-    <!-- FOOTER -->
     <div class="footer">
-        💎 Quantum Tracker v18 Emerald © 2026
+        💎 Quantum Tracker v19 Emerald © 2026
     </div>
 
 </div>
 
 <!-- ============================================================
-     BOTTOM NAVIGATION — 6 ВКЛАДОК
+     BOTTOM NAV — 5 кнопок + "Ещё"
      ============================================================ -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
@@ -2067,11 +2339,53 @@
         <span class="icon">🔥</span>
         <span class="label">X2</span>
     </button>
-    <button class="nav-item" onclick="openSettings()">
-        <span class="icon">⚙️</span>
+    <button class="nav-item" onclick="toggleMoreMenu()">
+        <span class="icon">⋯</span>
         <span class="label">Ещё</span>
     </button>
 </nav>
+
+<!-- ============================================================
+     ★ MODAL: BOTTOM SHEET "ЕЩЁ"
+     ============================================================ -->
+<div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
+    <div class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-title">Меню</div>
+
+        <button class="sheet-item" onclick="openFromMore('autobets')">
+            <span class="sheet-icon">💸</span>
+            <div>
+                <div class="sheet-label">Автоставки</div>
+                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="openFromMore('simulator')">
+            <span class="sheet-icon">🧪</span>
+            <div>
+                <div class="sheet-label">Симулятор стратегий</div>
+                <div class="sheet-desc">Проверка стратегий на истории</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
+            <span class="sheet-icon">⚙️</span>
+            <div>
+                <div class="sheet-label">Настройки</div>
+                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
+            <span class="sheet-icon">📲</span>
+            <div>
+                <div class="sheet-label">Установить приложение</div>
+                <div class="sheet-desc">Добавить на главный экран</div>
+            </div>
+        </button>
+    </div>
+</div>
 
 <!-- ============================================================
      MODAL: ADD MATCH
@@ -2229,7 +2543,7 @@
 </div>
 
 <!-- ============================================================
-     MODAL: SNAPSHOT CHART (движение кэфов)
+     MODAL: SNAPSHOT CHART
      ============================================================ -->
 <div class="modal-overlay" id="snapshotChartModal">
     <div class="modal modal-large">
@@ -2245,12 +2559,9 @@
     </div>
 </div>
 
-<!-- ============================================================
-     TOAST CONTAINER
-     ============================================================ -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
-   <script>
+<script>
 // ============================================================
 // КОНФИГУРАЦИЯ
 // ============================================================
@@ -2268,6 +2579,8 @@ let cachedData = null;
 let chartInstance = null;
 let analyticsChartInstance = null;
 let snapshotChartInstance = null;
+let simChart = null;
+let currentSimResult = null;
 let currentPage = 'dashboard';
 let previousPage = 'dashboard';
 let isLoading = false;
@@ -2287,7 +2600,6 @@ let sortBy = 'date';
 let sortDir = 'desc';
 let themeMode = 'auto';
 
-// Снимки
 let snapshotsData = [];
 let snapshotFilter = 'all';
 let snapshotSort = 'recent';
@@ -2304,7 +2616,7 @@ function haptic(ms = 10) {
 }
 
 // ============================================================
-// УВЕДОМЛЕНИЯ (TOAST)
+// УВЕДОМЛЕНИЯ
 // ============================================================
 function showNotification(message, type = '') {
     const container = document.getElementById('toastContainer');
@@ -2418,16 +2730,31 @@ function setTheme(mode) {
 function switchPage(page) {
     if (page === currentPage) return;
     previousPage = currentPage;
+
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
-    if (navBtn) navBtn.classList.add('active');
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    if (navBtn) {
+        navBtn.classList.add('active');
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings') {
+        // Подсвечиваем кнопку "Ещё"
+        const navItems = document.querySelectorAll('.nav-item');
+        const moreBtn = navItems[navItems.length - 1];
+        if (moreBtn) moreBtn.classList.add('active');
+    }
+
+    document.querySelectorAll('.page').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+    });
+
     const target = document.getElementById('page-' + page);
     if (target) {
+        target.classList.add('active');
         target.style.display = 'block';
         target.classList.add('page-transition');
         setTimeout(() => target.classList.remove('page-transition'), 400);
     }
+
     currentPage = page;
     haptic(6);
 
@@ -2436,14 +2763,24 @@ function switchPage(page) {
     else if (page === 'analytics') loadPageData('analytics');
     else if (page === 'x2') renderX2Page();
     else if (page === 'snapshots') loadSnapshots();
+    else if (page === 'autobets') loadAutobets();
+    else if (page === 'simulator') loadSimPresets();
 }
 
 function openSettings() {
     previousPage = currentPage;
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    const navItems = document.querySelectorAll('.nav-item');
+    const moreBtn = navItems[navItems.length - 1];
+    if (moreBtn) moreBtn.classList.add('active');
+
+    document.querySelectorAll('.page').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+    });
     const target = document.getElementById('page-settings');
     if (target) {
+        target.classList.add('active');
         target.style.display = 'block';
         target.classList.add('page-transition');
     }
@@ -2454,6 +2791,29 @@ function openSettings() {
 
 function closeSettings() {
     switchPage(previousPage || 'dashboard');
+}
+
+// ============================================================
+// ★ BOTTOM SHEET "ЕЩЁ"
+// ============================================================
+function toggleMoreMenu() {
+    const modal = document.getElementById('moreMenuModal');
+    if (modal.classList.contains('active')) {
+        closeMoreMenu();
+    } else {
+        modal.classList.add('active');
+        haptic(6);
+    }
+}
+
+function closeMoreMenu() {
+    const modal = document.getElementById('moreMenuModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function openFromMore(page) {
+    closeMoreMenu();
+    setTimeout(() => switchPage(page), 200);
 }
 
 // ============================================================
@@ -2471,8 +2831,8 @@ function closeSettings() {
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
-        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card')) return;
-        if (currentPage === 'settings') return;
+        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet')) return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2524,6 +2884,7 @@ function refreshData() {
         cachedData = null;
         loadPageData(currentPage);
         if (currentPage === 'snapshots') loadSnapshots();
+        if (currentPage === 'autobets') loadAutobets();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -2574,7 +2935,7 @@ function renderActiveMatchesList(matches) {
 }
 
 // ============================================================
-// ★ АНОМАЛИИ КЭФОВ (быстрый блок на дашборде)
+// ★ АНОМАЛИИ КЭФОВ
 // ============================================================
 async function loadAnomalies() {
     try {
@@ -2624,7 +2985,7 @@ function openSnapshotFromAnomaly(fid) {
 }
 
 // ============================================================
-// BET CARD (со счётом 1-го тайма и свайпами)
+// BET CARD
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2637,7 +2998,6 @@ function renderBetCard(m, isActive = false) {
     const score = m.score || '-';
     const result = m.result || 'pending';
 
-    // Счёт 1-го тайма
     const htH = m.halftime_home;
     const htA = m.halftime_away;
     const hasHalftime = (htH !== null && htH !== undefined && htA !== null && htA !== undefined);
@@ -2730,7 +3090,6 @@ function renderBetCard(m, isActive = false) {
 }
 
 function handleCardClick(event, m) {
-    // Если это свайп — игнорируем
     if (event.target.closest('.swipe-hint')) return;
     if (event.defaultPrevented) return;
     showMatchDetail(m);
@@ -2754,7 +3113,7 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// СВАЙПЫ WIN/LOSS НА КАРТОЧКАХ
+// СВАЙПЫ WIN/LOSS
 // ============================================================
 function initCardSwipes() {
     document.querySelectorAll('.bet-card[data-index]').forEach(card => {
@@ -2797,11 +3156,9 @@ function initCardSwipes() {
             }
             const threshold = SWIPE_THRESHOLD;
             if (currentX > threshold) {
-                // WIN
                 haptic(30);
                 quickSetResult(idx, 'win');
             } else if (currentX < -threshold) {
-                // LOSS
                 haptic(30);
                 quickSetResult(idx, 'loss');
             } else {
@@ -2887,7 +3244,6 @@ function renderMatchesPage(data) {
         showAllWrap.style.display = 'none';
     }
 
-    // Добавляем индексы для свайпов
     displayed.forEach((item, i) => item._index = i);
 
     if (viewMode === 'cards') renderCardsView(displayed);
@@ -2910,7 +3266,6 @@ function renderCardsView(items) {
         return;
     }
     container.innerHTML = items.map(item => renderBetCard(item, item.is_active)).join('');
-    // Инициализируем свайпы после рендера
     setTimeout(initCardSwipes, 100);
 }
 
@@ -3001,7 +3356,9 @@ function buildAllItems(history, matches) {
                 best_bet: { label: h.bet, odds: h.odds, ev: h.ev, prob: h.prob },
                 bets: [],
                 halftime_home: h.halftime_home,
-                halftime_away: h.halftime_away
+                halftime_away: h.halftime_away,
+                home_goals: h.home_goals,
+                away_goals: h.away_goals
             });
         });
     }
@@ -3143,7 +3500,7 @@ function closeMatchDetail() {
 }
 
 // ============================================================
-// ★ SNAPSHOTS (Снимки кэфов) — НОВАЯ СТРАНИЦА
+// SNAPSHOTS
 // ============================================================
 async function loadSnapshots() {
     const container = document.getElementById('snapshotsList');
@@ -3159,9 +3516,7 @@ async function loadSnapshots() {
 
     try {
         let url = API_BASE + '/api/snapshots?days=7&limit=100';
-        if (snapshotFilter === 'anomaly') {
-            url += '&only_anomaly=true';
-        }
+        if (snapshotFilter === 'anomaly') url += '&only_anomaly=true';
         const resp = await fetch(url + '&t=' + Date.now());
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
@@ -3216,7 +3571,6 @@ function renderSnapshots() {
 
     let filtered = [...snapshotsData];
 
-    // Поиск
     if (snapshotsSearchQuery) {
         const q = snapshotsSearchQuery;
         filtered = filtered.filter(s =>
@@ -3226,7 +3580,6 @@ function renderSnapshots() {
         );
     }
 
-    // Сортировка
     if (snapshotSort === 'recent') {
         filtered.sort((a, b) => (b.last_time || '').localeCompare(a.last_time || ''));
     } else if (snapshotSort === 'count') {
@@ -3260,7 +3613,6 @@ function renderSnapshotCard(s) {
     const first = s.first || {};
     const last = s.last || {};
 
-    // Форматируем время
     let lastTimeStr = '';
     try {
         if (s.last_time) {
@@ -3269,7 +3621,6 @@ function renderSnapshotCard(s) {
         }
     } catch (e) {}
 
-    // Тренды для 1/X/2
     const trendHtml = ['1', 'X', '2'].map(sel => {
         const f = first[sel] || 0;
         const l = last[sel] || 0;
@@ -3363,7 +3714,6 @@ function renderSnapshotChart(history) {
     const textColor = isLight ? 'rgba(6, 78, 59, 0.6)' : 'rgba(236, 253, 245, 0.6)';
     const gridColor = isLight ? 'rgba(6, 78, 59, 0.06)' : 'rgba(52, 211, 153, 0.05)';
 
-    // Собираем данные по времени
     const labels = history.map(h => {
         try {
             const dt = new Date(h.created_at);
@@ -3385,30 +3735,21 @@ function renderSnapshotChart(history) {
                     data: data1,
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 6,
-                    spanGaps: true
+                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
                 },
                 {
                     label: 'X (ничья)',
                     data: dataX,
                     borderColor: '#fbbf24',
                     backgroundColor: 'rgba(251, 191, 36, 0.08)',
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 6,
-                    spanGaps: true
+                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
                 },
                 {
                     label: '2 (гости)',
                     data: data2,
                     borderColor: '#f87171',
                     backgroundColor: 'rgba(248, 113, 113, 0.08)',
-                    tension: 0.3,
-                    pointRadius: 3,
-                    pointHoverRadius: 6,
-                    spanGaps: true
+                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
                 }
             ]
         },
@@ -3427,10 +3768,7 @@ function renderSnapshotChart(history) {
             },
             scales: {
                 x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
-                y: {
-                    ticks: { color: textColor, font: { size: 9 } },
-                    grid: { color: gridColor }
-                }
+                y: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } }
             }
         }
     });
@@ -3440,7 +3778,6 @@ function renderSnapshotStats(history) {
     const statsEl = document.getElementById('snapshotChartStats');
     if (!statsEl || !history || history.length === 0) return;
 
-    // Считаем статистику по каждому исходу
     const stats = {};
     ['1', 'X', '2'].forEach(sel => {
         const values = history.map(h => h.odds[sel]).filter(v => v > 0);
@@ -3544,18 +3881,14 @@ function renderAnalyticsChart() {
                 data: profits,
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                fill: true,
-                tension: 0.4,
+                fill: true, tension: 0.4,
                 pointBackgroundColor: '#10b981',
                 pointBorderColor: isLight ? 'white' : '#0d1a17',
-                pointBorderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 6
+                pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 6
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
             scales: {
                 x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
@@ -3565,7 +3898,6 @@ function renderAnalyticsChart() {
     });
 }
 
-// ★ Сравнение стратегий — вертикальные полосы
 function renderStrategyBars(history) {
     const container = document.getElementById('strategyBars');
     if (!container) return;
@@ -3592,7 +3924,6 @@ function renderStrategyBars(history) {
         s.stake += b.stake || 0;
     });
 
-    // Находим максимум по модулю ROI для нормирования
     const entries = Object.entries(strategies).filter(([_, s]) => (s.wins + s.losses) > 0);
     let maxAbsRoi = 1;
     entries.forEach(([_, s]) => {
@@ -3753,7 +4084,7 @@ function calcX2Stats() {
     const total = x2Data.length;
     const wins = x2Data.filter(m => m.result === 'win').length;
     const losses = x2Data.filter(m => m.result === 'loss').length;
-    const totalProfit = x2Data.reduce((s, m) => s + (m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0), 0);
+    const totalProfit = x2Data.reduce((s, m) => s + (m.result === 'win' ? (m.profit || 0) : m.result === 'loss' ? -m.stake : 0), 0);
     const totalStake = x2Data.reduce((s, m) => s + (m.stake || 0), 0);
     const winrate = (wins + losses) > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
     const roi = totalStake > 0 ? Math.round((totalProfit / totalStake) * 100) : 0;
@@ -3766,6 +4097,17 @@ function loadX2Data() {
         x2Data = saved ? JSON.parse(saved) : [];
         x2CurrentFilter = localStorage.getItem('x2_filter') || 'all';
     } catch (e) { x2Data = []; }
+    // Загружаем с сервера асинхронно
+    fetch(API_BASE + '/api/x2_data?t=' + Date.now())
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.status === 'ok' && Array.isArray(data.data) && data.data.length > 0) {
+                x2Data = data.data;
+                localStorage.setItem('x2_matches', JSON.stringify(x2Data));
+                renderX2Page();
+            }
+        })
+        .catch(() => {});
 }
 
 function saveX2Data() {
@@ -3880,7 +4222,7 @@ function clearAllX2() {
 }
 
 // ============================================================
-// AUTO-IMPORT X2 (дедупликация по имени)
+// AUTO-IMPORT X2
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
@@ -3892,7 +4234,6 @@ async function autoImportX2FromLogs() {
 
         const lines = logText.split('\n');
         let newCount = 0;
-
         const uniqueMatches = new Map();
 
         for (const line of lines) {
@@ -3904,7 +4245,6 @@ async function autoImportX2FromLogs() {
             const home = m[1].trim();
             const away = m[2].trim();
             const matchName = home + ' vs ' + away;
-
             if (uniqueMatches.has(matchName)) continue;
 
             const dateMatch = line.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -3928,7 +4268,6 @@ async function autoImportX2FromLogs() {
         }
 
         const existingNames = new Set(x2Data.map(x => x.match));
-
         for (const [matchName, info] of uniqueMatches) {
             if (existingNames.has(matchName)) continue;
             x2Data.push({
@@ -3937,8 +4276,7 @@ async function autoImportX2FromLogs() {
                 match: matchName,
                 favorite: info.favorite,
                 underdog: info.underdog,
-                odds: 0,
-                stake: 0,
+                odds: 0, stake: 0,
                 score: '-',
                 result: 'pending',
                 profit: 0,
@@ -4029,7 +4367,7 @@ function exportX2Excel() {
         '#': i + 1, 'Дата': m.date, 'Матч': m.match,
         'Фаворит': m.favorite, 'Аутсайдер': m.underdog,
         'Кэф X2': m.odds, 'Сумма': m.stake, 'Счёт': m.score,
-        'Результат': m.result.toUpperCase(),
+        'Результат': (m.result || 'pending').toUpperCase(),
         'Прибыль': m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0,
         'Примечание': m.note || ''
     }));
@@ -4040,6 +4378,259 @@ function exportX2Excel() {
 }
 
 // ============================================================
+// ★ AUTOBETS
+// ============================================================
+async function loadAutobets() {
+    try {
+        const [state, history] = await Promise.all([
+            fetch(API_BASE + '/api/autobets/state?t=' + Date.now()).then(r => r.json()),
+            fetch(API_BASE + '/api/autobets/history?limit=50&t=' + Date.now()).then(r => r.json())
+        ]);
+
+        document.getElementById('ab-bank').textContent = '$' + (state.bank || 0).toFixed(2);
+        const profit = state.total_profit || 0;
+        const profEl = document.getElementById('ab-profit');
+        profEl.textContent = (profit >= 0 ? '+' : '') + '$' + profit.toFixed(2);
+        profEl.style.color = profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        document.getElementById('ab-roi').textContent = (state.roi || 0) + '%';
+        document.getElementById('ab-winrate').textContent = (state.winrate || 0) + '%';
+
+        renderAutobetsHistory(history || []);
+    } catch (e) {
+        console.error('loadAutobets:', e);
+        showNotification('❌ Ошибка загрузки автоставок', 'error');
+    }
+}
+
+function renderAutobetsHistory(history) {
+    const el = document.getElementById('autobets-history');
+    if (!el) return;
+    if (!history.length) {
+        el.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Пока нет автоставок</div>
+                <div class="desc">Нажмите «Сделать ставки» чтобы поставить на матчи из кэша</div>
+            </div>
+        `;
+        return;
+    }
+    el.innerHTML = history.map(b => {
+        const emoji = b.result === 'win' ? '✅' :
+                      b.result === 'loss' ? '❌' :
+                      b.result === 'push' ? '➖' : '⏳';
+        const profitColor = b.profit > 0 ? 'var(--emerald-400)' :
+                            b.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
+        const ht = (b.halftime_home != null && b.halftime_away != null)
+            ? ` • 1-й: ${b.halftime_home}-${b.halftime_away}` : '';
+        const score = (b.home_goals != null && b.away_goals != null)
+            ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">
+                 Счёт: <strong>${b.home_goals}-${b.away_goals}</strong>${ht}
+               </div>` : '';
+        return `
+            <div class="bet-card" style="cursor:default;margin-bottom:8px;">
+                <div class="bet-header">
+                    <div style="flex:1;min-width:0;">
+                        <div class="bet-match">${escapeHtml(b.home)} vs ${escapeHtml(b.away)}</div>
+                        <div class="bet-league">${escapeHtml(b.bet_label || '—')} • ${escapeHtml(b.league || '')}</div>
+                    </div>
+                    <div style="font-size:18px;">${emoji}</div>
+                </div>
+                <div class="bet-stats">
+                    <div class="bet-stat">
+                        <span class="stat-label">Кэф</span>
+                        <span class="stat-value">${(b.odds || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="bet-stat">
+                        <span class="stat-label">Ставка</span>
+                        <span class="stat-value">$${(b.stake || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="bet-stat">
+                        <span class="stat-label">Прибыль</span>
+                        <span class="stat-value" style="color:${profitColor};">
+                            ${b.profit >= 0 ? '+' : ''}$${(b.profit || 0).toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+                ${score}
+            </div>
+        `;
+    }).join('');
+}
+
+async function autobetsPlace() {
+    showNotification('💸 Размещаю автоставки...', '');
+    try {
+        const r = await fetch(API_BASE + '/api/autobets/place', { method: 'POST' }).then(r => r.json());
+        showNotification(`✅ Размещено: ${r.placed}`, 'success');
+        loadAutobets();
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function autobetsSettle() {
+    showNotification('🔄 Обновляю результаты...', '');
+    try {
+        const r = await fetch(API_BASE + '/api/autobets/settle', { method: 'POST' }).then(r => r.json());
+        showNotification(`✅ Обновлено: ${r.updated}`, 'success');
+        loadAutobets();
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function autobetsReset() {
+    if (!confirm('⚠️ Сбросить ВСЕ автоставки? Это действие необратимо.')) return;
+    try {
+        await fetch(API_BASE + '/api/autobets/reset', { method: 'POST' });
+        showNotification('🗑️ Автоставки сброшены', 'success');
+        loadAutobets();
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
+// ★ SIMULATOR
+// ============================================================
+async function loadSimPresets() {
+    try {
+        const presets = await fetch(API_BASE + '/api/simulator/presets?t=' + Date.now()).then(r => r.json());
+        const el = document.getElementById('sim-presets');
+        if (!el) return;
+        el.innerHTML = Object.entries(presets).map(([key, p]) =>
+            `<button class="filter-btn" onclick="applySimPreset('${key}')">${p.name}</button>`
+        ).join('');
+        window._simPresets = presets;
+    } catch (e) {
+        console.error('loadSimPresets:', e);
+    }
+}
+
+function applySimPreset(key) {
+    const p = window._simPresets && window._simPresets[key] ? window._simPresets[key].params : null;
+    if (!p) return;
+    const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = val;
+            el.dispatchEvent(new Event('input'));
+        }
+    };
+    set('sim-min-ev', p.min_ev);
+    set('sim-min-prob', p.min_prob);
+    set('sim-min-odds', p.min_odds);
+    set('sim-max-odds', p.max_odds);
+    set('sim-min-xg', p.min_xg);
+    set('sim-max-xg', p.max_xg);
+    set('sim-stake', p.stake_pct);
+    set('sim-bank', p.start_bank);
+    showNotification('🎯 Пресет применён', '');
+    haptic(8);
+}
+
+async function runSimulation() {
+    const params = {
+        min_ev: parseFloat(document.getElementById('sim-min-ev').value),
+        max_ev: 500,
+        min_prob: parseFloat(document.getElementById('sim-min-prob').value),
+        max_prob: 100,
+        min_odds: parseFloat(document.getElementById('sim-min-odds').value),
+        max_odds: parseFloat(document.getElementById('sim-max-odds').value),
+        min_xg: parseFloat(document.getElementById('sim-min-xg').value),
+        max_xg: parseFloat(document.getElementById('sim-max-xg').value),
+        bet_types: [],
+        leagues: [],
+        stake_pct: parseFloat(document.getElementById('sim-stake').value),
+        start_bank: parseFloat(document.getElementById('sim-bank').value)
+    };
+    showNotification('🚀 Симулирую...', '');
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(params)
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        currentSimResult = r.result;
+        const res = r.result;
+
+        document.getElementById('sim-results').style.display = 'block';
+
+        const profitEl = document.getElementById('sim-profit');
+        profitEl.textContent = (res.profit >= 0 ? '+' : '') + '$' + res.profit.toFixed(2);
+        profitEl.style.color = res.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+
+        document.getElementById('sim-roi').textContent = res.roi + '%';
+        document.getElementById('sim-winrate').textContent = res.winrate + '%';
+        document.getElementById('sim-bets').textContent = res.total_bets;
+        document.getElementById('sim-dd').textContent = res.max_drawdown + '%';
+        document.getElementById('sim-end').textContent = '$' + res.end_bank.toFixed(2);
+
+        if (simChart) simChart.destroy();
+        const ctx = document.getElementById('sim-chart').getContext('2d');
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        const textColor = isLight ? 'rgba(6, 78, 59, 0.6)' : 'rgba(236, 253, 245, 0.6)';
+        const gridColor = isLight ? 'rgba(6, 78, 59, 0.06)' : 'rgba(52, 211, 153, 0.05)';
+
+        simChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: res.bets.map((_, i) => i + 1),
+                datasets: [{
+                    label: 'Банк',
+                    data: res.bets.map(b => b.bank_after),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } }
+                }
+            }
+        });
+
+        showNotification(`✅ Готово: ${res.total_bets} ставок`, 'success');
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function saveSimulation() {
+    if (!currentSimResult) return;
+    const name = prompt('Название стратегии:', 'Моя стратегия');
+    if (!name) return;
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name,
+                result: currentSimResult
+            })
+        }).then(r => r.json());
+        showNotification(r.status === 'ok' ? '✅ Стратегия сохранена' : '❌ Ошибка', r.status === 'ok' ? 'success' : 'error');
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
 // SETTINGS
 // ============================================================
 function renderSettings() {
@@ -4047,12 +4638,7 @@ function renderSettings() {
     document.getElementById('bankInput').value = bank;
     document.getElementById('x2CountSettings').textContent = x2Data.length;
     document.getElementById('themeSelect').value = themeMode;
-    // Счётчик снимков
-    if (cachedData && cachedData.stats) {
-        // Опционально: получить размер снимков
-    }
-    fetch(API_BASE + '/api/keepalive')
-        .then(() => fetch(API_BASE + '/api/snapshots?days=30&limit=1'))
+    fetch(API_BASE + '/api/snapshots?days=30&limit=1')
         .then(r => r.json())
         .then(data => {
             if (data && data.count !== undefined) {
@@ -4127,12 +4713,9 @@ function exportCSV() {
     showNotification('✅ CSV скачан', 'success');
 }
 
-// ============================================================
-// IMPORT/EXPORT PROJECT
-// ============================================================
 function exportProject() {
     const projectData = {
-        version: '18.0',
+        version: '19.0',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -4325,6 +4908,8 @@ function startAutoRefresh() {
                 loadPageData(currentPage);
             } else if (currentPage === 'snapshots') {
                 loadSnapshots();
+            } else if (currentPage === 'autobets') {
+                loadAutobets();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -4438,7 +5023,6 @@ window.addEventListener('load', async () => {
     registerPWA();
 });
 
-// Закрытие модалок по клику вне
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) overlay.classList.remove('active');
@@ -4451,6 +5035,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 Object.assign(window, {
     cycleTheme, setTheme, switchPage, refreshData,
     openSettings, closeSettings,
+    toggleMoreMenu, closeMoreMenu, openFromMore,
     filterMatches, setMatchFilter, setViewMode, sortTable, toggleShowAll,
     showMatchDetail, closeMatchDetail,
     showAddMatchModal, hideAddMatchModal, saveManualMatch,
@@ -4461,11 +5046,12 @@ Object.assign(window, {
     importX2Excel, autoImportX2FromLogs,
     installPWA, hideInstallBanner, updatePWA, checkForUpdates,
     runBotUpdate, renderAnalyticsChart,
-    // Snapshot page
     loadSnapshots, refreshSnapshots, setSnapshotFilter, setSnapshotSort,
     filterSnapshots, showSnapshotChart, closeSnapshotChart,
     openSnapshotFromAnomaly, loadAnomalies,
-    quickSetResult
+    quickSetResult,
+    loadAutobets, autobetsPlace, autobetsSettle, autobetsReset,
+    loadSimPresets, applySimPreset, runSimulation, saveSimulation
 });
 </script>
 </body>
