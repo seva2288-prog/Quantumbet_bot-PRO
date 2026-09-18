@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 2.0 — сбалансированные пороги для реальной работы
+★ ВЕРСИЯ 3.0 — с фильтрацией лиг по реальным кэфам (50/67 подтверждено)
 """
 import os
 import sys
@@ -25,8 +25,8 @@ class Config:
     # === FOOTBALL API (Ultra) ===
     # 450 req/min, 75 000 req/day, /odds, /predictions, /injuries
     # ============================================================
-    FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "")
-    FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io")
+    FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "").strip()
+    FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io").rstrip("/")
 
     # ============================================================
     # === WEATHER API ===
@@ -75,52 +75,72 @@ class Config:
     MAX_BETS_PER_RUN = 30
 
     # ============================================================
-    # === 70%+ ★ ИЗМЕНЕНО — реалистичные пороги ===
+    # === 70%+ ★ реалистичные пороги ===
     # ============================================================
-    XG_MIN_70 = 1.2          # ★ было 1.8 — слишком строго
-    XG_MAX_70 = 3.8          # ★ было 3.0 — отсекало топ-матчи
-    EV_MIN_70 = 8            # ★ было 20 — реальный EV редко >15%
-    PROB_MIN_70 = 52         # ★ было 65 — недостижимо
-    POSITION_MAX_70 = 18     # ★ было 15 — отсекало середину таблицы
-    FORM_REQUIRED_70 = ['excellent', 'good', 'average']  # ★ добавили average
-    SKIP_MID_TABLE_70 = False  # ★ было True — убивало половину матчей
+    XG_MIN_70 = 1.2
+    XG_MAX_70 = 3.8
+    EV_MIN_70 = 8
+    PROB_MIN_70 = 52
+    POSITION_MAX_70 = 18
+    FORM_REQUIRED_70 = ['excellent', 'good', 'average']
+    SKIP_MID_TABLE_70 = False
     LIMIT_BET_TYPE_70 = 15
     LIMIT_LEAGUE_70 = 5
     MIN_ODD_70 = 1.40
     MAX_ODD_70 = 8.00
 
     # ============================================================
-    # === ФИНАЛЬНЫЙ ФИЛЬТР ★ СМЯГЧЕНО ===
+    # === ФИНАЛЬНЫЙ ФИЛЬТР ===
     # ============================================================
-    EV_FINAL_MIN = -15       # ★ было -6 — отсекало матчи с малым EV
-    EV_FINAL_MAX = 150       # ★ было 100
-    PROB_FINAL_MIN = 40      # ★ было 45
+    EV_FINAL_MIN = -15
+    EV_FINAL_MAX = 150
+    PROB_FINAL_MIN = 40
 
     # ============================================================
     # ★ WHITELIST — лиги, которые берём в работу
+    # ★ ДОБАВЛЕНО: 'national', 'j1 league', 'ekstraklasa', 'eliteserien' и др.
     # ============================================================
     WHITELIST_LEAGUES = [
         # ── Англия ──
         'premier league', 'championship',
-        'efl league one', 'efl league two',
+        'efl league one', 'league one',
         # ── Испания ──
         'la liga', 'laliga',
         'segunda división', 'segunda division', 'la liga 2',
+        'primera federación', 'primera federacion',
         # ── Германия ──
         'bundesliga', '2. bundesliga', '3. liga',
         # ── Италия ──
-        'serie a', 'serie b',
+        'serie a', 'serie b', 'serie c',
         # ── Франция ──
-        'ligue 1', 'ligue 2',
+        'ligue 1', 'ligue 2', 'national',   # ★ добавлено national
         # ── Нидерланды, Португалия, Бельгия, Турция ──
-        'eredivisie', 'primeira liga', 'liga portugal',
-        'pro league', 'süper lig', 'super lig',
-        # ── Бразилия, Аргентина, Мексика, США ──
+        'eredivisie', 'eerste divisie',
+        'primeira liga', 'liga portugal',
+        'pro league', 'challenger pro league',
+        'süper lig', 'super lig', 'tff 1. lig',
+        # ── Скандинавия ──
+        'superliga', '1. division',
+        'eliteserien', 'obos-ligaen',
+        # ── Восточная Европа ──
+        'ekstraklasa', 'i liga',
+        'hnl', '2. hnl',
+        'premier league ukraine', 'persha liga',
+        'рпл', 'первая лига',
+        # ── Швейцария, Австрия, Греция ──
+        'super league', 'challenge league',
+        'bundesliga austria',
+        # ── Америка ──
         'brasileirão', 'brasileirao',
-        'primera división', 'primera division', 'liga profesional',
+        'argentina primera', 'liga profesional',
         'liga mx', 'mls', 'major league soccer',
-        # ── Саудовская Аравия, Япония ──
+        # ── Азия ──
         'saudi pro league', 'j1 league',
+        'chinese super league',
+        # ── Африка ──
+        'south africa premier', 'botola pro',
+        # ── Австралия ──
+        'a-league',
         # ── Европейские кубки ──
         'champions league', 'uefa champions',
         'europa league', 'uefa europa',
@@ -133,9 +153,10 @@ class Config:
     BLACKLIST_LEAGUES = [
         # ── Низшие английские дивизионы ──
         'isthmian', 'northern premier', 'southern league',
-        'national league', 'county league', 'combined counties',
-        'united counties', 'premier division', 'division one',
-        'division two', 'championship north', 'championship south',
+        'county league', 'combined counties',
+        'united counties', 'premier division',
+        'division one', 'division two',
+        'championship north', 'championship south',
         'east counties', 'wessex league', 'western league',
         'northern counties east', 'northern counties west',
         'essex senior', 'hellenic league', 'midland league',
@@ -147,12 +168,12 @@ class Config:
         'mls next pro', 'usl league', 'usl championship', 'next pro',
         # ── Молодёжные ──
         'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
-        'youth', 'academy', 'junior',
+        'youth', 'academy', 'junior', 'primavera',
         # ── Женские ──
-        'women', 'womens', 'femenina', 'feminine', 'female',
+        'women', 'womens', 'femenina', 'feminine', 'female', 'frauen',
         # ── Низшие дивизионы ──
         'primera b', 'primera c', 'primera d',
-        'serie c', 'serie d',
+        'serie d',
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
         'torneo federal', 'torneo argentino',
         'prim b', 'prim c', 'prim d',
@@ -163,29 +184,37 @@ class Config:
         # ── Локальные кубки штатов Бразилии ──
         'copa paulista', 'carioca', 'gaúcho', 'mineiro',
         'baiano', 'pernambucano', 'cearense', 'paranaense',
+        'capixaba', 'catarinense', 'potiguar', 'goiano',
+        'amazonense', 'matogrossense', 'paraibano',
+        'piauiense', 'sergipano', 'maranhense', 'acreano',
+        'tocantinense', 'rondoniense', 'sul-matogrossense',
+        'amapaense', 'brasiliense', 'candango', 'paraense',
         # ── Лиги без кэфов ──
-        'persha liga', 'j2 league', 'k league 1', 'k league 2',
+        'persha liga', 'j2 league', 'j3 league',
+        'k league 1', 'k league 2',
         'colombia primera a', 'chile primera', 'nb i',
         'ecuador serie a', 'вторая лига а', 'super league 2',
         'prva liga', 'egyptian premier',
+        'uruguay primera', 'northern ireland', 'welsh premier',
+        'irish premier', 'first division',
     ]
 
     # ============================================================
-    # === ТМ 2.5 ★ ИЗМЕНЕНО — теперь РАБОТАЕТ ===
+    # === ТМ 2.5 ===
     # ============================================================
-    MAX_TM25_BETS = 5        # ★ было 0 — поток был выключен
-    MIN_TM25_EV = 15         # ★ было 99
-    MIN_TM25_PROB = 55       # ★ было 99
-    TM25_XG_MIN = 0.8        # ★ было 0.99
-    TM25_XG_MAX = 3.0        # ★ было 0.99
-    PREMIUM_MIN_EV = 25      # ★ было 99
-    PREMIUM_MIN_PROB = 58    # ★ было 99
-    PREMIUM_XG_MIN = 1.0     # ★ было 0.99
-    PREMIUM_XG_MAX = 2.8     # ★ было 0.99
-    STANDARD_MIN_EV = 15     # ★ было 99
-    STANDARD_MIN_PROB = 52   # ★ было 99
-    STANDARD_XG_MIN = 0.8    # ★ было 0.99
-    STANDARD_XG_MAX = 3.0    # ★ было 0.99
+    MAX_TM25_BETS = 5
+    MIN_TM25_EV = 15
+    MIN_TM25_PROB = 55
+    TM25_XG_MIN = 0.8
+    TM25_XG_MAX = 3.0
+    PREMIUM_MIN_EV = 25
+    PREMIUM_MIN_PROB = 58
+    PREMIUM_XG_MIN = 1.0
+    PREMIUM_XG_MAX = 2.8
+    STANDARD_MIN_EV = 15
+    STANDARD_MIN_PROB = 52
+    STANDARD_XG_MIN = 0.8
+    STANDARD_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
 
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
@@ -196,8 +225,7 @@ class Config:
     ODDS_SPORT_MAP = {
         'АПЛ': 'soccer_epl', 'Premier League': 'soccer_epl',
         'Чемпионшип': 'soccer_efl_champ', 'Championship': 'soccer_efl_champ',
-        'Лига 1': 'soccer_england_league1', 'League 1': 'soccer_england_league1',
-        'Лига 2': 'soccer_england_league2', 'League 2': 'soccer_england_league2',
+        'Лига 1 Англия': 'soccer_england_league1', 'League One': 'soccer_england_league1',
         'Ла Лига': 'soccer_spain_la_liga', 'La Liga': 'soccer_spain_la_liga',
         'Сегунда': 'soccer_spain_segunda_division', 'La Liga 2': 'soccer_spain_segunda_division',
         'Бундеслига': 'soccer_germany_bundesliga', 'Bundesliga': 'soccer_germany_bundesliga',
@@ -208,13 +236,13 @@ class Config:
         'Эредивизи': 'soccer_netherlands_eredivisie', 'Eredivisie': 'soccer_netherlands_eredivisie',
         'Примейра Лига': 'soccer_portugal_primeira_liga', 'Primeira Liga': 'soccer_portugal_primeira_liga',
         'Про Лига': 'soccer_belgium_first_div',
-        'Супер Лига': 'soccer_turkey_super_league', 'Super Lig': 'soccer_turkey_super_league',
+        'Супер Лига': 'soccer_turkey_super_league', 'Süper Lig': 'soccer_turkey_super_league',
         'Премьершип': 'soccer_spl',
-        'Суперлига': 'soccer_denmark_superliga',
-        'Элитсериен': 'soccer_norway_eliteserien',
+        'Суперлига': 'soccer_denmark_superliga', 'Superliga': 'soccer_denmark_superliga',
+        'Элитсериен': 'soccer_norway_eliteserien', 'Eliteserien': 'soccer_norway_eliteserien',
         'Аллсвенскан': 'soccer_sweden_allsvenskan',
-        'Экстракласа': 'soccer_poland_ekstraklasa',
-        'Премьер-Лига': 'soccer_ukraine_premier_league',
+        'Экстракласа': 'soccer_poland_ekstraklasa', 'Ekstraklasa': 'soccer_poland_ekstraklasa',
+        'Премьер-Лига Украина': 'soccer_ukraine_premier_league',
         'РПЛ': 'soccer_russia_premier_league',
         'HNL': 'soccer_croatia_hnl',
         'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
@@ -228,7 +256,6 @@ class Config:
         'Copa Libertadores': 'soccer_conmebol_copa_libertadores',
         'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
         'Япония J1 Лига': 'soccer_japan_j_league', 'J1 League': 'soccer_japan_j_league',
-        'Южная Корея K Лига 1': 'soccer_korea_kleague1', 'K League 1': 'soccer_korea_kleague1',
         'Австралия А-Лига': 'soccer_australia_a_league',
         'Китай Супер Лига': 'soccer_china_super_league',
     }
@@ -245,46 +272,170 @@ class Config:
     ]
 
     # ============================================================
-    # === ЛИГИ И НАЗВАНИЯ (резерв) ===
+    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ (50/67)
+    # Обновлено после `python3 -m app.config leagues`
     # ============================================================
     LEAGUES = [
-        39, 40, 41, 140, 141, 142, 78, 79, 80, 135, 136, 137,
-        61, 62, 63, 88, 89, 94, 203, 204, 197, 198, 144, 145,
-        119, 120, 164, 165, 106, 107, 95, 96, 187, 206, 207,
-        166, 167, 260, 261, 250, 256, 258, 171, 179, 180, 181,
-        182, 2, 3, 848, 71, 128, 148, 158, 168, 178, 253, 307,
-        150, 151, 154, 155, 183, 169, 276, 278, 279,
+        # ── Англия ──
+        39,   # Premier League
+        40,   # Championship
+        41,   # League One
+        # ── Испания ──
+        140,  # La Liga
+        141,  # La Liga 2
+        142,  # Primera Federación
+        # ── Германия ──
+        78,   # Bundesliga
+        79,   # 2. Bundesliga
+        80,   # 3. Liga
+        # ── Италия ──
+        135,  # Serie A
+        136,  # Serie B
+        137,  # Serie C
+        # ── Франция ──
+        61,   # Ligue 1
+        62,   # Ligue 2
+        63,   # National
+        # ── Нидерланды ──
+        88,   # Eredivisie
+        89,   # Eerste Divisie
+        # ── Португалия ──
+        94,   # Primeira Liga
+        # ── Бельгия ──
+        144,  # Pro League
+        145,  # Challenger Pro League
+        # ── Турция ──
+        203,  # Süper Lig
+        204,  # TFF 1. Lig
+        # ── Украина ──
+        95,   # Premier League
+        96,   # Persha Liga
+        # ── Польша ──
+        106,  # Ekstraklasa
+        107,  # I Liga
+        # ── Дания ──
+        119,  # Superliga
+        120,  # 1. Division
+        # ── Норвегия ──
+        164,  # Eliteserien
+        165,  # OBOS-ligaen
+        # ── Хорватия ──
+        166,  # HNL
+        167,  # 2. HNL
+        # ── Швейцария ──
+        206,  # Super League
+        207,  # Challenge League
+        # ── Австрия ──
+        187,  # Bundesliga
+        # ── Греция ──
+        197,  # Super League
+        # ── Чехия ──
+        261,  # 2. Liga
+        # ── Америка ──
+        71,   # Brasileirão
+        128,  # Argentina Primera
+        253,  # MLS
+        # ── Азия ──
+        150,  # J1 League
+        169,  # Chinese Super League
+        307,  # Saudi Pro League
+        # ── Африка ──
+        276,  # South Africa Premier
+        278,  # Botola Pro
+        # ── Австралия ──
+        183,  # A-League
+        # ── Россия ──
+        179,  # РПЛ
+        180,  # Первая Лига
+        182,  # Вторая Лига Б
+        # ── Кубки ──
+        3,    # UEFA Europa League
+        2,    # UEFA Champions League (проверить ещё раз)
+        848,  # UEFA Conference League (проверить ещё раз)
     ]
 
     CUP_LEAGUES = [2, 3, 848]
 
+    # ============================================================
+    # ★ LEAGUE_NAMES — только для лиг из LEAGUES
+    # ============================================================
     LEAGUE_NAMES = {
-        2: "UEFA Champions League", 3: "UEFA Europa League", 848: "UEFA Conference League",
-        39: "Premier League", 40: "Championship", 41: "League One",
-        140: "La Liga", 141: "La Liga 2", 142: "Primera Federación",
-        78: "Bundesliga", 79: "2. Bundesliga", 80: "3. Liga",
-        135: "Serie A", 136: "Serie B", 137: "Serie C",
-        61: "Ligue 1", 62: "Ligue 2", 63: "National",
-        88: "Eredivisie", 89: "Eerste Divisie", 94: "Primeira Liga",
-        203: "Süper Lig", 204: "TFF 1. Lig",
-        197: "Super League", 198: "Super League 2",
-        144: "Pro League", 145: "Challenger Pro League",
-        119: "Superliga", 120: "1. Division",
-        164: "Eliteserien", 165: "OBOS-ligaen",
-        106: "Ekstraklasa", 107: "I Liga",
-        95: "Premier League", 96: "Persha Liga",
-        187: "Bundesliga", 206: "Super League", 207: "Challenge League",
-        166: "HNL", 167: "2. HNL",
-        260: "Prva Liga", 261: "2. Liga",
-        250: "Super Liga", 256: "Liga 1", 258: "Super Liga", 171: "NB I",
-        179: "РПЛ", 180: "Первая Лига", 181: "Вторая Лига А", 182: "Вторая Лига Б",
-        71: "Brasileirão", 128: "Argentina Primera", 148: "Uruguay Primera",
-        158: "Colombia Primera A", 168: "Chile Primera", 178: "Ecuador Serie A",
+        # Кубки
+        2: "UEFA Champions League",
+        3: "UEFA Europa League",
+        848: "UEFA Conference League",
+        # Англия
+        39: "Premier League",
+        40: "Championship",
+        41: "League One",
+        # Испания
+        140: "La Liga",
+        141: "La Liga 2",
+        142: "Primera Federación",
+        # Германия
+        78: "Bundesliga",
+        79: "2. Bundesliga",
+        80: "3. Liga",
+        # Италия
+        135: "Serie A",
+        136: "Serie B",
+        137: "Serie C",
+        # Франция
+        61: "Ligue 1",
+        62: "Ligue 2",
+        63: "National",
+        # Нидерланды
+        88: "Eredivisie",
+        89: "Eerste Divisie",
+        # Португалия
+        94: "Primeira Liga",
+        # Бельгия
+        144: "Pro League",
+        145: "Challenger Pro League",
+        # Турция
+        203: "Süper Lig",
+        204: "TFF 1. Lig",
+        # Украина
+        95: "Premier League",
+        96: "Persha Liga",
+        # Польша
+        106: "Ekstraklasa",
+        107: "I Liga",
+        # Дания
+        119: "Superliga",
+        120: "1. Division",
+        # Норвегия
+        164: "Eliteserien",
+        165: "OBOS-ligaen",
+        # Хорватия
+        166: "HNL",
+        167: "2. HNL",
+        # Швейцария
+        206: "Super League",
+        207: "Challenge League",
+        # Австрия
+        187: "Bundesliga",
+        # Греция
+        197: "Super League",
+        # Чехия
+        261: "2. Liga",
+        # Америка
+        71: "Brasileirão",
+        128: "Argentina Primera",
         253: "MLS",
-        307: "Saudi Pro League", 150: "J1 League", 151: "J2 League",
-        154: "K League 1", 155: "K League 2", 183: "A-League",
+        # Азия
+        150: "J1 League",
         169: "Chinese Super League",
-        276: "South Africa Premier", 278: "Botola Pro", 279: "Egyptian Premier",
+        307: "Saudi Pro League",
+        # Африка
+        276: "South Africa Premier",
+        278: "Botola Pro",
+        # Австралия
+        183: "A-League",
+        # Россия
+        179: "РПЛ",
+        180: "Первая Лига",
+        182: "Вторая Лига Б",
     }
 
     # ============================================================
@@ -344,11 +495,11 @@ class Config:
         leagues, names = [], {}
 
         EXCLUDE_WORDS = [
-            'women', 'womens', 'femenina', 'feminine', 'female',
+            'women', 'womens', 'femenina', 'feminine', 'female', 'frauen',
             'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
-            'youth', 'reserve', 'academy', 'junior',
+            'youth', 'reserve', 'academy', 'junior', 'primavera',
             'isthmian', 'northern premier', 'southern league',
-            'national league', 'county league', 'combined counties',
+            'county league', 'combined counties',
             'premier division', 'division one', 'division two',
             'championship north', 'championship south',
             'east counties', 'wessex league', 'western league',
@@ -358,7 +509,7 @@ class Config:
             'southern counties east', 'southern combination',
             'yorkshire league',
             'primera b', 'primera c', 'primera d',
-            'serie c', 'serie d',
+            'serie d',
             'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
             'torneo federal', 'torneo argentino',
             'prim b', 'prim c', 'prim d',
@@ -406,7 +557,6 @@ class Config:
                         continue
 
                     if not any(good in lname_lower for good in whitelist):
-                        print(f"⏭️ {country}: {lname} — не в whitelist")
                         continue
 
                     leagues.append(lid)
@@ -658,7 +808,7 @@ class Config:
         print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
         cls.init_db()
-        cls.build_leagues_from_api()
+        # ★ НЕ вызываем build_leagues_from_api — используем фиксированный список
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
         return True
