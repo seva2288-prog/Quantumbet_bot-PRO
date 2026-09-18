@@ -3170,7 +3170,7 @@ def webhook():
                     msg += "\n💡 Запусти <b>/snapshot</b> для нового снимка"
 
                     send_telegram(msg)
-                eexcept Exception as e:
+                except Exception as e:
                     logger.exception(f"Ошибка /snapshots: {e}")
                     send_telegram(f"❌ Ошибка /snapshots: {e}")
 
