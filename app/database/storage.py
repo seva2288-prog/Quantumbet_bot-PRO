@@ -1,5 +1,5 @@
 """Управление данными бота (банк, история, статистика, кэш, история кэфов,
-   ★ автоставки, ★ симуляции стратегий, ★ X2 матчи)"""
+   ★ автоставки, ★ симуляции стратегий, ★ X2 матчи, ★ CLV-анализ)"""
 import json
 import os
 import shutil
@@ -17,8 +17,8 @@ class Storage:
     Хранилище JSON с защитой от конкурентной записи и битых файлов.
     Атомарная запись через tempfile + os.replace().
 
-    ★ Версия 2.0:
-      - autobets.json     — виртуальные автоставки
+    ★ Версия 3.0:
+      - autobets.json     — виртуальные автоставки (с CLV)
       - simulations.json  — сохранённые симуляции стратегий
       - x2_matches.json   — X2 матчи
     """
@@ -27,14 +27,12 @@ class Storage:
         self.data_dir = data_dir
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # Блокировки на каждый файл
         self._locks = {
             'bank': threading.Lock(),
             'history': threading.Lock(),
             'stats': threading.Lock(),
             'cache': threading.Lock(),
             'odds_history': threading.Lock(),
-            # ★ НОВЫЕ
             'autobets': threading.Lock(),
             'simulations': threading.Lock(),
             'x2_matches': threading.Lock(),
@@ -54,7 +52,6 @@ class Storage:
         return os.path.join(self.data_dir, f'{name}.json')
 
     def _atomic_write(self, name, data):
-        """Пишет JSON во временный файл и атомарно подменяет целевой."""
         target = self._path(name)
         fd, tmp_path = tempfile.mkstemp(dir=self.data_dir, suffix='.tmp')
         try:
@@ -68,7 +65,6 @@ class Storage:
             raise
 
     def _read(self, name, default):
-        """Читает JSON, при ошибке — возвращает default и логирует."""
         path = self._path(name)
         if not os.path.exists(path):
             return default
@@ -91,7 +87,6 @@ class Storage:
             return default
 
     def _backup(self, name):
-        """Создаёт .bak-копию перед перезаписью."""
         path = self._path(name)
         if os.path.exists(path):
             try:
@@ -178,13 +173,12 @@ class Storage:
             self._atomic_write('cache', cache)
 
     # ============================================================
-    # ИСТОРИЯ КЭФОВ (для line movement и CLV)
+    # ИСТОРИЯ КЭФОВ
     # ============================================================
     def _odds_history_path(self):
         return self._path('odds_history')
 
     def save_odds_snapshot(self, fixture_id, market, selection, odds, bookmaker='—'):
-        """Сохраняет снимок кэфа в odds_history.json."""
         if not fixture_id or not odds or odds <= 1.01:
             return False
 
@@ -229,7 +223,6 @@ class Storage:
                 return False
 
     def get_odds_history(self, fixture_id, market=None, selection=None):
-        """Возвращает список снимков кэфа (в порядке времени)."""
         try:
             data = self._read('odds_history', {})
             fid_key = str(fixture_id)
@@ -246,7 +239,7 @@ class Storage:
             return []
 
     def get_latest_odds_before(self, fixture_id, market, selection, before_iso):
-        """Последний снимок кэфа ДО указанного времени."""
+        """★ CLV: последний снимок до указанного времени."""
         try:
             snapshots = self.get_odds_history(fixture_id, market, selection)
             if not snapshots:
@@ -271,7 +264,6 @@ class Storage:
             return None
 
     def get_entry_odds(self, fixture_id, market, selection):
-        """Первый снимок кэфа — то, что «взяли» изначально."""
         try:
             snapshots = self.get_odds_history(fixture_id, market, selection)
             return snapshots[0] if snapshots else None
@@ -280,7 +272,6 @@ class Storage:
             return None
 
     def cleanup_old_odds_history(self, days=None):
-        """Удаляет снимки старше N дней. Также чистит пустые матчи."""
         days = days or self.ODDS_HISTORY_RETENTION_DAYS
         cutoff = datetime.now() - timedelta(days=days)
 
@@ -325,7 +316,6 @@ class Storage:
                 return 0
 
     def get_odds_history_size(self):
-        """Размер истории — сколько матчей, сколько снимков."""
         try:
             data = self._read('odds_history', {})
             if not isinstance(data, dict):
@@ -351,10 +341,9 @@ class Storage:
             return {'matches': 0, 'snapshots': 0, 'size_kb': 0}
 
     # ============================================================
-    # СНИМКИ КЭФОВ (плоский вид — для веб-приложения)
+    # СНИМКИ (плоский вид)
     # ============================================================
     def get_all_snapshots(self):
-        """Все снимки в плоском виде, отсортировано по времени (свежие первыми)."""
         try:
             data = self._read('odds_history', {})
             if not isinstance(data, dict):
@@ -384,7 +373,6 @@ class Storage:
             return []
 
     def get_snapshots_since(self, cutoff_iso):
-        """Снимки с created_at >= cutoff_iso."""
         try:
             all_snaps = self.get_all_snapshots()
             cutoff_clean = str(cutoff_iso).strip().replace(' ', 'T')
@@ -402,7 +390,6 @@ class Storage:
             return []
 
     def get_snapshots_by_fixture(self, fixture_id):
-        """Все снимки для одного матча (сначала старые)."""
         try:
             data = self._read('odds_history', {})
             if not isinstance(data, dict):
@@ -431,7 +418,6 @@ class Storage:
             return []
 
     def get_unique_fixtures_with_snapshots(self, days=7):
-        """Уникальные fixture_id, для которых есть снимки за N дней."""
         try:
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
             snaps = self.get_snapshots_since(cutoff)
@@ -441,15 +427,13 @@ class Storage:
             return []
 
     # ============================================================
-    # ★ АВТОСТАВКИ (autobets.json)
+    # ★ АВТОСТАВКИ (с CLV)
     # ============================================================
     def autobet_load_all(self):
-        """Возвращает список всех автоставок."""
         data = self._read('autobets', [])
         return data if isinstance(data, list) else []
 
     def autobet_save_all(self, bets):
-        """Полностью перезаписывает файл автоставок."""
         with self._locks['autobets']:
             if not isinstance(bets, list):
                 logger.error("❌ autobet_save_all: не список")
@@ -465,14 +449,12 @@ class Storage:
     def autobet_insert(self, match_key, home, away, league, match_time,
                        fixture_id, bet_label, bet_type, odds, stake,
                        ev, prob, bookmaker):
-        """Добавляет автоставку, если её ещё нет. Возвращает True если добавлена."""
         with self._locks['autobets']:
             try:
                 bets = self._read('autobets', [])
                 if not isinstance(bets, list):
                     bets = []
 
-                # Проверка на дубликат
                 for b in bets:
                     if b.get('match_key') == match_key:
                         return False
@@ -498,6 +480,10 @@ class Storage:
                     'away_goals': None,
                     'halftime_home': None,
                     'halftime_away': None,
+                    # ★ CLV-поля
+                    'closing_odds': None,
+                    'clv': None,
+                    'clv_updated': False,
                     'created_at': datetime.now().isoformat(timespec='seconds'),
                     'settled_at': None,
                 })
@@ -509,12 +495,12 @@ class Storage:
                 return False
 
     def autobet_get_state(self, default_bank=1000.0):
-        """Возвращает агрегированное состояние автоставок."""
         try:
             bets = self.autobet_load_all()
             total_staked = 0.0
             total_profit = 0.0
             wins = losses = pending = 0
+            clv_values = []
 
             for b in bets:
                 total_staked += float(b.get('stake', 0) or 0)
@@ -526,11 +512,16 @@ class Storage:
                     losses += 1
                 elif r == 'pending':
                     pending += 1
+                # ★ CLV
+                clv = b.get('clv')
+                if clv is not None:
+                    clv_values.append(clv)
 
             total_bets = len(bets)
             current_bank = default_bank + total_profit
             roi = (total_profit / total_staked * 100) if total_staked > 0 else 0
             winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+            avg_clv = (sum(clv_values) / len(clv_values)) if clv_values else 0
 
             return {
                 'bank': round(current_bank, 2),
@@ -543,6 +534,8 @@ class Storage:
                 'pending': pending,
                 'roi': round(roi, 1),
                 'winrate': round(winrate, 1),
+                'avg_clv': round(avg_clv, 2),
+                'clv_count': len(clv_values),
             }
         except Exception as e:
             logger.error(f"❌ autobet_get_state: {e}")
@@ -550,10 +543,10 @@ class Storage:
                 'bank': default_bank, 'start_bank': default_bank,
                 'total_profit': 0, 'total_staked': 0, 'total_bets': 0,
                 'wins': 0, 'losses': 0, 'pending': 0, 'roi': 0, 'winrate': 0,
+                'avg_clv': 0, 'clv_count': 0,
             }
 
     def autobet_get_history(self, limit=100):
-        """История автоставок (свежие первыми)."""
         try:
             bets = self.autobet_load_all()
             bets_sorted = sorted(bets, key=lambda x: x.get('created_at', ''), reverse=True)
@@ -563,7 +556,6 @@ class Storage:
             return []
 
     def autobet_get_pending(self):
-        """Все pending-автоставки."""
         try:
             bets = self.autobet_load_all()
             return [b for b in bets if b.get('result') == 'pending']
@@ -571,10 +563,18 @@ class Storage:
             logger.error(f"❌ autobet_get_pending: {e}")
             return []
 
+    def autobet_get_pending_clv(self):
+        """★ Возвращает автоставки, где результат уже есть, но CLV ещё не посчитан."""
+        try:
+            bets = self.autobet_load_all()
+            return [b for b in bets if not b.get('clv_updated') and b.get('fixture_id')]
+        except Exception as e:
+            logger.error(f"❌ autobet_get_pending_clv: {e}")
+            return []
+
     def autobet_settle(self, match_key, result, profit,
                        home_goals=None, away_goals=None,
                        halftime_home=None, halftime_away=None):
-        """Обновляет результат автоставки по match_key."""
         with self._locks['autobets']:
             try:
                 bets = self._read('autobets', [])
@@ -601,8 +601,31 @@ class Storage:
                 logger.error(f"❌ autobet_settle: {e}")
                 return False
 
+    def autobet_update_clv(self, match_key, closing_odds, clv):
+        """★ Обновляет CLV для автоставки."""
+        with self._locks['autobets']:
+            try:
+                bets = self._read('autobets', [])
+                if not isinstance(bets, list):
+                    return False
+
+                updated = False
+                for b in bets:
+                    if b.get('match_key') == match_key:
+                        b['closing_odds'] = float(closing_odds) if closing_odds else None
+                        b['clv'] = float(clv) if clv is not None else None
+                        b['clv_updated'] = True
+                        updated = True
+                        break
+
+                if updated:
+                    self._atomic_write('autobets', bets)
+                return updated
+            except Exception as e:
+                logger.error(f"❌ autobet_update_clv: {e}")
+                return False
+
     def autobet_reset(self):
-        """Полностью очищает автоставки."""
         with self._locks['autobets']:
             try:
                 self._backup('autobets')
@@ -613,10 +636,9 @@ class Storage:
                 return False
 
     # ============================================================
-    # ★ СИМУЛЯЦИИ СТРАТЕГИЙ (simulations.json)
+    # ★ СИМУЛЯЦИИ
     # ============================================================
     def save_simulation(self, name, params, result):
-        """Сохраняет результат симуляции в JSON."""
         with self._locks['simulations']:
             try:
                 sims = self._read('simulations', [])
@@ -645,7 +667,6 @@ class Storage:
                 return False
 
     def get_simulations(self, limit=50):
-        """Возвращает сохранённые симуляции (свежие первыми)."""
         try:
             sims = self._read('simulations', [])
             if not isinstance(sims, list):
@@ -657,15 +678,13 @@ class Storage:
             return []
 
     # ============================================================
-    # ★ X2 МАТЧИ (x2_matches.json)
+    # X2 МАТЧИ
     # ============================================================
     def x2_load(self):
-        """Загружает X2 матчи."""
         data = self._read('x2_matches', [])
         return data if isinstance(data, list) else []
 
     def x2_save_all(self, matches):
-        """Полностью перезаписывает X2 данные."""
         with self._locks['x2_matches']:
             if not isinstance(matches, list):
                 logger.error("❌ x2_save_all: не список")
@@ -679,7 +698,6 @@ class Storage:
                 return False
 
     def x2_count(self):
-        """Количество X2 матчей."""
         try:
             return len(self.x2_load())
         except Exception as e:
@@ -687,10 +705,9 @@ class Storage:
             return 0
 
     # ============================================================
-    # ПОЛНЫЙ БЭКАП
+    # БЭКАП
     # ============================================================
     def backup_all(self, backup_dir='backups'):
-        """Полный бэкап всех JSON-файлов с таймштампом."""
         try:
             os.makedirs(backup_dir, exist_ok=True)
             ts = datetime.now().strftime('%Y%m%d_%H%M%S')
