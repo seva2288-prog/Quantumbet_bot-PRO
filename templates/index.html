@@ -4524,12 +4524,40 @@ function renderAutobetsHistory(history) {
                       b.result === 'push' ? '➖' : '⏳';
         const profitColor = b.profit > 0 ? 'var(--emerald-400)' :
                             b.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
+
+        // ★★★ НОВОЕ: LIVE-счёт (для идущих матчей)
+        let liveStr = '';
+        if (b.result === 'pending' && b.live_score) {
+            const statusMap = {
+                '1H': '1-й тайм',
+                'HT': 'Перерыв',
+                '2H': '2-й тайм',
+                'ET': 'Доп. время',
+                'P': 'Пенальти',
+                'LIVE': 'LIVE'
+            };
+            const statusText = statusMap[b.live_status] || 'LIVE';
+            const minuteStr = b.live_minute ? ` ${b.live_minute}'` : '';
+            liveStr = `
+                <div style="font-size:11px;color:var(--gold-400);margin-top:6px;
+                            padding:6px 10px;background:rgba(245,158,11,0.1);
+                            border-radius:8px;border:1px solid rgba(245,158,11,0.2);
+                            display:flex;justify-content:space-between;align-items:center;">
+                    <span>⚽ LIVE: <strong>${b.live_score}</strong>${minuteStr}</span>
+                    <span style="font-size:10px;color:var(--text-tertiary);">${statusText}</span>
+                </div>
+            `;
+        }
+
+        // Финальный счёт (для завершённых)
         const ht = (b.halftime_home != null && b.halftime_away != null)
             ? ` • 1-й: ${b.halftime_home}-${b.halftime_away}` : '';
-        const score = (b.home_goals != null && b.away_goals != null)
+        const score = (b.result !== 'pending' && b.home_goals != null && b.away_goals != null)
             ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">
                  Счёт: <strong>${b.home_goals}-${b.away_goals}</strong>${ht}
                </div>` : '';
+
+        // ★ CLV-строка
         let clvStr = '';
         if (b.clv !== undefined && b.clv !== null) {
             const clvColor = b.clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
@@ -4538,6 +4566,7 @@ function renderAutobetsHistory(history) {
                 ${b.closing_odds ? ` (закрытие: ${b.closing_odds.toFixed(2)})` : ''}
             </div>`;
         }
+
         return `
             <div class="bet-card" style="cursor:default;margin-bottom:8px;">
                 <div class="bet-header">
@@ -4563,6 +4592,7 @@ function renderAutobetsHistory(history) {
                         </span>
                     </div>
                 </div>
+                ${liveStr}
                 ${score}
                 ${clvStr}
             </div>
