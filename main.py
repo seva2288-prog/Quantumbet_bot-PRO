@@ -4102,6 +4102,22 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"⚠️ Не удалось зарегистрировать команды: {e}")
 
+    # ★ АВТОУСТАНОВКА WEBHOOK
+    try:
+        WEBHOOK_URL = os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook'
+        r = requests.get(
+            f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setWebhook",
+            params={'url': WEBHOOK_URL},
+            timeout=10
+        )
+        resp = r.json()
+        if resp.get('ok'):
+            logger.info(f"✅ Webhook установлен: {WEBHOOK_URL}")
+        else:
+            logger.error(f"❌ Webhook error: {resp}")
+    except Exception as e:
+        logger.error(f"❌ Webhook error: {e}")
+
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
