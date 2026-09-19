@@ -52,13 +52,7 @@ _x2_candidates_lock = Lock()
 def save_x2_candidate(home, away, hp, ap, league_name, match_time,
                        fixture_id, home_form='', away_form='', total_xg=0,
                        x2_side='X2', x2_ev=0, x2_prob=0):
-    """
-    ★ Сохраняет X2-кандидата в файл для авто-импорта фронтендом.
-    
-    x2_side: 'X2' (аутсайдер = гость) или '1X' (аутсайдер = хозяин)
-    x2_ev: EV X2/1X-ставки
-    x2_prob: вероятность X2/1X
-    """
+    """Сохраняет X2-кандидата в файл для авто-импорта фронтендом."""
     try:
         with _x2_candidates_lock:
             candidates = []
@@ -74,7 +68,6 @@ def save_x2_candidate(home, away, hp, ap, league_name, match_time,
             if key in existing_keys:
                 return False
 
-            # Определяем фаворита/аутсайдера
             if hp < ap:
                 favorite, underdog = home, away
             else:
@@ -86,9 +79,9 @@ def save_x2_candidate(home, away, hp, ap, league_name, match_time,
                 'match': f"{home} vs {away}",
                 'favorite': favorite,
                 'underdog': underdog,
-                'x2_side': x2_side,        # ★ 'X2' или '1X'
-                'x2_ev': round(x2_ev, 1),  # ★ EV X2-ставки
-                'x2_prob': round(x2_prob, 1),  # ★ Prob X2
+                'x2_side': x2_side,
+                'x2_ev': round(x2_ev, 1),
+                'x2_prob': round(x2_prob, 1),
                 'home_position': hp,
                 'away_position': ap,
                 'league': league_name,
@@ -110,6 +103,7 @@ def save_x2_candidate(home, away, hp, ap, league_name, match_time,
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(candidates, f, indent=2, ensure_ascii=False)
             os.replace(tmp, X2_CANDIDATES_FILE)
+            logger.info(f"💾 X2 candidate сохранён: {home} vs {away}")
             return True
     except Exception as e:
         logger.error(f"save_x2_candidate: {e}")
@@ -898,7 +892,6 @@ class FootballAPI:
         self.cache.clear()
 
     def find_fixture_by_teams(self, home_team, away_team):
-        """★ Ищем только сегодня и вчера (не вперёд)"""
         try:
             for day_offset in [0, -1]:
                 check_date = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET, days=day_offset)).strftime('%Y-%m-%d')
@@ -1187,7 +1180,6 @@ class AutoBetManager:
                         f"минута={md.get('minute', 0)}"
                     )
                     ht = md.get('halftime', {}) or {}
-                    # ★ Live-счёт сохраняем ТОЛЬКО если матч реально идёт
                     if md.get('is_live', False):
                         storage.autobet_update_live(
                             match_key=b.get('match_key'),
@@ -1243,7 +1235,6 @@ class AutoBetManager:
             return 0
 
     def update_live_scores(self):
-        """★ Пропускаем NS и старые матчи (>3ч)"""
         try:
             pending = storage.autobet_get_pending()
             updated = 0
@@ -1256,7 +1247,6 @@ class AutoBetManager:
                 if not fid:
                     continue
 
-                # ★ Пропускаем матчи старше 3 часов
                 match_time_str = b.get('match_time', '')
                 if match_time_str and match_time_str != '?':
                     try:
@@ -1276,7 +1266,6 @@ class AutoBetManager:
 
                 status = md.get('status', 'NS')
 
-                # ★ НЕ сохраняем live для матчей, которые не идут
                 if status == 'NS' or not md.get('is_live', False):
                     skipped_ns += 1
                     continue
@@ -2077,7 +2066,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ПОТОК 1: 70%+ (★ X2-логика ПОСЛЕ формирования bets)
+# ПОТОК 1: 70%+ с X2-логикой (ПОСЛЕ формирования bets)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -2092,12 +2081,11 @@ def find_top_matches(matches):
     league_count = {}
     x2_saved_count = 0
 
-    # ★ X2-параметры из Config
     X2_ENABLED = getattr(Config, 'X2_ENABLED', True)
-    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
-    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
     X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
     X2_MAX_POSITION = getattr(Config, 'X2_MAX_POSITION', 20)
+    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
+    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
     X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
 
     for match_idx, match in enumerate(matches):
@@ -2150,9 +2138,6 @@ def find_top_matches(matches):
             hp = standings.get(home, {}).get('position', 99) if standings else 99
             ap = standings.get(away, {}).get('position', 99) if standings else 99
             hm = get_motivation(hp); am = get_motivation(ap)
-
-            # ★ НЕ сохраняем X2 здесь — только после формирования bets
-
             if getattr(Config, 'SKIP_MID_TABLE_70', False) and hm == 'mid_table' and am == 'mid_table':
                 continue
             if hp > POS_MAX or ap > POS_MAX: continue
@@ -2184,6 +2169,53 @@ def find_top_matches(matches):
                     'odds_updated': False,
                 })
             if not bets: continue
+
+            # ============================================================
+            # ★★ X2-КАНДИДАТ (ПЕРЕД сортировкой, использует несортированные bets)
+            # ============================================================
+            if X2_ENABLED:
+                position_diff = abs(hp - ap)
+                x2_bet = None
+                x2_side = None
+                for b in bets:
+                    b_type = b.get('type', '')
+                    if b_type == 'X2' and hp < ap:
+                        x2_bet = b
+                        x2_side = 'X2'
+                        break
+                    elif X2_BOTH_SIDES and b_type == '1X' and ap < hp:
+                        x2_bet = b
+                        x2_side = '1X'
+                        break
+                if (x2_bet is not None
+                    and position_diff >= X2_MIN_POSITION_DIFF
+                    and hp < X2_MAX_POSITION and ap < X2_MAX_POSITION
+                    and x2_bet.get('ev', 0) >= X2_MIN_EV
+                    and x2_bet.get('prob', 0) >= X2_MIN_PROB):
+                    try:
+                        favorite = home if hp < ap else away
+                        underdog = away if hp < ap else home
+                        log_no_motivation_match(
+                            home, away, hp, ap, total_xg, league_name,
+                            favorite=favorite, underdog=underdog,
+                        )
+                        saved = save_x2_candidate(
+                            home=home, away=away, hp=hp, ap=ap,
+                            league_name=league_name, match_time=match_time,
+                            fixture_id=fid, home_form=home_form, away_form=away_form,
+                            total_xg=total_xg, x2_side=x2_side,
+                            x2_ev=x2_bet.get('ev', 0), x2_prob=x2_bet.get('prob', 0),
+                        )
+                        if saved:
+                            x2_saved_count += 1
+                            logger.info(
+                                f"🎯 X2-КАНДИДАТ: {home} vs {away} | "
+                                f"{x2_side} | EV: {x2_bet.get('ev')}% | "
+                                f"Prob: {x2_bet.get('prob')}%"
+                            )
+                    except Exception as e:
+                        logger.error(f"X2 candidate save error: {e}")
+
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
             EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)
@@ -2197,68 +2229,6 @@ def find_top_matches(matches):
             if bet_type_count[bt] > LIMIT_BT: continue
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
-
-            # ============================================================
-            # ★★ X2-КАНДИДАТ: проверяем реальную стратегию
-            # ============================================================
-            if X2_ENABLED:
-                position_diff = abs(hp - ap)
-                x2_bet = None
-                x2_side = None
-
-                # Ищем X2 (аутсайдер=гость) или 1X (аутсайдер=хозяин)
-                for b in bets:
-                    b_type = b.get('type', '')
-                    if b_type == 'X2' and hp < ap:
-                        # Фаворит хозяин → аутсайдер гость → ставим X2
-                        x2_bet = b
-                        x2_side = 'X2'
-                        break
-                    elif X2_BOTH_SIDES and b_type == '1X' and ap < hp:
-                        # Фаворит гость → аутсайдер хозяин → ставим 1X
-                        x2_bet = b
-                        x2_side = '1X'
-                        break
-
-                # ★ Сохраняем X2 только если:
-                # 1) X2/1X-ставка есть в bets
-                # 2) Разница позиций >= X2_MIN_POSITION_DIFF
-                # 3) Оба клуба в топ-X2_MAX_POSITION
-                # 4) EV X2 >= X2_MIN_EV
-                # 5) Prob X2 >= X2_MIN_PROB
-                if (x2_bet is not None
-                    and position_diff >= X2_MIN_POSITION_DIFF
-                    and hp < X2_MAX_POSITION
-                    and ap < X2_MAX_POSITION
-                    and x2_bet.get('ev', 0) >= X2_MIN_EV
-                    and x2_bet.get('prob', 0) >= X2_MIN_PROB):
-
-                    favorite = home if hp < ap else away
-                    underdog = away if hp < ap else home
-
-                    log_no_motivation_match(
-                        home, away, hp, ap, total_xg, league_name,
-                        favorite=favorite, underdog=underdog,
-                    )
-
-                    saved = save_x2_candidate(
-                        home=home, away=away, hp=hp, ap=ap,
-                        league_name=league_name, match_time=match_time,
-                        fixture_id=fid,
-                        home_form=home_form, away_form=away_form,
-                        total_xg=total_xg,
-                        x2_side=x2_side,
-                        x2_ev=x2_bet.get('ev', 0),
-                        x2_prob=x2_bet.get('prob', 0),
-                    )
-                    if saved:
-                        x2_saved_count += 1
-                        logger.info(
-                            f"🎯 [X2 candidate] {home} vs {away} | "
-                            f"{x2_side} | EV: {x2_bet['ev']}% | "
-                            f"Prob: {x2_bet['prob']}% | Und: {underdog}"
-                        )
-
             best_matches.append({
                 "home": home, "away": away, "league": league_name,
                 "fixture_id": fid, "match_time": match_time,
@@ -2539,7 +2509,6 @@ def update_pending_bets():
                         continue
                     if not md.get('is_final', False):
                         status = md.get('status', 'NS')
-                        # ★ Live-счёт сохраняем ТОЛЬКО если матч реально идёт
                         if md.get('is_live', False):
                             bet['live_score'] = f"{hg}-{ag}"
                             bet['live_status'] = status
@@ -3002,7 +2971,7 @@ def load_bot_settings():
 
 
 # ============================================================
-# WEBHOOK
+# ★★★ WEBHOOK с командой /x2_info
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -3086,6 +3055,42 @@ def webhook():
                 send_telegram(strategy_tester.get_comparison_report())
             elif text.startswith('/team '):
                 send_telegram(handlers.handle_team(text[6:].strip()))
+
+            # ★★★ X2_INFO — статистика кандидатов
+            elif text == '/x2_info':
+                try:
+                    candidates = []
+                    if os.path.exists(X2_CANDIDATES_FILE):
+                        with open(X2_CANDIDATES_FILE, 'r', encoding='utf-8') as f:
+                            candidates = json.load(f) or []
+                    msg = f"🎯 <b>X2-КАНДИДАТЫ</b>\n━━━━━━━━━━━━━━━━━━━━━━\n"
+                    msg += f"📊 Всего: <b>{len(candidates)}</b>\n\n"
+                    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
+                    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
+                    X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
+                    X2_MAX_POSITION = getattr(Config, 'X2_MAX_POSITION', 20)
+                    msg += f"⚙️ Параметры:\n"
+                    msg += f"• EV >= {X2_MIN_EV}%\n"
+                    msg += f"• Prob >= {X2_MIN_PROB}%\n"
+                    msg += f"• Разница позиций >= {X2_MIN_POSITION_DIFF}\n"
+                    msg += f"• Оба в топ-{X2_MAX_POSITION}\n\n"
+                    if candidates:
+                        msg += "🎯 <b>Последние 5:</b>\n"
+                        for c in candidates[-5:][::-1]:
+                            side = c.get('x2_side', 'X2')
+                            ev = c.get('x2_ev', 0)
+                            prob = c.get('x2_prob', 0)
+                            msg += (f"  • <b>{c.get('home')} vs {c.get('away')}</b>\n"
+                                    f"    {side} | EV: {ev}% | Prob: {prob}%\n"
+                                    f"    Und: {c.get('underdog')} | 📅 {c.get('match_time')}\n\n")
+                    else:
+                        msg += "📭 Пока нет кандидатов\n"
+                    msg += "\n💡 /update — запустить поиск"
+                    send_telegram(msg)
+                except Exception as e:
+                    logger.exception(f"Ошибка /x2_info: {e}")
+                    send_telegram(f"❌ Ошибка: {e}")
+
             elif text == '/update_results':
                 res = update_pending_bets()
                 ft = res.get('ft', 0)
@@ -3262,39 +3267,6 @@ def webhook():
                 except Exception as e:
                     logger.exception(f"Ошибка /clean_live: {e}")
                     send_telegram(f"❌ Ошибка: {e}")
-            elif text == '/x2_info':
-                try:
-                    candidates = []
-                    if os.path.exists(X2_CANDIDATES_FILE):
-                        with open(X2_CANDIDATES_FILE, 'r', encoding='utf-8') as f:
-                            candidates = json.load(f) or []
-                    msg = f"🎯 <b>X2-КАНДИДАТЫ</b>\n━━━━━━━━━━━━━━━━━━━━━━\n"
-                    msg += f"📊 Всего: <b>{len(candidates)}</b>\n\n"
-                    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
-                    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
-                    X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
-                    X2_MAX_POSITION = getattr(Config, 'X2_MAX_POSITION', 20)
-                    msg += f"⚙️ Параметры:\n"
-                    msg += f"• EV >= {X2_MIN_EV}%\n"
-                    msg += f"• Prob >= {X2_MIN_PROB}%\n"
-                    msg += f"• Разница позиций >= {X2_MIN_POSITION_DIFF}\n"
-                    msg += f"• Оба в топ-{X2_MAX_POSITION}\n\n"
-                    if candidates:
-                        msg += "🎯 <b>Последние 5:</b>\n"
-                        for c in candidates[-5:][::-1]:
-                            side = c.get('x2_side', 'X2')
-                            ev = c.get('x2_ev', 0)
-                            prob = c.get('x2_prob', 0)
-                            msg += (f"  • <b>{c.get('home')} vs {c.get('away')}</b>\n"
-                                    f"    {side} | EV: {ev}% | Prob: {prob}%\n"
-                                    f"    Und: {c.get('underdog')} | 📅 {c.get('match_time')}\n\n")
-                    else:
-                        msg += "📭 Пока нет кандидатов\n"
-                    msg += "\n💡 /update — запустить поиск"
-                    send_telegram(msg)
-                except Exception as e:
-                    logger.exception(f"Ошибка /x2_info: {e}")
-                    send_telegram(f"❌ Ошибка: {e}")
             elif text.startswith('/result '):
                 parts = text[8:].strip()
                 if ' vs ' in parts:
@@ -3401,7 +3373,7 @@ def serve_manifest():
 
 
 # ============================================================
-# API: X2 CANDIDATES
+# ★★★ API: X2 CANDIDATES (ГЛАВНЫЙ ФИКС)
 # ============================================================
 @app.route('/api/x2_candidates', methods=['GET'])
 def api_x2_candidates():
@@ -4042,7 +4014,7 @@ def register_bot_commands():
             {"command": "live", "description": "⚽ Активные live-матчи"},
             {"command": "snapshots", "description": "📸 Статистика снимков"},
             {"command": "snapshot", "description": "📸 Создать снимки сейчас"},
-            {"command": "x2_info", "description": "🎯 X2-кандидаты и параметры"},
+            {"command": "x2_info", "description": "🎯 X2-кандидаты"},
             {"command": "update_results", "description": "🔄 Обновить результаты"},
             {"command": "force_settle", "description": "🔧 Принудительно обновить"},
             {"command": "debug_pending", "description": "🔍 Диагностика pending"},
@@ -4159,8 +4131,6 @@ if __name__ == "__main__":
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
     logger.info(f"🤖 LLM: {'вкл' if Config.LLM_ENABLED else 'выкл'}")
     logger.info(f"🎯 X2 авто-импорт: {'вкл' if getattr(Config, 'X2_ENABLED', True) else 'выкл'}")
-    logger.info(f"   X2_MIN_EV: {getattr(Config, 'X2_MIN_EV', 5)}% | X2_MIN_PROB: {getattr(Config, 'X2_MIN_PROB', 55)}%")
-    logger.info(f"   X2_BOTH_SIDES: {getattr(Config, 'X2_BOTH_SIDES', True)}")
+    logger.info(f"   X2: EV>={getattr(Config, 'X2_MIN_EV', 5)}% | Prob>={getattr(Config, 'X2_MIN_PROB', 55)}% | diff>={getattr(Config, 'X2_MIN_POSITION_DIFF', 3)}")
     logger.info("=" * 60)
     app.run(host='0.0.0.0', port=port)
-    
