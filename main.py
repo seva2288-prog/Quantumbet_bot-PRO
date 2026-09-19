@@ -3951,6 +3951,38 @@ def import_project():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/void_old', methods=['GET'])
+def void_old_endpoint():
+    from datetime import datetime as dt2
+    bets = storage.autobet_load_all()
+    now = dt2.now()
+    voided = 0
+    for b in bets:
+        if b.get('result') != 'pending':
+            continue
+        mt = b.get('match_time', '')
+        if not mt or mt == '?':
+            continue
+        try:
+            m = dt2.strptime(mt, '%d.%m.%Y %H:%M')
+            hours = (now - m).total_seconds() / 3600
+            if hours > 6:
+                b['result'] = 'void'
+                b['profit'] = 0
+                b['note'] = 'Voided (API bug)'
+                for k in ['live_score', 'live_status', 'live_minute', 'live_halftime']:
+                    b.pop(k, None)
+                voided += 1
+        except Exception:
+            pass
+    storage.autobet_save_all(bets)
+    return jsonify({'status': 'ok', 'voided': voided})
+
+
+@app.route('/health', methods=['GET'])
+def health():
+
+  
 @app.route('/health', methods=['GET'])
 def health():
     try:
