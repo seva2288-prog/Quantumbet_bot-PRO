@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.0 — с фильтрацией лиг по реальным кэфам (50/67 подтверждено)
+★ ВЕРСИЯ 3.1 — с X2-стратегией (только правильные матчи)
 """
 import os
 import sys
@@ -70,6 +70,13 @@ class Config:
     MIN_CONFIDENCE = 0.60
 
     # ============================================================
+    # ★ СКОРОСТЬ ПОИСКА
+    # ============================================================
+    STATS_ENABLED = False       # Не тянуть /fixtures/statistics в get_form (ускоряет в 7 раз)
+    USE_H2H = True              # Тянуть H2H
+    USE_PREDICTIONS = True      # Тянуть API /predictions
+
+    # ============================================================
     # === СТАВКИ ===
     # ============================================================
     MAX_BETS_PER_RUN = 30
@@ -97,8 +104,17 @@ class Config:
     PROB_FINAL_MIN = 40
 
     # ============================================================
+    # ★ X2 СТРАТЕГИЯ — только матчи, где реально подходит X2
+    # ============================================================
+    X2_ENABLED = True              # Включить авто-добавление X2
+    X2_MIN_EV = 5                  # Мин. EV для X2-ставки (%)
+    X2_MIN_PROB = 55               # Мин. вероятность X2 (%)
+    X2_MIN_POSITION_DIFF = 3       # Мин. разница позиций (аутсайдер vs фаворит)
+    X2_MAX_POSITION = 20           # Оба клуба должны быть в топ-20
+    X2_BOTH_SIDES = True           # true = X2 и 1X, false = только X2
+
+    # ============================================================
     # ★ WHITELIST — лиги, которые берём в работу
-    # ★ ДОБАВЛЕНО: 'national', 'j1 league', 'ekstraklasa', 'eliteserien' и др.
     # ============================================================
     WHITELIST_LEAGUES = [
         # ── Англия ──
@@ -113,7 +129,7 @@ class Config:
         # ── Италия ──
         'serie a', 'serie b', 'serie c',
         # ── Франция ──
-        'ligue 1', 'ligue 2', 'national',   # ★ добавлено national
+        'ligue 1', 'ligue 2', 'national',
         # ── Нидерланды, Португалия, Бельгия, Турция ──
         'eredivisie', 'eerste divisie',
         'primeira liga', 'liga portugal',
@@ -273,7 +289,6 @@ class Config:
 
     # ============================================================
     # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ (50/67)
-    # Обновлено после `python3 -m app.config leagues`
     # ============================================================
     LEAGUES = [
         # ── Англия ──
@@ -350,8 +365,8 @@ class Config:
         182,  # Вторая Лига Б
         # ── Кубки ──
         3,    # UEFA Europa League
-        2,    # UEFA Champions League (проверить ещё раз)
-        848,  # UEFA Conference League (проверить ещё раз)
+        2,    # UEFA Champions League
+        848,  # UEFA Conference League
     ]
 
     CUP_LEAGUES = [2, 3, 848]
@@ -807,8 +822,9 @@ class Config:
         print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
         print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
+        print(f"⚡ СКОРОСТЬ: STATS_ENABLED={cls.STATS_ENABLED} | H2H={cls.USE_H2H} | Predictions={cls.USE_PREDICTIONS}")
+        print(f"🎯 X2: {'вкл' if cls.X2_ENABLED else 'выкл'} | EV>={cls.X2_MIN_EV}% | Prob>={cls.X2_MIN_PROB}% | diff>={cls.X2_MIN_POSITION_DIFF}")
         cls.init_db()
-        # ★ НЕ вызываем build_leagues_from_api — используем фиксированный список
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
         return True
