@@ -4031,52 +4031,6 @@ def health():
         return {'status': 'error', 'error': str(e)}, 500
 
 
-@app.route('/health', methods=['GET'])
-def health():
-    try:
-        bank = storage.load_bank()
-        history = storage.load_history()
-        state = bot_state.state
-        try:
-            start_dt = datetime.fromisoformat(state.get('start_time', datetime.now().isoformat()))
-            uptime_sec = (datetime.now() - start_dt).total_seconds()
-            uptime_hours = round(uptime_sec / 3600, 2)
-        except Exception:
-            uptime_sec = 0; uptime_hours = 0
-        try:
-            autobets_state = storage.autobet_get_state(default_bank=1000.0)
-        except Exception:
-            autobets_state = {}
-        try:
-            odds_size = storage.get_odds_history_size()
-        except Exception:
-            odds_size = {'matches': 0, 'snapshots': 0}
-        return {
-            'status': 'ok', 'time': datetime.now().isoformat(),
-            'uptime_hours': uptime_hours, 'uptime_sec': int(uptime_sec),
-            'bank': bank, 'total_bets': len(history),
-            'last_search': state.get('last_full_search'),
-            'search_running': state.get('search_running', False),
-            'autobets': {
-                'count': autobets_state.get('total_bets', 0),
-                'bank': autobets_state.get('bank', 1000),
-                'profit': autobets_state.get('total_profit', 0),
-                'roi': autobets_state.get('roi', 0),
-                'winrate': autobets_state.get('winrate', 0),
-                'pending': autobets_state.get('pending', 0),
-                'live_count': autobets_state.get('live_count', 0),
-                'avg_clv': autobets_state.get('avg_clv', 0),
-                'clv_count': autobets_state.get('clv_count', 0),
-            },
-            'odds_history': {
-                'matches': odds_size.get('matches', 0),
-                'snapshots': odds_size.get('snapshots', 0),
-            },
-        }
-    except Exception as e:
-        return {'status': 'error', 'error': str(e)}, 500
-
-
 @app.route('/', methods=['GET'])
 def index():
     try:
