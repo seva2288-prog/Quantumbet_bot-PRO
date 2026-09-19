@@ -3951,40 +3951,6 @@ def import_project():
         return jsonify({'error': str(e)}), 500
 
 
-# ============================================================
-# ★ VOID OLD — очистка старых pending-ставок
-# ============================================================
-@app.route('/void_old', methods=['GET'])
-def void_old_endpoint():
-    from datetime import datetime as dt2
-    bets = storage.autobet_load_all()
-    now = dt2.now()
-    voided = 0
-    for b in bets:
-        if b.get('result') != 'pending':
-            continue
-        mt = b.get('match_time', '')
-        if not mt or mt == '?':
-            continue
-        try:
-            m = dt2.strptime(mt, '%d.%m.%Y %H:%M')
-            hours = (now - m).total_seconds() / 3600
-            if hours > 6:
-                b['result'] = 'void'
-                b['profit'] = 0
-                b['note'] = 'Voided (API bug)'
-                for k in ['live_score', 'live_status', 'live_minute', 'live_halftime']:
-                    b.pop(k, None)
-                voided += 1
-        except Exception:
-            pass
-    storage.autobet_save_all(bets)
-    return jsonify({'status': 'ok', 'voided': voided})
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
 @app.route('/health', methods=['GET'])
 def health():
     try:
@@ -4029,6 +3995,58 @@ def health():
         }
     except Exception as e:
         return {'status': 'error', 'error': str(e)}, 500
+
+
+@app.route('/', methods=['GET'])
+def index():
+    try:
+        return render_template('index.html')
+    except Exception:
+        return f"🤖 Quantum Bet Bot PRO | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+def register_bot_commands():
+    try:
+        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
+        commands = [
+            {"command": "update", "description": "🔍 Полный поиск матчей"},
+            {"command": "today", "description": "🎯 ТОП-5 матчей из кэша"},
+            {"command": "live", "description": "⚽ Активные live-матчи"},
+            {"command": "snapshots", "description": "📸 Статистика снимков"},
+            {"command": "snapshot", "description": "📸 Создать снимки сейчас"},
+            {"command": "x2_info", "description": "🎯 X2-кандидаты"},
+            {"command": "update_results", "description": "🔄 Обновить результаты"},
+            {"command": "force_settle", "description": "🔧 Принудительно обновить"},
+            {"command": "debug_pending", "description": "🔍 Диагностика pending"},
+            {"command": "clean_live", "description": "🧹 Очистить фейковые live"},
+            {"command": "analyze", "description": "📊 Анализ матча"},
+            {"command": "status", "description": "🤖 Статус бота"},
+            {"command": "stop", "description": "🛑 Остановить поиск"},
+            {"command": "reset_search", "description": "🔄 Сбросить поиск"},
+            {"command": "bank", "description": "💰 Текущий банк"},
+            {"command": "stats", "description": "📊 Общая статистика"},
+            {"command": "report", "description": "📅 Отчёт за 7 дней"},
+            {"command": "bettypes", "description": "🎲 По типам ставок"},
+            {"command": "timestats", "description": "🕐 По времени"},
+            {"command": "strategies", "description": "📈 Сравнение стратегий"},
+            {"command": "team", "description": "🏟️ По команде"},
+            {"command": "autobet", "description": "💸 Вкл/выкл автоставки"},
+            {"command": "autobet_state", "description": "📊 Состояние автоставок"},
+            {"command": "clv", "description": "📊 Средний CLV"},
+            {"command": "grid_search", "description": "🎯 Автопоиск стратегии"},
+            {"command": "result", "description": "✏️ Ручной результат"},
+            {"command": "export", "description": "📥 Экспорт в Excel"},
+            {"command": "backup", "description": "💾 Создать бэкап"},
+            {"command": "help", "description": "ℹ️ Справка"},
+        ]
+        r = requests.post(url, json={"commands": commands}, timeout=10)
+        if r.status_code == 200 and r.json().get('ok'):
+            logger.info(f"✅ Команды зарегистрированы: {len(commands)}")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"❌ register_bot_commands: {e}")
+        return False
 
 
 # ============================================================
