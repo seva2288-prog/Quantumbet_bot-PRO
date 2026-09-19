@@ -931,6 +931,14 @@ class FootballAPI:
             if any(bm_data.get(k, 0) > 0 for k in bm_data):
                 result['all_bookmakers'][bm_name] = bm_data
 
+              # ★ DC из 1X2
+        if result['x2_odds'] == 0 and result['draw_odds'] > 0 and result['away_odds'] > 0:
+            result['x2_odds'] = round(1 / (1/result['draw_odds'] + 1/result['away_odds']), 2)
+            result['dc_computed'] = True
+        if result['1x_odds'] == 0 and result['draw_odds'] > 0 and result['home_odds'] > 0:
+            result['1x_odds'] = round(1 / (1/result['draw_odds'] + 1/result['home_odds']), 2)
+            result['dc_computed'] = True
+
         return result
 
     def clear_cache(self):
