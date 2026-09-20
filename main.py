@@ -3040,7 +3040,7 @@ def _save_snapshot_from_odds(fo, fid):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (с /api/x2_auto)
+# main.py — ЧАСТЬ 3/3 (с update_x2_results + entry_odds)
 # Schedulers, Webhook, API, __main__
 # ============================================================
 
@@ -3073,13 +3073,83 @@ def schedule_updates():
     logger.info("⏰ Авто-обновление: 6ч")
 
 
+# ============================================================
+# ★ ОБНОВЛЕНИЕ X2-РЕЗУЛЬТАТОВ
+# ============================================================
+def update_x2_results():
+    """Обновляет X2-кандидатов после завершения матчей."""
+    try:
+        candidates = storage.get_x2_candidates(limit=200)
+        updated = 0
+        for c in candidates:
+            if c.get('result') in ('win', 'loss', 'push'):
+                continue
+
+            fid = c.get('fixture_id')
+            if not fid:
+                continue
+
+            md = football_api.get_match_result(fid)
+            if not md:
+                continue
+            if not md.get('is_final'):
+                continue
+
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                continue
+
+            # ★ Логика X2 / 1X
+            side = c.get('x2_side', 'X2')
+            if side == 'X2':
+                result = 'win' if ag >= hg else 'loss'   # гость не проиграл
+            else:  # 1X
+                result = 'win' if hg >= ag else 'loss'   # хозяин не проиграл
+
+            # Кэф: entry_odds или fallback 1.85
+            odds = float(c.get('entry_odds', 0) or 0)
+            if odds < 1.01:
+                odds = 1.85
+
+            stake = 20.0
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2)
+            elif result == 'loss':
+                profit = -stake
+            else:
+                profit = 0
+
+            ok = storage.update_x2_result(
+                candidate_id=c['id'],
+                result=result,
+                profit=profit,
+                home_goals=hg,
+                away_goals=ag,
+            )
+            if ok:
+                updated += 1
+                logger.info(f"🎯 X2: {c.get('home')} vs {c.get('away')} "
+                            f"→ {result.upper()} ({hg}:{ag}) | ${profit:+.2f}")
+
+        if updated > 0:
+            logger.info(f"✅ X2-результатов обновлено: {updated}")
+        return updated
+    except Exception as e:
+        logger.exception(f"update_x2_results: {e}")
+        return 0
+
+
 def auto_update_results():
     res = update_pending_bets()
+    x2 = update_x2_results()
     ft = res.get('ft', 0)
     live = res.get('live', 0)
     if ft > 0:
         send_telegram(f"🔄 Авто-обновление: {ft} результатов")
-    return ft + live
+    if x2 > 0:
+        send_telegram(f"🎯 X2-результатов обновлено: {x2}")
+    return ft + live + x2
 
 
 def schedule_notifications():
@@ -3579,8 +3649,11 @@ def webhook():
                             side = c.get('x2_side', 'X2')
                             ev = c.get('x2_ev', 0)
                             prob = c.get('x2_prob', 0)
-                            msg += (f"  • <b>{c.get('home')} vs {c.get('away')}</b>\n"
-                                    f"    {side} | EV: {ev}% | Prob: {prob}%\n\n")
+                            entry = c.get('entry_odds', 0) or 0
+                            res = c.get('result', 'pending')
+                            emoji = '✅' if res == 'win' else '❌' if res == 'loss' else '⏳'
+                            msg += (f"  {emoji} <b>{c.get('home')} vs {c.get('away')}</b>\n"
+                                    f"    {side} @ {entry} | EV: {ev}% | Prob: {prob}%\n\n")
                     else:
                         msg += "📭 Пока нет кандидатов\n"
                     send_telegram(msg)
@@ -3589,13 +3662,15 @@ def webhook():
 
             elif text == '/update_results':
                 res = update_pending_bets()
+                x2 = update_x2_results()
                 ft = res.get('ft', 0); live = res.get('live', 0)
-                if ft == 0 and live == 0:
+                if ft == 0 and live == 0 and x2 == 0:
                     send_telegram("📭 <b>Нет обновлений</b>")
                 else:
                     msg = "🔄 <b>ОБНОВЛЕНО</b>\n\n"
-                    if ft > 0: msg += f"✅ Завершено: <b>{ft}</b>\n"
-                    if live > 0: msg += f"⚽ Live: <b>{live}</b>\n"
+                    if ft > 0: msg += f"✅ Завершено матчей: <b>{ft}</b>\n"
+                    if live > 0: msg += f"⚽ Live-счёт: <b>{live}</b>\n"
+                    if x2 > 0: msg += f"🎯 X2-результатов: <b>{x2}</b>\n"
                     send_telegram(msg)
 
             elif text == '/live':
@@ -3629,11 +3704,13 @@ def webhook():
                 send_telegram("🔧 Принудительное обновление...")
                 try:
                     res = update_pending_bets()
+                    x2 = update_x2_results()
                     settled = autobet_manager.settle_pending()
                     clv = autobet_manager.compute_clv_for_settled()
                     send_telegram(f"✅ <b>ГОТОВО</b>\n\n"
-                                  f"📜 FT={res.get('ft', 0)}, LIVE={res.get('live', 0)}\n"
-                                  f"💸 Закрыто: <b>{settled}</b>\n"
+                                  f"📜 История: FT={res.get('ft', 0)}, LIVE={res.get('live', 0)}\n"
+                                  f"🎯 X2 закрыто: <b>{x2}</b>\n"
+                                  f"💸 Автоставки: <b>{settled}</b>\n"
                                   f"📊 CLV: <b>{clv}</b>")
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
@@ -3662,10 +3739,12 @@ def webhook():
             elif text == '/snapshots':
                 try:
                     stats = storage.get_odds_history_size()
+                    x2_count = storage.x2_count()
                     send_telegram(f"📸 <b>СНИМКИ</b>\n\n"
                                   f"🎯 Матчей: <b>{stats['matches']}</b>\n"
                                   f"📊 Снимков: <b>{stats['snapshots']}</b>\n"
-                                  f"💾 Размер: <b>{stats['size_kb']} КБ</b>")
+                                  f"💾 Размер: <b>{stats['size_kb']} КБ</b>\n"
+                                  f"🎯 X2-кандидатов: <b>{x2_count}</b>")
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
@@ -3741,8 +3820,10 @@ def webhook():
                 report = bot_state.get_status_report()
                 try:
                     oh_size = storage.get_odds_history_size()
-                    report += (f"\n📊 История: {oh_size['matches']} матчей, "
+                    x2_count = storage.x2_count()
+                    report += (f"\n📊 Снимки: {oh_size['matches']} матчей, "
                                f"{oh_size['snapshots']} снимков, {oh_size['size_kb']} КБ")
+                    report += f"\n🎯 X2-кандидатов: {x2_count}"
                     report += f"\n🌍 Geocoding: {len(_geo_cache)} городов"
                     report += f"\n📁 DATA: {DATA_DIR}"
                 except Exception:
@@ -3778,15 +3859,15 @@ def serve_manifest():
 
 
 # ============================================================
-# API: X2 — АВТОМАТИЧЕСКИЕ КАНДИДАТЫ (SQLite)
+# API: X2 — АВТОМАТИЧЕСКИЕ КАНДИДАТЫ
 # ============================================================
 @app.route('/api/x2_auto', methods=['GET'])
 def api_x2_auto():
     """
-    ★ Автоматические X2-кандидаты из SQLite с обогащением:
-    - current_odds (из API)
-    - current_1x_odds (из API)
-    - odds_trend (% изменения за период снимков)
+    ★ Автоматические X2-кандидаты с обогащением:
+    - entry_odds (сохранённый при создании)
+    - current_odds (обновлённый из API, если матч не начался)
+    - odds_trend (% изменения из DC-снимков)
     - country + country_flag
     """
     try:
@@ -3798,7 +3879,6 @@ def api_x2_auto():
         for c in candidates:
             fid = c.get('fixture_id')
             league_id = None
-            # Находим league_id по названию
             for lid, lname in Config.LEAGUE_NAMES.items():
                 if lname == c.get('league'):
                     league_id = lid
@@ -3810,27 +3890,46 @@ def api_x2_auto():
                     league_id, ("", "")
                 )
 
-            # Обогащаем кэфами и трендом
-            current_odds = 0
-            current_1x_odds = 0
+            # ★ Используем entry_odds из SQLite как базу
+            current_odds = float(c.get('entry_odds', 0) or 0)
+            current_1x_odds = float(c.get('entry_1x_odds', 0) or 0)
             odds_trend = 0
             try:
                 if fid:
-                    # Свежий кэф из API
-                    odds_data = football_api.get_match_odds(fid)
-                    if odds_data:
-                        current_odds = odds_data.get('x2_odds', 0) or 0
-                        current_1x_odds = odds_data.get('1x_odds', 0) or 0
+                    # Обновляем из API, если матч ещё не начался
+                    md = football_api.get_match_result(fid)
+                    if md and not md.get('is_final') and not md.get('is_live'):
+                        odds_data = football_api.get_match_odds(fid)
+                        if odds_data:
+                            fresh_x2 = odds_data.get('x2_odds', 0) or 0
+                            fresh_1x = odds_data.get('1x_odds', 0) or 0
+                            if fresh_x2 > 0:
+                                current_odds = fresh_x2
+                            if fresh_1x > 0:
+                                current_1x_odds = fresh_1x
 
-                    # Тренд по снимкам DC
-                    dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
+                    # Тренд из DC-снимков
+                    if c.get('x2_side') == 'X2':
+                        dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
+                    else:
+                        dc_hist = storage.get_odds_history(fid, 'DC', '1X')
+
                     if dc_hist and len(dc_hist) >= 2:
                         first_odd = float(dc_hist[0].get('odds', 0))
                         last_odd = float(dc_hist[-1].get('odds', 0))
                         if first_odd > 0:
                             odds_trend = round(((last_odd / first_odd) - 1) * 100, 1)
+                        # Если кэф всё ещё 0 — берём первый снимок
+                        if current_odds <= 0 and first_odd > 0:
+                            current_odds = first_odd
             except Exception as e:
                 logger.debug(f"x2_auto enrich {fid}: {e}")
+
+            # Если кэф всё ещё 0 — fallback из fair value
+            if current_odds <= 0 and c.get('x2_prob', 0) > 0:
+                p = c.get('x2_prob', 0) / 100
+                if p > 0:
+                    current_odds = round((1 / p) * 0.95, 2)
 
             enriched.append({
                 'id': c.get('id'),
@@ -3852,6 +3951,8 @@ def api_x2_auto():
                 'home_form': c.get('home_form'),
                 'away_form': c.get('away_form'),
                 'total_xg': c.get('total_xg'),
+                'entry_odds': c.get('entry_odds', 0),
+                'entry_1x_odds': c.get('entry_1x_odds', 0),
                 'current_odds': current_odds,
                 'current_1x_odds': current_1x_odds,
                 'odds_trend': odds_trend,
@@ -3859,6 +3960,7 @@ def api_x2_auto():
                 'profit': c.get('profit', 0),
                 'home_goals': c.get('home_goals'),
                 'away_goals': c.get('away_goals'),
+                'settled_at': c.get('settled_at'),
                 'created_at': c.get('created_at'),
                 'source': 'auto',
             })
@@ -4198,16 +4300,16 @@ def api_snapshots_list():
         for fid, info in grouped.items():
             snaps = info['snapshots']
             if not snaps: continue
-            first_odds = {'1': 0, 'X': 0, '2': 0}
-            last_odds = {'1': 0, 'X': 0, '2': 0}
+            first_odds = {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0}
+            last_odds = {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0}
             anomalies = []
             for s in snaps:
                 sel = s.get('selection', '')
                 odd = s.get('odds', 0)
-                if sel in ['1', 'X', '2']:
+                if sel in first_odds:
                     if not first_odds[sel]: first_odds[sel] = odd
                     last_odds[sel] = odd
-            for sel in ['1', 'X', '2']:
+            for sel in ['1', 'X', '2', '1X', 'X2']:
                 if first_odds[sel] > 0 and last_odds[sel] > 0:
                     trend = ((last_odds[sel] / first_odds[sel]) - 1) * 100
                     if abs(trend) > 5:
@@ -4254,8 +4356,12 @@ def api_snapshots_detail(fixture_id):
             bm = r.get('bookmaker', '—')
             if not t: continue
             if t not in history_map:
-                history_map[t] = {'created_at': t, 'odds': {'1': 0, 'X': 0, '2': 0}, 'bookmaker': bm}
-            if sel in ['1', 'X', '2']:
+                history_map[t] = {
+                    'created_at': t,
+                    'odds': {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0},
+                    'bookmaker': bm
+                }
+            if sel in history_map[t]['odds']:
                 history_map[t]['odds'][sel] = odd
             history_map[t]['bookmaker'] = bm
         history = sorted(history_map.values(), key=lambda x: x['created_at'])
@@ -4491,6 +4597,10 @@ def health():
             odds_size = storage.get_odds_history_size()
         except Exception:
             odds_size = {'matches': 0, 'snapshots': 0}
+        try:
+            x2_count = storage.x2_count()
+        except Exception:
+            x2_count = 0
         return {
             'status': 'ok', 'time': datetime.now().isoformat(),
             'uptime_hours': uptime_hours, 'uptime_sec': int(uptime_sec),
@@ -4498,6 +4608,7 @@ def health():
             'search_running': state.get('search_running', False),
             'geocoding_cache_size': len(_geo_cache),
             'data_dir': DATA_DIR,
+            'x2_candidates': x2_count,
             'autobets': {
                 'count': autobets_state.get('total_bets', 0),
                 'bank': autobets_state.get('bank', 1000),
