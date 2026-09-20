@@ -1877,10 +1877,11 @@ def update_odds_for_matches(matches):
             else:
                 reason = "нет fixture_id" if not fid else "Football API пусто"
                 logger.warning(f"⏭️ Кэф не найден для {home} vs {away} | fid={fid} | причина: {reason}")
+                updated.append(md)
                 continue
-        except Exception as e:
-            logger.error(f"Ошибка кэфов: {e}")
-            continue
+            except Exception as e:
+                logger.error(f"Ошибка кэфов: {e}")
+                continue
     return updated
 
 
