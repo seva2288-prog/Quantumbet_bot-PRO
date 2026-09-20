@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.2 — с турнирами сборных (Лига наций, отборы ЧМ/ЧЕ)
+★ ВЕРСИЯ 3.3 — с турнирами сборных + Live-страница
 """
 import os
 import sys
@@ -116,6 +116,27 @@ class Config:
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
+    # ★ LIVE-СТРАНИЦА (⚡)
+    # ============================================================
+    # Окно матчей: от -30 минут после начала до +2 часов до старта
+    LIVE_HOURS_BEFORE = 2         # матч в ближайшие 2 часа
+    LIVE_MINUTES_AFTER = 30       # +30 минут после начала
+
+    # Автообновление UI
+    LIVE_REFRESH_SEC = 20         # обновлять каждые 20 сек (если страница активна)
+
+    # Batch-запросы к API (экономия лимита)
+    LIVE_BATCH_ENABLED = True     # использовать /fixtures?date=X вместо /fixtures?id=Y
+
+    # TTL кэша для live-данных
+    LIVE_CACHE_TTL_LIVE = 30      # 30 сек — для идущих матчей
+    LIVE_CACHE_TTL_SOON = 300     # 5 мин — для матчей в ближайшие 2ч
+    LIVE_CACHE_TTL_FINAL = 3600   # 1 час — для завершённых
+
+    # Максимум матчей на странице
+    LIVE_MAX_MATCHES = 30
+
+    # ============================================================
     # === WHITELIST (текстовый фильтр для /leagues API) ===
     # ============================================================
     WHITELIST_LEAGUES = [
@@ -204,17 +225,17 @@ class Config:
     # ============================================================
     # === ТМ 2.5 ===
     # ============================================================
-    MAX_TM25_BETS = 3
+    MAX_TM25_BETS = 5
     MIN_TM25_EV = 15
     MIN_TM25_PROB = 55
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
     PREMIUM_MIN_EV = 25
-    PREMIUM_MIN_PROB = 60
+    PREMIUM_MIN_PROB = 58
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
-    STANDARD_MIN_EV = 20
-    STANDARD_MIN_PROB = 60
+    STANDARD_MIN_EV = 15
+    STANDARD_MIN_PROB = 52
     STANDARD_XG_MIN = 0.8
     STANDARD_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
@@ -274,7 +295,7 @@ class Config:
     ]
 
     # ============================================================
-    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID (для отображения в карточке)
+    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID
     # ============================================================
     LEAGUE_COUNTRY = {
         # ── Европейские кубки ──
@@ -354,40 +375,30 @@ class Config:
         180: ("Россия", "🇷🇺"),
         182: ("Россия", "🇷🇺"),
         # ★ ── ТУРНИРЫ СБОРНЫХ ──
-        5:   ("Европа", "🇪🇺"),      # UEFA Nations League
-        29:  ("Мир", "🌍"),           # WC Qualification (general)
-        30:  ("Азия", "🌏"),          # WC Qualification Asia
-        31:  ("Африка", "🌍"),        # WC Qualification Africa
-        32:  ("Европа", "🇪🇺"),       # WC Qualification Europe
-        33:  ("Ю. Америка", "🌎"),    # WC Qualification South America
-        34:  ("Океания", "🌏"),       # WC Qualification Oceania
-        35:  ("С. Америка", "🌎"),    # WC Qualification CONCACAF
-        960: ("Европа", "🇪🇺"),       # Euro Championship Qualification
-        10:  ("Мир", "🌍"),           # Friendlies
-        1:   ("Мир", "🏆"),           # World Cup
-        4:   ("Европа", "🏆"),        # Euro Championship
+        5:   ("Европа", "🇪🇺"),
+        29:  ("Мир", "🌍"),
+        30:  ("Азия", "🌏"),
+        31:  ("Африка", "🌍"),
+        32:  ("Европа", "🇪🇺"),
+        33:  ("Ю. Америка", "🌎"),
+        34:  ("Океания", "🌏"),
+        35:  ("С. Америка", "🌎"),
+        960: ("Европа", "🇪🇺"),
+        10:  ("Мир", "🌍"),
+        1:   ("Мир", "🏆"),
+        4:   ("Европа", "🏆"),
     }
 
     # ============================================================
-    # ★ ТУРНИРЫ СБОРНЫХ (отдельный список)
+    # ★ ТУРНИРЫ СБОРНЫХ
     # ============================================================
     INTERNATIONAL_LEAGUES = [
-        5,    # UEFA Nations League
-        29,   # WC Qualification (общий)
-        30,   # WC Qualification Asia
-        31,   # WC Qualification Africa
-        32,   # WC Qualification Europe
-        33,   # WC Qualification South America
-        34,   # WC Qualification Oceania
-        35,   # WC Qualification CONCACAF
-        960,  # Euro Championship Qualification
-        10,   # Friendlies (International)
-        1,    # World Cup (финальная часть)
-        4,    # Euro Championship (финальная часть)
+        5, 29, 30, 31, 32, 33, 34, 35,
+        960, 10, 1, 4,
     ]
 
     # ============================================================
-    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ + ТУРНИРЫ СБОРНЫХ
+    # ★ ЛИГИ + ТУРНИРЫ СБОРНЫХ
     # ============================================================
     LEAGUES = [
         # ── Англия ──
@@ -439,12 +450,12 @@ class Config:
         # ── Кубки ──
         2, 3, 848,
         # ★ ── ТУРНИРЫ СБОРНЫХ ──
-        5,    # UEFA Nations League
-        29, 30, 31, 32, 33, 34, 35,  # WC Qualification
-        960,  # Euro Championship Qualification
-        10,   # Friendlies
-        1,    # World Cup
-        4,    # Euro Championship
+        5,
+        29, 30, 31, 32, 33, 34, 35,
+        960,
+        10,
+        1,
+        4,
     ]
 
     CUP_LEAGUES = [2, 3, 848]
@@ -763,6 +774,7 @@ class Config:
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
         print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
         print(f"🌐 Турниров сборных: {len(cls.INTERNATIONAL_LEAGUES)}")
+        print(f"⚡ LIVE: окно -{cls.LIVE_MINUTES_AFTER}м .. +{cls.LIVE_HOURS_BEFORE}ч | refresh {cls.LIVE_REFRESH_SEC}с")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
@@ -775,4 +787,4 @@ if __name__ == "__main__":
         Config.check()
     else:
         print("Использование:")
-        print("  python3 -m app.config check — общая проверка")
+        print("  python -m app.config check — общая проверка")
