@@ -1751,7 +1751,7 @@ const KEEPALIVE_MS = 180000;
 const AUTO_IMPORT_MS = 180000;
 const ITEMS_LIMIT = 50;
 const SWIPE_THRESHOLD = 100;
-const LIVE_REFRESH_MS = 20000;   // ★ автообновление Live
+const LIVE_REFRESH_MS = 20000;
 
 // ============================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -1775,8 +1775,8 @@ let viewMode = 'cards';
 let keepAliveInterval = null;
 let autoImportInterval = null;
 let autoRefreshInterval = null;
-let liveRefreshInterval = null;   // ★ для Live
-let liveData = [];                // ★ массив Live-матчей
+let liveRefreshInterval = null;
+let liveData = [];
 let deferredPrompt = null;
 let refreshTimeout = null;
 let showAllItems = false;
@@ -1837,6 +1837,77 @@ function getSourceBadge(source) {
     const s = map[source];
     if (!s) return '';
     return `<span class="source-badge ${s.cls}">${s.label}</span>`;
+}
+
+// ============================================================
+// ★ SPARKLINE — SVG-мини-график движения кэфа
+// ============================================================
+function renderSparkline(points, width = 200, height = 32) {
+    if (!points || points.length < 2) {
+        return '<div style="font-size:9px;color:var(--text-tertiary);padding:4px 0;">Нет данных для графика</div>';
+    }
+
+    const oddsValues = points.map(p => parseFloat(p.odds) || 0).filter(v => v > 1);
+    if (oddsValues.length < 2) {
+        return '<div style="font-size:9px;color:var(--text-tertiary);padding:4px 0;">Нет данных для графика</div>';
+    }
+
+    const min = Math.min(...oddsValues);
+    const max = Math.max(...oddsValues);
+    const range = max - min || 1;
+
+    const padding = 4;
+    const innerW = width - padding * 2;
+    const innerH = height - padding * 2;
+
+    // Нормализация точек в координаты SVG
+    const coords = points.map((p, i) => {
+        const x = padding + (i / (points.length - 1)) * innerW;
+        const val = parseFloat(p.odds) || 0;
+        const y = padding + innerH - ((val - min) / range) * innerH;
+        return { x, y, odds: val };
+    });
+
+    // Путь
+    const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+
+    // Первая и последняя точки
+    const first = oddsValues[0];
+    const last = oddsValues[oddsValues.length - 1];
+    const pctChange = ((last / first) - 1) * 100;
+
+    // Цвет линии: рост кэфа = зелёный (хорошо для value), падение = красный
+    const trendUp = pctChange >= 0;
+    const lineColor = trendUp ? '#34d399' : '#f87171';
+    const fillColor = trendUp ? 'rgba(52, 211, 153, 0.12)' : 'rgba(248, 113, 113, 0.12)';
+    const arrow = trendUp ? '📈' : '📉';
+    const pctStr = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(1) + '%';
+
+    // Площадь под линией
+    const areaD = `${pathD} L${coords[coords.length - 1].x.toFixed(1)},${height - padding} L${coords[0].x.toFixed(1)},${height - padding} Z`;
+
+    // Последняя точка — точка маркер
+    const lastCoord = coords[coords.length - 1];
+
+    return `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;margin-top:6px;border-top:1px dashed var(--border-color);">
+            <div style="flex:1;min-width:0;">
+                <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display:block;width:100%;height:${height}px;max-width:100%;">
+                    <path d="${areaD}" fill="${fillColor}" stroke="none"/>
+                    <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="${lastCoord.x.toFixed(1)}" cy="${lastCoord.y.toFixed(1)}" r="2.5" fill="${lineColor}"/>
+                </svg>
+            </div>
+            <div style="flex-shrink:0;text-align:right;">
+                <div style="font-size:11px;font-weight:700;color:${lineColor};">
+                    ${arrow} ${pctStr}
+                </div>
+                <div style="font-size:9px;color:var(--text-tertiary);">
+                    ${first.toFixed(2)} → ${last.toFixed(2)}
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // ============================================================
@@ -1964,7 +2035,6 @@ function switchPage(page) {
     currentPage = page;
     haptic(6);
 
-    // ★ Останавливаем Live polling при переходе с него
     if (page !== 'live' && liveRefreshInterval) {
         clearInterval(liveRefreshInterval);
         liveRefreshInterval = null;
@@ -1975,7 +2045,7 @@ function switchPage(page) {
     else if (page === 'analytics') loadPageData('analytics');
     else if (page === 'live') {
         loadLive();
-        startLiveRefresh();   // ★ запускаем автообновление
+        startLiveRefresh();
     }
     else if (page === 'x2') renderX2Page();
     else if (page === 'snapshots') loadSnapshots();
@@ -2121,7 +2191,6 @@ async function loadLive(force = false) {
     const container = document.getElementById('liveList');
     if (!container) return;
 
-    // Скелетоны только при первой загрузке
     if (liveData.length === 0) {
         container.innerHTML = `
             <div class="skeleton" style="height:100px;"></div>
@@ -2184,7 +2253,6 @@ function renderLive() {
     const container = document.getElementById('liveList');
     if (!container) return;
 
-    // Статистика
     const total = liveData.length;
     const liveCount = liveData.filter(m => m.is_live).length;
     const soonCount = liveData.filter(m => !m.is_live && !m.is_final).length;
@@ -2215,7 +2283,6 @@ function renderLiveCard(m) {
     const isFinal = m.is_final;
     const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
 
-    // Время
     const minutes = m.minutes_to_match;
     let timeInfo = '';
     if (isLive) {
@@ -2234,7 +2301,6 @@ function renderLiveCard(m) {
         timeInfo = `начался ${Math.round(-minutes)} мин назад`;
     }
 
-    // Статус badge
     let statusBadge = '';
     if (isLive) {
         statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
@@ -2244,24 +2310,20 @@ function renderLiveCard(m) {
         statusBadge = `<span class="live-badge-soon">⏳ Скоро</span>`;
     }
 
-    // Best bet
     const bb = m.best_bet || {};
     const betLabel = bb.label || '—';
     const betOdds = bb.odds ? bb.odds.toFixed(2) : '—';
     const betEv = bb.ev ? (bb.ev >= 0 ? '+' : '') + bb.ev.toFixed(1) + '%' : '—';
     const betProb = bb.prob ? bb.prob.toFixed(0) + '%' : '—';
 
-    // Тренд
     const trend = m.odds_trend || 0;
     const trendEmoji = trend > 1 ? '📈' : trend < -1 ? '📉' : '';
     const trendStr = trend !== 0 ? ` (${trend > 0 ? '+' : ''}${trend.toFixed(1)}%)` : '';
 
-    // Страна + флаг
     const countryHtml = m.country
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
-    // Live-счёт
     let scoreHtml = '';
     if ((isLive || isFinal) && m.score) {
         const minuteStr = isLive && m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
@@ -2272,6 +2334,9 @@ function renderLiveCard(m) {
             </div>
         `;
     }
+
+    // ★ Sparkline
+    const sparklineHtml = renderSparkline(m.sparkline || []);
 
     return `
         <div class="live-card ${cls}">
@@ -2302,13 +2367,13 @@ function renderLiveCard(m) {
                     <span class="stat-value gold">${betProb} · ${betEv}</span>
                 </div>
             </div>
+            ${sparklineHtml}
         </div>
     `;
 }
 
 function startLiveRefresh() {
     if (liveRefreshInterval) clearInterval(liveRefreshInterval);
-    // ★ Обновляем ТОЛЬКО когда страница Live активна и браузер виден
     liveRefreshInterval = setInterval(() => {
         if (document.visibilityState === 'visible' && currentPage === 'live') {
             loadLive();
@@ -2316,7 +2381,6 @@ function startLiveRefresh() {
     }, LIVE_REFRESH_MS);
 }
 
-// Периодическое обновление badge даже на других страницах (каждые 2 мин)
 setInterval(async () => {
     if (document.visibilityState === 'visible' && currentPage !== 'live') {
         try {
@@ -3174,7 +3238,6 @@ function renderSnapshotChart(history) {
           tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true }
     ];
 
-    // ★ Добавляем DC линии если есть данные
     const has1X = history.some(h => h.odds['1X'] > 0);
     const hasX2 = history.some(h => h.odds['X2'] > 0);
     if (has1X) {
@@ -4718,7 +4781,6 @@ window.addEventListener('load', async () => {
     setTimeout(autoImportX2FromLogs, 5000);
     registerPWA();
 
-    // Первичная загрузка badge на кнопке Live
     try {
         const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
         if (resp.ok) {
@@ -4767,8 +4829,8 @@ Object.assign(window, {
     computeClv, loadClvStats, runGridSearch, renderGridTop5,
     loadDashboardAutobets, getSourceBadge,
     loadAutoX2, openX2Detail,
-    // ★ Live
     loadLive, renderLive, startLiveRefresh,
+    renderSparkline,
 });
 </script>
 </body>
