@@ -54,7 +54,6 @@ _x2_candidates_lock = Lock()
 def save_x2_candidate(home, away, hp, ap, league_name, match_time,
                        fixture_id, home_form='', away_form='', total_xg=0,
                        x2_side='X2', x2_ev=0, x2_prob=0):
-    """★ Сохраняет X2-кандидата в SQLite."""
     try:
         saved = storage.save_x2_candidate(
             home=home, away=away, hp=hp, ap=ap,
@@ -217,7 +216,6 @@ def parse_match_time_to_msk(date_str):
 
 
 def is_force_final(match_time_str, status):
-    """Fallback: если статус NS, но матч был >2.5ч назад → завершён."""
     if status != 'NS':
         return False
     if not match_time_str or match_time_str == '?':
@@ -347,9 +345,6 @@ class SmartCache:
         self.last_access.clear()
 
 
-# ============================================================
-# ИСКЛЮЧЕНИЯ / RATE LIMITER / RETRY
-# ============================================================
 class APIError(Exception): pass
 class APIErrorRetry(Exception): pass
 class APIErrorFatal(Exception): pass
@@ -826,7 +821,6 @@ class FootballAPI:
 
     @timing_decorator()
     def get_odds_batch_for_league(self, league_id, date):
-        """★ Ultra: 1 запрос на все матчи лиги на дату."""
         cache_key = f"odds_batch_{league_id}_{date}"
         cached = self.cache.get(cache_key, data_type='odds')
         if cached is not None:
@@ -855,7 +849,6 @@ class FootballAPI:
 
     @timing_decorator()
     def get_predictions_batch_for_league(self, league_id, date):
-        """★ Ultra: 1 запрос на все прогнозы лиги."""
         cache_key = f"pred_batch_{league_id}_{date}"
         cached = self.cache.get(cache_key, data_type='predictions')
         if cached is not None:
@@ -914,91 +907,94 @@ class FootballAPI:
         except (ValueError, TypeError):
             return 0.0
 
+    # ============================================================
+    # ★★★ ИСПРАВЛЕННАЯ ВЕРСИЯ (с _to_float)
+    # ============================================================
     def _extract_best_odds(self, odds_data):
-    result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
-              'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
-              'btts_yes': 0, 'btts_no': 0, 'x2_odds': 0, '1x_odds': 0,
-              'all_bookmakers': {}}
+        result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
+                  'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
+                  'btts_yes': 0, 'btts_no': 0, 'x2_odds': 0, '1x_odds': 0,
+                  'all_bookmakers': {}}
 
-    def _to_float(x):
-        try:
-            return float(x) if x is not None else 0.0
-        except (ValueError, TypeError):
-            return 0.0
+        def _to_float(x):
+            try:
+                return float(x) if x is not None else 0.0
+            except (ValueError, TypeError):
+                return 0.0
 
-    for bm in odds_data:
-        bm_name = bm.get('bookmaker', {}).get('name', '—') if 'bookmaker' in bm else bm.get('name', '—')
-        bm_data = {'home': 0, 'draw': 0, 'away': 0, '1x': 0, 'x2': 0}
+        for bm in odds_data:
+            bm_name = bm.get('bookmaker', {}).get('name', '—') if 'bookmaker' in bm else bm.get('name', '—')
+            bm_data = {'home': 0, 'draw': 0, 'away': 0, '1x': 0, 'x2': 0}
 
-        bets_list = bm.get('bets', [])
-        for bet in bets_list:
-            bn = bet.get('name', '').lower()
-            values = bet.get('values', [])
-            if not values:
-                continue
+            bets_list = bm.get('bets', [])
+            for bet in bets_list:
+                bn = bet.get('name', '').lower()
+                values = bet.get('values', [])
+                if not values:
+                    continue
 
-            if 'match' in bn or 'побед' in bn or '1x2' in bn or 'winner' in bn:
-                for v in values:
-                    vn = str(v.get('value', '')).lower()
-                    odd = _to_float(v.get('odd', 0))
-                    if odd <= 0: continue
-                    if 'home' in vn or vn == '1':
-                        result['home_odds'] = max(result['home_odds'], odd)
-                        bm_data['home'] = max(bm_data['home'], odd)
-                    elif 'away' in vn or vn == '2':
-                        result['away_odds'] = max(result['away_odds'], odd)
-                        bm_data['away'] = max(bm_data['away'], odd)
-                    elif 'draw' in vn or vn == 'x':
-                        result['draw_odds'] = max(result['draw_odds'], odd)
-                        bm_data['draw'] = max(bm_data['draw'], odd)
-                    if odd > result['best_odds']:
-                        result['best_odds'] = odd
-                        result['bookmaker'] = bm_name
+                if 'match' in bn or 'побед' in bn or '1x2' in bn or 'winner' in bn:
+                    for v in values:
+                        vn = str(v.get('value', '')).lower()
+                        odd = _to_float(v.get('odd', 0))
+                        if odd <= 0: continue
+                        if 'home' in vn or vn == '1':
+                            result['home_odds'] = max(result['home_odds'], odd)
+                            bm_data['home'] = max(bm_data['home'], odd)
+                        elif 'away' in vn or vn == '2':
+                            result['away_odds'] = max(result['away_odds'], odd)
+                            bm_data['away'] = max(bm_data['away'], odd)
+                        elif 'draw' in vn or vn == 'x':
+                            result['draw_odds'] = max(result['draw_odds'], odd)
+                            bm_data['draw'] = max(bm_data['draw'], odd)
+                        if odd > result['best_odds']:
+                            result['best_odds'] = odd
+                            result['bookmaker'] = bm_name
 
-            if 'double chance' in bn or 'двойной шанс' in bn:
-                for v in values:
-                    vn = str(v.get('value', '')).lower()
-                    odd = _to_float(v.get('odd', 0))
-                    if odd <= 0: continue
-                    if 'home/draw' in vn or vn == '1x':
-                        result['1x_odds'] = max(result['1x_odds'], odd)
-                        bm_data['1x'] = max(bm_data['1x'], odd)
-                    elif 'draw/away' in vn or vn == 'x2':
-                        result['x2_odds'] = max(result['x2_odds'], odd)
-                        bm_data['x2'] = max(bm_data['x2'], odd)
+                if 'double chance' in bn or 'двойной шанс' in bn:
+                    for v in values:
+                        vn = str(v.get('value', '')).lower()
+                        odd = _to_float(v.get('odd', 0))
+                        if odd <= 0: continue
+                        if 'home/draw' in vn or vn == '1x':
+                            result['1x_odds'] = max(result['1x_odds'], odd)
+                            bm_data['1x'] = max(bm_data['1x'], odd)
+                        elif 'draw/away' in vn or vn == 'x2':
+                            result['x2_odds'] = max(result['x2_odds'], odd)
+                            bm_data['x2'] = max(bm_data['x2'], odd)
 
-            if 'total' in bn or 'over/under' in bn or 'тотал' in bn:
-                for v in values:
-                    vn = str(v.get('value', '')).lower()
-                    odd = _to_float(v.get('odd', 0))
-                    if odd <= 0: continue
-                    if 'under' in vn or 'меньше' in vn:
-                        result['under_odds'] = max(result['under_odds'], odd)
-                    elif 'over' in vn or 'больше' in vn:
-                        result['over_odds'] = max(result['over_odds'], odd)
+                if 'total' in bn or 'over/under' in bn or 'тотал' in bn:
+                    for v in values:
+                        vn = str(v.get('value', '')).lower()
+                        odd = _to_float(v.get('odd', 0))
+                        if odd <= 0: continue
+                        if 'under' in vn or 'меньше' in vn:
+                            result['under_odds'] = max(result['under_odds'], odd)
+                        elif 'over' in vn or 'больше' in vn:
+                            result['over_odds'] = max(result['over_odds'], odd)
 
-            if 'both teams' in bn or 'btts' in bn or 'обе забьют' in bn:
-                for v in values:
-                    vn = str(v.get('value', '')).lower()
-                    odd = _to_float(v.get('odd', 0))
-                    if odd <= 0: continue
-                    if vn == 'yes' or 'да' in vn:
-                        result['btts_yes'] = max(result['btts_yes'], odd)
-                    elif vn == 'no' or 'нет' in vn:
-                        result['btts_no'] = max(result['btts_no'], odd)
+                if 'both teams' in bn or 'btts' in bn or 'обе забьют' in bn:
+                    for v in values:
+                        vn = str(v.get('value', '')).lower()
+                        odd = _to_float(v.get('odd', 0))
+                        if odd <= 0: continue
+                        if vn == 'yes' or 'да' in vn:
+                            result['btts_yes'] = max(result['btts_yes'], odd)
+                        elif vn == 'no' or 'нет' in vn:
+                            result['btts_no'] = max(result['btts_no'], odd)
 
-        if any(bm_data.get(k, 0) > 0 for k in bm_data):
-            result['all_bookmakers'][bm_name] = bm_data
+            if any(bm_data.get(k, 0) > 0 for k in bm_data):
+                result['all_bookmakers'][bm_name] = bm_data
 
-    # DC из 1X2 если нет прямых
-    if result['x2_odds'] == 0 and result['draw_odds'] > 0 and result['away_odds'] > 0:
-        result['x2_odds'] = round(1 / (1/result['draw_odds'] + 1/result['away_odds']), 2)
-        result['dc_computed'] = True
-    if result['1x_odds'] == 0 and result['draw_odds'] > 0 and result['home_odds'] > 0:
-        result['1x_odds'] = round(1 / (1/result['draw_odds'] + 1/result['home_odds']), 2)
-        result['dc_computed'] = True
+        # DC из 1X2 если нет прямых
+        if result['x2_odds'] == 0 and result['draw_odds'] > 0 and result['away_odds'] > 0:
+            result['x2_odds'] = round(1 / (1/result['draw_odds'] + 1/result['away_odds']), 2)
+            result['dc_computed'] = True
+        if result['1x_odds'] == 0 and result['draw_odds'] > 0 and result['home_odds'] > 0:
+            result['1x_odds'] = round(1 / (1/result['draw_odds'] + 1/result['home_odds']), 2)
+            result['dc_computed'] = True
 
-    return result
+        return result
 
     def clear_cache(self):
         self.cache.clear()
