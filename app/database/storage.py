@@ -1,5 +1,5 @@
 """Управление данными бота (банк, история, статистика, кэш, история кэфов,
-   ★ автоставки, ★ симуляции стратегий, ★ X2 матчи, ★ CLV-анализ, ★ LIVE-счёт)"""
+   ★ автоставки, ★ симуляции стратегий, ★ X2 матчи, ★ CLV-анализ)"""
 import json
 import os
 import shutil
@@ -17,11 +17,10 @@ class Storage:
     Хранилище JSON с защитой от конкурентной записи и битых файлов.
     Атомарная запись через tempfile + os.replace().
 
-    ★ Версия 4.0:
-      - autobets.json     — виртуальные автоставки (с CLV и live-счётом)
+    ★ Версия 3.0:
+      - autobets.json     — виртуальные автоставки (с CLV)
       - simulations.json  — сохранённые симуляции стратегий
       - x2_matches.json   — X2 матчи
-      - ★ NEW: live-счёт сохраняется отдельно от финального результата
     """
 
     def __init__(self, data_dir='data'):
@@ -111,7 +110,7 @@ class Storage:
             })
 
     # ============================================================
-    # ИСТОРИЯ ★ ДОБАВЛЕНЫ LIVE-ПОЛЯ
+    # ИСТОРИЯ
     # ============================================================
     def load_history(self):
         history = self._read('history', [])
@@ -134,11 +133,6 @@ class Storage:
             bet.setdefault('prob', 0)
             bet.setdefault('halftime_home', None)
             bet.setdefault('halftime_away', None)
-            # ★ NEW: live-поля
-            bet.setdefault('live_score', None)
-            bet.setdefault('live_status', None)
-            bet.setdefault('live_minute', None)
-            bet.setdefault('live_halftime', None)
             normalized.append(bet)
         return normalized
 
@@ -433,7 +427,7 @@ class Storage:
             return []
 
     # ============================================================
-    # ★ АВТОСТАВКИ (с CLV и LIVE-счётом)
+    # ★ АВТОСТАВКИ (с CLV)
     # ============================================================
     def autobet_load_all(self):
         data = self._read('autobets', [])
@@ -490,14 +484,6 @@ class Storage:
                     'closing_odds': None,
                     'clv': None,
                     'clv_updated': False,
-                    # ★ NEW: LIVE-поля
-                    'live_score': None,
-                    'live_status': None,
-                    'live_minute': None,
-                    'live_home_goals': None,
-                    'live_away_goals': None,
-                    'live_halftime_home': None,
-                    'live_halftime_away': None,
                     'created_at': datetime.now().isoformat(timespec='seconds'),
                     'settled_at': None,
                 })
@@ -514,7 +500,6 @@ class Storage:
             total_staked = 0.0
             total_profit = 0.0
             wins = losses = pending = 0
-            live_count = 0
             clv_values = []
 
             for b in bets:
@@ -527,8 +512,6 @@ class Storage:
                     losses += 1
                 elif r == 'pending':
                     pending += 1
-                    if b.get('live_score'):
-                        live_count += 1
                 # ★ CLV
                 clv = b.get('clv')
                 if clv is not None:
@@ -549,7 +532,6 @@ class Storage:
                 'wins': wins,
                 'losses': losses,
                 'pending': pending,
-                'live_count': live_count,   # ★ NEW: сколько матчей идёт прямо сейчас
                 'roi': round(roi, 1),
                 'winrate': round(winrate, 1),
                 'avg_clv': round(avg_clv, 2),
@@ -560,8 +542,8 @@ class Storage:
             return {
                 'bank': default_bank, 'start_bank': default_bank,
                 'total_profit': 0, 'total_staked': 0, 'total_bets': 0,
-                'wins': 0, 'losses': 0, 'pending': 0, 'live_count': 0,
-                'roi': 0, 'winrate': 0, 'avg_clv': 0, 'clv_count': 0,
+                'wins': 0, 'losses': 0, 'pending': 0, 'roi': 0, 'winrate': 0,
+                'avg_clv': 0, 'clv_count': 0,
             }
 
     def autobet_get_history(self, limit=100):
@@ -590,44 +572,9 @@ class Storage:
             logger.error(f"❌ autobet_get_pending_clv: {e}")
             return []
 
-    # ★★★ NEW: обновление LIVE-счёта (без финализации)
-    def autobet_update_live(self, match_key, home_goals, away_goals,
-                            status, minute, halftime_home=None, halftime_away=None):
-        """
-        Обновляет live-счёт автоставки БЕЗ финализации результата.
-        Финальный result/profit НЕ трогаем.
-        """
-        with self._locks['autobets']:
-            try:
-                bets = self._read('autobets', [])
-                if not isinstance(bets, list):
-                    return False
-
-                updated = False
-                for b in bets:
-                    if b.get('match_key') == match_key and b.get('result') == 'pending':
-                        b['live_score'] = f"{home_goals}-{away_goals}"
-                        b['live_status'] = status
-                        b['live_minute'] = minute
-                        b['live_home_goals'] = home_goals
-                        b['live_away_goals'] = away_goals
-                        if halftime_home is not None:
-                            b['live_halftime_home'] = halftime_home
-                            b['live_halftime_away'] = halftime_away
-                        updated = True
-                        break
-
-                if updated:
-                    self._atomic_write('autobets', bets)
-                return updated
-            except Exception as e:
-                logger.error(f"❌ autobet_update_live: {e}")
-                return False
-
     def autobet_settle(self, match_key, result, profit,
                        home_goals=None, away_goals=None,
                        halftime_home=None, halftime_away=None):
-        """Финализирует автоставку (после FT) и очищает live-поля."""
         with self._locks['autobets']:
             try:
                 bets = self._read('autobets', [])
@@ -644,14 +591,6 @@ class Storage:
                         b['halftime_home'] = halftime_home
                         b['halftime_away'] = halftime_away
                         b['settled_at'] = datetime.now().isoformat(timespec='seconds')
-                        # ★ очищаем live-поля после финализации
-                        b.pop('live_score', None)
-                        b.pop('live_status', None)
-                        b.pop('live_minute', None)
-                        b.pop('live_home_goals', None)
-                        b.pop('live_away_goals', None)
-                        b.pop('live_halftime_home', None)
-                        b.pop('live_halftime_away', None)
                         updated = True
                         break
 
