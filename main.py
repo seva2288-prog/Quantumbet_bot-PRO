@@ -3001,7 +3001,7 @@ def _save_snapshot_from_odds(fo, fid):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3
+# main.py — ЧАСТЬ 3/3 (с /api/x2_auto)
 # Schedulers, Webhook, API, __main__
 # ============================================================
 
@@ -3277,7 +3277,8 @@ class StrategyTester:
     def get_comparison_report(self):
         history = storage.load_history()
         for key in self.strategies:
-            self.strategies[key].update({'bets': [], 'profit': 0, 'wins': 0, 'losses': 0, 'total_stake': 0})
+            self.strategies[key].update({'bets': [], 'profit': 0,
+                                          'wins': 0, 'losses': 0, 'total_stake': 0})
 
         for b in history:
             if b.get('result') not in ('win', 'loss', 'push'):
@@ -3389,7 +3390,7 @@ def _check_webhook_rate_limit(chat_id):
 
 
 # ============================================================
-# ★★★ WEBHOOK
+# WEBHOOK
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -3420,13 +3421,11 @@ def webhook():
                 send_telegram("⚠️ Слишком много команд.")
                 return "ok", 200
 
-            # БАЗОВЫЕ
             if text == '/start':
                 send_telegram(handlers.handle_start())
             elif text == '/help':
                 send_telegram(handlers.handle_help())
 
-            # АНАЛИЗ
             elif text == '/analyze':
                 send_telegram("⚠️ <code>/analyze Fulham vs Chelsea</code>")
             elif text.startswith('/analyze '):
@@ -3437,7 +3436,6 @@ def webhook():
             elif text.startswith('/team '):
                 send_telegram(handlers.handle_team(text[6:].strip()))
 
-            # РЕЗУЛЬТАТЫ
             elif text == '/result':
                 send_telegram("⚠️ <code>/result Fulham vs Chelsea 2-1</code>")
             elif text.startswith('/result '):
@@ -3451,7 +3449,6 @@ def webhook():
                 else:
                     send_telegram("⚠️ <code>/result Fulham vs Chelsea 2-1</code>")
 
-            # ПОИСК
             elif text == '/update':
                 if search_running:
                     send_telegram("⚠️ Поиск уже запущен")
@@ -3467,7 +3464,6 @@ def webhook():
                         if matches:
                             top = find_top_matches_with_tm25(matches)
                             if top:
-                                # Разделяем: VALUE первыми, потом остальные
                                 value_list = [m for m in top if m.get('source') == 'value']
                                 other_list = [m for m in top if m.get('source') != 'value']
 
@@ -3518,7 +3514,6 @@ def webhook():
                 search_running = False
                 send_telegram("⏹️ Остановлено")
 
-            # СТАТИСТИКА
             elif text == '/today':
                 send_telegram(handlers.handle_today())
             elif text == '/stats':
@@ -3534,7 +3529,6 @@ def webhook():
             elif text == '/strategies':
                 send_telegram(strategy_tester.get_comparison_report())
 
-            # X2
             elif text == '/x2_info':
                 try:
                     candidates = storage.get_x2_candidates(limit=500)
@@ -3554,7 +3548,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ
             elif text == '/update_results':
                 res = update_pending_bets()
                 ft = res.get('ft', 0); live = res.get('live', 0)
@@ -3606,7 +3599,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # DEBUG
             elif text == '/debug_pending':
                 try:
                     bets = storage.autobet_load_all()
@@ -3628,7 +3620,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # СНИМКИ
             elif text == '/snapshots':
                 try:
                     stats = storage.get_odds_history_size()
@@ -3647,7 +3638,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # ЭКСПОРТ
             elif text == '/export':
                 file, message = export_to_excel()
                 send_telegram(message)
@@ -3667,7 +3657,6 @@ def webhook():
                 result = send_auto_backup()
                 send_telegram("✅ Отправлен!" if result else "❌ Ошибка")
 
-            # АВТОСТАВКИ
             elif text == '/autobet':
                 autobet_manager.enabled = not autobet_manager.enabled
                 status = "включены" if autobet_manager.enabled else "выключены"
@@ -3696,7 +3685,6 @@ def webhook():
                               f"Средний CLV: <b>{st.get('avg_clv', 0):+.2f}%</b>\n"
                               f"Замеров: {st.get('clv_count', 0)}")
 
-            # GRID SEARCH
             elif text == '/grid_search':
                 send_telegram("🎯 Запускаю Grid Search...")
 
@@ -3710,7 +3698,6 @@ def webhook():
 
                 Thread(target=run_grid, daemon=True).start()
 
-            # СТАТУС
             elif text == '/status':
                 report = bot_state.get_status_report()
                 try:
@@ -3752,7 +3739,103 @@ def serve_manifest():
 
 
 # ============================================================
-# API
+# API: X2 — АВТОМАТИЧЕСКИЕ КАНДИДАТЫ (SQLite)
+# ============================================================
+@app.route('/api/x2_auto', methods=['GET'])
+def api_x2_auto():
+    """
+    ★ Автоматические X2-кандидаты из SQLite с обогащением:
+    - current_odds (из API)
+    - current_1x_odds (из API)
+    - odds_trend (% изменения за период снимков)
+    - country + country_flag
+    """
+    try:
+        candidates = storage.get_x2_candidates(limit=100)
+        if not candidates:
+            return jsonify({'status': 'ok', 'count': 0, 'candidates': []})
+
+        enriched = []
+        for c in candidates:
+            fid = c.get('fixture_id')
+            league_id = None
+            # Находим league_id по названию
+            for lid, lname in Config.LEAGUE_NAMES.items():
+                if lname == c.get('league'):
+                    league_id = lid
+                    break
+
+            country_name, country_flag = ("", "")
+            if league_id:
+                country_name, country_flag = Config.LEAGUE_COUNTRY.get(
+                    league_id, ("", "")
+                )
+
+            # Обогащаем кэфами и трендом
+            current_odds = 0
+            current_1x_odds = 0
+            odds_trend = 0
+            try:
+                if fid:
+                    # Свежий кэф из API
+                    odds_data = football_api.get_match_odds(fid)
+                    if odds_data:
+                        current_odds = odds_data.get('x2_odds', 0) or 0
+                        current_1x_odds = odds_data.get('1x_odds', 0) or 0
+
+                    # Тренд по снимкам DC
+                    dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
+                    if dc_hist and len(dc_hist) >= 2:
+                        first_odd = float(dc_hist[0].get('odds', 0))
+                        last_odd = float(dc_hist[-1].get('odds', 0))
+                        if first_odd > 0:
+                            odds_trend = round(((last_odd / first_odd) - 1) * 100, 1)
+            except Exception as e:
+                logger.debug(f"x2_auto enrich {fid}: {e}")
+
+            enriched.append({
+                'id': c.get('id'),
+                'home': c.get('home'),
+                'away': c.get('away'),
+                'match': f"{c.get('home')} vs {c.get('away')}",
+                'favorite': c.get('favorite'),
+                'underdog': c.get('underdog'),
+                'league': c.get('league'),
+                'country': country_name,
+                'country_flag': country_flag,
+                'match_time': c.get('match_time'),
+                'fixture_id': fid,
+                'x2_side': c.get('x2_side', 'X2'),
+                'x2_ev': c.get('x2_ev', 0),
+                'x2_prob': c.get('x2_prob', 0),
+                'home_position': c.get('home_position'),
+                'away_position': c.get('away_position'),
+                'home_form': c.get('home_form'),
+                'away_form': c.get('away_form'),
+                'total_xg': c.get('total_xg'),
+                'current_odds': current_odds,
+                'current_1x_odds': current_1x_odds,
+                'odds_trend': odds_trend,
+                'result': c.get('result', 'pending'),
+                'profit': c.get('profit', 0),
+                'home_goals': c.get('home_goals'),
+                'away_goals': c.get('away_goals'),
+                'created_at': c.get('created_at'),
+                'source': 'auto',
+            })
+
+        return jsonify({
+            'status': 'ok',
+            'count': len(enriched),
+            'candidates': enriched,
+        })
+    except Exception as e:
+        logger.exception(f"api_x2_auto error: {e}")
+        return jsonify({'status': 'error', 'error': str(e), 'candidates': []}), 500
+
+
+# ============================================================
+# API: X2 — старые endpoints
 # ============================================================
 @app.route('/api/x2_candidates', methods=['GET'])
 def api_x2_candidates():
@@ -3804,6 +3887,9 @@ def api_x2_data_post():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# API: АВТОСТАВКИ
+# ============================================================
 @app.route('/api/autobets/state', methods=['GET'])
 def api_autobets_state():
     try:
@@ -3890,6 +3976,9 @@ def api_autobets_clv_stats():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# API: СИМУЛЯТОР
+# ============================================================
 @app.route('/api/simulator/run', methods=['POST'])
 def api_simulator_run():
     try:
@@ -3952,6 +4041,9 @@ def api_simulator_grid_search():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# API: ОСНОВНЫЕ
+# ============================================================
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
     stats = storage.load_stats()
@@ -4060,7 +4152,8 @@ def api_snapshots_list():
             fid = m.get('fixture_id')
             if fid:
                 match_lookup[fid] = {'home': m.get('home'), 'away': m.get('away'),
-                                     'league': m.get('league', ''), 'match_time': m.get('match_time', '')}
+                                     'league': m.get('league', ''),
+                                     'match_time': m.get('match_time', '')}
 
         result = []
         for fid, info in grouped.items():
@@ -4111,7 +4204,8 @@ def api_snapshots_detail(fixture_id):
         for m in all_matches:
             if m.get('fixture_id') == fixture_id:
                 m_info = {'home': m.get('home'), 'away': m.get('away'),
-                          'league': m.get('league', ''), 'match_time': m.get('match_time', '')}
+                          'league': m.get('league', ''),
+                          'match_time': m.get('match_time', '')}
                 break
         history_map = {}
         for r in rows:
@@ -4166,8 +4260,9 @@ def api_snapshot_anomalies():
                 if anomaly_pct > 5:
                     m = match_lookup.get(fid, {})
                     result.append({
-                        'fixture_id': fid, 'home': m.get('home', '?'), 'away': m.get('away', '?'),
-                        'league': m.get('league', '?'), 'match_time': m.get('match_time', '?'),
+                        'fixture_id': fid, 'home': m.get('home', '?'),
+                        'away': m.get('away', '?'), 'league': m.get('league', '?'),
+                        'match_time': m.get('match_time', '?'),
                         'selection': sel, 'first_odds': first_odd, 'max_odds': max_odd,
                         'anomaly_pct': round(anomaly_pct, 1), 'snapshots_count': len(values)
                     })
@@ -4459,7 +4554,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"⚠️ Команды: {e}")
 
-    # WEBHOOK
     try:
         WEBHOOK_URL = (os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook')
         r = requests.get(
@@ -4474,7 +4568,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ Webhook: {e}")
 
-    # Расписание снимков
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
@@ -4506,7 +4599,6 @@ if __name__ == "__main__":
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
     logger.info("=" * 60)
 
-    # Тест API
     if Config.FOOTBALL_API_KEY:
         try:
             test_headers = {
