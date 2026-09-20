@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.0 — с фильтрацией лиг по реальным кэфам (50/67 подтверждено)
+★ ВЕРСИЯ 3.1 — с маппингом стран/флагов для лиг
 """
 import os
 import sys
@@ -23,7 +23,6 @@ class Config:
 
     # ============================================================
     # === FOOTBALL API (Ultra) ===
-    # 450 req/min, 75 000 req/day, /odds, /predictions, /injuries
     # ============================================================
     FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "").strip()
     FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io").rstrip("/")
@@ -53,7 +52,6 @@ class Config:
 
     # ============================================================
     # === ИНФРАСТРУКТУРА ===
-    # DATABASE_URL должен указывать на Render Disk (/data/...)
     # ============================================================
     DATABASE_URL = os.getenv("DATABASE_URL", "/data/bot.db")
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "15"))
@@ -75,7 +73,7 @@ class Config:
     MAX_BETS_PER_RUN = 30
 
     # ============================================================
-    # === 70%+ ★ реалистичные пороги ===
+    # === 70%+ ===
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
@@ -97,61 +95,66 @@ class Config:
     PROB_FINAL_MIN = 40
 
     # ============================================================
-    # ★ WHITELIST — лиги, которые берём в работу
-    # ★ ДОБАВЛЕНО: 'national', 'j1 league', 'ekstraklasa', 'eliteserien' и др.
+    # === X2 ===
+    # ============================================================
+    X2_ENABLED = True
+    X2_MIN_POSITION_DIFF = 3
+    X2_MAX_POSITION = 20
+    X2_MIN_EV = 5
+    X2_MIN_PROB = 55
+    X2_BOTH_SIDES = True
+
+    # ============================================================
+    # === VALUE (1 матч в день) ===
+    # ============================================================
+    VALUE_MIN_ODDS = 2.50
+    VALUE_MIN_EV = 25
+    VALUE_MIN_PROB = 50
+    VALUE_MIN_XG_DIFF = 0.3
+    VALUE_MAX_RESULTS = 3
+    VALUE_MAX_PROB = 80
+    VALUE_MAX_RATIO = 2.2
+
+    # ============================================================
+    # === WHITELIST ===
     # ============================================================
     WHITELIST_LEAGUES = [
-        # ── Англия ──
         'premier league', 'championship',
         'efl league one', 'league one',
-        # ── Испания ──
         'la liga', 'laliga',
         'segunda división', 'segunda division', 'la liga 2',
         'primera federación', 'primera federacion',
-        # ── Германия ──
         'bundesliga', '2. bundesliga', '3. liga',
-        # ── Италия ──
         'serie a', 'serie b', 'serie c',
-        # ── Франция ──
-        'ligue 1', 'ligue 2', 'national',   # ★ добавлено national
-        # ── Нидерланды, Португалия, Бельгия, Турция ──
+        'ligue 1', 'ligue 2', 'national',
         'eredivisie', 'eerste divisie',
         'primeira liga', 'liga portugal',
         'pro league', 'challenger pro league',
         'süper lig', 'super lig', 'tff 1. lig',
-        # ── Скандинавия ──
         'superliga', '1. division',
         'eliteserien', 'obos-ligaen',
-        # ── Восточная Европа ──
         'ekstraklasa', 'i liga',
         'hnl', '2. hnl',
         'premier league ukraine', 'persha liga',
         'рпл', 'первая лига',
-        # ── Швейцария, Австрия, Греция ──
         'super league', 'challenge league',
         'bundesliga austria',
-        # ── Америка ──
         'brasileirão', 'brasileirao',
         'argentina primera', 'liga profesional',
         'liga mx', 'mls', 'major league soccer',
-        # ── Азия ──
         'saudi pro league', 'j1 league',
         'chinese super league',
-        # ── Африка ──
         'south africa premier', 'botola pro',
-        # ── Австралия ──
         'a-league',
-        # ── Европейские кубки ──
         'champions league', 'uefa champions',
         'europa league', 'uefa europa',
         'conference league', 'uefa europa conference',
     ]
 
     # ============================================================
-    # ★ BLACKLIST — лиги, которые НЕ анализируем
+    # === BLACKLIST ===
     # ============================================================
     BLACKLIST_LEAGUES = [
-        # ── Низшие английские дивизионы ──
         'isthmian', 'northern premier', 'southern league',
         'county league', 'combined counties',
         'united counties', 'premier division',
@@ -163,15 +166,11 @@ class Config:
         'north west counties', 'spartan south midlands',
         'southern counties east', 'southern combination',
         'wessex football league', 'yorkshire league',
-        # ── Резервы и дубли ──
         ' ii', ' b ', 'reserve', 'reserves',
         'mls next pro', 'usl league', 'usl championship', 'next pro',
-        # ── Молодёжные ──
         'u19', 'u20', 'u21', 'u23', 'u18', 'u17',
         'youth', 'academy', 'junior', 'primavera',
-        # ── Женские ──
         'women', 'womens', 'femenina', 'feminine', 'female', 'frauen',
-        # ── Низшие дивизионы ──
         'primera b', 'primera c', 'primera d',
         'serie d',
         'regionalliga', 'oberliga', 'landesliga', 'verbandsliga',
@@ -181,7 +180,6 @@ class Config:
         'segunda federación', 'tercera federación',
         'national 2', 'national 3', 'championnat national',
         'ii liga', 'iii liga',
-        # ── Локальные кубки штатов Бразилии ──
         'copa paulista', 'carioca', 'gaúcho', 'mineiro',
         'baiano', 'pernambucano', 'cearense', 'paranaense',
         'capixaba', 'catarinense', 'potiguar', 'goiano',
@@ -189,7 +187,6 @@ class Config:
         'piauiense', 'sergipano', 'maranhense', 'acreano',
         'tocantinense', 'rondoniense', 'sul-matogrossense',
         'amapaense', 'brasiliense', 'candango', 'paraense',
-        # ── Лиги без кэфов ──
         'persha liga', 'j2 league', 'j3 league',
         'k league 1', 'k league 2',
         'colombia primera a', 'chile primera', 'nb i',
@@ -261,7 +258,7 @@ class Config:
     }
 
     # ============================================================
-    # === СТРАНЫ ДЛЯ АВТОМАТИЧЕСКОГО ПОСТРОЕНИЯ СПИСКА ЛИГ ===
+    # === СТРАНЫ ДЛЯ АВТОПОСТРОЕНИЯ СПИСКА ЛИГ ===
     # ============================================================
     LEAGUE_COUNTRIES = [
         'England', 'Spain', 'Germany', 'Italy', 'France',
@@ -272,92 +269,145 @@ class Config:
     ]
 
     # ============================================================
-    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ (50/67)
-    # Обновлено после `python3 -m app.config leagues`
+    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID (для отображения в карточке)
+    # ============================================================
+    LEAGUE_COUNTRY = {
+        # ── Европейские кубки ──
+        2:   ("Европа", "🇪🇺"),
+        3:   ("Европа", "🇪🇺"),
+        848: ("Европа", "🇪🇺"),
+        # ── Англия ──
+        39:  ("Англия", "🇬🇧"),
+        40:  ("Англия", "🇬🇧"),
+        41:  ("Англия", "🇬🇧"),
+        # ── Испания ──
+        140: ("Испания", "🇪🇸"),
+        141: ("Испания", "🇪🇸"),
+        142: ("Испания", "🇪🇸"),
+        # ── Германия ──
+        78:  ("Германия", "🇩🇪"),
+        79:  ("Германия", "🇩🇪"),
+        80:  ("Германия", "🇩🇪"),
+        # ── Италия ──
+        135: ("Италия", "🇮🇹"),
+        136: ("Италия", "🇮🇹"),
+        137: ("Италия", "🇮🇹"),
+        # ── Франция ──
+        61:  ("Франция", "🇫🇷"),
+        62:  ("Франция", "🇫🇷"),
+        63:  ("Франция", "🇫🇷"),
+        # ── Нидерланды ──
+        88:  ("Нидерланды", "🇳🇱"),
+        89:  ("Нидерланды", "🇳🇱"),
+        # ── Португалия ──
+        94:  ("Португалия", "🇵🇹"),
+        # ── Бельгия ──
+        144: ("Бельгия", "🇧🇪"),
+        145: ("Бельгия", "🇧🇪"),
+        # ── Турция ──
+        203: ("Турция", "🇹🇷"),
+        204: ("Турция", "🇹🇷"),
+        # ── Украина ──
+        95:  ("Украина", "🇺🇦"),
+        96:  ("Украина", "🇺🇦"),
+        # ── Польша ──
+        106: ("Польша", "🇵🇱"),
+        107: ("Польша", "🇵🇱"),
+        # ── Дания ──
+        119: ("Дания", "🇩🇰"),
+        120: ("Дания", "🇩🇰"),
+        # ── Норвегия ──
+        164: ("Норвегия", "🇳🇴"),
+        165: ("Норвегия", "🇳🇴"),
+        # ── Хорватия ──
+        166: ("Хорватия", "🇭🇷"),
+        167: ("Хорватия", "🇭🇷"),
+        # ── Швейцария ──
+        206: ("Швейцария", "🇨🇭"),
+        207: ("Швейцария", "🇨🇭"),
+        # ── Австрия ──
+        187: ("Австрия", "🇦🇹"),
+        # ── Греция ──
+        197: ("Греция", "🇬🇷"),
+        # ── Чехия ──
+        261: ("Чехия", "🇨🇿"),
+        # ── Америка ──
+        71:  ("Бразилия", "🇧🇷"),
+        128: ("Аргентина", "🇦🇷"),
+        253: ("США", "🇺🇸"),
+        # ── Азия ──
+        150: ("Япония", "🇯🇵"),
+        169: ("Китай", "🇨🇳"),
+        307: ("Саудовская Аравия", "🇸🇦"),
+        # ── Африка ──
+        276: ("ЮАР", "🇿🇦"),
+        278: ("Марокко", "🇲🇦"),
+        # ── Австралия ──
+        183: ("Австралия", "🇦🇺"),
+        # ── Россия ──
+        179: ("Россия", "🇷🇺"),
+        180: ("Россия", "🇷🇺"),
+        182: ("Россия", "🇷🇺"),
+    }
+
+    # ============================================================
+    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ
     # ============================================================
     LEAGUES = [
         # ── Англия ──
-        39,   # Premier League
-        40,   # Championship
-        41,   # League One
+        39, 40, 41,
         # ── Испания ──
-        140,  # La Liga
-        141,  # La Liga 2
-        142,  # Primera Federación
+        140, 141, 142,
         # ── Германия ──
-        78,   # Bundesliga
-        79,   # 2. Bundesliga
-        80,   # 3. Liga
+        78, 79, 80,
         # ── Италия ──
-        135,  # Serie A
-        136,  # Serie B
-        137,  # Serie C
+        135, 136, 137,
         # ── Франция ──
-        61,   # Ligue 1
-        62,   # Ligue 2
-        63,   # National
+        61, 62, 63,
         # ── Нидерланды ──
-        88,   # Eredivisie
-        89,   # Eerste Divisie
+        88, 89,
         # ── Португалия ──
-        94,   # Primeira Liga
+        94,
         # ── Бельгия ──
-        144,  # Pro League
-        145,  # Challenger Pro League
+        144, 145,
         # ── Турция ──
-        203,  # Süper Lig
-        204,  # TFF 1. Lig
+        203, 204,
         # ── Украина ──
-        95,   # Premier League
-        96,   # Persha Liga
+        95, 96,
         # ── Польша ──
-        106,  # Ekstraklasa
-        107,  # I Liga
+        106, 107,
         # ── Дания ──
-        119,  # Superliga
-        120,  # 1. Division
+        119, 120,
         # ── Норвегия ──
-        164,  # Eliteserien
-        165,  # OBOS-ligaen
+        164, 165,
         # ── Хорватия ──
-        166,  # HNL
-        167,  # 2. HNL
+        166, 167,
         # ── Швейцария ──
-        206,  # Super League
-        207,  # Challenge League
+        206, 207,
         # ── Австрия ──
-        187,  # Bundesliga
+        187,
         # ── Греция ──
-        197,  # Super League
+        197,
         # ── Чехия ──
-        261,  # 2. Liga
+        261,
         # ── Америка ──
-        71,   # Brasileirão
-        128,  # Argentina Primera
-        253,  # MLS
+        71, 128, 253,
         # ── Азия ──
-        150,  # J1 League
-        169,  # Chinese Super League
-        307,  # Saudi Pro League
+        150, 169, 307,
         # ── Африка ──
-        276,  # South Africa Premier
-        278,  # Botola Pro
+        276, 278,
         # ── Австралия ──
-        183,  # A-League
+        183,
         # ── Россия ──
-        179,  # РПЛ
-        180,  # Первая Лига
-        182,  # Вторая Лига Б
+        179, 180, 182,
         # ── Кубки ──
-        3,    # UEFA Europa League
-        2,    # UEFA Champions League (проверить ещё раз)
-        848,  # UEFA Conference League (проверить ещё раз)
+        3, 2, 848,
     ]
 
     CUP_LEAGUES = [2, 3, 848]
 
     # ============================================================
-    # ★ LEAGUE_NAMES — только для лиг из LEAGUES
+    # ★ LEAGUE_NAMES
     # ============================================================
     LEAGUE_NAMES = {
         # Кубки
@@ -483,7 +533,6 @@ class Config:
     # ============================================================
     @classmethod
     def build_leagues_from_api(cls, season=None):
-        """Загружает лиги из API, фильтрует по WHITELIST_LEAGUES."""
         if not cls.FOOTBALL_API_KEY:
             print("⚠️ Нет FOOTBALL_API_KEY — резервный список.")
             return False
@@ -696,7 +745,7 @@ class Config:
             for lid, name in with_odds:
                 print(f"  {lid}: {name}")
         if without_odds:
-            print("\n❌ ЛИГИ БЕЗ КЭФОВ (убрать из whitelist):")
+            print("\n❌ ЛИГИ БЕЗ КЭФОВ:")
             for lid, name in without_odds:
                 print(f"  {lid}: {name}")
         try:
@@ -807,8 +856,8 @@ class Config:
         print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
         print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
+        print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
         cls.init_db()
-        # ★ НЕ вызываем build_leagues_from_api — используем фиксированный список
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
         return True
