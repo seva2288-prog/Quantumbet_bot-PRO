@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.1 — с маппингом стран/флагов для лиг
+★ ВЕРСИЯ 3.2 — с турнирами сборных (Лига наций, отборы ЧМ/ЧЕ)
 """
 import os
 import sys
@@ -35,7 +35,7 @@ class Config:
     WEATHER_ENABLED = bool(WEATHER_API_KEY)
 
     # ============================================================
-    # === ODDS API (the-odds-api.com) ===
+    # === ODDS API ===
     # ============================================================
     ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
     ODDS_API_URL = os.getenv("ODDS_API_URL", "https://api.the-odds-api.com/v4")
@@ -116,7 +116,7 @@ class Config:
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
-    # === WHITELIST ===
+    # === WHITELIST (текстовый фильтр для /leagues API) ===
     # ============================================================
     WHITELIST_LEAGUES = [
         'premier league', 'championship',
@@ -149,10 +149,15 @@ class Config:
         'champions league', 'uefa champions',
         'europa league', 'uefa europa',
         'conference league', 'uefa europa conference',
+        # ★ Турниры сборных
+        'nations league', 'uefa nations',
+        'world cup', 'wc qualification',
+        'euro championship', 'euro qualification',
+        'friendlies', 'international',
     ]
 
     # ============================================================
-    # === BLACKLIST ===
+    # === BLACKLIST (текстовый фильтр) ===
     # ============================================================
     BLACKLIST_LEAGUES = [
         'isthmian', 'northern premier', 'southern league',
@@ -348,10 +353,41 @@ class Config:
         179: ("Россия", "🇷🇺"),
         180: ("Россия", "🇷🇺"),
         182: ("Россия", "🇷🇺"),
+        # ★ ── ТУРНИРЫ СБОРНЫХ ──
+        5:   ("Европа", "🇪🇺"),      # UEFA Nations League
+        29:  ("Мир", "🌍"),           # WC Qualification (general)
+        30:  ("Азия", "🌏"),          # WC Qualification Asia
+        31:  ("Африка", "🌍"),        # WC Qualification Africa
+        32:  ("Европа", "🇪🇺"),       # WC Qualification Europe
+        33:  ("Ю. Америка", "🌎"),    # WC Qualification South America
+        34:  ("Океания", "🌏"),       # WC Qualification Oceania
+        35:  ("С. Америка", "🌎"),    # WC Qualification CONCACAF
+        960: ("Европа", "🇪🇺"),       # Euro Championship Qualification
+        10:  ("Мир", "🌍"),           # Friendlies
+        1:   ("Мир", "🏆"),           # World Cup
+        4:   ("Европа", "🏆"),        # Euro Championship
     }
 
     # ============================================================
-    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ
+    # ★ ТУРНИРЫ СБОРНЫХ (отдельный список)
+    # ============================================================
+    INTERNATIONAL_LEAGUES = [
+        5,    # UEFA Nations League
+        29,   # WC Qualification (общий)
+        30,   # WC Qualification Asia
+        31,   # WC Qualification Africa
+        32,   # WC Qualification Europe
+        33,   # WC Qualification South America
+        34,   # WC Qualification Oceania
+        35,   # WC Qualification CONCACAF
+        960,  # Euro Championship Qualification
+        10,   # Friendlies (International)
+        1,    # World Cup (финальная часть)
+        4,    # Euro Championship (финальная часть)
+    ]
+
+    # ============================================================
+    # ★ ЛИГИ С ПОДТВЕРЖДЁННЫМИ КЭФАМИ + ТУРНИРЫ СБОРНЫХ
     # ============================================================
     LEAGUES = [
         # ── Англия ──
@@ -401,7 +437,14 @@ class Config:
         # ── Россия ──
         179, 180, 182,
         # ── Кубки ──
-        3, 2, 848,
+        2, 3, 848,
+        # ★ ── ТУРНИРЫ СБОРНЫХ ──
+        5,    # UEFA Nations League
+        29, 30, 31, 32, 33, 34, 35,  # WC Qualification
+        960,  # Euro Championship Qualification
+        10,   # Friendlies
+        1,    # World Cup
+        4,    # Euro Championship
     ]
 
     CUP_LEAGUES = [2, 3, 848]
@@ -486,6 +529,19 @@ class Config:
         179: "РПЛ",
         180: "Первая Лига",
         182: "Вторая Лига Б",
+        # ★ Турниры сборных
+        5:   "UEFA Nations League",
+        29:  "World Cup Qualification",
+        30:  "WC Qualification Asia",
+        31:  "WC Qualification Africa",
+        32:  "WC Qualification Europe",
+        33:  "WC Qualification South America",
+        34:  "WC Qualification Oceania",
+        35:  "WC Qualification CONCACAF",
+        960: "Euro Championship Qualification",
+        10:  "Friendlies International",
+        1:   "World Cup",
+        4:   "Euro Championship",
     }
 
     # ============================================================
@@ -688,162 +744,11 @@ class Config:
         return cls.get_weather(coords[0], coords[1])
 
     @classmethod
-    def check_leagues_odds(cls):
-        if not cls.FOOTBALL_API_KEY:
-            print("❌ FOOTBALL_API_KEY не задан")
-            return
-        headers = {
-            'x-apisports-key': cls.FOOTBALL_API_KEY,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
-        }
-        all_leagues = sorted(set(cls.LEAGUES))
-        print(f"🔍 Проверяю {len(all_leagues)} лиг на наличие кэфов...")
-        print(f"📅 Сезон: {cls.USE_SEASON}")
-        print("=" * 70)
-        with_odds, without_odds, errors = [], [], []
-        for i, lid in enumerate(all_leagues, 1):
-            name = cls.LEAGUE_NAMES.get(lid, f"ID:{lid}")
-            try:
-                r = requests.get(
-                    f"{cls.FOOTBALL_API_URL}/odds",
-                    headers=headers,
-                    params={'league': lid, 'season': cls.USE_SEASON},
-                    timeout=20,
-                )
-                if r.status_code == 429:
-                    print(f"⚠️ Rate limit — пауза 60 сек")
-                    time.sleep(60)
-                    continue
-                if r.status_code != 200:
-                    errors.append((lid, name, f"HTTP {r.status_code}"))
-                    print(f"❌ [{i}/{len(all_leagues)}] {name} — HTTP {r.status_code}")
-                    continue
-                data = r.json()
-                results = data.get('results', 0)
-                api_errors = data.get('errors', {})
-                if api_errors:
-                    err_text = str(api_errors)[:80]
-                    errors.append((lid, name, err_text))
-                    print(f"⚠️ [{i}/{len(all_leagues)}] {name} — {err_text}")
-                elif results > 0:
-                    with_odds.append((lid, name))
-                    print(f"✅ [{i}/{len(all_leagues)}] {name} — {results} матчей")
-                else:
-                    without_odds.append((lid, name))
-                    print(f"❌ [{i}/{len(all_leagues)}] {name} — 0 матчей")
-            except Exception as e:
-                errors.append((lid, name, str(e)))
-                print(f"❌ [{i}/{len(all_leagues)}] {name} — {e}")
-            time.sleep(0.15)
-        print("=" * 70)
-        print(f"\n📊 РЕЗУЛЬТАТ:")
-        print(f"✅ С кэфами:  {len(with_odds)}")
-        print(f"❌ Без кэфов: {len(without_odds)}")
-        print(f"⚠️ Ошибки:    {len(errors)}")
-        if with_odds:
-            print("\n✅ ЛИГИ С КЭФАМИ:")
-            for lid, name in with_odds:
-                print(f"  {lid}: {name}")
-        if without_odds:
-            print("\n❌ ЛИГИ БЕЗ КЭФОВ:")
-            for lid, name in without_odds:
-                print(f"  {lid}: {name}")
-        try:
-            out_dir = os.path.dirname(cls.DATABASE_URL) or '.'
-            os.makedirs(out_dir, exist_ok=True)
-            out_path = os.path.join(out_dir, "leagues_with_odds.txt")
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.write("# Лиги с кэфами\n")
-                for lid, name in with_odds:
-                    f.write(f"{lid}\t{name}\n")
-                f.write("\n# Лиги без кэфов\n")
-                for lid, name in without_odds:
-                    f.write(f"{lid}\t{name}\n")
-            print(f"\n💾 Сохранено в {out_path}")
-        except Exception as e:
-            print(f"⚠️ Не удалось сохранить файл: {e}")
-        return with_odds, without_odds
-
-    @classmethod
-    def check_whitelist_odds(cls):
-        if not cls.FOOTBALL_API_KEY:
-            print("❌ FOOTBALL_API_KEY не задан")
-            return
-        headers = {
-            'x-apisports-key': cls.FOOTBALL_API_KEY,
-            'x-rapidapi-host': 'v3.football.api-sports.io'
-        }
-        print(f"🔍 Проверяю whitelist ({len(cls.WHITELIST_LEAGUES)} записей)")
-        print(f"📅 Сезон: {cls.USE_SEASON}")
-        print("=" * 70)
-        all_found_leagues = {}
-        for country in cls.LEAGUE_COUNTRIES:
-            try:
-                r = requests.get(
-                    f"{cls.FOOTBALL_API_URL}/leagues",
-                    headers=headers,
-                    params={'country': country, 'season': cls.USE_SEASON},
-                    timeout=20,
-                )
-                if r.status_code != 200:
-                    continue
-                for item in r.json().get('response', []):
-                    lg = item.get('league', {})
-                    lid, lname = lg.get('id'), lg.get('name')
-                    if lid and lname:
-                        all_found_leagues[lid] = lname
-            except Exception as e:
-                print(f"❌ {country}: {e}")
-        print(f"📊 Найдено {len(all_found_leagues)} лиг через /leagues")
-        matched = [
-            (lid, lname) for lid, lname in all_found_leagues.items()
-            if any(good in lname.lower() for good in cls.WHITELIST_LEAGUES)
-        ]
-        print(f"✅ Совпало с whitelist: {len(matched)}")
-        print("=" * 70)
-        with_odds, without_odds = [], []
-        for i, (lid, lname) in enumerate(matched, 1):
-            try:
-                r = requests.get(
-                    f"{cls.FOOTBALL_API_URL}/odds",
-                    headers=headers,
-                    params={'league': lid, 'season': cls.USE_SEASON},
-                    timeout=20,
-                )
-                if r.status_code == 429:
-                    time.sleep(60)
-                    continue
-                data = r.json()
-                results = data.get('results', 0)
-                if results > 0:
-                    with_odds.append((lid, lname))
-                    print(f"✅ [{i}/{len(matched)}] {lname} — {results} матчей")
-                else:
-                    without_odds.append((lid, lname))
-                    print(f"❌ [{i}/{len(matched)}] {lname} — 0 матчей")
-            except Exception as e:
-                print(f"❌ [{i}/{len(matched)}] {lname} — {e}")
-            time.sleep(0.15)
-        print("=" * 70)
-        print(f"✅ С кэфами:  {len(with_odds)}")
-        print(f"❌ Без кэфов: {len(without_odds)}")
-        if with_odds:
-            print("\n✅ ЛИГИ С КЭФАМИ:")
-            for lid, name in with_odds:
-                print(f"  {lid}: {name}")
-        if without_odds:
-            print("\n❌ ЛИГИ БЕЗ КЭФОВ:")
-            for lid, name in without_odds:
-                print(f"  {lid}: {name}")
-        return with_odds, without_odds
-
-    @classmethod
     def check(cls):
         missing = []
         if not cls.TELEGRAM_TOKEN: missing.append("TELEGRAM_TOKEN")
         if not cls.ADMIN_CHAT_ID: missing.append("ADMIN_CHAT_ID")
         if not cls.FOOTBALL_API_KEY: missing.append("FOOTBALL_API_KEY")
-        if not cls.ODDS_API_KEY: missing.append("ODDS_API_KEY")
         if missing:
             print(f"⚠️ Отсутствуют: {', '.join(missing)}")
         else:
@@ -857,6 +762,7 @@ class Config:
         print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
         print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
         print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
+        print(f"🌐 Турниров сборных: {len(cls.INTERNATIONAL_LEAGUES)}")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
@@ -867,12 +773,6 @@ if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else "check"
     if arg == "check":
         Config.check()
-    elif arg == "leagues":
-        Config.check_leagues_odds()
-    elif arg == "whitelist":
-        Config.check_whitelist_odds()
     else:
         print("Использование:")
-        print("  python3 -m app.config check      — общая проверка")
-        print("  python3 -m app.config leagues    — проверить кэфы по Config.LEAGUES")
-        print("  python3 -m app.config whitelist  — проверить кэфы по WHITELIST")
+        print("  python3 -m app.config check — общая проверка")
