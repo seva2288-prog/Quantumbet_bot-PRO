@@ -1381,7 +1381,7 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (с country + country_flag)
+# main.py — ЧАСТЬ 2/3 (с X2 entry_odds)
 # Стратегии, 3 потока поиска, обновление результатов
 # ============================================================
 
@@ -1534,7 +1534,7 @@ class StrategySimulator:
                 if params['min_odds'] >= params['max_odds']: continue
                 try:
                     res = self.simulate(params, use_history=True, use_cache=True)
-                except Exception as e:
+                except Exception:
                     continue
                 count += 1
                 if res['total_bets'] < min_bets: continue
@@ -2279,6 +2279,7 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
+            # ★★ X2-СОХРАНЕНИЕ с entry_odds
             if X2_ENABLED:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2299,15 +2300,34 @@ def find_top_matches(matches):
                         underdog = away if hp < ap else home
                         log_no_motivation_match(home, away, hp, ap, total_xg, league_name,
                                                 favorite=favorite, underdog=underdog)
+
+                        # ★ Берём реальные кэфы из _preloaded_odds
+                        pre_odds = match.get('_preloaded_odds') or {}
+                        entry_odds = 0
+                        entry_1x_odds = 0
+                        if x2_side == 'X2':
+                            entry_odds = pre_odds.get('x2_odds', 0) or 0
+                            entry_1x_odds = pre_odds.get('1x_odds', 0) or 0
+                        elif x2_side == '1X':
+                            entry_odds = pre_odds.get('1x_odds', 0) or 0
+                            entry_1x_odds = pre_odds.get('x2_odds', 0) or 0
+
+                        # Если кэф не найден — вычисляем из fair value
+                        if not entry_odds and x2_bet.get('prob', 0) > 0:
+                            p = x2_bet.get('prob', 0) / 100
+                            entry_odds = round((1 / p) * 0.95, 2) if p > 0 else 0
+
                         saved = save_x2_candidate(
                             home=home, away=away, hp=hp, ap=ap,
                             league_name=league_name, match_time=match_time,
                             fixture_id=fid, home_form=home_form, away_form=away_form,
                             total_xg=total_xg, x2_side=x2_side,
                             x2_ev=x2_bet.get('ev', 0), x2_prob=x2_bet.get('prob', 0),
+                            entry_odds=entry_odds, entry_1x_odds=entry_1x_odds,
                         )
                         if saved:
                             x2_saved_count += 1
+                            logger.info(f"💾 X2: {home} vs {away} | {x2_side} @ {entry_odds}")
                     except Exception as e:
                         logger.error(f"X2 candidate save error: {e}")
 
@@ -2436,7 +2456,6 @@ def find_tm25_matches(matches):
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
 
-            # ★ Страна + флаг
             country_name, country_flag = _get_country_flag(league_id)
 
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
@@ -2641,7 +2660,6 @@ def find_value_matches(matches, max_bets=2):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
-            # ★ Страна + флаг
             country_name, country_flag = _get_country_flag(league_id)
 
             value_candidates.append({
@@ -2896,7 +2914,7 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ
+# СНИМКИ КЭФОВ (★ с X2 и 1X)
 # ============================================================
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot: НАЧАЛО")
@@ -2969,28 +2987,49 @@ def snapshot_odds_for_upcoming():
 
 
 def _save_snapshot_from_odds(fo, fid):
+    """
+    ★ Сохраняет снимки: 1X2 + DC (X2 и 1X).
+    """
     try:
         if not fo:
             return 0
-        has_valid = (fo.get('home_odds', 0) > 1.01 or
-                     fo.get('away_odds', 0) > 1.01 or
-                     fo.get('draw_odds', 0) > 1.01)
-        if not has_valid:
-            return 0
         bookmaker = fo.get('bookmaker', 'Football API')
-        odds_map = {
-            '1': fo.get('home_odds', 0),
-            'X': fo.get('draw_odds', 0),
-            '2': fo.get('away_odds', 0),
-        }
         saved = 0
-        for sel, odd in odds_map.items():
-            if odd and odd > 1.01:
-                if storage.save_odds_snapshot(
-                    fixture_id=fid, market='1X2',
-                    selection=sel, odds=odd, bookmaker=bookmaker
-                ):
-                    saved += 1
+
+        # ── 1X2 ──
+        has_1x2 = (fo.get('home_odds', 0) > 1.01 or
+                   fo.get('away_odds', 0) > 1.01 or
+                   fo.get('draw_odds', 0) > 1.01)
+        if has_1x2:
+            odds_map = {
+                '1': fo.get('home_odds', 0),
+                'X': fo.get('draw_odds', 0),
+                '2': fo.get('away_odds', 0),
+            }
+            for sel, odd in odds_map.items():
+                if odd and odd > 1.01:
+                    if storage.save_odds_snapshot(
+                        fixture_id=fid, market='1X2',
+                        selection=sel, odds=odd, bookmaker=bookmaker
+                    ):
+                        saved += 1
+
+        # ── ★ DC (X2 и 1X) ──
+        x2_odd = fo.get('x2_odds', 0) or 0
+        x1_odd = fo.get('1x_odds', 0) or 0
+        if x2_odd > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='DC',
+                selection='X2', odds=x2_odd, bookmaker=bookmaker
+            ):
+                saved += 1
+        if x1_odd > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='DC',
+                selection='1X', odds=x1_odd, bookmaker=bookmaker
+            ):
+                saved += 1
+
         return saved
     except Exception as e:
         logger.error(f"_save_snapshot_from_odds: {e}")
