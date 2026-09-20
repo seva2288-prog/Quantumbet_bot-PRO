@@ -53,7 +53,8 @@ _x2_candidates_lock = Lock()
 
 def save_x2_candidate(home, away, hp, ap, league_name, match_time,
                        fixture_id, home_form='', away_form='', total_xg=0,
-                       x2_side='X2', x2_ev=0, x2_prob=0):
+                       x2_side='X2', x2_ev=0, x2_prob=0,
+                       entry_odds=0, entry_1x_odds=0):   # ★ новые параметры
     try:
         saved = storage.save_x2_candidate(
             home=home, away=away, hp=hp, ap=ap,
@@ -61,6 +62,7 @@ def save_x2_candidate(home, away, hp, ap, league_name, match_time,
             fixture_id=fixture_id, home_form=home_form, away_form=away_form,
             total_xg=total_xg, x2_side=x2_side,
             x2_ev=x2_ev, x2_prob=x2_prob,
+            entry_odds=entry_odds, entry_1x_odds=entry_1x_odds,  # ★ передаём
         )
         if saved:
             logger.info(f"💾 X2 candidate: {home} vs {away} | {x2_side}")
