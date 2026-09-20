@@ -1,3 +1,6 @@
+<!-- ============================================================ -->
+<!-- ЧАСТЬ 1/3 — HEAD + CSS + НАЧАЛО BODY                         -->
+<!-- ============================================================ -->
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
@@ -23,23 +26,18 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-        /* ============================================================
-           EMERALD THEME — CSS VARIABLES
-           ============================================================ */
         :root {
             --bg-primary: #07100e;
             --bg-secondary: #0d1a17;
             --bg-card: rgba(13, 26, 23, 0.7);
             --bg-card-hover: rgba(16, 185, 129, 0.05);
             --bg-input: rgba(0, 0, 0, 0.4);
-
             --emerald-50: #ecfdf5;
             --emerald-100: #d1fae5;
             --emerald-400: #34d399;
             --emerald-500: #10b981;
             --emerald-600: #059669;
             --emerald-700: #047857;
-
             --gold-400: #fbbf24;
             --gold-500: #f59e0b;
             --red-400: #f87171;
@@ -47,25 +45,20 @@
             --blue-400: #60a5fa;
             --blue-500: #3b82f6;
             --purple-400: #a78bfa;
-
             --text-primary: #ecfdf5;
             --text-secondary: rgba(236, 253, 245, 0.6);
             --text-tertiary: rgba(236, 253, 245, 0.35);
             --text-muted: rgba(236, 253, 245, 0.15);
-
             --border-color: rgba(52, 211, 153, 0.08);
             --border-hover: rgba(52, 211, 153, 0.25);
-
             --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
             --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
             --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
             --shadow-emerald: 0 0 30px rgba(16, 185, 129, 0.15);
-
             --radius-sm: 8px;
             --radius-md: 14px;
             --radius-lg: 20px;
             --radius-full: 999px;
-
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -75,24 +68,18 @@
             --bg-card: rgba(255, 255, 255, 0.85);
             --bg-card-hover: rgba(16, 185, 129, 0.05);
             --bg-input: rgba(0, 0, 0, 0.04);
-
             --text-primary: #064e3b;
             --text-secondary: rgba(6, 78, 59, 0.65);
             --text-tertiary: rgba(6, 78, 59, 0.45);
             --text-muted: rgba(6, 78, 59, 0.15);
-
             --border-color: rgba(16, 185, 129, 0.12);
             --border-hover: rgba(16, 185, 129, 0.35);
-
             --shadow-sm: 0 2px 8px rgba(6, 78, 59, 0.08);
             --shadow-md: 0 4px 20px rgba(6, 78, 59, 0.1);
             --shadow-lg: 0 8px 40px rgba(6, 78, 59, 0.15);
             --shadow-emerald: 0 0 30px rgba(16, 185, 129, 0.08);
         }
 
-        /* ============================================================
-           RESET
-           ============================================================ */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         html, body {
@@ -110,9 +97,6 @@
 
         body { padding-bottom: 100px; }
 
-        /* ============================================================
-           LOADING SCREEN
-           ============================================================ */
         #loadingScreen {
             position: fixed; inset: 0;
             background: var(--bg-primary);
@@ -126,43 +110,24 @@
 
         .loading-bg-1 {
             position: absolute; top: -30%; left: -20%; width: 150%; height: 160%;
-            background: radial-gradient(ellipse at 40% 50%,
-                rgba(16, 185, 129, 0.08) 0%,
-                rgba(5, 150, 105, 0.04) 25%,
-                transparent 70%);
+            background: radial-gradient(ellipse at 40% 50%, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 25%, transparent 70%);
             transform: rotate(-15deg);
             filter: blur(80px);
             animation: bgPulse 14s ease-in-out infinite alternate;
         }
         .loading-bg-2 {
             position: absolute; bottom: -20%; right: -20%; width: 130%; height: 140%;
-            background: radial-gradient(ellipse at 60% 40%,
-                rgba(52, 211, 153, 0.06) 0%,
-                rgba(245, 158, 11, 0.03) 30%,
-                transparent 70%);
+            background: radial-gradient(ellipse at 60% 40%, rgba(52, 211, 153, 0.06) 0%, rgba(245, 158, 11, 0.03) 30%, transparent 70%);
             transform: rotate(25deg);
             filter: blur(100px);
             animation: bgPulse2 18s ease-in-out infinite alternate;
         }
-        @keyframes bgPulse {
-            0% { opacity: 0.6; transform: rotate(-15deg) scale(1); }
-            100% { opacity: 1; transform: rotate(-10deg) scale(1.08); }
-        }
-        @keyframes bgPulse2 {
-            0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
-            100% { opacity: 0.9; transform: rotate(20deg) scale(1.12); }
-        }
+        @keyframes bgPulse { 0% { opacity: 0.6; transform: rotate(-15deg) scale(1); } 100% { opacity: 1; transform: rotate(-10deg) scale(1.08); } }
+        @keyframes bgPulse2 { 0% { opacity: 0.5; transform: rotate(25deg) scale(1); } 100% { opacity: 0.9; transform: rotate(20deg) scale(1.12); } }
 
         .loading-stars { position: absolute; inset: 0; pointer-events: none; }
-        .loading-star {
-            position: absolute; border-radius: 50%;
-            background: var(--emerald-400);
-            animation: twinkle var(--duration) ease-in-out infinite alternate;
-        }
-        @keyframes twinkle {
-            0% { opacity: 0.1; transform: scale(0.7); }
-            100% { opacity: 0.8; transform: scale(1.3); }
-        }
+        .loading-star { position: absolute; border-radius: 50%; background: var(--emerald-400); animation: twinkle var(--duration) ease-in-out infinite alternate; }
+        @keyframes twinkle { 0% { opacity: 0.1; transform: scale(0.7); } 100% { opacity: 0.8; transform: scale(1.3); } }
 
         .loading-logo { position: relative; z-index: 1; text-align: center; }
         .loading-logo-main {
@@ -174,398 +139,163 @@
             letter-spacing: -1px;
             line-height: 1;
         }
-        .loading-logo-sub {
-            margin-top: 8px;
-            color: var(--text-tertiary);
-            font-size: 13px;
-            letter-spacing: 10px;
-            font-weight: 400;
-            text-transform: uppercase;
-        }
-        .loading-spinner {
-            margin: 40px auto 0;
-            width: 36px; height: 36px;
-            border: 2px solid var(--border-color);
-            border-top-color: var(--emerald-500);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
+        .loading-logo-sub { margin-top: 8px; color: var(--text-tertiary); font-size: 13px; letter-spacing: 10px; font-weight: 400; text-transform: uppercase; }
+        .loading-spinner { margin: 40px auto 0; width: 36px; height: 36px; border: 2px solid var(--border-color); border-top-color: var(--emerald-500); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text {
-            margin-top: 16px;
-            color: var(--text-muted);
-            font-size: 10px;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-        }
+        .loading-text { margin-top: 16px; color: var(--text-muted); font-size: 10px; letter-spacing: 4px; text-transform: uppercase; }
 
-        /* ============================================================
-           BACKGROUND
-           ============================================================ */
-        .stars-container {
-            position: fixed; inset: 0;
-            z-index: 0; pointer-events: none;
-            overflow: hidden;
-        }
+        .stars-container { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
         .milky-way-1 {
             position: absolute; top: -20%; left: -10%; width: 120%; height: 140%;
-            background: radial-gradient(ellipse at 40% 50%,
-                rgba(16, 185, 129, 0.05) 0%,
-                rgba(5, 150, 105, 0.03) 25%,
-                transparent 70%);
-            transform: rotate(-15deg);
-            filter: blur(80px);
-            animation: milkyPulse 15s ease-in-out infinite alternate;
+            background: radial-gradient(ellipse at 40% 50%, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.03) 25%, transparent 70%);
+            transform: rotate(-15deg); filter: blur(80px); animation: milkyPulse 15s ease-in-out infinite alternate;
         }
         .milky-way-2 {
             position: absolute; bottom: -10%; right: -10%; width: 100%; height: 120%;
-            background: radial-gradient(ellipse at 60% 40%,
-                rgba(52, 211, 153, 0.04) 0%,
-                rgba(245, 158, 11, 0.02) 30%,
-                transparent 70%);
-            transform: rotate(25deg);
-            filter: blur(100px);
-            animation: milkyPulse2 20s ease-in-out infinite alternate;
+            background: radial-gradient(ellipse at 60% 40%, rgba(52, 211, 153, 0.04) 0%, rgba(245, 158, 11, 0.02) 30%, transparent 70%);
+            transform: rotate(25deg); filter: blur(100px); animation: milkyPulse2 20s ease-in-out infinite alternate;
         }
-        @keyframes milkyPulse {
-            0% { opacity: 0.6; transform: rotate(-15deg) scale(1); }
-            100% { opacity: 1; transform: rotate(-10deg) scale(1.05); }
-        }
-        @keyframes milkyPulse2 {
-            0% { opacity: 0.5; transform: rotate(25deg) scale(1); }
-            100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); }
-        }
-        .star {
-            position: absolute; border-radius: 50%;
-            background: var(--emerald-400);
-            animation: twinkle var(--duration) ease-in-out infinite alternate;
-        }
+        @keyframes milkyPulse { 0% { opacity: 0.6; transform: rotate(-15deg) scale(1); } 100% { opacity: 1; transform: rotate(-10deg) scale(1.05); } }
+        @keyframes milkyPulse2 { 0% { opacity: 0.5; transform: rotate(25deg) scale(1); } 100% { opacity: 0.9; transform: rotate(20deg) scale(1.1); } }
+        .star { position: absolute; border-radius: 50%; background: var(--emerald-400); animation: twinkle var(--duration) ease-in-out infinite alternate; }
 
-        /* ============================================================
-           LAYOUT
-           ============================================================ */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 12px;
-            padding-bottom: 100px;
-            position: relative;
-            z-index: 1;
-        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 12px; padding-bottom: 100px; position: relative; z-index: 1; }
 
-        /* ============================================================
-           HEADER
-           ============================================================ */
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 16px;
-            padding: 14px 18px;
-            background: var(--bg-card);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow-md);
-            transition: var(--transition);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+            padding: 14px 18px; background: var(--bg-card);
+            backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-radius: var(--radius-md); border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md); transition: var(--transition);
         }
         .header-left { display: flex; flex-direction: column; gap: 2px; }
         .header-title {
             font-size: 17px; font-weight: 800;
             background: linear-gradient(135deg, var(--emerald-400), var(--emerald-600));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
             letter-spacing: -0.3px;
         }
-        .header-subtitle {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            font-weight: 500;
-            letter-spacing: 0.5px;
-        }
+        .header-subtitle { font-size: 10px; color: var(--text-tertiary); font-weight: 500; letter-spacing: 0.5px; }
         .header-controls { display: flex; align-items: center; gap: 8px; }
 
         .status-pill {
             display: flex; align-items: center; gap: 6px;
-            padding: 5px 12px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            border-radius: var(--radius-full);
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--emerald-400);
+            padding: 5px 12px; background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-full);
+            font-size: 10px; font-weight: 600; color: var(--emerald-400);
         }
         .status-dot {
-            width: 6px; height: 6px;
-            background: var(--emerald-400);
-            border-radius: 50%;
-            box-shadow: 0 0 8px var(--emerald-400);
-            animation: pulseDot 2s ease-in-out infinite;
+            width: 6px; height: 6px; background: var(--emerald-400); border-radius: 50%;
+            box-shadow: 0 0 8px var(--emerald-400); animation: pulseDot 2s ease-in-out infinite;
         }
-        @keyframes pulseDot {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.7); }
-        }
+        @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.7); } }
 
         .icon-btn {
             width: 34px; height: 34px;
             display: flex; align-items: center; justify-content: center;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            font-size: 15px;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm); font-size: 15px; color: var(--text-primary);
+            cursor: pointer; transition: var(--transition); position: relative; overflow: hidden;
         }
-        .icon-btn:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-            transform: translateY(-1px);
-        }
+        .icon-btn:hover { background: var(--bg-card-hover); border-color: var(--border-hover); transform: translateY(-1px); }
         .icon-btn:active { transform: scale(0.94); }
 
-        /* ============================================================
-           SEARCH BAR
-           ============================================================ */
         .search-bar { position: relative; margin-bottom: 14px; }
         .search-bar input {
-            width: 100%;
-            padding: 11px 16px 11px 42px;
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            color: var(--text-primary);
-            font-size: 13px;
-            font-family: inherit;
+            width: 100%; padding: 11px 16px 11px 42px;
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            color: var(--text-primary); font-size: 13px; font-family: inherit;
             transition: var(--transition);
         }
         .search-bar input::placeholder { color: var(--text-tertiary); }
-        .search-bar input:focus {
-            outline: none;
-            border-color: var(--border-hover);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08);
-        }
+        .search-bar input:focus { outline: none; border-color: var(--border-hover); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08); }
         .search-bar::before {
-            content: '🔍';
-            position: absolute;
-            left: 15px; top: 50%;
-            transform: translateY(-50%);
-            font-size: 14px;
-            opacity: 0.5;
-            pointer-events: none;
+            content: '🔍'; position: absolute; left: 15px; top: 50%;
+            transform: translateY(-50%); font-size: 14px; opacity: 0.5; pointer-events: none;
         }
 
-        /* ============================================================
-           CARDS
-           ============================================================ */
         .card {
             background: var(--bg-card);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: var(--shadow-md);
-            transition: var(--transition);
-            animation: fadeSlideIn 0.4s ease backwards;
+            backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow-md);
+            transition: var(--transition); animation: fadeSlideIn 0.4s ease backwards;
         }
-        .card:hover {
-            border-color: var(--border-hover);
-            box-shadow: var(--shadow-lg);
-        }
+        .card:hover { border-color: var(--border-hover); box-shadow: var(--shadow-lg); }
         .card.emerald {
             border-color: rgba(16, 185, 129, 0.2);
-            background: linear-gradient(135deg,
-                rgba(16, 185, 129, 0.04) 0%,
-                var(--bg-card) 100%);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, var(--bg-card) 100%);
         }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-        @keyframes fadeSlideIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .card-header h2 {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .card-header h2 { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
         .card-header .emerald-title { color: var(--emerald-400); }
 
-        /* ============================================================
-           STATS GRID
-           ============================================================ */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-        @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+        @media (max-width: 480px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 
         .stat-card {
-            padding: 12px 10px;
-            border-radius: var(--radius-sm);
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            text-align: center;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
+            padding: 12px 10px; border-radius: var(--radius-sm); background: var(--bg-card);
+            backdrop-filter: blur(20px); border: 1px solid var(--border-color);
+            text-align: center; transition: var(--transition); position: relative; overflow: hidden;
         }
         .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
             background: linear-gradient(90deg, transparent, var(--emerald-500), transparent);
-            opacity: 0;
-            transition: var(--transition);
+            opacity: 0; transition: var(--transition);
         }
         .stat-card:hover::before { opacity: 1; }
-        .stat-card:hover {
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-        }
-        .stat-card .value {
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-            letter-spacing: -0.5px;
-        }
+        .stat-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+        .stat-card .value { font-size: 20px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
         .stat-card .value.green { color: var(--emerald-400); }
         .stat-card .value.red { color: var(--red-400); }
         .stat-card .value.gold { color: var(--gold-400); }
         .stat-card .value.emerald { color: var(--emerald-400); }
         .stat-card .value.blue { color: var(--blue-400); }
-        .stat-card .label {
-            font-size: 9px;
-            color: var(--text-tertiary);
-            margin-top: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+        .stat-card .label { font-size: 9px; color: var(--text-tertiary); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        /* ============================================================
-           QUICK ACTIONS
-           ============================================================ */
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-        @media (max-width: 480px) {
-            .quick-actions { grid-template-columns: 1fr; }
-        }
+        .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+        @media (max-width: 480px) { .quick-actions { grid-template-columns: 1fr; } }
 
         .action-btn {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            transition: var(--transition);
-            text-align: left;
-            position: relative;
-            overflow: hidden;
-            font-family: inherit;
-            color: var(--text-primary);
+            display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            cursor: pointer; transition: var(--transition); text-align: left;
+            position: relative; overflow: hidden; font-family: inherit; color: var(--text-primary);
         }
-        .action-btn:hover {
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-emerald);
-        }
+        .action-btn:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-emerald); }
         .action-btn:active { transform: scale(0.98); }
-        .action-btn.primary {
-            background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
-            border: none;
-            color: white;
-        }
-        .action-btn.primary:hover {
-            box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
-        }
+        .action-btn.primary { background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500)); border: none; color: white; }
+        .action-btn.primary:hover { box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
         .action-btn .action-icon { font-size: 22px; line-height: 1; }
         .action-btn .action-text { display: flex; flex-direction: column; gap: 2px; }
         .action-btn .action-label { font-size: 13px; font-weight: 700; color: inherit; }
         .action-btn .action-desc { font-size: 10px; color: var(--text-tertiary); }
         .action-btn.primary .action-desc { color: rgba(255, 255, 255, 0.7); }
 
-        /* ============================================================
-           BET CARDS
-           ============================================================ */
         .bet-card {
-            padding: 14px;
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            margin-bottom: 10px;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
-            cursor: pointer;
-            touch-action: pan-y;
+            padding: 14px; background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            margin-bottom: 10px; transition: var(--transition); position: relative;
+            overflow: hidden; cursor: pointer; touch-action: pan-y;
         }
-        .bet-card:hover {
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
+        .bet-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
         .bet-card.active {
             border-color: rgba(16, 185, 129, 0.35);
-            background: linear-gradient(135deg,
-                rgba(16, 185, 129, 0.06) 0%,
-                var(--bg-card) 100%);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, var(--bg-card) 100%);
         }
         .bet-card.active::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 3px; height: 100%;
+            content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
             background: linear-gradient(180deg, var(--emerald-400), var(--emerald-600));
         }
-
         .bet-card .swipe-hint {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 11px;
-            font-weight: 700;
-            opacity: 0;
-            transition: opacity 0.15s ease;
-            pointer-events: none;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            position: absolute; top: 50%; transform: translateY(-50%);
+            font-size: 11px; font-weight: 700; opacity: 0; transition: opacity 0.15s ease;
+            pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px;
         }
         .bet-card .swipe-hint.left { left: 12px; color: var(--emerald-400); }
         .bet-card .swipe-hint.right { right: 12px; color: var(--red-400); }
@@ -574,375 +304,131 @@
         .bet-card.swipe-left { transform: translateX(60px); }
         .bet-card.swipe-right { transform: translateX(-60px); }
 
-        .bet-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .bet-match {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-primary);
-            line-height: 1.3;
-        }
-        .bet-league {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            flex-wrap: wrap;
-        }
-        .bet-time {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .bet-score {
-            font-weight: 800;
-            font-size: 14px;
-            font-variant-numeric: tabular-nums;
-            letter-spacing: 0.5px;
-        }
+        .bet-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+        .bet-match { font-size: 14px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+        .bet-league { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .bet-time { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .bet-score { font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
         .bet-halftime {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-tertiary);
-            font-variant-numeric: tabular-nums;
-            padding: 1px 6px;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: var(--radius-full);
+            font-size: 10px; font-weight: 600; color: var(--text-tertiary);
+            font-variant-numeric: tabular-nums; padding: 1px 6px;
+            background: rgba(255, 255, 255, 0.04); border-radius: var(--radius-full);
             border: 1px solid var(--border-color);
         }
-        .bet-badge {
-            padding: 4px 10px;
-            border-radius: var(--radius-full);
-            font-size: 10px;
-            font-weight: 700;
-            white-space: nowrap;
-        }
+        .bet-badge { padding: 4px 10px; border-radius: var(--radius-full); font-size: 10px; font-weight: 700; white-space: nowrap; }
         .bet-badge.bet-1x { background: rgba(16, 185, 129, 0.15); color: var(--emerald-400); }
         .bet-badge.bet-x2 { background: rgba(52, 211, 153, 0.15); color: var(--emerald-400); }
         .bet-badge.bet-under { background: rgba(245, 158, 11, 0.15); color: var(--gold-400); }
         .bet-badge.bet-over { background: rgba(248, 113, 113, 0.15); color: var(--red-400); }
         .bet-badge.bet-btts { background: rgba(167, 139, 250, 0.15); color: var(--purple-400); }
 
-        /* ★ SOURCE BADGE */
         .source-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            padding: 2px 7px;
-            border-radius: var(--radius-full);
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            border: 1px solid;
-            white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: var(--radius-full); font-size: 9px;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+            border: 1px solid; white-space: nowrap;
         }
-        .source-badge.auto {
-            background: rgba(96, 165, 250, 0.12);
-            color: var(--blue-400);
-            border-color: rgba(96, 165, 250, 0.25);
-        }
-        .source-badge.manual {
-            background: rgba(167, 139, 250, 0.12);
-            color: var(--purple-400);
-            border-color: rgba(167, 139, 250, 0.25);
-        }
-        .source-badge.cache {
-            background: rgba(16, 185, 129, 0.12);
-            color: var(--emerald-400);
-            border-color: rgba(16, 185, 129, 0.25);
-        }
-        .source-badge.import {
-            background: rgba(245, 158, 11, 0.12);
-            color: var(--gold-400);
-            border-color: rgba(245, 158, 11, 0.25);
-        }
+        .source-badge.auto { background: rgba(96, 165, 250, 0.12); color: var(--blue-400); border-color: rgba(96, 165, 250, 0.25); }
+        .source-badge.manual { background: rgba(167, 139, 250, 0.12); color: var(--purple-400); border-color: rgba(167, 139, 250, 0.25); }
+        .source-badge.cache { background: rgba(16, 185, 129, 0.12); color: var(--emerald-400); border-color: rgba(16, 185, 129, 0.25); }
+        .source-badge.import { background: rgba(245, 158, 11, 0.12); color: var(--gold-400); border-color: rgba(245, 158, 11, 0.25); }
 
-        .bet-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            padding-top: 10px;
-            border-top: 1px solid var(--border-color);
-        }
+        .bet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-color); }
         .bet-stat { display: flex; flex-direction: column; gap: 2px; }
-        .bet-stat .stat-label {
-            font-size: 9px;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-        .bet-stat .stat-value {
-            font-size: 13px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
+        .bet-stat .stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .bet-stat .stat-value { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .bet-stat .stat-value.emerald { color: var(--emerald-400); }
         .bet-stat .stat-value.gold { color: var(--gold-400); }
         .bet-stat .stat-value.red { color: var(--red-400); }
 
-        /* ============================================================
-           SNAPSHOT CARDS
-           ============================================================ */
         .snapshot-card {
-            padding: 14px;
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
+            padding: 14px; background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            margin-bottom: 10px; cursor: pointer; transition: var(--transition);
+            position: relative; overflow: hidden;
         }
-        .snapshot-card:hover {
-            border-color: var(--border-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
+        .snapshot-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
         .snapshot-card.has-anomaly {
             border-color: rgba(245, 158, 11, 0.35);
-            background: linear-gradient(135deg,
-                rgba(245, 158, 11, 0.05) 0%,
-                var(--bg-card) 100%);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card) 100%);
         }
         .snapshot-card.has-anomaly::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0;
-            width: 3px; height: 100%;
+            content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
             background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
         }
-
-        .snapshot-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .snapshot-match {
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1.3;
-        }
-        .snapshot-meta {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            margin-top: 3px;
-        }
+        .snapshot-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+        .snapshot-match { font-size: 14px; font-weight: 700; line-height: 1.3; }
+        .snapshot-meta { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
         .snapshot-badge {
-            padding: 3px 9px;
-            border-radius: var(--radius-full);
-            font-size: 9px;
-            font-weight: 700;
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--emerald-400);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            white-space: nowrap;
+            padding: 3px 9px; border-radius: var(--radius-full); font-size: 9px;
+            font-weight: 700; background: rgba(16, 185, 129, 0.1); color: var(--emerald-400);
+            border: 1px solid rgba(16, 185, 129, 0.2); white-space: nowrap;
         }
-        .snapshot-badge.anomaly {
-            background: rgba(245, 158, 11, 0.12);
-            color: var(--gold-400);
-            border-color: rgba(245, 158, 11, 0.25);
-        }
-
-        .snapshot-trends {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            padding-top: 10px;
-            border-top: 1px solid var(--border-color);
-        }
-        .snapshot-trend {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            align-items: center;
-            text-align: center;
-        }
-        .snapshot-trend .trend-label {
-            font-size: 9px;
-            font-weight: 700;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .snapshot-trend .trend-values {
-            font-size: 11px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            color: var(--text-primary);
-        }
-        .snapshot-trend .trend-pct {
-            font-size: 10px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
+        .snapshot-badge.anomaly { background: rgba(245, 158, 11, 0.12); color: var(--gold-400); border-color: rgba(245, 158, 11, 0.25); }
+        .snapshot-trends { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .snapshot-trend { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; }
+        .snapshot-trend .trend-label { font-size: 9px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .snapshot-trend .trend-values { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+        .snapshot-trend .trend-pct { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .snapshot-trend .trend-pct.up { color: var(--emerald-400); }
         .snapshot-trend .trend-pct.down { color: var(--red-400); }
         .snapshot-trend .trend-pct.flat { color: var(--text-tertiary); }
 
-        /* ============================================================
-           TABLE
-           ============================================================ */
-        .table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: -4px;
-            padding: 4px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            min-width: 700px;
-        }
-        th, td {
-            padding: 8px 10px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: -4px; padding: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
         th {
-            color: var(--text-tertiary);
-            font-weight: 700;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            background: rgba(16, 185, 129, 0.03);
-            position: sticky;
-            top: 0;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
+            color: var(--text-tertiary); font-weight: 700; font-size: 9px;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            background: rgba(16, 185, 129, 0.03); position: sticky; top: 0;
+            cursor: pointer; user-select: none; white-space: nowrap;
         }
         th:hover { color: var(--emerald-400); }
         th .sort-arrow { font-size: 8px; margin-left: 4px; opacity: 0.4; }
         th.sorted .sort-arrow { opacity: 1; color: var(--emerald-400); }
         tr:hover td { background: rgba(16, 185, 129, 0.03); }
-
         .profit-positive { color: var(--emerald-400); font-weight: 700; }
         .profit-negative { color: var(--red-400); font-weight: 700; }
 
-        /* ============================================================
-           BADGES
-           ============================================================ */
         .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 10px;
-            border-radius: var(--radius-full);
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: var(--radius-full);
+            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .badge.win {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--emerald-400);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        .badge.loss {
-            background: rgba(248, 113, 113, 0.15);
-            color: var(--red-400);
-            border: 1px solid rgba(248, 113, 113, 0.2);
-        }
-        .badge.push {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--gold-400);
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-        .badge.pending {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-tertiary);
-            border: 1px solid var(--border-color);
-        }
+        .badge.win { background: rgba(16, 185, 129, 0.15); color: var(--emerald-400); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .badge.loss { background: rgba(248, 113, 113, 0.15); color: var(--red-400); border: 1px solid rgba(248, 113, 113, 0.2); }
+        .badge.push { background: rgba(245, 158, 11, 0.15); color: var(--gold-400); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .badge.pending { background: rgba(255, 255, 255, 0.05); color: var(--text-tertiary); border: 1px solid var(--border-color); }
 
-        /* ============================================================
-           BOTTOM NAV
-           ============================================================ */
         .bottom-nav {
-            position: fixed;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 96%;
-            max-width: 540px;
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            width: 96%; max-width: 540px;
             background: rgba(7, 16, 14, 0.75);
-            backdrop-filter: blur(30px) saturate(180%);
-            -webkit-backdrop-filter: blur(30px) saturate(180%);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border-color);
+            backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border-radius: var(--radius-lg); border: 1px solid var(--border-color);
             box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding: 6px 4px;
-            z-index: 1000;
-            transition: var(--transition);
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 6px 4px; z-index: 1000; transition: var(--transition);
         }
-        [data-theme="light"] .bottom-nav {
-            background: rgba(255, 255, 255, 0.85);
-        }
-
+        [data-theme="light"] .bottom-nav { background: rgba(255, 255, 255, 0.85); }
         .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 2px;
-            padding: 5px 8px;
-            min-width: 48px;
-            background: transparent;
-            border: none;
-            border-radius: var(--radius-md);
-            color: var(--text-tertiary);
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-            font-family: inherit;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; padding: 5px 8px; min-width: 48px;
+            background: transparent; border: none; border-radius: var(--radius-md);
+            color: var(--text-tertiary); cursor: pointer; transition: var(--transition);
+            position: relative; font-family: inherit;
         }
-        .nav-item .icon {
-            font-size: 20px;
-            line-height: 1;
-            transition: var(--transition);
-        }
-        .nav-item .label {
-            font-size: 8.5px;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-        }
+        .nav-item .icon { font-size: 20px; line-height: 1; transition: var(--transition); }
+        .nav-item .label { font-size: 8.5px; font-weight: 700; letter-spacing: 0.2px; }
         .nav-item:hover { color: var(--text-secondary); }
-        .nav-item.active {
-            color: var(--emerald-400);
-            background: rgba(16, 185, 129, 0.1);
-        }
+        .nav-item.active { color: var(--emerald-400); background: rgba(16, 185, 129, 0.1); }
         .nav-item.active .icon { transform: scale(1.15); }
         .nav-item.active::before {
-            content: '';
-            position: absolute;
-            top: -1px; left: 50%;
-            transform: translateX(-50%);
-            width: 16px; height: 3px;
+            content: ''; position: absolute; top: -1px; left: 50%;
+            transform: translateX(-50%); width: 16px; height: 3px;
             background: linear-gradient(90deg, var(--emerald-400), var(--emerald-500));
-            border-radius: var(--radius-full);
-            box-shadow: 0 0 12px var(--emerald-500);
+            border-radius: var(--radius-full); box-shadow: 0 0 12px var(--emerald-500);
         }
-
         @media (max-width: 400px) {
             .bottom-nav { width: 98%; padding: 5px 2px; }
             .nav-item { min-width: 42px; padding: 4px 6px; }
@@ -950,582 +436,204 @@
             .nav-item .label { font-size: 8px; }
         }
 
-        /* ============================================================
-           BOTTOM SHEET
-           ============================================================ */
-        #moreMenuModal {
-            align-items: flex-end;
-            padding: 0;
-        }
+        #moreMenuModal { align-items: flex-end; padding: 0; }
         .bottom-sheet {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--bg-secondary);
-            border-radius: 24px 24px 0 0;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: var(--bg-secondary); border-radius: 24px 24px 0 0;
             padding: 12px 16px 32px;
             animation: slideUpSheet 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            max-height: 80vh;
-            overflow-y: auto;
+            max-height: 80vh; overflow-y: auto;
             border-top: 1px solid var(--border-color);
             box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
         }
-        @keyframes slideUpSheet {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-        .bottom-sheet-handle {
-            width: 40px;
-            height: 4px;
-            background: var(--border-hover);
-            border-radius: 999px;
-            margin: 0 auto 16px;
-            opacity: 0.5;
-        }
-        .bottom-sheet-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            text-align: center;
-        }
+        @keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .bottom-sheet-handle { width: 40px; height: 4px; background: var(--border-hover); border-radius: 999px; margin: 0 auto 16px; opacity: 0.5; }
+        .bottom-sheet-title { font-size: 11px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; text-align: center; }
         .sheet-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 14px 12px;
-            background: transparent;
-            border: none;
-            border-radius: var(--radius-md);
-            width: 100%;
-            text-align: left;
-            cursor: pointer;
-            transition: var(--transition);
-            color: var(--text-primary);
-            font-family: inherit;
-            margin-bottom: 4px;
+            display: flex; align-items: center; gap: 14px; padding: 14px 12px;
+            background: transparent; border: none; border-radius: var(--radius-md);
+            width: 100%; text-align: left; cursor: pointer; transition: var(--transition);
+            color: var(--text-primary); font-family: inherit; margin-bottom: 4px;
         }
         .sheet-item:hover { background: var(--bg-card-hover); }
         .sheet-item:active { transform: scale(0.98); }
-        .sheet-icon {
-            font-size: 26px;
-            line-height: 1;
-            width: 40px;
-            text-align: center;
-            flex-shrink: 0;
-        }
-        .sheet-label {
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 2px;
-        }
-        .sheet-desc {
-            font-size: 11px;
-            color: var(--text-tertiary);
-        }
+        .sheet-icon { font-size: 26px; line-height: 1; width: 40px; text-align: center; flex-shrink: 0; }
+        .sheet-label { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+        .sheet-desc { font-size: 11px; color: var(--text-tertiary); }
 
-        /* ============================================================
-           MODAL
-           ============================================================ */
         .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(8px);
-            z-index: 9999;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px); z-index: 9999; display: none;
+            justify-content: center; align-items: center; padding: 20px;
         }
         .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
         .modal {
-            background: var(--bg-secondary);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border-color);
-            padding: 22px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
+            background: var(--bg-secondary); border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color); padding: 22px;
+            max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;
             animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .modal.modal-large { max-width: 700px; }
-        @keyframes modalSlideIn {
-            from { opacity: 0; transform: scale(0.9) translateY(20px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 18px;
-        }
+        @keyframes modalSlideIn { from { opacity: 0; transform: scale(0.9) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .modal-header h3 { color: var(--emerald-400); font-size: 16px; font-weight: 800; }
         .modal-close {
-            width: 32px; height: 32px;
-            display: flex; align-items: center; justify-content: center;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 14px;
-            transition: var(--transition);
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm); color: var(--text-secondary);
+            cursor: pointer; font-size: 14px; transition: var(--transition);
         }
-        .modal-close:hover {
-            background: var(--bg-card-hover);
-            color: var(--text-primary);
-        }
-
+        .modal-close:hover { background: var(--bg-card-hover); color: var(--text-primary); }
         .modal-field { margin-bottom: 12px; }
         .modal-field label {
-            display: block;
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-tertiary);
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: block; font-size: 10px; font-weight: 600; color: var(--text-tertiary);
+            margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .modal-field input,
-        .modal-field select {
-            width: 100%;
-            padding: 10px 12px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            color: var(--text-primary);
-            font-size: 13px;
-            font-family: inherit;
-            transition: var(--transition);
+        .modal-field input, .modal-field select {
+            width: 100%; padding: 10px 12px;
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm); color: var(--text-primary);
+            font-size: 13px; font-family: inherit; transition: var(--transition);
         }
-        .modal-field input:focus,
-        .modal-field select:focus {
-            outline: none;
-            border-color: var(--border-hover);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08);
-        }
-        .modal-field .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 18px;
-        }
+        .modal-field input:focus, .modal-field select:focus { outline: none; border-color: var(--border-hover); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08); }
+        .modal-field .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
         .modal-actions .btn { flex: 1; }
+        .chart-modal-container { height: 280px; margin-bottom: 16px; position: relative; }
 
-        .chart-modal-container {
-            height: 280px;
-            margin-bottom: 16px;
-            position: relative;
-        }
-
-        /* ============================================================
-           BUTTONS
-           ============================================================ */
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 9px 16px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            color: var(--text-primary);
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            font-family: inherit;
-            position: relative;
-            overflow: hidden;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 9px 16px; background: var(--bg-input);
+            border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+            color: var(--text-primary); font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: var(--transition); font-family: inherit;
+            position: relative; overflow: hidden;
         }
-        .btn:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-            transform: translateY(-1px);
-        }
+        .btn:hover { background: var(--bg-card-hover); border-color: var(--border-hover); transform: translateY(-1px); }
         .btn:active { transform: scale(0.97); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
-            border: none;
-            color: white;
-        }
+        .btn-primary { background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500)); border: none; color: white; }
         .btn-primary:hover { box-shadow: 0 0 25px rgba(16, 185, 129, 0.4); }
-        .btn-success {
-            background: linear-gradient(135deg, var(--emerald-500), var(--emerald-400));
-            border: none;
-            color: white;
-        }
-        .btn-danger {
-            background: linear-gradient(135deg, var(--red-500), var(--red-400));
-            border: none;
-            color: white;
-        }
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--border-color);
-        }
-        .btn-gold {
-            background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
-            border: none;
-            color: #422006;
-            font-weight: 700;
-        }
+        .btn-success { background: linear-gradient(135deg, var(--emerald-500), var(--emerald-400)); border: none; color: white; }
+        .btn-danger { background: linear-gradient(135deg, var(--red-500), var(--red-400)); border: none; color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); }
+        .btn-gold { background: linear-gradient(135deg, var(--gold-500), var(--gold-400)); border: none; color: #422006; font-weight: 700; }
         .btn-gold:hover { box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
-        .btn-secondary {
-            background: linear-gradient(135deg, var(--bg-card), var(--bg-input));
-            border: 1px solid var(--border-color);
-        }
+        .btn-secondary { background: linear-gradient(135deg, var(--bg-card), var(--bg-input)); border: 1px solid var(--border-color); }
 
-        /* ============================================================
-           FILTERS
-           ============================================================ */
-        .filter-group {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
+        .filter-group { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
         .filter-btn {
-            padding: 5px 14px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-full);
-            color: var(--text-tertiary);
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            font-family: inherit;
+            padding: 5px 14px; background: var(--bg-input);
+            border: 1px solid var(--border-color); border-radius: var(--radius-full);
+            color: var(--text-tertiary); font-size: 11px; font-weight: 600;
+            cursor: pointer; transition: var(--transition); font-family: inherit;
         }
-        .filter-btn:hover {
-            color: var(--text-secondary);
-            border-color: var(--border-hover);
-        }
-        .filter-btn.active {
-            background: rgba(16, 185, 129, 0.12);
-            border-color: rgba(16, 185, 129, 0.4);
-            color: var(--emerald-400);
-        }
+        .filter-btn:hover { color: var(--text-secondary); border-color: var(--border-hover); }
+        .filter-btn.active { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.4); color: var(--emerald-400); }
 
-        /* ============================================================
-           SETTINGS
-           ============================================================ */
         .setting-group {
-            background: var(--bg-card);
-            backdrop-filter: blur(20px);
-            padding: 14px;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border-color);
-            margin-bottom: 12px;
+            background: var(--bg-card); backdrop-filter: blur(20px);
+            padding: 14px; border-radius: var(--radius-md);
+            border: 1px solid var(--border-color); margin-bottom: 12px;
             animation: fadeSlideIn 0.4s ease backwards;
         }
-        .setting-group h2 {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--emerald-400);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
+        .setting-group h2 { font-size: 11px; font-weight: 700; color: var(--emerald-400); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
         .setting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border-color);
-            gap: 8px;
-            flex-wrap: wrap;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid var(--border-color);
+            gap: 8px; flex-wrap: wrap;
         }
         .setting-item:last-child { border-bottom: none; }
-        .setting-item .label {
-            font-size: 13px;
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        .setting-item .desc {
-            font-size: 10px;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-        }
-        .input-group {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
+        .setting-item .label { font-size: 13px; color: var(--text-primary); font-weight: 600; }
+        .setting-item .desc { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+        .input-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .input-group input {
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 7px 10px;
-            border-radius: var(--radius-sm);
-            width: 90px;
-            font-size: 12px;
-            font-family: inherit;
-            transition: var(--transition);
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 7px 10px;
+            border-radius: var(--radius-sm); width: 90px;
+            font-size: 12px; font-family: inherit; transition: var(--transition);
         }
-        .input-group input:focus {
-            outline: none;
-            border-color: var(--border-hover);
-        }
+        .input-group input:focus { outline: none; border-color: var(--border-hover); }
 
-        .toggle {
-            width: 42px; height: 24px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-full);
-            cursor: pointer;
-            position: relative;
-            transition: var(--transition);
-        }
-        .toggle.active {
-            background: rgba(16, 185, 129, 0.4);
-            border-color: var(--emerald-500);
-        }
-        .toggle .dot {
-            width: 16px; height: 16px;
-            background: white;
-            border-radius: 50%;
-            position: absolute;
-            top: 3px; left: 3px;
-            transition: var(--transition);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-        .toggle.active .dot { left: 21px; }
-
-        /* ============================================================
-           NOTIFICATIONS
-           ============================================================ */
         .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 18px;
-            background: var(--bg-secondary);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
+            position: fixed; top: 20px; right: 20px;
+            padding: 12px 18px; background: var(--bg-secondary);
+            backdrop-filter: blur(20px); border: 1px solid var(--border-color);
             border-left: 3px solid var(--emerald-500);
-            border-radius: var(--radius-md);
-            color: var(--text-primary);
-            font-size: 13px;
-            font-weight: 500;
-            z-index: 99999;
+            border-radius: var(--radius-md); color: var(--text-primary);
+            font-size: 13px; font-weight: 500; z-index: 99999;
             animation: slideInRight 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: var(--shadow-lg);
-            max-width: 400px;
+            box-shadow: var(--shadow-lg); max-width: 400px;
         }
         .notification.success { border-left-color: var(--emerald-400); }
         .notification.error { border-left-color: var(--red-400); }
         .notification.warning { border-left-color: var(--gold-400); }
-        @keyframes slideInRight {
-            from { opacity: 0; transform: translateX(100px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes slideOutRight {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(100px); }
-        }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideOutRight { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100px); } }
         @media (max-width: 480px) {
-            .notification {
-                top: auto;
-                bottom: 100px;
-                left: 10px;
-                right: 10px;
-                max-width: none;
-            }
+            .notification { top: auto; bottom: 100px; left: 10px; right: 10px; max-width: none; }
         }
 
-        /* ============================================================
-           MISC
-           ============================================================ */
-        .no-data {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-tertiary);
-        }
-        .no-data .emoji {
-            font-size: 48px;
-            margin-bottom: 10px;
-            opacity: 0.5;
-        }
-        .no-data .title {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
+        .no-data { text-align: center; padding: 40px 20px; color: var(--text-tertiary); }
+        .no-data .emoji { font-size: 48px; margin-bottom: 10px; opacity: 0.5; }
+        .no-data .title { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
         .no-data .desc { font-size: 11px; }
 
         .skeleton {
-            background: linear-gradient(90deg,
-                rgba(16, 185, 129, 0.04) 25%,
-                rgba(16, 185, 129, 0.08) 50%,
-                rgba(16, 185, 129, 0.04) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: var(--radius-sm);
-            height: 20px;
-            margin: 8px 0;
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.04) 25%, rgba(16, 185, 129, 0.08) 50%, rgba(16, 185, 129, 0.04) 75%);
+            background-size: 200% 100%; animation: shimmer 1.5s infinite;
+            border-radius: var(--radius-sm); height: 20px; margin: 8px 0;
         }
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
         .chart-container { height: 180px; }
         .chart-container-lg { height: 300px; }
-        @media (max-width: 480px) {
-            .chart-container-lg { height: 220px; }
-        }
+        @media (max-width: 480px) { .chart-container-lg { height: 220px; } }
 
-        .footer {
-            text-align: center;
-            padding: 24px 0 12px;
-            color: var(--text-muted);
-            font-size: 10px;
-            border-top: 1px solid var(--border-color);
-            margin-top: 16px;
-        }
+        .footer { text-align: center; padding: 24px 0 12px; color: var(--text-muted); font-size: 10px; border-top: 1px solid var(--border-color); margin-top: 16px; }
 
         .page-transition { animation: pageSlide 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
-        @keyframes pageSlide {
-            from { opacity: 0; transform: translateX(20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
+        @keyframes pageSlide { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: var(--radius-full);
-        }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: var(--radius-full); }
         ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
         #pwa-install-banner, #pwa-update-banner {
-            position: fixed;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 420px;
-            background: var(--bg-secondary);
-            backdrop-filter: blur(30px);
-            border-radius: var(--radius-lg);
-            padding: 14px 18px;
-            z-index: 9998;
-            box-shadow: var(--shadow-lg);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            animation: slideUpBanner 0.4s ease;
+            position: fixed; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 420px; background: var(--bg-secondary);
+            backdrop-filter: blur(30px); border-radius: var(--radius-lg);
+            padding: 14px 18px; z-index: 9998; box-shadow: var(--shadow-lg);
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; animation: slideUpBanner 0.4s ease;
         }
-        #pwa-install-banner {
-            bottom: 100px;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
-        #pwa-update-banner {
-            top: 20px;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-        @keyframes slideUpBanner {
-            from { opacity: 0; transform: translateX(-50%) translateY(30px); }
-            to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
+        #pwa-install-banner { bottom: 100px; border: 1px solid rgba(16, 185, 129, 0.2); }
+        #pwa-update-banner { top: 20px; border: 1px solid rgba(16, 185, 129, 0.3); }
+        @keyframes slideUpBanner { from { opacity: 0; transform: translateX(-50%) translateY(30px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
         #keepAliveStatus {
-            position: fixed;
-            bottom: 90px;
-            right: 12px;
-            font-size: 9px;
-            color: var(--text-muted);
-            z-index: 999;
-            background: var(--bg-card);
-            padding: 3px 8px;
-            border-radius: var(--radius-full);
-            backdrop-filter: blur(10px);
-            font-family: 'JetBrains Mono', monospace;
+            position: fixed; bottom: 90px; right: 12px; font-size: 9px;
+            color: var(--text-muted); z-index: 999; background: var(--bg-card);
+            padding: 3px 8px; border-radius: var(--radius-full);
+            backdrop-filter: blur(10px); font-family: 'JetBrains Mono', monospace;
             border: 1px solid var(--border-color);
         }
 
-        /* ============================================================
-           STRATEGY BARS
-           ============================================================ */
-        .strategy-bar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--border-color);
-        }
+        .strategy-bar { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
         .strategy-bar:last-child { border-bottom: none; }
-        .strategy-bar .strategy-name {
-            font-size: 12px;
-            font-weight: 700;
-            min-width: 90px;
-        }
-        .strategy-bar .strategy-track {
-            flex: 1;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: var(--radius-full);
-            overflow: hidden;
-            position: relative;
-        }
-        .strategy-bar .strategy-fill {
-            height: 100%;
-            border-radius: var(--radius-full);
-            background: linear-gradient(90deg, var(--emerald-500), var(--emerald-400));
-            transition: width 0.5s ease;
-        }
-        .strategy-bar .strategy-fill.negative {
-            background: linear-gradient(90deg, var(--red-500), var(--red-400));
-        }
-        .strategy-bar .strategy-value {
-            font-size: 11px;
-            font-weight: 700;
-            min-width: 60px;
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
+        .strategy-bar .strategy-name { font-size: 12px; font-weight: 700; min-width: 90px; }
+        .strategy-bar .strategy-track { flex: 1; height: 8px; background: rgba(255, 255, 255, 0.05); border-radius: var(--radius-full); overflow: hidden; position: relative; }
+        .strategy-bar .strategy-fill { height: 100%; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--emerald-500), var(--emerald-400)); transition: width 0.5s ease; }
+        .strategy-bar .strategy-fill.negative { background: linear-gradient(90deg, var(--red-500), var(--red-400)); }
+        .strategy-bar .strategy-value { font-size: 11px; font-weight: 700; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
 
-        /* ============================================================
-           SIMULATOR PARAMS
-           ============================================================ */
         .param-row { margin: 12px 0; }
-        .param-row label {
-            display: block;
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-            font-weight: 600;
-        }
-        .param-row label span {
-            color: var(--emerald-400);
-            font-weight: 800;
-        }
-        .param-row input[type="range"] {
-            width: 100%;
-            accent-color: var(--emerald-500);
-            height: 4px;
-        }
+        .param-row label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600; }
+        .param-row label span { color: var(--emerald-400); font-weight: 800; }
+        .param-row input[type="range"] { width: 100%; accent-color: var(--emerald-500); height: 4px; }
 
-        /* ============================================================
-           AUTOBETS
-           ============================================================ */
         #autobets-history .bet-card { cursor: default; }
         #autobets-history .bet-card:hover { transform: none; }
 
@@ -1534,11 +642,16 @@
     </style>
 </head>
 <body>
+<!-- ============================================================ -->
+<!-- КОНЕЦ ЧАСТИ 1/3                                              -->
+<!-- ============================================================ -->
 
 
-   <!-- ============================================================
-     LOADING SCREEN
-     ============================================================ -->
+ <!-- ============================================================ -->
+<!-- ЧАСТЬ 2/3 — BODY: HTML РАЗМЕТКА                              -->
+<!-- ============================================================ -->
+
+<!-- LOADING SCREEN -->
 <div id="loadingScreen">
     <div class="loading-bg-1"></div>
     <div class="loading-bg-2"></div>
@@ -1551,17 +664,13 @@
     </div>
 </div>
 
-<!-- ============================================================
-     BACKGROUND
-     ============================================================ -->
+<!-- BACKGROUND -->
 <div class="stars-container" id="starsContainer">
     <div class="milky-way-1"></div>
     <div class="milky-way-2"></div>
 </div>
 
-<!-- ============================================================
-     MAIN CONTAINER
-     ============================================================ -->
+<!-- MAIN CONTAINER -->
 <div class="container">
 
     <!-- HEADER -->
@@ -1581,11 +690,10 @@
         </div>
     </header>
 
-    <!-- ============================================================
-         PAGE: DASHBOARD
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: DASHBOARD -->
+    <!-- ============================================================ -->
     <div id="page-dashboard" class="page active">
-
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
                 <span class="action-icon">🚀</span>
@@ -1629,7 +737,6 @@
             </div>
         </div>
 
-        <!-- ★ Виджет автоставок -->
         <div class="card" id="dashboardAutobetsCard">
             <div class="card-header">
                 <h2 class="emerald-title">💸 Автоставки</h2>
@@ -1718,11 +825,10 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: MATCHES
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: MATCHES -->
+    <!-- ============================================================ -->
     <div id="page-matches" class="page">
-
         <div class="card">
             <div class="card-header">
                 <h2>🎯 Все ставки</h2>
@@ -1791,11 +897,10 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: SNAPSHOTS
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: SNAPSHOTS -->
+    <!-- ============================================================ -->
     <div id="page-snapshots" class="page">
-
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">📸 Снимки кэфов</h2>
@@ -1814,39 +919,23 @@
             </div>
 
             <div class="filter-group">
-                <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">
-                    🌐 Все
-                </button>
-                <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">
-                    📅 За 7 дней
-                </button>
-                <button class="filter-btn" data-snapfilter="anomaly" onclick="setSnapshotFilter('anomaly')">
-                    🎯 Только аномалии
-                </button>
+                <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">🌐 Все</button>
+                <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">📅 За 7 дней</button>
+                <button class="filter-btn" data-snapfilter="anomaly" onclick="setSnapshotFilter('anomaly')">🎯 Только аномалии</button>
             </div>
 
             <div class="filter-group">
-                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">
-                    Сортировка:
-                </span>
-                <button class="filter-btn active" data-snapsort="recent" onclick="setSnapshotSort('recent')">
-                    🕐 Свежие
-                </button>
-                <button class="filter-btn" data-snapsort="anomaly" onclick="setSnapshotSort('anomaly')">
-                    📈 Аномалии
-                </button>
-                <button class="filter-btn" data-snapsort="count" onclick="setSnapshotSort('count')">
-                    🔢 По снимкам
-                </button>
+                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">Сортировка:</span>
+                <button class="filter-btn active" data-snapsort="recent" onclick="setSnapshotSort('recent')">🕐 Свежие</button>
+                <button class="filter-btn" data-snapsort="anomaly" onclick="setSnapshotSort('anomaly')">📈 Аномалии</button>
+                <button class="filter-btn" data-snapsort="count" onclick="setSnapshotSort('count')">🔢 По снимкам</button>
             </div>
 
             <div class="search-bar">
                 <input type="text" id="snapshotsSearch" placeholder="Поиск матча, лиги, команды..." oninput="filterSnapshots()">
             </div>
 
-            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;" id="snapshotsCount">
-                Загрузка...
-            </div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;" id="snapshotsCount">Загрузка...</div>
         </div>
 
         <div id="snapshotsList">
@@ -1856,11 +945,10 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: ANALYTICS
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: ANALYTICS -->
+    <!-- ============================================================ -->
     <div id="page-analytics" class="page">
-
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value" id="aTotal">0</div>
@@ -1895,9 +983,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>🎯 Сравнение стратегий</h2>
-            </div>
+            <div class="card-header"><h2>🎯 Сравнение стратегий</h2></div>
             <div id="strategyBars">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -1906,9 +992,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>💎 По типам ставок</h2>
-            </div>
+            <div class="card-header"><h2>💎 По типам ставок</h2></div>
             <div id="betTypeBreakdown">
                 <div class="skeleton" style="width:70%"></div>
                 <div class="skeleton" style="width:50%"></div>
@@ -1916,9 +1000,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>🏆 По лигам</h2>
-            </div>
+            <div class="card-header"><h2>🏆 По лигам</h2></div>
             <div id="leagueBreakdown">
                 <div class="skeleton" style="width:70%"></div>
                 <div class="skeleton" style="width:50%"></div>
@@ -1926,11 +1008,10 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: X2
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: X2 -->
+    <!-- ============================================================ -->
     <div id="page-x2" class="page">
-
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🔥 X2 Стратегия</h2>
@@ -1938,32 +1019,17 @@
                     <button class="btn" onclick="openX2Modal()" style="padding:5px 12px;font-size:11px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;">
                         ➕ Добавить
                     </button>
-                    <button class="btn btn-outline" onclick="autoImportX2FromLogs()" style="padding:5px 10px;font-size:11px;">
-                        🔄 Импорт
-                    </button>
+                    <button class="btn btn-outline" onclick="autoImportX2FromLogs()" style="padding:5px 10px;font-size:11px;">🔄 Импорт</button>
                 </div>
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
                 Аутсайдер не проиграет (X2) — ставка на команду ниже в таблице
             </div>
-
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                <div class="stat-card">
-                    <div class="value" id="x2TotalFull">0</div>
-                    <div class="label">Всего</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value green" id="x2WinsFull">0</div>
-                    <div class="label">WIN</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value red" id="x2LossesFull">0</div>
-                    <div class="label">LOSS</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value gold" id="x2RoiFull">0%</div>
-                    <div class="label">ROI</div>
-                </div>
+                <div class="stat-card"><div class="value" id="x2TotalFull">0</div><div class="label">Всего</div></div>
+                <div class="stat-card"><div class="value green" id="x2WinsFull">0</div><div class="label">WIN</div></div>
+                <div class="stat-card"><div class="value red" id="x2LossesFull">0</div><div class="label">LOSS</div></div>
+                <div class="stat-card"><div class="value gold" id="x2RoiFull">0%</div><div class="label">ROI</div></div>
             </div>
         </div>
 
@@ -1971,19 +1037,15 @@
             <div class="card-header">
                 <h2>📋 Все X2 матчи</h2>
                 <div style="display:flex;gap:4px;">
-                    <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">
-                        📥 Excel
-                    </button>
+                    <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
                 </div>
             </div>
-
             <div class="filter-group">
                 <button class="filter-btn active" data-x2filter="all" onclick="setX2Filter('all')">Все</button>
                 <button class="filter-btn" data-x2filter="win" onclick="setX2Filter('win')">✅ WIN</button>
                 <button class="filter-btn" data-x2filter="loss" onclick="setX2Filter('loss')">❌ LOSS</button>
                 <button class="filter-btn" data-x2filter="pending" onclick="setX2Filter('pending')">⏳ Ожидание</button>
             </div>
-
             <div id="x2List">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -1991,11 +1053,10 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: AUTOBETS
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: AUTOBETS -->
+    <!-- ============================================================ -->
     <div id="page-autobets" class="page">
-
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">💸 Автоставки</h2>
@@ -2007,45 +1068,21 @@
         </div>
 
         <div class="stats-grid" id="autobets-stats">
-            <div class="stat-card">
-                <div class="value" id="ab-bank">$1000</div>
-                <div class="label">💰 БАНК</div>
-            </div>
-            <div class="stat-card">
-                <div class="value gold" id="ab-profit">$0</div>
-                <div class="label">📈 ПРИБЫЛЬ</div>
-            </div>
-            <div class="stat-card">
-                <div class="value emerald" id="ab-roi">0%</div>
-                <div class="label">💎 ROI</div>
-            </div>
-            <div class="stat-card">
-                <div class="value green" id="ab-winrate">0%</div>
-                <div class="label">🎯 WINRATE</div>
-            </div>
+            <div class="stat-card"><div class="value" id="ab-bank">$1000</div><div class="label">💰 БАНК</div></div>
+            <div class="stat-card"><div class="value gold" id="ab-profit">$0</div><div class="label">📈 ПРИБЫЛЬ</div></div>
+            <div class="stat-card"><div class="value emerald" id="ab-roi">0%</div><div class="label">💎 ROI</div></div>
+            <div class="stat-card"><div class="value green" id="ab-winrate">0%</div><div class="label">🎯 WINRATE</div></div>
         </div>
 
-        <!-- ★ CLV -->
         <div class="card emerald" style="margin-top: 0;">
             <div class="card-header">
                 <h2 class="emerald-title">📊 CLV (Closing Line Value)</h2>
-                <button class="btn btn-outline" onclick="computeClv()" style="padding:4px 10px;font-size:10px;">
-                    🔄 Пересчитать
-                </button>
+                <button class="btn btn-outline" onclick="computeClv()" style="padding:4px 10px;font-size:10px;">🔄 Пересчитать</button>
             </div>
             <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
-                <div class="stat-card">
-                    <div class="value emerald" id="clv-avg">+0.00%</div>
-                    <div class="label">📊 СРЕДНИЙ CLV</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value green" id="clv-positive">0%</div>
-                    <div class="label">✅ > 0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="value" id="clv-count">0</div>
-                    <div class="label">📈 ЗАМЕРОВ</div>
-                </div>
+                <div class="stat-card"><div class="value emerald" id="clv-avg">+0.00%</div><div class="label">📊 СРЕДНИЙ CLV</div></div>
+                <div class="stat-card"><div class="value green" id="clv-positive">0%</div><div class="label">✅ > 0</div></div>
+                <div class="stat-card"><div class="value" id="clv-count">0</div><div class="label">📈 ЗАМЕРОВ</div></div>
             </div>
             <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 8px;">
                 💡 CLV > 0 = вы ставите лучше закрытия линии → прибыль на длинной дистанции
@@ -2055,31 +1092,20 @@
         <div class="quick-actions">
             <button class="action-btn primary" onclick="autobetsPlace()">
                 <span class="action-icon">▶️</span>
-                <span class="action-text">
-                    <span class="action-label">Сделать ставки</span>
-                    <span class="action-desc">Из кэша бота</span>
-                </span>
+                <span class="action-text"><span class="action-label">Сделать ставки</span><span class="action-desc">Из кэша бота</span></span>
             </button>
             <button class="action-btn" onclick="autobetsSettle()">
                 <span class="action-icon">🔄</span>
-                <span class="action-text">
-                    <span class="action-label">Обновить</span>
-                    <span class="action-desc">Результаты</span>
-                </span>
+                <span class="action-text"><span class="action-label">Обновить</span><span class="action-desc">Результаты</span></span>
             </button>
             <button class="action-btn" onclick="autobetsReset()">
                 <span class="action-icon">🗑️</span>
-                <span class="action-text">
-                    <span class="action-label">Сброс</span>
-                    <span class="action-desc">Все автоставки</span>
-                </span>
+                <span class="action-text"><span class="action-label">Сброс</span><span class="action-desc">Все автоставки</span></span>
             </button>
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>📜 История автоставок</h2>
-            </div>
+            <div class="card-header"><h2>📜 История автоставок</h2></div>
             <div id="autobets-history">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -2087,24 +1113,17 @@
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: SIMULATOR
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: SIMULATOR -->
+    <!-- ============================================================ -->
     <div id="page-simulator" class="page">
-
         <div class="card emerald">
-            <div class="card-header">
-                <h2 class="emerald-title">🧪 Симулятор стратегий</h2>
-            </div>
-            <div style="font-size:11px;color:var(--text-tertiary);">
-                Проверьте, как работала бы стратегия на исторических данных
-            </div>
+            <div class="card-header"><h2 class="emerald-title">🧪 Симулятор стратегий</h2></div>
+            <div style="font-size:11px;color:var(--text-tertiary);">Проверьте, как работала бы стратегия на исторических данных</div>
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>🎯 Пресеты</h2>
-            </div>
+            <div class="card-header"><h2>🎯 Пресеты</h2></div>
             <div class="filter-group" id="sim-presets">
                 <div class="skeleton" style="width:100px;height:24px;"></div>
                 <div class="skeleton" style="width:100px;height:24px;"></div>
@@ -2112,9 +1131,7 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2>⚙️ Параметры</h2>
-            </div>
+            <div class="card-header"><h2>⚙️ Параметры</h2></div>
             <div class="param-row">
                 <label>Мин. EV: <span id="sim-min-ev-val">10</span>%</label>
                 <input type="range" id="sim-min-ev" min="-20" max="50" value="10" oninput="document.getElementById('sim-min-ev-val').textContent=this.value">
@@ -2149,76 +1166,41 @@
             </div>
         </div>
 
-        <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">
-            🚀 Запустить симуляцию
-        </button>
-
-        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">
-            🎯 Найти лучшую стратегию (Grid Search)
-        </button>
+        <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">🚀 Запустить симуляцию</button>
+        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">🎯 Найти лучшую стратегию (Grid Search)</button>
 
         <div id="sim-results" style="display:none;">
             <div class="card">
-                <div class="card-header">
-                    <h2>📊 Результаты</h2>
-                </div>
+                <div class="card-header"><h2>📊 Результаты</h2></div>
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="value gold" id="sim-profit">$0</div>
-                        <div class="label">📈 ПРИБЫЛЬ</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="value emerald" id="sim-roi">0%</div>
-                        <div class="label">💎 ROI</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="value green" id="sim-winrate">0%</div>
-                        <div class="label">🎯 WINRATE</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="value" id="sim-bets">0</div>
-                        <div class="label">🎲 СТАВОК</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="value red" id="sim-dd">0%</div>
-                        <div class="label">📉 ПРОСАДКА</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="value" id="sim-end">$0</div>
-                        <div class="label">🏁 КОНЕЦ</div>
-                    </div>
+                    <div class="stat-card"><div class="value gold" id="sim-profit">$0</div><div class="label">📈 ПРИБЫЛЬ</div></div>
+                    <div class="stat-card"><div class="value emerald" id="sim-roi">0%</div><div class="label">💎 ROI</div></div>
+                    <div class="stat-card"><div class="value green" id="sim-winrate">0%</div><div class="label">🎯 WINRATE</div></div>
+                    <div class="stat-card"><div class="value" id="sim-bets">0</div><div class="label">🎲 СТАВОК</div></div>
+                    <div class="stat-card"><div class="value red" id="sim-dd">0%</div><div class="label">📉 ПРОСАДКА</div></div>
+                    <div class="stat-card"><div class="value" id="sim-end">$0</div><div class="label">🏁 КОНЕЦ</div></div>
                 </div>
-                <div style="height: 250px; margin-top: 16px;">
-                    <canvas id="sim-chart"></canvas>
-                </div>
-                <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">
-                    💾 Сохранить стратегию
-                </button>
+                <div style="height: 250px; margin-top: 16px;"><canvas id="sim-chart"></canvas></div>
+                <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">💾 Сохранить стратегию</button>
             </div>
         </div>
     </div>
 
-    <!-- ============================================================
-         PAGE: SETTINGS
-         ============================================================ -->
+    <!-- ============================================================ -->
+    <!-- PAGE: SETTINGS -->
+    <!-- ============================================================ -->
     <div id="page-settings" class="page">
-
         <div class="card">
             <div class="card-header">
                 <h2>⚙️ Настройки</h2>
-                <button class="btn btn-outline" onclick="closeSettings()" style="padding:4px 10px;font-size:10px;">
-                    ← Назад
-                </button>
+                <button class="btn btn-outline" onclick="closeSettings()" style="padding:4px 10px;font-size:10px;">← Назад</button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>💰 Банк</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Текущий банк</div>
-                    <div class="desc">Ваш игровой банк</div>
-                </div>
+                <div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div>
                 <div class="input-group">
                     <input type="number" id="bankInput" value="1000" step="10">
                     <button class="btn btn-primary" onclick="updateBank()" style="padding:6px 12px;font-size:11px;">OK</button>
@@ -2229,10 +1211,7 @@
         <div class="setting-group">
             <h2>🎨 Тема</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Тема оформления</div>
-                    <div class="desc">Тёмная / Светлая / Авто</div>
-                </div>
+                <div><div class="label">Тема оформления</div><div class="desc">Тёмная / Светлая / Авто</div></div>
                 <div class="input-group">
                     <select id="themeSelect" onchange="setTheme(this.value)" style="padding:6px 10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;font-size:11px;">
                         <option value="dark">🌙 Тёмная</option>
@@ -2246,80 +1225,40 @@
         <div class="setting-group">
             <h2>🤖 Настройки бота</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">EV_MIN_70</div>
-                    <div class="desc">Минимальный EV для 70%+</div>
-                </div>
-                <div class="input-group">
-                    <input type="number" id="settingEvMin" value="8">
-                </div>
+                <div><div class="label">EV_MIN_70</div><div class="desc">Минимальный EV для 70%+</div></div>
+                <div class="input-group"><input type="number" id="settingEvMin" value="8"></div>
             </div>
             <div class="setting-item">
-                <div>
-                    <div class="label">PROB_MIN_70</div>
-                    <div class="desc">Минимальная вероятность</div>
-                </div>
-                <div class="input-group">
-                    <input type="number" id="settingProbMin" value="52">
-                </div>
+                <div><div class="label">PROB_MIN_70</div><div class="desc">Минимальная вероятность</div></div>
+                <div class="input-group"><input type="number" id="settingProbMin" value="52"></div>
             </div>
             <div class="setting-item">
-                <div>
-                    <div class="label">MAX_TM25_BETS</div>
-                    <div class="desc">Лимит ТМ 2.5 ставок</div>
-                </div>
-                <div class="input-group">
-                    <input type="number" id="settingMaxTm25" value="5">
-                </div>
+                <div><div class="label">MAX_TM25_BETS</div><div class="desc">Лимит ТМ 2.5 ставок</div></div>
+                <div class="input-group"><input type="number" id="settingMaxTm25" value="5"></div>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Применить</div>
-                    <div class="desc">Сохранить настройки на сервере</div>
-                </div>
-                <button class="btn btn-primary" onclick="applyBotSettings()" style="padding:6px 12px;font-size:11px;">
-                    💾 Сохранить
-                </button>
+                <div><div class="label">Применить</div><div class="desc">Сохранить настройки на сервере</div></div>
+                <button class="btn btn-primary" onclick="applyBotSettings()" style="padding:6px 12px;font-size:11px;">💾 Сохранить</button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>💾 Данные</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Экспорт в Excel</div>
-                    <div class="desc">Скачать всю историю</div>
-                </div>
-                <button class="btn btn-primary" onclick="window.location.href='/export'" style="padding:6px 12px;font-size:11px;">
-                    📥 Excel
-                </button>
+                <div><div class="label">Экспорт в Excel</div><div class="desc">Скачать всю историю</div></div>
+                <button class="btn btn-primary" onclick="window.location.href='/export'" style="padding:6px 12px;font-size:11px;">📥 Excel</button>
             </div>
             <div class="setting-item">
-                <div>
-                    <div class="label">Экспорт в CSV</div>
-                    <div class="desc">Для Google Sheets / Numbers</div>
-                </div>
-                <button class="btn btn-outline" onclick="exportCSV()" style="padding:6px 12px;font-size:11px;">
-                    📄 CSV
-                </button>
+                <div><div class="label">Экспорт в CSV</div><div class="desc">Для Google Sheets / Numbers</div></div>
+                <button class="btn btn-outline" onclick="exportCSV()" style="padding:6px 12px;font-size:11px;">📄 CSV</button>
             </div>
             <div class="setting-item">
-                <div>
-                    <div class="label">Бэкап проекта</div>
-                    <div class="desc">Скачать JSON со всеми данными</div>
-                </div>
-                <button class="btn btn-gold" onclick="exportProject()" style="padding:6px 12px;font-size:11px;">
-                    💾 Сохранить
-                </button>
+                <div><div class="label">Бэкап проекта</div><div class="desc">Скачать JSON со всеми данными</div></div>
+                <button class="btn btn-gold" onclick="exportProject()" style="padding:6px 12px;font-size:11px;">💾 Сохранить</button>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Восстановить из бэкапа</div>
-                    <div class="desc">Загрузить JSON-файл</div>
-                </div>
-                <label class="btn btn-outline" for="projectFileInput" style="padding:6px 12px;font-size:11px;cursor:pointer;">
-                    📂 Загрузить
-                </label>
+                <div><div class="label">Восстановить из бэкапа</div><div class="desc">Загрузить JSON-файл</div></div>
+                <label class="btn btn-outline" for="projectFileInput" style="padding:6px 12px;font-size:11px;cursor:pointer;">📂 Загрузить</label>
                 <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
             </div>
         </div>
@@ -2327,30 +1266,19 @@
         <div class="setting-group">
             <h2>🔥 X2 Стратегия</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Всего X2 матчей</div>
-                    <div class="desc">В локальной таблице</div>
-                </div>
+                <div><div class="label">Всего X2 матчей</div><div class="desc">В локальной таблице</div></div>
                 <span style="color:var(--emerald-400);font-weight:700;" id="x2CountSettings">0</span>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Очистить все X2</div>
-                    <div class="desc">Удалить все X2 данные</div>
-                </div>
-                <button class="btn btn-danger" onclick="clearAllX2()" style="padding:6px 12px;font-size:11px;">
-                    🗑️ Очистить
-                </button>
+                <div><div class="label">Очистить все X2</div><div class="desc">Удалить все X2 данные</div></div>
+                <button class="btn btn-danger" onclick="clearAllX2()" style="padding:6px 12px;font-size:11px;">🗑️ Очистить</button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>📸 Снимки кэфов</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Всего снимков</div>
-                    <div class="desc">В базе данных</div>
-                </div>
+                <div><div class="label">Всего снимков</div><div class="desc">В базе данных</div></div>
                 <span style="color:var(--emerald-400);font-weight:700;" id="snapshotCountSettings">0</span>
             </div>
         </div>
@@ -2358,117 +1286,74 @@
         <div class="setting-group">
             <h2>📱 Приложение</h2>
             <div class="setting-item">
-                <div>
-                    <div class="label">Установить приложение</div>
-                    <div class="desc">Добавить на главный экран</div>
-                </div>
-                <button class="btn btn-primary" onclick="installPWA()" style="padding:6px 12px;font-size:11px;">
-                    📲 Установить
-                </button>
+                <div><div class="label">Установить приложение</div><div class="desc">Добавить на главный экран</div></div>
+                <button class="btn btn-primary" onclick="installPWA()" style="padding:6px 12px;font-size:11px;">📲 Установить</button>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Проверить обновления</div>
-                    <div class="desc">Обновить приложение</div>
-                </div>
-                <button class="btn btn-outline" onclick="checkForUpdates()" style="padding:6px 12px;font-size:11px;">
-                    🔄 Проверить
-                </button>
+                <div><div class="label">Проверить обновления</div><div class="desc">Обновить приложение</div></div>
+                <button class="btn btn-outline" onclick="checkForUpdates()" style="padding:6px 12px;font-size:11px;">🔄 Проверить</button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>ℹ️ О приложении</h2>
             <div class="setting-item" style="border-bottom:none;">
-                <div>
-                    <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v21 Emerald • X2 Time + Source + CLV + Grid Search</div>
-                </div>
+                <div><div class="label">Quantum Bet Tracker</div><div class="desc">v21 Emerald • X2 Time + Source + CLV + Grid Search</div></div>
                 <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v21.0</span>
             </div>
         </div>
     </div>
 
-    <div class="footer">
-        💎 Quantum Tracker v21 Emerald © 2026
-    </div>
+    <div class="footer">💎 Quantum Tracker v21 Emerald © 2026</div>
 </div>
 
-<!-- ============================================================
-     BOTTOM NAV
-     ============================================================ -->
+<!-- BOTTOM NAV -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
-        <span class="icon">📊</span>
-        <span class="label">Главная</span>
+        <span class="icon">📊</span><span class="label">Главная</span>
     </button>
     <button class="nav-item" data-page="matches" onclick="switchPage('matches')">
-        <span class="icon">🎯</span>
-        <span class="label">Матчи</span>
+        <span class="icon">🎯</span><span class="label">Матчи</span>
     </button>
     <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
-        <span class="icon">📸</span>
-        <span class="label">Снимки</span>
+        <span class="icon">📸</span><span class="label">Снимки</span>
     </button>
     <button class="nav-item" data-page="analytics" onclick="switchPage('analytics')">
-        <span class="icon">📈</span>
-        <span class="label">Аналитика</span>
+        <span class="icon">📈</span><span class="label">Аналитика</span>
     </button>
     <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
-        <span class="icon">🔥</span>
-        <span class="label">X2</span>
+        <span class="icon">🔥</span><span class="label">X2</span>
     </button>
     <button class="nav-item" onclick="toggleMoreMenu()">
-        <span class="icon">⋯</span>
-        <span class="label">Ещё</span>
+        <span class="icon">⋯</span><span class="label">Ещё</span>
     </button>
 </nav>
 
-<!-- ============================================================
-     BOTTOM SHEET "ЕЩЁ"
-     ============================================================ -->
+<!-- BOTTOM SHEET -->
 <div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
     <div class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-title">Меню</div>
-
         <button class="sheet-item" onclick="openFromMore('autobets')">
             <span class="sheet-icon">💸</span>
-            <div>
-                <div class="sheet-label">Автоставки</div>
-                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
-            </div>
+            <div><div class="sheet-label">Автоставки</div><div class="sheet-desc">Виртуальный банк с реальными кэфами</div></div>
         </button>
-
         <button class="sheet-item" onclick="openFromMore('simulator')">
             <span class="sheet-icon">🧪</span>
-            <div>
-                <div class="sheet-label">Симулятор стратегий</div>
-                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
-            </div>
+            <div><div class="sheet-label">Симулятор стратегий</div><div class="sheet-desc">Проверка стратегий + Grid Search</div></div>
         </button>
-
         <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
             <span class="sheet-icon">⚙️</span>
-            <div>
-                <div class="sheet-label">Настройки</div>
-                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
-            </div>
+            <div><div class="sheet-label">Настройки</div><div class="sheet-desc">Банк, тема, экспорт, бэкап</div></div>
         </button>
-
         <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
             <span class="sheet-icon">📲</span>
-            <div>
-                <div class="sheet-label">Установить приложение</div>
-                <div class="sheet-desc">Добавить на главный экран</div>
-            </div>
+            <div><div class="sheet-label">Установить приложение</div><div class="sheet-desc">Добавить на главный экран</div></div>
         </button>
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: ADD MATCH
-     ============================================================ -->
+<!-- MODAL: ADD MATCH -->
 <div class="modal-overlay" id="addMatchModal">
     <div class="modal">
         <div class="modal-header">
@@ -2489,14 +1374,8 @@
         </div>
         <div class="modal-field">
             <div class="row">
-                <div>
-                    <label>💰 Коэф</label>
-                    <input type="number" id="matchOddsInput" value="1.85" step="0.01">
-                </div>
-                <div>
-                    <label>💵 Сумма</label>
-                    <input type="number" id="matchStakeInput" value="42.87" step="0.01">
-                </div>
+                <div><label>💰 Коэф</label><input type="number" id="matchOddsInput" value="1.85" step="0.01"></div>
+                <div><label>💵 Сумма</label><input type="number" id="matchStakeInput" value="42.87" step="0.01"></div>
             </div>
         </div>
         <div class="modal-field">
@@ -2515,64 +1394,38 @@
     </div>
 </div>
 
-<!-- ============================================================
-     ★ MODAL: X2 MATCH — с полем ВРЕМЯ
-     ============================================================ -->
+<!-- MODAL: X2 MATCH -->
 <div class="modal-overlay" id="x2Modal">
     <div class="modal">
         <div class="modal-header">
             <h3 id="x2ModalTitle">➕ X2 Матч</h3>
             <button class="modal-close" onclick="closeX2Modal()">✕</button>
         </div>
-
-        <!-- ★ Дата + Время в одной строке -->
         <div class="modal-field">
             <div class="row">
-                <div>
-                    <label>📅 Дата</label>
-                    <input type="date" id="x2Date">
-                </div>
-                <div>
-                    <label>🕐 Время (МСК)</label>
-                    <input type="time" id="x2Time" placeholder="21:45">
-                </div>
+                <div><label>📅 Дата</label><input type="date" id="x2Date"></div>
+                <div><label>🕐 Время (МСК)</label><input type="time" id="x2Time" placeholder="21:45"></div>
             </div>
         </div>
-
         <div class="modal-field">
             <label>🏟️ Матч</label>
             <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
         </div>
         <div class="modal-field">
             <div class="row">
-                <div>
-                    <label>🏆 Фаворит</label>
-                    <input type="text" id="x2Favorite">
-                </div>
-                <div>
-                    <label>📉 Аутсайдер</label>
-                    <input type="text" id="x2Underdog">
-                </div>
+                <div><label>🏆 Фаворит</label><input type="text" id="x2Favorite"></div>
+                <div><label>📉 Аутсайдер</label><input type="text" id="x2Underdog"></div>
             </div>
         </div>
         <div class="modal-field">
             <div class="row">
-                <div>
-                    <label>📊 Кэф X2</label>
-                    <input type="number" id="x2Odds" step="0.01">
-                </div>
-                <div>
-                    <label>💰 Сумма</label>
-                    <input type="number" id="x2Stake" step="0.5">
-                </div>
+                <div><label>📊 Кэф X2</label><input type="number" id="x2Odds" step="0.01"></div>
+                <div><label>💰 Сумма</label><input type="number" id="x2Stake" step="0.5"></div>
             </div>
         </div>
         <div class="modal-field">
             <div class="row">
-                <div>
-                    <label>⚽ Счёт</label>
-                    <input type="text" id="x2Score" placeholder="0:0">
-                </div>
+                <div><label>⚽ Счёт</label><input type="text" id="x2Score" placeholder="0:0"></div>
                 <div>
                     <label>📊 Результат</label>
                     <select id="x2Result">
@@ -2595,7 +1448,7 @@
     </div>
 </div>
 
-<!-- MODAL: IMPORT X2 EXCEL -->
+<!-- MODAL: IMPORT X2 -->
 <div class="modal-overlay" id="x2ImportModal">
     <div class="modal">
         <div class="modal-header">
@@ -2636,9 +1489,7 @@
             <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
         </div>
         <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
-        <div class="chart-modal-container">
-            <canvas id="snapshotChart"></canvas>
-        </div>
+        <div class="chart-modal-container"><canvas id="snapshotChart"></canvas></div>
         <div id="snapshotChartStats"></div>
     </div>
 </div>
@@ -2646,7 +1497,15 @@
 <!-- TOAST -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
-    <script>
+<!-- ============================================================ -->
+<!-- КОНЕЦ ЧАСТИ 2/3                                              -->
+<!-- ============================================================ -->
+
+
+<!-- ============================================================ -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT                                       -->
+<!-- ============================================================ -->
+<script>
 // ============================================================
 // КОНФИГУРАЦИЯ
 // ============================================================
@@ -3111,7 +1970,7 @@ function openSnapshotFromAnomaly(fid) {
 }
 
 // ============================================================
-// BET CARD
+// BET CARD ★ СО СТРАНОЙ И ФЛАГОМ
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -3168,6 +2027,11 @@ function renderBetCard(m, isActive = false) {
 
     const itemIndex = m._index !== undefined ? m._index : -1;
 
+    // ★ Страна + флаг
+    const countryHtml = m.country
+        ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
+        : '';
+
     return `
         <div class="bet-card ${isActive ? 'active' : ''}"
              data-fixture="${m.fixture_id || ''}"
@@ -3178,7 +2042,7 @@ function renderBetCard(m, isActive = false) {
             <div class="bet-header">
                 <div style="flex:1;min-width:0;">
                     <div class="bet-match">${escapeHtml(m.home || '?')} vs ${escapeHtml(m.away || '?')}</div>
-                    <div class="bet-league">🏆 ${escapeHtml(league)}</div>
+                    <div class="bet-league">🏆 ${escapeHtml(league)}${countryHtml}</div>
                     <div class="bet-time">
                         <span>📅 ${escapeHtml(displayDate)}</span>
                         ${showScore ? `
@@ -3443,6 +2307,8 @@ function buildAllItems(history, matches) {
                 profit: 0,
                 is_active: true,
                 league: m.league || '',
+                country: m.country || '',
+                country_flag: m.country_flag || '',
                 total_xg: m.total_xg || 0,
                 fixture_id: m.fixture_id,
                 best_bet: best,
@@ -3469,6 +2335,8 @@ function buildAllItems(history, matches) {
                 profit: h.profit || 0,
                 is_active: false,
                 league: h.league || '',
+                country: h.country || '',
+                country_flag: h.country_flag || '',
                 total_xg: 0,
                 fixture_id: h.fixture_id,
                 best_bet: { label: h.bet, odds: h.odds, ev: h.ev, prob: h.prob },
@@ -3563,7 +2431,7 @@ function toggleShowAll() {
 }
 
 // ============================================================
-// MATCH DETAIL
+// MATCH DETAIL ★ СО СТРАНОЙ
 // ============================================================
 function showMatchDetail(match) {
     const modal = document.getElementById('matchDetailModal');
@@ -3573,9 +2441,16 @@ function showMatchDetail(match) {
     const best = match.best_bet || {};
     const bets = match.bets || [];
 
+    // ★ Страна
+    const countryStr = match.country
+        ? ` • ${match.country_flag || ''} ${escapeHtml(match.country)}`
+        : '';
+
     let html = `
         <div style="text-align:center;margin-bottom:16px;">
-            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">${match.league || ''}</div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px;">
+                ${escapeHtml(match.league || '')}${countryStr}
+            </div>
             <div style="font-size:12px;color:var(--text-secondary);">${match.date || match.match_time || ''}</div>
             ${match.halftime_home != null ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">1-й тайм: ${match.halftime_home}-${match.halftime_away}</div>` : ''}
         </div>
@@ -4123,10 +2998,7 @@ function renderX2List() {
         const oddsStr = m.odds > 0 ? m.odds : '—';
         const probStr = m.prob > 0 ? m.prob + '%' : '—';
 
-        // ★ Дата + Время
         const dateTimeStr = m.time ? `${m.date} 🕐 ${m.time}` : m.date;
-
-        // ★ Badge источника
         const sourceBadge = getSourceBadge(m.source);
 
         return `
@@ -4224,7 +3096,7 @@ function openX2Modal(data) {
     if (data) {
         title.textContent = '✏️ Редактировать X2';
         document.getElementById('x2Date').value = data.date || '';
-        document.getElementById('x2Time').value = data.time || '';   // ★ ВРЕМЯ
+        document.getElementById('x2Time').value = data.time || '';
         document.getElementById('x2Match').value = data.match || '';
         document.getElementById('x2Favorite').value = data.favorite || '';
         document.getElementById('x2Underdog').value = data.underdog || '';
@@ -4237,7 +3109,7 @@ function openX2Modal(data) {
     } else {
         title.textContent = '➕ X2 Матч';
         document.getElementById('x2Date').value = new Date().toISOString().slice(0,10);
-        document.getElementById('x2Time').value = '';   // ★ ВРЕМЯ
+        document.getElementById('x2Time').value = '';
         ['x2Match','x2Favorite','x2Underdog','x2Odds','x2Stake','x2Score','x2Note'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('x2Result').value = 'pending';
         editingX2Index = null;
@@ -4253,7 +3125,7 @@ function closeX2Modal() {
 
 function saveX2Match() {
     const date = document.getElementById('x2Date').value;
-    const time = document.getElementById('x2Time').value;   // ★ ВРЕМЯ
+    const time = document.getElementById('x2Time').value;
     const match = document.getElementById('x2Match').value.trim();
     const favorite = document.getElementById('x2Favorite').value.trim();
     const underdog = document.getElementById('x2Underdog').value.trim();
@@ -4270,7 +3142,6 @@ function saveX2Match() {
     if (result === 'win') profit = Math.round((stake * odds - stake) * 100) / 100;
     else if (result === 'loss') profit = -stake;
 
-    // ★ Источник
     const existingSource = editingX2Index !== null && editingX2Index >= 0 ? x2Data[editingX2Index].source : null;
     const source = existingSource || 'manual';
 
@@ -4313,7 +3184,7 @@ function clearAllX2() {
 }
 
 // ============================================================
-// ★ AUTO-IMPORT X2 (с временем и источником)
+// ★ AUTO-IMPORT X2
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
@@ -4338,7 +3209,6 @@ async function autoImportX2FromLogs() {
             const matchName = home + ' vs ' + away;
             if (uniqueMatches.has(matchName)) continue;
 
-            // ★ Извлекаем дату + время
             const dateTimeMatch = line.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
             const logDate = dateTimeMatch ? dateTimeMatch[1] : new Date().toISOString().slice(0,10);
             const logTime = dateTimeMatch ? dateTimeMatch[2] : '';
@@ -4356,7 +3226,7 @@ async function autoImportX2FromLogs() {
             uniqueMatches.set(matchName, {
                 home, away, favorite, underdog,
                 date: logDate,
-                time: logTime,   // ★ ВРЕМЯ
+                time: logTime,
                 note: 'Авто-импорт' + (xg ? ' | XG: ' + xg : '')
             });
         }
@@ -4367,7 +3237,7 @@ async function autoImportX2FromLogs() {
             x2Data.push({
                 id: Date.now() + Math.random() * 1000 + newCount,
                 date: info.date,
-                time: info.time,      // ★ ВРЕМЯ
+                time: info.time,
                 match: matchName,
                 favorite: info.favorite,
                 underdog: info.underdog,
@@ -4376,7 +3246,7 @@ async function autoImportX2FromLogs() {
                 result: 'pending',
                 profit: 0,
                 note: info.note,
-                source: 'auto'        // ★ ИСТОЧНИК
+                source: 'auto'
             });
             newCount++;
         }
@@ -4432,12 +3302,12 @@ function importX2Excel() {
                 x2Data.push({
                     id: Date.now() + Math.random() * 1000 + imported,
                     date: row['Дата'] || row['date'] || new Date().toISOString().slice(0,10),
-                    time: row['Время'] || row['time'] || '',   // ★ ВРЕМЯ
+                    time: row['Время'] || row['time'] || '',
                     match, favorite, underdog, odds, stake, profit,
                     score: row['Счёт'] || '-',
                     result,
                     note: row['Примечание'] || 'Импорт',
-                    source: 'import'   // ★ ИСТОЧНИК
+                    source: 'import'
                 });
                 imported++;
             });
@@ -4464,7 +3334,7 @@ function exportX2Excel() {
     const data = x2Data.map((m, i) => ({
         '#': i + 1,
         'Дата': m.date,
-        'Время': m.time || '',   // ★ ВРЕМЯ
+        'Время': m.time || '',
         'Матч': m.match,
         'Фаворит': m.favorite,
         'Аутсайдер': m.underdog,
@@ -4525,16 +3395,11 @@ function renderAutobetsHistory(history) {
         const profitColor = b.profit > 0 ? 'var(--emerald-400)' :
                             b.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
 
-        // ★★★ НОВОЕ: LIVE-счёт (для идущих матчей)
         let liveStr = '';
         if (b.result === 'pending' && b.live_score) {
             const statusMap = {
-                '1H': '1-й тайм',
-                'HT': 'Перерыв',
-                '2H': '2-й тайм',
-                'ET': 'Доп. время',
-                'P': 'Пенальти',
-                'LIVE': 'LIVE'
+                '1H': '1-й тайм', 'HT': 'Перерыв', '2H': '2-й тайм',
+                'ET': 'Доп. время', 'P': 'Пенальти', 'LIVE': 'LIVE'
             };
             const statusText = statusMap[b.live_status] || 'LIVE';
             const minuteStr = b.live_minute ? ` ${b.live_minute}'` : '';
@@ -4549,7 +3414,6 @@ function renderAutobetsHistory(history) {
             `;
         }
 
-        // Финальный счёт (для завершённых)
         const ht = (b.halftime_home != null && b.halftime_away != null)
             ? ` • 1-й: ${b.halftime_home}-${b.halftime_away}` : '';
         const score = (b.result !== 'pending' && b.home_goals != null && b.away_goals != null)
@@ -4557,7 +3421,6 @@ function renderAutobetsHistory(history) {
                  Счёт: <strong>${b.home_goals}-${b.away_goals}</strong>${ht}
                </div>` : '';
 
-        // ★ CLV-строка
         let clvStr = '';
         if (b.clv !== undefined && b.clv !== null) {
             const clvColor = b.clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
@@ -5356,3 +4219,6 @@ Object.assign(window, {
 </script>
 </body>
 </html>
+<!-- ============================================================ -->
+<!-- КОНЕЦ ЧАСТИ 3/3                                              -->
+<!-- ============================================================ -->    
