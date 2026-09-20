@@ -805,52 +805,14 @@
 
 
  <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — BODY: HTML РАЗМЕТКА                              -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы)                     -->
 <!-- ============================================================ -->
 
-<!-- LOADING SCREEN -->
-<div id="loadingScreen">
-    <div class="loading-bg-1"></div>
-    <div class="loading-bg-2"></div>
-    <div id="loadingStars" class="loading-stars"></div>
-    <div class="loading-logo">
-        <div class="loading-logo-main">QUANTUM</div>
-        <div class="loading-logo-sub">Tracker</div>
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading</div>
-    </div>
-</div>
-
-<!-- BACKGROUND -->
-<div class="stars-container" id="starsContainer">
-    <div class="milky-way-1"></div>
-    <div class="milky-way-2"></div>
-</div>
-
-<!-- MAIN CONTAINER -->
-<div class="container">
-
-    <!-- HEADER -->
-    <header class="header">
-        <div class="header-left">
-            <div class="header-title">💎 Quantum Tracker</div>
-            <div class="header-subtitle" id="lastUpdate">Обновление...</div>
-        </div>
-        <div class="header-controls">
-            <div class="status-pill">
-                <span class="status-dot"></span>
-                <span id="statusText">Live</span>
-            </div>
-            <button class="icon-btn" onclick="cycleTheme()" id="themeBtn" title="Тема">🌙</button>
-            <button class="icon-btn" onclick="refreshData()" title="Обновить">🔄</button>
-            <button class="icon-btn" onclick="openSettings()" title="Настройки">⚙️</button>
-        </div>
-    </header>
-
-    <!-- ============================================================ -->
-    <!-- PAGE: DASHBOARD -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: DASHBOARD
+         ============================================================ -->
     <div id="page-dashboard" class="page active">
+
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
                 <span class="action-icon">🚀</span>
@@ -859,11 +821,11 @@
                     <span class="action-desc">Запустить бот</span>
                 </span>
             </button>
-            <button class="action-btn" onclick="switchPage('matches')">
-                <span class="action-icon">🎯</span>
+            <button class="action-btn" onclick="switchPage('live')">
+                <span class="action-icon">⚡</span>
                 <span class="action-text">
-                    <span class="action-label">Мои ставки</span>
-                    <span class="action-desc">Активные + история</span>
+                    <span class="action-label">Live</span>
+                    <span class="action-desc">Матчи в ближайшие 2ч</span>
                 </span>
             </button>
             <button class="action-btn" onclick="switchPage('snapshots')">
@@ -982,10 +944,11 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: MATCHES -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: MATCHES
+         ============================================================ -->
     <div id="page-matches" class="page">
+
         <div class="card">
             <div class="card-header">
                 <h2>🎯 Все ставки</h2>
@@ -1054,10 +1017,11 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: SNAPSHOTS -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: SNAPSHOTS
+         ============================================================ -->
     <div id="page-snapshots" class="page">
+
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">📸 Снимки кэфов</h2>
@@ -1076,23 +1040,39 @@
             </div>
 
             <div class="filter-group">
-                <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">🌐 Все</button>
-                <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">📅 За 7 дней</button>
-                <button class="filter-btn" data-snapfilter="anomaly" onclick="setSnapshotFilter('anomaly')">🎯 Только аномалии</button>
+                <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">
+                    🌐 Все
+                </button>
+                <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">
+                    📅 За 7 дней
+                </button>
+                <button class="filter-btn" data-snapfilter="anomaly" onclick="setSnapshotFilter('anomaly')">
+                    🎯 Только аномалии
+                </button>
             </div>
 
             <div class="filter-group">
-                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">Сортировка:</span>
-                <button class="filter-btn active" data-snapsort="recent" onclick="setSnapshotSort('recent')">🕐 Свежие</button>
-                <button class="filter-btn" data-snapsort="anomaly" onclick="setSnapshotSort('anomaly')">📈 Аномалии</button>
-                <button class="filter-btn" data-snapsort="count" onclick="setSnapshotSort('count')">🔢 По снимкам</button>
+                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">
+                    Сортировка:
+                </span>
+                <button class="filter-btn active" data-snapsort="recent" onclick="setSnapshotSort('recent')">
+                    🕐 Свежие
+                </button>
+                <button class="filter-btn" data-snapsort="anomaly" onclick="setSnapshotSort('anomaly')">
+                    📈 Аномалии
+                </button>
+                <button class="filter-btn" data-snapsort="count" onclick="setSnapshotSort('count')">
+                    🔢 По снимкам
+                </button>
             </div>
 
             <div class="search-bar">
                 <input type="text" id="snapshotsSearch" placeholder="Поиск матча, лиги, команды..." oninput="filterSnapshots()">
             </div>
 
-            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;" id="snapshotsCount">Загрузка...</div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;" id="snapshotsCount">
+                Загрузка...
+            </div>
         </div>
 
         <div id="snapshotsList">
@@ -1102,10 +1082,44 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: ANALYTICS -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: LIVE (⚡)
+         ============================================================ -->
+    <div id="page-live" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">⚡ Live матчи</h2>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <span id="liveLastUpdate" style="font-size:10px;color:var(--text-tertiary);">—</span>
+                    <button class="btn btn-outline" onclick="loadLive(true)" style="padding:4px 10px;font-size:10px;">
+                        🔄
+                    </button>
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Матчи в ближайшие <b>2 часа</b> и <b>идущие сейчас</b> (до 30 мин после старта). Автообновление каждые <b>20 сек</b>.
+            </div>
+            <div id="liveStats" style="display:flex;gap:12px;margin-top:10px;font-size:11px;">
+                <span>🎯 <b id="liveCountAll">0</b> матчей</span>
+                <span style="color:var(--red-400);">⚽ LIVE: <b id="liveCountLive">0</b></span>
+                <span style="color:var(--gold-400);">⏳ Скоро: <b id="liveCountSoon">0</b></span>
+            </div>
+        </div>
+
+        <div id="liveList">
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================
+         PAGE: ANALYTICS
+         ============================================================ -->
     <div id="page-analytics" class="page">
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="value" id="aTotal">0</div>
@@ -1140,7 +1154,9 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>🎯 Сравнение стратегий</h2></div>
+            <div class="card-header">
+                <h2>🎯 Сравнение стратегий</h2>
+            </div>
             <div id="strategyBars">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -1149,7 +1165,9 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>💎 По типам ставок</h2></div>
+            <div class="card-header">
+                <h2>💎 По типам ставок</h2>
+            </div>
             <div id="betTypeBreakdown">
                 <div class="skeleton" style="width:70%"></div>
                 <div class="skeleton" style="width:50%"></div>
@@ -1157,7 +1175,9 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>🏆 По лигам</h2></div>
+            <div class="card-header">
+                <h2>🏆 По лигам</h2>
+            </div>
             <div id="leagueBreakdown">
                 <div class="skeleton" style="width:70%"></div>
                 <div class="skeleton" style="width:50%"></div>
@@ -1165,10 +1185,11 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: X2 -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: X2
+         ============================================================ -->
     <div id="page-x2" class="page">
+
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🔥 X2 Стратегия</h2>
@@ -1176,17 +1197,32 @@
                     <button class="btn" onclick="openX2Modal()" style="padding:5px 12px;font-size:11px;background:linear-gradient(135deg,#10b981,#059669);border:none;color:white;">
                         ➕ Добавить
                     </button>
-                    <button class="btn btn-outline" onclick="autoImportX2FromLogs()" style="padding:5px 10px;font-size:11px;">🔄 Импорт</button>
+                    <button class="btn btn-outline" onclick="autoImportX2FromLogs()" style="padding:5px 10px;font-size:11px;">
+                        🔄 Импорт
+                    </button>
                 </div>
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
                 Аутсайдер не проиграет (X2) — ставка на команду ниже в таблице
             </div>
+
             <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                <div class="stat-card"><div class="value" id="x2TotalFull">0</div><div class="label">Всего</div></div>
-                <div class="stat-card"><div class="value green" id="x2WinsFull">0</div><div class="label">WIN</div></div>
-                <div class="stat-card"><div class="value red" id="x2LossesFull">0</div><div class="label">LOSS</div></div>
-                <div class="stat-card"><div class="value gold" id="x2RoiFull">0%</div><div class="label">ROI</div></div>
+                <div class="stat-card">
+                    <div class="value" id="x2TotalFull">0</div>
+                    <div class="label">Всего</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="x2WinsFull">0</div>
+                    <div class="label">WIN</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value red" id="x2LossesFull">0</div>
+                    <div class="label">LOSS</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold" id="x2RoiFull">0%</div>
+                    <div class="label">ROI</div>
+                </div>
             </div>
         </div>
 
@@ -1194,15 +1230,19 @@
             <div class="card-header">
                 <h2>📋 Все X2 матчи</h2>
                 <div style="display:flex;gap:4px;">
-                    <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">📥 Excel</button>
+                    <button class="btn btn-outline" onclick="exportX2Excel()" style="padding:4px 10px;font-size:10px;">
+                        📥 Excel
+                    </button>
                 </div>
             </div>
+
             <div class="filter-group">
                 <button class="filter-btn active" data-x2filter="all" onclick="setX2Filter('all')">Все</button>
                 <button class="filter-btn" data-x2filter="win" onclick="setX2Filter('win')">✅ WIN</button>
                 <button class="filter-btn" data-x2filter="loss" onclick="setX2Filter('loss')">❌ LOSS</button>
                 <button class="filter-btn" data-x2filter="pending" onclick="setX2Filter('pending')">⏳ Ожидание</button>
             </div>
+
             <div id="x2List">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -1210,10 +1250,11 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: AUTOBETS -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: AUTOBETS
+         ============================================================ -->
     <div id="page-autobets" class="page">
+
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">💸 Автоставки</h2>
@@ -1225,21 +1266,44 @@
         </div>
 
         <div class="stats-grid" id="autobets-stats">
-            <div class="stat-card"><div class="value" id="ab-bank">$1000</div><div class="label">💰 БАНК</div></div>
-            <div class="stat-card"><div class="value gold" id="ab-profit">$0</div><div class="label">📈 ПРИБЫЛЬ</div></div>
-            <div class="stat-card"><div class="value emerald" id="ab-roi">0%</div><div class="label">💎 ROI</div></div>
-            <div class="stat-card"><div class="value green" id="ab-winrate">0%</div><div class="label">🎯 WINRATE</div></div>
+            <div class="stat-card">
+                <div class="value" id="ab-bank">$1000</div>
+                <div class="label">💰 БАНК</div>
+            </div>
+            <div class="stat-card">
+                <div class="value gold" id="ab-profit">$0</div>
+                <div class="label">📈 ПРИБЫЛЬ</div>
+            </div>
+            <div class="stat-card">
+                <div class="value emerald" id="ab-roi">0%</div>
+                <div class="label">💎 ROI</div>
+            </div>
+            <div class="stat-card">
+                <div class="value green" id="ab-winrate">0%</div>
+                <div class="label">🎯 WINRATE</div>
+            </div>
         </div>
 
         <div class="card emerald" style="margin-top: 0;">
             <div class="card-header">
                 <h2 class="emerald-title">📊 CLV (Closing Line Value)</h2>
-                <button class="btn btn-outline" onclick="computeClv()" style="padding:4px 10px;font-size:10px;">🔄 Пересчитать</button>
+                <button class="btn btn-outline" onclick="computeClv()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Пересчитать
+                </button>
             </div>
             <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0;">
-                <div class="stat-card"><div class="value emerald" id="clv-avg">+0.00%</div><div class="label">📊 СРЕДНИЙ CLV</div></div>
-                <div class="stat-card"><div class="value green" id="clv-positive">0%</div><div class="label">✅ > 0</div></div>
-                <div class="stat-card"><div class="value" id="clv-count">0</div><div class="label">📈 ЗАМЕРОВ</div></div>
+                <div class="stat-card">
+                    <div class="value emerald" id="clv-avg">+0.00%</div>
+                    <div class="label">📊 СРЕДНИЙ CLV</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="clv-positive">0%</div>
+                    <div class="label">✅ > 0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="clv-count">0</div>
+                    <div class="label">📈 ЗАМЕРОВ</div>
+                </div>
             </div>
             <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 8px;">
                 💡 CLV > 0 = вы ставите лучше закрытия линии → прибыль на длинной дистанции
@@ -1249,20 +1313,31 @@
         <div class="quick-actions">
             <button class="action-btn primary" onclick="autobetsPlace()">
                 <span class="action-icon">▶️</span>
-                <span class="action-text"><span class="action-label">Сделать ставки</span><span class="action-desc">Из кэша бота</span></span>
+                <span class="action-text">
+                    <span class="action-label">Сделать ставки</span>
+                    <span class="action-desc">Из кэша бота</span>
+                </span>
             </button>
             <button class="action-btn" onclick="autobetsSettle()">
                 <span class="action-icon">🔄</span>
-                <span class="action-text"><span class="action-label">Обновить</span><span class="action-desc">Результаты</span></span>
+                <span class="action-text">
+                    <span class="action-label">Обновить</span>
+                    <span class="action-desc">Результаты</span>
+                </span>
             </button>
             <button class="action-btn" onclick="autobetsReset()">
                 <span class="action-icon">🗑️</span>
-                <span class="action-text"><span class="action-label">Сброс</span><span class="action-desc">Все автоставки</span></span>
+                <span class="action-text">
+                    <span class="action-label">Сброс</span>
+                    <span class="action-desc">Все автоставки</span>
+                </span>
             </button>
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>📜 История автоставок</h2></div>
+            <div class="card-header">
+                <h2>📜 История автоставок</h2>
+            </div>
             <div id="autobets-history">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
@@ -1270,17 +1345,24 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: SIMULATOR -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: SIMULATOR
+         ============================================================ -->
     <div id="page-simulator" class="page">
+
         <div class="card emerald">
-            <div class="card-header"><h2 class="emerald-title">🧪 Симулятор стратегий</h2></div>
-            <div style="font-size:11px;color:var(--text-tertiary);">Проверьте, как работала бы стратегия на исторических данных</div>
+            <div class="card-header">
+                <h2 class="emerald-title">🧪 Симулятор стратегий</h2>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Проверьте, как работала бы стратегия на исторических данных
+            </div>
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>🎯 Пресеты</h2></div>
+            <div class="card-header">
+                <h2>🎯 Пресеты</h2>
+            </div>
             <div class="filter-group" id="sim-presets">
                 <div class="skeleton" style="width:100px;height:24px;"></div>
                 <div class="skeleton" style="width:100px;height:24px;"></div>
@@ -1288,7 +1370,9 @@
         </div>
 
         <div class="card">
-            <div class="card-header"><h2>⚙️ Параметры</h2></div>
+            <div class="card-header">
+                <h2>⚙️ Параметры</h2>
+            </div>
             <div class="param-row">
                 <label>Мин. EV: <span id="sim-min-ev-val">10</span>%</label>
                 <input type="range" id="sim-min-ev" min="-20" max="50" value="10" oninput="document.getElementById('sim-min-ev-val').textContent=this.value">
@@ -1323,41 +1407,76 @@
             </div>
         </div>
 
-        <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">🚀 Запустить симуляцию</button>
-        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">🎯 Найти лучшую стратегию (Grid Search)</button>
+        <button class="btn btn-primary" onclick="runSimulation()" style="width:100%;margin: 10px 0;padding: 14px;">
+            🚀 Запустить симуляцию
+        </button>
+
+        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">
+            🎯 Найти лучшую стратегию (Grid Search)
+        </button>
 
         <div id="sim-results" style="display:none;">
             <div class="card">
-                <div class="card-header"><h2>📊 Результаты</h2></div>
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="value gold" id="sim-profit">$0</div><div class="label">📈 ПРИБЫЛЬ</div></div>
-                    <div class="stat-card"><div class="value emerald" id="sim-roi">0%</div><div class="label">💎 ROI</div></div>
-                    <div class="stat-card"><div class="value green" id="sim-winrate">0%</div><div class="label">🎯 WINRATE</div></div>
-                    <div class="stat-card"><div class="value" id="sim-bets">0</div><div class="label">🎲 СТАВОК</div></div>
-                    <div class="stat-card"><div class="value red" id="sim-dd">0%</div><div class="label">📉 ПРОСАДКА</div></div>
-                    <div class="stat-card"><div class="value" id="sim-end">$0</div><div class="label">🏁 КОНЕЦ</div></div>
+                <div class="card-header">
+                    <h2>📊 Результаты</h2>
                 </div>
-                <div style="height: 250px; margin-top: 16px;"><canvas id="sim-chart"></canvas></div>
-                <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">💾 Сохранить стратегию</button>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="value gold" id="sim-profit">$0</div>
+                        <div class="label">📈 ПРИБЫЛЬ</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value emerald" id="sim-roi">0%</div>
+                        <div class="label">💎 ROI</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value green" id="sim-winrate">0%</div>
+                        <div class="label">🎯 WINRATE</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="sim-bets">0</div>
+                        <div class="label">🎲 СТАВОК</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value red" id="sim-dd">0%</div>
+                        <div class="label">📉 ПРОСАДКА</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="sim-end">$0</div>
+                        <div class="label">🏁 КОНЕЦ</div>
+                    </div>
+                </div>
+                <div style="height: 250px; margin-top: 16px;">
+                    <canvas id="sim-chart"></canvas>
+                </div>
+                <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">
+                    💾 Сохранить стратегию
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PAGE: SETTINGS -->
-    <!-- ============================================================ -->
+    <!-- ============================================================
+         PAGE: SETTINGS
+         ============================================================ -->
     <div id="page-settings" class="page">
+
         <div class="card">
             <div class="card-header">
                 <h2>⚙️ Настройки</h2>
-                <button class="btn btn-outline" onclick="closeSettings()" style="padding:4px 10px;font-size:10px;">← Назад</button>
+                <button class="btn btn-outline" onclick="closeSettings()" style="padding:4px 10px;font-size:10px;">
+                    ← Назад
+                </button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>💰 Банк</h2>
             <div class="setting-item">
-                <div><div class="label">Текущий банк</div><div class="desc">Ваш игровой банк</div></div>
+                <div>
+                    <div class="label">Текущий банк</div>
+                    <div class="desc">Ваш игровой банк</div>
+                </div>
                 <div class="input-group">
                     <input type="number" id="bankInput" value="1000" step="10">
                     <button class="btn btn-primary" onclick="updateBank()" style="padding:6px 12px;font-size:11px;">OK</button>
@@ -1368,7 +1487,10 @@
         <div class="setting-group">
             <h2>🎨 Тема</h2>
             <div class="setting-item">
-                <div><div class="label">Тема оформления</div><div class="desc">Тёмная / Светлая / Авто</div></div>
+                <div>
+                    <div class="label">Тема оформления</div>
+                    <div class="desc">Тёмная / Светлая / Авто</div>
+                </div>
                 <div class="input-group">
                     <select id="themeSelect" onchange="setTheme(this.value)" style="padding:6px 10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;font-size:11px;">
                         <option value="dark">🌙 Тёмная</option>
@@ -1382,40 +1504,80 @@
         <div class="setting-group">
             <h2>🤖 Настройки бота</h2>
             <div class="setting-item">
-                <div><div class="label">EV_MIN_70</div><div class="desc">Минимальный EV для 70%+</div></div>
-                <div class="input-group"><input type="number" id="settingEvMin" value="8"></div>
+                <div>
+                    <div class="label">EV_MIN_70</div>
+                    <div class="desc">Минимальный EV для 70%+</div>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="settingEvMin" value="8">
+                </div>
             </div>
             <div class="setting-item">
-                <div><div class="label">PROB_MIN_70</div><div class="desc">Минимальная вероятность</div></div>
-                <div class="input-group"><input type="number" id="settingProbMin" value="52"></div>
+                <div>
+                    <div class="label">PROB_MIN_70</div>
+                    <div class="desc">Минимальная вероятность</div>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="settingProbMin" value="52">
+                </div>
             </div>
             <div class="setting-item">
-                <div><div class="label">MAX_TM25_BETS</div><div class="desc">Лимит ТМ 2.5 ставок</div></div>
-                <div class="input-group"><input type="number" id="settingMaxTm25" value="5"></div>
+                <div>
+                    <div class="label">MAX_TM25_BETS</div>
+                    <div class="desc">Лимит ТМ 2.5 ставок</div>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="settingMaxTm25" value="5">
+                </div>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div><div class="label">Применить</div><div class="desc">Сохранить настройки на сервере</div></div>
-                <button class="btn btn-primary" onclick="applyBotSettings()" style="padding:6px 12px;font-size:11px;">💾 Сохранить</button>
+                <div>
+                    <div class="label">Применить</div>
+                    <div class="desc">Сохранить настройки на сервере</div>
+                </div>
+                <button class="btn btn-primary" onclick="applyBotSettings()" style="padding:6px 12px;font-size:11px;">
+                    💾 Сохранить
+                </button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>💾 Данные</h2>
             <div class="setting-item">
-                <div><div class="label">Экспорт в Excel</div><div class="desc">Скачать всю историю</div></div>
-                <button class="btn btn-primary" onclick="window.location.href='/export'" style="padding:6px 12px;font-size:11px;">📥 Excel</button>
+                <div>
+                    <div class="label">Экспорт в Excel</div>
+                    <div class="desc">Скачать всю историю</div>
+                </div>
+                <button class="btn btn-primary" onclick="window.location.href='/export'" style="padding:6px 12px;font-size:11px;">
+                    📥 Excel
+                </button>
             </div>
             <div class="setting-item">
-                <div><div class="label">Экспорт в CSV</div><div class="desc">Для Google Sheets / Numbers</div></div>
-                <button class="btn btn-outline" onclick="exportCSV()" style="padding:6px 12px;font-size:11px;">📄 CSV</button>
+                <div>
+                    <div class="label">Экспорт в CSV</div>
+                    <div class="desc">Для Google Sheets / Numbers</div>
+                </div>
+                <button class="btn btn-outline" onclick="exportCSV()" style="padding:6px 12px;font-size:11px;">
+                    📄 CSV
+                </button>
             </div>
             <div class="setting-item">
-                <div><div class="label">Бэкап проекта</div><div class="desc">Скачать JSON со всеми данными</div></div>
-                <button class="btn btn-gold" onclick="exportProject()" style="padding:6px 12px;font-size:11px;">💾 Сохранить</button>
+                <div>
+                    <div class="label">Бэкап проекта</div>
+                    <div class="desc">Скачать JSON со всеми данными</div>
+                </div>
+                <button class="btn btn-gold" onclick="exportProject()" style="padding:6px 12px;font-size:11px;">
+                    💾 Сохранить
+                </button>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div><div class="label">Восстановить из бэкапа</div><div class="desc">Загрузить JSON-файл</div></div>
-                <label class="btn btn-outline" for="projectFileInput" style="padding:6px 12px;font-size:11px;cursor:pointer;">📂 Загрузить</label>
+                <div>
+                    <div class="label">Восстановить из бэкапа</div>
+                    <div class="desc">Загрузить JSON-файл</div>
+                </div>
+                <label class="btn btn-outline" for="projectFileInput" style="padding:6px 12px;font-size:11px;cursor:pointer;">
+                    📂 Загрузить
+                </label>
                 <input type="file" id="projectFileInput" accept=".json" style="display:none" onchange="importProject(event)">
             </div>
         </div>
@@ -1423,19 +1585,30 @@
         <div class="setting-group">
             <h2>🔥 X2 Стратегия</h2>
             <div class="setting-item">
-                <div><div class="label">Всего X2 матчей</div><div class="desc">В локальной таблице</div></div>
+                <div>
+                    <div class="label">Всего X2 матчей</div>
+                    <div class="desc">В локальной таблице</div>
+                </div>
                 <span style="color:var(--emerald-400);font-weight:700;" id="x2CountSettings">0</span>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div><div class="label">Очистить все X2</div><div class="desc">Удалить все X2 данные</div></div>
-                <button class="btn btn-danger" onclick="clearAllX2()" style="padding:6px 12px;font-size:11px;">🗑️ Очистить</button>
+                <div>
+                    <div class="label">Очистить все X2</div>
+                    <div class="desc">Удалить все X2 данные</div>
+                </div>
+                <button class="btn btn-danger" onclick="clearAllX2()" style="padding:6px 12px;font-size:11px;">
+                    🗑️ Очистить
+                </button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>📸 Снимки кэфов</h2>
             <div class="setting-item">
-                <div><div class="label">Всего снимков</div><div class="desc">В базе данных</div></div>
+                <div>
+                    <div class="label">Всего снимков</div>
+                    <div class="desc">В базе данных</div>
+                </div>
                 <span style="color:var(--emerald-400);font-weight:700;" id="snapshotCountSettings">0</span>
             </div>
         </div>
@@ -1443,219 +1616,125 @@
         <div class="setting-group">
             <h2>📱 Приложение</h2>
             <div class="setting-item">
-                <div><div class="label">Установить приложение</div><div class="desc">Добавить на главный экран</div></div>
-                <button class="btn btn-primary" onclick="installPWA()" style="padding:6px 12px;font-size:11px;">📲 Установить</button>
+                <div>
+                    <div class="label">Установить приложение</div>
+                    <div class="desc">Добавить на главный экран</div>
+                </div>
+                <button class="btn btn-primary" onclick="installPWA()" style="padding:6px 12px;font-size:11px;">
+                    📲 Установить
+                </button>
             </div>
             <div class="setting-item" style="border-bottom:none;">
-                <div><div class="label">Проверить обновления</div><div class="desc">Обновить приложение</div></div>
-                <button class="btn btn-outline" onclick="checkForUpdates()" style="padding:6px 12px;font-size:11px;">🔄 Проверить</button>
+                <div>
+                    <div class="label">Проверить обновления</div>
+                    <div class="desc">Обновить приложение</div>
+                </div>
+                <button class="btn btn-outline" onclick="checkForUpdates()" style="padding:6px 12px;font-size:11px;">
+                    🔄 Проверить
+                </button>
             </div>
         </div>
 
         <div class="setting-group">
             <h2>ℹ️ О приложении</h2>
             <div class="setting-item" style="border-bottom:none;">
-                <div><div class="label">Quantum Bet Tracker</div><div class="desc">v21 Emerald • X2 Time + Source + CLV + Grid Search</div></div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v21.0</span>
+                <div>
+                    <div class="label">Quantum Bet Tracker</div>
+                    <div class="desc">v21 Emerald • Live + X2 + CLV + Grid Search</div>
+                </div>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v21.1</span>
             </div>
         </div>
     </div>
 
-    <div class="footer">💎 Quantum Tracker v21 Emerald © 2026</div>
+    <div class="footer">
+        💎 Quantum Tracker v21.1 Emerald © 2026
+    </div>
 </div>
 
-<!-- BOTTOM NAV -->
+<!-- ============================================================
+     BOTTOM NAV (⚡ Live вместо 📈 Аналитика)
+     ============================================================ -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
-        <span class="icon">📊</span><span class="label">Главная</span>
+        <span class="icon">📊</span>
+        <span class="label">Главная</span>
     </button>
     <button class="nav-item" data-page="matches" onclick="switchPage('matches')">
-        <span class="icon">🎯</span><span class="label">Матчи</span>
+        <span class="icon">🎯</span>
+        <span class="label">Матчи</span>
     </button>
     <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
-        <span class="icon">📸</span><span class="label">Снимки</span>
+        <span class="icon">📸</span>
+        <span class="label">Снимки</span>
     </button>
-    <button class="nav-item" data-page="analytics" onclick="switchPage('analytics')">
-        <span class="icon">📈</span><span class="label">Аналитика</span>
+    <button class="nav-item" data-page="live" onclick="switchPage('live')">
+        <span class="icon">⚡</span>
+        <span class="label">Live</span>
+        <span class="nav-badge" id="liveNavBadge" style="display:none;">0</span>
     </button>
     <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
-        <span class="icon">🔥</span><span class="label">X2</span>
+        <span class="icon">🔥</span>
+        <span class="label">X2</span>
     </button>
     <button class="nav-item" onclick="toggleMoreMenu()">
-        <span class="icon">⋯</span><span class="label">Ещё</span>
+        <span class="icon">⋯</span>
+        <span class="label">Ещё</span>
     </button>
 </nav>
 
-<!-- BOTTOM SHEET -->
+<!-- ============================================================
+     BOTTOM SHEET "ЕЩЁ" (📈 Аналитика теперь здесь)
+     ============================================================ -->
 <div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
     <div class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-title">Меню</div>
+
+        <button class="sheet-item" onclick="openFromMore('analytics')">
+            <span class="sheet-icon">📈</span>
+            <div>
+                <div class="sheet-label">Аналитика</div>
+                <div class="sheet-desc">Графики, стратегии, типы ставок</div>
+            </div>
+        </button>
+
         <button class="sheet-item" onclick="openFromMore('autobets')">
             <span class="sheet-icon">💸</span>
-            <div><div class="sheet-label">Автоставки</div><div class="sheet-desc">Виртуальный банк с реальными кэфами</div></div>
+            <div>
+                <div class="sheet-label">Автоставки</div>
+                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
+            </div>
         </button>
+
         <button class="sheet-item" onclick="openFromMore('simulator')">
             <span class="sheet-icon">🧪</span>
-            <div><div class="sheet-label">Симулятор стратегий</div><div class="sheet-desc">Проверка стратегий + Grid Search</div></div>
+            <div>
+                <div class="sheet-label">Симулятор стратегий</div>
+                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
+            </div>
         </button>
+
         <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
             <span class="sheet-icon">⚙️</span>
-            <div><div class="sheet-label">Настройки</div><div class="sheet-desc">Банк, тема, экспорт, бэкап</div></div>
+            <div>
+                <div class="sheet-label">Настройки</div>
+                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
+            </div>
         </button>
+
         <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
             <span class="sheet-icon">📲</span>
-            <div><div class="sheet-label">Установить приложение</div><div class="sheet-desc">Добавить на главный экран</div></div>
+            <div>
+                <div class="sheet-label">Установить приложение</div>
+                <div class="sheet-desc">Добавить на главный экран</div>
+            </div>
         </button>
     </div>
 </div>
 
-<!-- MODAL: ADD MATCH -->
-<div class="modal-overlay" id="addMatchModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>➕ Добавить матч</h3>
-            <button class="modal-close" onclick="hideAddMatchModal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <label>🏟️ Название матча</label>
-            <input type="text" id="matchNameInput" placeholder="Real Madrid vs Barcelona">
-        </div>
-        <div class="modal-field">
-            <label>⚽ Счёт</label>
-            <input type="text" id="matchScoreInput" placeholder="2-1">
-        </div>
-        <div class="modal-field">
-            <label>📊 Ставка</label>
-            <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div><label>💰 Коэф</label><input type="number" id="matchOddsInput" value="1.85" step="0.01"></div>
-                <div><label>💵 Сумма</label><input type="number" id="matchStakeInput" value="42.87" step="0.01"></div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>📊 Результат</label>
-            <select id="matchResultSelect">
-                <option value="win">✅ WIN</option>
-                <option value="loss">❌ LOSS</option>
-                <option value="push">🔄 PUSH</option>
-                <option value="pending">⏳ PENDING</option>
-            </select>
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
-            <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: X2 MATCH -->
-<div class="modal-overlay" id="x2Modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="x2ModalTitle">➕ X2 Матч</h3>
-            <button class="modal-close" onclick="closeX2Modal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div><label>📅 Дата</label><input type="date" id="x2Date"></div>
-                <div><label>🕐 Время (МСК)</label><input type="time" id="x2Time" placeholder="21:45"></div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>🏟️ Матч</label>
-            <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div><label>🏆 Фаворит</label><input type="text" id="x2Favorite"></div>
-                <div><label>📉 Аутсайдер</label><input type="text" id="x2Underdog"></div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div><label>📊 Кэф X2</label><input type="number" id="x2Odds" step="0.01"></div>
-                <div><label>💰 Сумма</label><input type="number" id="x2Stake" step="0.5"></div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div><label>⚽ Счёт</label><input type="text" id="x2Score" placeholder="0:0"></div>
-                <div>
-                    <label>📊 Результат</label>
-                    <select id="x2Result">
-                        <option value="pending">⏳ PENDING</option>
-                        <option value="win">✅ WIN</option>
-                        <option value="loss">❌ LOSS</option>
-                        <option value="push">🔄 PUSH</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>📝 Примечание</label>
-            <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
-            <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: IMPORT X2 -->
-<div class="modal-overlay" id="x2ImportModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>📤 Импорт X2</h3>
-            <button class="modal-close" onclick="closeX2ImportModal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <label>📁 Excel файл</label>
-            <input type="file" id="x2ImportFile" accept=".xlsx,.xls,.csv" style="padding:8px;">
-        </div>
-        <div style="font-size:10px;color:var(--text-tertiary);padding:8px 0;">
-            📋 Формат: Дата | Время | Матч | Фаворит | Аутсайдер | Кэф | Сумма | Счёт | Результат | Примечание
-        </div>
-        <div id="x2ImportStatus" style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;"></div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="importX2Excel()">📤 Импортировать</button>
-            <button class="btn btn-outline" onclick="closeX2ImportModal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: MATCH DETAIL -->
-<div class="modal-overlay" id="matchDetailModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="matchDetailTitle">Детали матча</h3>
-            <button class="modal-close" onclick="closeMatchDetail()">✕</button>
-        </div>
-        <div id="matchDetailBody"></div>
-    </div>
-</div>
-
-<!-- MODAL: SNAPSHOT CHART -->
-<div class="modal-overlay" id="snapshotChartModal">
-    <div class="modal modal-large">
-        <div class="modal-header">
-            <h3 id="snapshotChartTitle">📈 Движение кэфов</h3>
-            <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
-        </div>
-        <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
-        <div class="chart-modal-container"><canvas id="snapshotChart"></canvas></div>
-        <div id="snapshotChartStats"></div>
-    </div>
-</div>
-
-<!-- TOAST -->
-<div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
-
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3                                              -->
+<!-- КОНЕЦ ЧАСТИ 2/3 — ПРОДОЛЖЕНИЕ В ЧАСТИ 3/3 (JS)               -->
 <!-- ============================================================ -->
 
 
@@ -1672,6 +1751,7 @@ const KEEPALIVE_MS = 180000;
 const AUTO_IMPORT_MS = 180000;
 const ITEMS_LIMIT = 50;
 const SWIPE_THRESHOLD = 100;
+const LIVE_REFRESH_MS = 20000;   // ★ автообновление Live
 
 // ============================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -1685,8 +1765,8 @@ let currentSimResult = null;
 let currentPage = 'dashboard';
 let previousPage = 'dashboard';
 let isLoading = false;
-let x2Data = [];            // ручные X2 (localStorage)
-let autoX2Data = [];        // ★ авто X2 (API /api/x2_auto)
+let x2Data = [];
+let autoX2Data = [];
 let editingX2Index = null;
 let matchesSearchQuery = '';
 let matchesFilter = 'all';
@@ -1695,6 +1775,8 @@ let viewMode = 'cards';
 let keepAliveInterval = null;
 let autoImportInterval = null;
 let autoRefreshInterval = null;
+let liveRefreshInterval = null;   // ★ для Live
+let liveData = [];                // ★ массив Live-матчей
 let deferredPrompt = null;
 let refreshTimeout = null;
 let showAllItems = false;
@@ -1712,9 +1794,7 @@ let currentSnapshotFixture = null;
 // ХАПТИК
 // ============================================================
 function haptic(ms = 10) {
-    if (navigator.vibrate) {
-        try { navigator.vibrate(ms); } catch (e) {}
-    }
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
 }
 
 // ============================================================
@@ -1862,7 +1942,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings') {
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -1884,9 +1964,19 @@ function switchPage(page) {
     currentPage = page;
     haptic(6);
 
+    // ★ Останавливаем Live polling при переходе с него
+    if (page !== 'live' && liveRefreshInterval) {
+        clearInterval(liveRefreshInterval);
+        liveRefreshInterval = null;
+    }
+
     if (page === 'dashboard') loadPageData('dashboard');
     else if (page === 'matches') loadPageData('matches');
     else if (page === 'analytics') loadPageData('analytics');
+    else if (page === 'live') {
+        loadLive();
+        startLiveRefresh();   // ★ запускаем автообновление
+    }
     else if (page === 'x2') renderX2Page();
     else if (page === 'snapshots') loadSnapshots();
     else if (page === 'autobets') loadAutobets();
@@ -1947,7 +2037,7 @@ function openFromMore(page) {
 (function initSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
-    const pages = ['dashboard', 'matches', 'snapshots', 'analytics', 'x2'];
+    const pages = ['dashboard', 'matches', 'snapshots', 'live', 'x2'];
     document.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
@@ -1956,8 +2046,8 @@ function openFromMore(page) {
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
-        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator') return;
+        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2012,6 +2102,7 @@ function refreshData() {
         if (currentPage === 'snapshots') loadSnapshots();
         if (currentPage === 'autobets') loadAutobets();
         if (currentPage === 'x2') renderX2Page();
+        if (currentPage === 'live') loadLive();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -2022,6 +2113,232 @@ function updateLastUpdate() {
         el.textContent = 'Обновлено ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     }
 }
+
+// ============================================================
+// ★ LIVE-СТРАНИЦА
+// ============================================================
+async function loadLive(force = false) {
+    const container = document.getElementById('liveList');
+    if (!container) return;
+
+    // Скелетоны только при первой загрузке
+    if (liveData.length === 0) {
+        container.innerHTML = `
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+        `;
+    }
+
+    try {
+        const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        if (data.status !== 'ok') {
+            throw new Error(data.error || 'API error');
+        }
+
+        liveData = data.matches || [];
+        renderLive();
+        updateLiveLastUpdate();
+        updateLiveNavBadge();
+
+        if (force) showNotification('✅ Live обновлён', 'success');
+    } catch (e) {
+        console.error('loadLive error:', e);
+        if (liveData.length === 0) {
+            container.innerHTML = `
+                <div class="no-data">
+                    <div class="emoji">📭</div>
+                    <div class="title">Ошибка загрузки</div>
+                    <div class="desc">${e.message}</div>
+                    <button class="btn btn-primary" onclick="loadLive(true)" style="margin-top:12px;">🔄 Повторить</button>
+                </div>
+            `;
+        }
+    }
+}
+
+function updateLiveLastUpdate() {
+    const el = document.getElementById('liveLastUpdate');
+    if (el) {
+        const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        el.textContent = '🕐 ' + time;
+    }
+}
+
+function updateLiveNavBadge() {
+    const badge = document.getElementById('liveNavBadge');
+    if (!badge) return;
+    const liveCount = liveData.filter(m => m.is_live).length;
+    if (liveCount > 0) {
+        badge.textContent = liveCount;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function renderLive() {
+    const container = document.getElementById('liveList');
+    if (!container) return;
+
+    // Статистика
+    const total = liveData.length;
+    const liveCount = liveData.filter(m => m.is_live).length;
+    const soonCount = liveData.filter(m => !m.is_live && !m.is_final).length;
+
+    const elAll = document.getElementById('liveCountAll');
+    const elLive = document.getElementById('liveCountLive');
+    const elSoon = document.getElementById('liveCountSoon');
+    if (elAll) elAll.textContent = total;
+    if (elLive) elLive.textContent = liveCount;
+    if (elSoon) elSoon.textContent = soonCount;
+
+    if (total === 0) {
+        container.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Нет активных матчей</div>
+                <div class="desc">Матчи в ближайшие 2 часа появятся здесь</div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = liveData.map(m => renderLiveCard(m)).join('');
+}
+
+function renderLiveCard(m) {
+    const isLive = m.is_live;
+    const isFinal = m.is_final;
+    const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
+
+    // Время
+    const minutes = m.minutes_to_match;
+    let timeInfo = '';
+    if (isLive) {
+        timeInfo = '';
+    } else if (isFinal) {
+        timeInfo = `<span style="color:var(--emerald-400);">Завершён</span>`;
+    } else if (minutes >= 0) {
+        if (minutes < 60) {
+            timeInfo = `через <b>${Math.round(minutes)} мин</b>`;
+        } else {
+            const h = Math.floor(minutes / 60);
+            const mn = Math.round(minutes % 60);
+            timeInfo = `через <b>${h}ч ${mn}м</b>`;
+        }
+    } else {
+        timeInfo = `начался ${Math.round(-minutes)} мин назад`;
+    }
+
+    // Статус badge
+    let statusBadge = '';
+    if (isLive) {
+        statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
+    } else if (isFinal) {
+        statusBadge = `<span class="live-badge-final">✅ Завершён</span>`;
+    } else {
+        statusBadge = `<span class="live-badge-soon">⏳ Скоро</span>`;
+    }
+
+    // Best bet
+    const bb = m.best_bet || {};
+    const betLabel = bb.label || '—';
+    const betOdds = bb.odds ? bb.odds.toFixed(2) : '—';
+    const betEv = bb.ev ? (bb.ev >= 0 ? '+' : '') + bb.ev.toFixed(1) + '%' : '—';
+    const betProb = bb.prob ? bb.prob.toFixed(0) + '%' : '—';
+
+    // Тренд
+    const trend = m.odds_trend || 0;
+    const trendEmoji = trend > 1 ? '📈' : trend < -1 ? '📉' : '';
+    const trendStr = trend !== 0 ? ` (${trend > 0 ? '+' : ''}${trend.toFixed(1)}%)` : '';
+
+    // Страна + флаг
+    const countryHtml = m.country
+        ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
+        : '';
+
+    // Live-счёт
+    let scoreHtml = '';
+    if ((isLive || isFinal) && m.score) {
+        const minuteStr = isLive && m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
+        scoreHtml = `
+            <div style="display:flex;align-items:center;gap:8px;margin:6px 0 0;">
+                <span class="live-score">${escapeHtml(m.score)}</span>
+                ${minuteStr}
+            </div>
+        `;
+    }
+
+    return `
+        <div class="live-card ${cls}">
+            <div class="bet-header">
+                <div style="flex:1;min-width:0;">
+                    <div class="bet-match">${escapeHtml(m.home)} vs ${escapeHtml(m.away)}</div>
+                    <div class="bet-league">🏆 ${escapeHtml(m.league)}${countryHtml}</div>
+                    <div class="bet-time">
+                        📅 ${escapeHtml(m.match_time)} ${timeInfo ? '• ' + timeInfo : ''}
+                    </div>
+                    ${scoreHtml}
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                    ${statusBadge}
+                </div>
+            </div>
+            <div class="bet-stats" style="margin-top:10px;">
+                <div class="bet-stat">
+                    <span class="stat-label">Ставка</span>
+                    <span class="stat-value">${escapeHtml(betLabel)}</span>
+                </div>
+                <div class="bet-stat">
+                    <span class="stat-label">Кэф</span>
+                    <span class="stat-value">${betOdds}${trendEmoji}${trendStr}</span>
+                </div>
+                <div class="bet-stat">
+                    <span class="stat-label">Prob / EV</span>
+                    <span class="stat-value gold">${betProb} · ${betEv}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function startLiveRefresh() {
+    if (liveRefreshInterval) clearInterval(liveRefreshInterval);
+    // ★ Обновляем ТОЛЬКО когда страница Live активна и браузер виден
+    liveRefreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible' && currentPage === 'live') {
+            loadLive();
+        }
+    }, LIVE_REFRESH_MS);
+}
+
+// Периодическое обновление badge даже на других страницах (каждые 2 мин)
+setInterval(async () => {
+    if (document.visibilityState === 'visible' && currentPage !== 'live') {
+        try {
+            const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.status === 'ok') {
+                    const liveCount = (data.matches || []).filter(m => m.is_live).length;
+                    const badge = document.getElementById('liveNavBadge');
+                    if (badge) {
+                        if (liveCount > 0) {
+                            badge.textContent = liveCount;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+}, 120000);
 
 // ============================================================
 // DASHBOARD
@@ -2272,7 +2589,6 @@ function initCardSwipes() {
             if (Math.abs(dx) < 10) return;
             isSwiping = true;
             currentX = dx;
-
             if (dx > 0) {
                 card.classList.add('swipe-left');
                 card.classList.remove('swipe-right');
@@ -2846,26 +3162,43 @@ function renderSnapshotChart(history) {
         } catch { return '?'; }
     });
 
+    const datasets = [
+        { label: '1X', data: history.map(h => h.odds['1'] || null),
+          borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)',
+          tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
+        { label: 'X', data: history.map(h => h.odds['X'] || null),
+          borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.08)',
+          tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
+        { label: '2', data: history.map(h => h.odds['2'] || null),
+          borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.08)',
+          tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true }
+    ];
+
+    // ★ Добавляем DC линии если есть данные
+    const has1X = history.some(h => h.odds['1X'] > 0);
+    const hasX2 = history.some(h => h.odds['X2'] > 0);
+    if (has1X) {
+        datasets.push({
+            label: 'DC 1X', data: history.map(h => h.odds['1X'] || null),
+            borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.05)',
+            borderDash: [5, 3], tension: 0.3, pointRadius: 2, pointHoverRadius: 5, spanGaps: true
+        });
+    }
+    if (hasX2) {
+        datasets.push({
+            label: 'DC X2', data: history.map(h => h.odds['X2'] || null),
+            borderColor: '#60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.05)',
+            borderDash: [5, 3], tension: 0.3, pointRadius: 2, pointHoverRadius: 5, spanGaps: true
+        });
+    }
+
     snapshotChartInstance = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                { label: '1X (хозяева)', data: history.map(h => h.odds['1'] || null),
-                  borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
-                { label: 'X (ничья)', data: history.map(h => h.odds['X'] || null),
-                  borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.08)',
-                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
-                { label: '2 (гости)', data: history.map(h => h.odds['2'] || null),
-                  borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.08)',
-                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true }
-            ]
-        },
+        data: { labels: labels, datasets: datasets },
         options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { labels: { color: textColor, font: { size: 11 } } } },
+            plugins: { legend: { labels: { color: textColor, font: { size: 10 } } } },
             scales: {
                 x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
                 y: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } }
@@ -2879,7 +3212,7 @@ function renderSnapshotStats(history) {
     if (!statsEl || !history || history.length === 0) return;
 
     const stats = {};
-    ['1', 'X', '2'].forEach(sel => {
+    ['1', 'X', '2', '1X', 'X2'].forEach(sel => {
         const values = history.map(h => h.odds[sel]).filter(v => v > 0);
         if (values.length === 0) return;
         stats[sel] = {
@@ -2889,15 +3222,17 @@ function renderSnapshotStats(history) {
         };
     });
 
-    const rows = ['1', 'X', '2'].map(sel => {
+    const rows = ['1', 'X', '2', '1X', 'X2'].map(sel => {
         if (!stats[sel]) return '';
         const s = stats[sel];
         const selLabel = sel === '1' ? '1X' : sel;
         const pctClass = s.pct > 0.5 ? 'up' : s.pct < -0.5 ? 'down' : 'flat';
         const pctStr = s.pct !== 0 ? (s.pct > 0 ? '+' : '') + s.pct.toFixed(1) + '%' : '=';
+        const isDC = sel === '1X' || sel === 'X2';
+        const color = isDC ? 'var(--blue-400)' : 'var(--emerald-400)';
         return `
             <div style="display:grid;grid-template-columns:60px 1fr 1fr 1fr 80px;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-color);font-size:12px;align-items:center;">
-                <strong style="color:var(--emerald-400);">${selLabel}</strong>
+                <strong style="color:${color};">${selLabel}</strong>
                 <span style="color:var(--text-tertiary);">Старт: <strong style="color:var(--text-primary);">${s.first.toFixed(2)}</strong></span>
                 <span style="color:var(--text-tertiary);">Макс: <strong style="color:var(--gold-400);">${s.max.toFixed(2)}</strong></span>
                 <span style="color:var(--text-tertiary);">Мин: <strong style="color:var(--red-400);">${s.min.toFixed(2)}</strong></span>
@@ -3082,7 +3417,7 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ X2 PAGE — авто (API) + ручные (localStorage)
+// X2 PAGE
 // ============================================================
 async function loadAutoX2() {
     try {
@@ -3098,8 +3433,8 @@ async function loadAutoX2() {
 }
 
 async function renderX2Page() {
-    loadX2Data();           // ручные из localStorage
-    await loadAutoX2();     // авто из API
+    loadX2Data();
+    await loadAutoX2();
 
     const stats = calcX2Stats();
     document.getElementById('x2TotalFull').textContent = stats.total;
@@ -3113,7 +3448,6 @@ function renderX2List() {
     const container = document.getElementById('x2List');
     if (!container) return;
 
-    // ── Авто ──
     const autoItems = (autoX2Data || []).map(c => ({
         _source: 'auto',
         _id: c.id,
@@ -3126,7 +3460,7 @@ function renderX2List() {
         country: c.country,
         country_flag: c.country_flag,
         side: c.x2_side || 'X2',
-        odds: c.current_odds || 0,
+        odds: c.current_odds || c.entry_odds || 0,
         prob: c.x2_prob || 0,
         ev: c.x2_ev || 0,
         trend: c.odds_trend || 0,
@@ -3136,7 +3470,6 @@ function renderX2List() {
                 ? `${c.home_goals}:${c.away_goals}` : '-',
     }));
 
-    // ── Ручные ──
     const manualItems = (x2Data || []).map(m => ({
         _source: 'manual',
         _id: m.id,
@@ -3245,13 +3578,11 @@ function renderX2List() {
 }
 
 function openX2Detail(source, id) {
-    // Ручные → модалка редактирования
     if (source === 'manual') {
         const item = x2Data.find(m => m.id === id);
         if (item) openX2Modal(item);
         return;
     }
-    // Авто → инфо-уведомление
     const item = autoX2Data.find(c => c.id === id);
     if (!item) return;
     showNotification(
@@ -3421,7 +3752,7 @@ function clearAllX2() {
 }
 
 // ============================================================
-// AUTO-IMPORT X2 (из логов)
+// AUTO-IMPORT X2
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
@@ -3559,12 +3890,11 @@ function importX2Excel() {
 }
 
 function exportX2Excel() {
-    // Объединяем авто + ручные для экспорта
     const autoItems = (autoX2Data || []).map(c => ({
         date: (c.match_time || '').split(' ')[0],
         time: (c.match_time || '').split(' ')[1] || '',
         match: c.match, favorite: c.favorite, underdog: c.underdog,
-        odds: c.current_odds || 0, stake: 20,
+        odds: c.current_odds || c.entry_odds || 0, stake: 20,
         score: (c.home_goals != null && c.away_goals != null) ? `${c.home_goals}:${c.away_goals}` : '-',
         result: c.result || 'pending',
         profit: c.profit || 0,
@@ -3742,9 +4072,6 @@ async function autobetsReset() {
     }
 }
 
-// ============================================================
-// CLV
-// ============================================================
 async function computeClv() {
     showNotification('📊 Пересчитываю CLV...', '');
     try {
@@ -3761,11 +4088,9 @@ async function loadClvStats() {
     try {
         const stats = await fetch(API_BASE + '/api/autobets/clv/stats?t=' + Date.now()).then(r => r.json());
         if (stats.status !== 'ok') return;
-
         const avgEl = document.getElementById('clv-avg');
         const posEl = document.getElementById('clv-positive');
         const cntEl = document.getElementById('clv-count');
-
         if (avgEl) {
             avgEl.textContent = (stats.avg_clv >= 0 ? '+' : '') + stats.avg_clv.toFixed(2) + '%';
             avgEl.style.color = stats.avg_clv >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
@@ -3907,9 +4232,6 @@ async function saveSimulation() {
     }
 }
 
-// ============================================================
-// GRID SEARCH
-// ============================================================
 async function runGridSearch() {
     if (!confirm('🎯 Запустить Grid Search?\n\nЭто переберёт ~200 комбинаций параметров. Займёт 30-60 сек.')) return;
 
@@ -4093,7 +4415,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '21.0',
+        version: '21.1',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -4389,13 +4711,28 @@ window.addEventListener('load', async () => {
     viewMode = localStorage.getItem('viewMode') || 'cards';
     setViewMode(viewMode);
     await loadPageData('dashboard');
-    // Предзагружаем авто-X2 в фоне
     loadAutoX2();
     startKeepAlive();
     startAutoRefresh();
     autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
     setTimeout(autoImportX2FromLogs, 5000);
     registerPWA();
+
+    // Первичная загрузка badge на кнопке Live
+    try {
+        const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                const liveCount = (data.matches || []).filter(m => m.is_live).length;
+                const badge = document.getElementById('liveNavBadge');
+                if (badge && liveCount > 0) {
+                    badge.textContent = liveCount;
+                    badge.style.display = 'flex';
+                }
+            }
+        }
+    } catch (e) {}
 });
 
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
@@ -4430,6 +4767,8 @@ Object.assign(window, {
     computeClv, loadClvStats, runGridSearch, renderGridTop5,
     loadDashboardAutobets, getSourceBadge,
     loadAutoX2, openX2Detail,
+    // ★ Live
+    loadLive, renderLive, startLiveRefresh,
 });
 </script>
 </body>
