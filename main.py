@@ -3079,10 +3079,13 @@ def schedule_updates():
 # ★ ОБНОВЛЕНИЕ X2-РЕЗУЛЬТАТОВ
 # ============================================================
 def update_x2_results():
-    """Обновляет X2-кандидатов после завершения матчей."""
+    """Обновляет X2-кандидатов после завершения матчей.
+    ★ Fallback: если API залип на NS, но матч был >2.5ч назад — закрываем по времени."""
     try:
         candidates = storage.get_x2_candidates(limit=200)
         updated = 0
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+
         for c in candidates:
             if c.get('result') in ('win', 'loss', 'push'):
                 continue
@@ -3094,22 +3097,40 @@ def update_x2_results():
             md = football_api.get_match_result(fid)
             if not md:
                 continue
-            if not md.get('is_final'):
-                continue
 
             hg = md['goals']['home']
             ag = md['goals']['away']
             if hg is None or ag is None:
                 continue
 
-            # ★ Логика X2 / 1X
+            status = md.get('status', 'NS')
+            is_final = md.get('is_final', False)
+
+            # ★ FALLBACK: если не финал, но матч был >2.5ч назад
+            force_final = False
+            hours_ago = 0
+            if not is_final:
+                match_time_str = c.get('match_time', '')
+                if match_time_str and match_time_str != '?':
+                    try:
+                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+                        hours_ago = (now_msk - mt).total_seconds() / 3600
+                        if hours_ago > 2.5:
+                            force_final = True
+                    except Exception:
+                        pass
+                if not force_final:
+                    continue
+                logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
+                            f"(был {status}, {hours_ago:.1f}ч назад)")
+
+            # Логика X2 / 1X
             side = c.get('x2_side', 'X2')
             if side == 'X2':
-                result = 'win' if ag >= hg else 'loss'   # гость не проиграл
-            else:  # 1X
-                result = 'win' if hg >= ag else 'loss'   # хозяин не проиграл
+                result = 'win' if ag >= hg else 'loss'
+            else:
+                result = 'win' if hg >= ag else 'loss'
 
-            # Кэф: entry_odds или fallback 1.85
             odds = float(c.get('entry_odds', 0) or 0)
             if odds < 1.01:
                 odds = 1.85
