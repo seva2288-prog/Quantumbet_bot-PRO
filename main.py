@@ -4356,6 +4356,16 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+@app.route('/api/live', methods=['GET'])
+def api_live():
+    """Активные матчи (идущие + ближайшие 2 часа) с live-счётом."""
+    # 1. Загрузить из cache
+    # 2. Фильтр по времени
+    # 3. Batch-запрос к API (1 запрос вместо N)
+    # 4. Обогатить: live-счёт, кэф, тренд, country
+    # 5. Вернуть JSON
+
+
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
