@@ -4358,12 +4358,172 @@ def api_snapshots_list():
 
 @app.route('/api/live', methods=['GET'])
 def api_live():
-    """Активные матчи (идущие + ближайшие 2 часа) с live-счётом."""
-    # 1. Загрузить из cache
-    # 2. Фильтр по времени
-    # 3. Batch-запрос к API (1 запрос вместо N)
-    # 4. Обогатить: live-счёт, кэф, тренд, country
-    # 5. Вернуть JSON
+    """★ Активные матчи (идущие + ближайшие 2 часа) с live-счётом.
+    Batch-запрос к API вместо N одиночных."""
+    try:
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+        today_str = now_msk.strftime('%Y-%m-%d')
+
+        # ── 1. Забираем матчи из кэша ──
+        with cache_lock:
+            cache = storage.load_cache()
+        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+        if not all_matches:
+            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
+                            'now': now_msk.strftime('%H:%M')})
+
+        # ── 2. Фильтр по времени: -30 мин .. +2ч ──
+        hours_before = getattr(Config, 'LIVE_HOURS_BEFORE', 2)
+        minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 30)
+        max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 30)
+
+        in_window = []
+        seen_fids = set()
+        for m in all_matches:
+            fid = m.get('fixture_id')
+            if not fid or fid in seen_fids:
+                continue
+            mt_str = m.get('match_time', '')
+            if not mt_str or mt_str == '?':
+                continue
+            try:
+                match_dt = datetime.strptime(mt_str, "%d.%m.%Y %H:%M")
+            except ValueError:
+                continue
+            delta_min = (match_dt - now_msk).total_seconds() / 60
+            # матч идёт или стартует в ближайшие X часов
+            if -minutes_after <= delta_min <= hours_before * 60:
+                in_window.append((m, match_dt, delta_min))
+                seen_fids.add(fid)
+
+        if not in_window:
+            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
+                            'now': now_msk.strftime('%H:%M')})
+
+        # Сортируем: сначала идущие, потом ближайшие
+        in_window.sort(key=lambda x: x[2])
+        in_window = in_window[:max_matches]
+
+        # ── 3. Batch-запрос к API: 1 запрос на все матчи дня ──
+        live_data = {}
+        if getattr(Config, 'LIVE_BATCH_ENABLED', True):
+            try:
+                batch = football_api._make_request('/fixtures', {
+                    'date': today_str,
+                    'timezone': 'Europe/Moscow'
+                })
+                if batch and batch.get('response'):
+                    for f in batch['response']:
+                        fid = f.get('fixture', {}).get('id')
+                        if fid:
+                            live_data[fid] = f
+                    logger.info(f"📡 Live batch: {len(live_data)} матчей на {today_str}")
+            except Exception as e:
+                logger.error(f"Live batch error: {e}")
+
+        # ── 4. Формируем ответ ──
+        result = []
+        for m, match_dt, delta_min in in_window:
+            fid = m.get('fixture_id')
+
+            # Кэф из best_bet
+            best_bet = m.get('best_bet', {})
+            bet_label = best_bet.get('label', '—')
+            bet_odds = best_bet.get('odds', 0)
+            bet_ev = best_bet.get('ev', 0)
+            bet_prob = best_bet.get('prob', 0)
+
+            # Live-данные из batch
+            live_status = None
+            live_minute = 0
+            live_score = None
+            live_halftime = None
+            is_live = False
+            is_final = False
+            status_short = 'NS'
+
+            if fid and fid in live_data:
+                f = live_data[fid]
+                status = f.get('fixture', {}).get('status', {})
+                goals = f.get('goals', {})
+                score = f.get('score', {})
+                status_short = status.get('short', 'NS')
+                live_minute = status.get('elapsed', 0) or 0
+
+                ht = score.get('halftime', {}) or {}
+                if ht.get('home') is not None and ht.get('away') is not None:
+                    live_halftime = f"{ht['home']}-{ht['away']}"
+
+                if status_short in FINAL_STATUSES:
+                    is_final = True
+                    hg = goals.get('home')
+                    ag = goals.get('away')
+                    if hg is not None and ag is not None:
+                        live_score = f"{hg}:{ag}"
+                elif status_short in LIVE_STATUSES:
+                    is_live = True
+                    hg = goals.get('home')
+                    ag = goals.get('away')
+                    if hg is not None and ag is not None:
+                        live_score = f"{hg}:{ag}"
+
+            # Тренд кэфа из снимков
+            odds_trend = 0
+            try:
+                if fid and bet_label:
+                    bt_lower = bet_label.lower()
+                    if 'x2' in bt_lower:
+                        dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
+                    elif '1x' in bt_lower:
+                        dc_hist = storage.get_odds_history(fid, 'DC', '1X')
+                    else:
+                        dc_hist = []
+                    if dc_hist and len(dc_hist) >= 2:
+                        f0 = float(dc_hist[0].get('odds', 0))
+                        f1 = float(dc_hist[-1].get('odds', 0))
+                        if f0 > 0:
+                            odds_trend = round(((f1 / f0) - 1) * 100, 1)
+            except Exception:
+                pass
+
+            result.append({
+                'fixture_id': fid,
+                'home': m.get('home', '?'),
+                'away': m.get('away', '?'),
+                'league': m.get('league', '?'),
+                'country': m.get('country', ''),
+                'country_flag': m.get('country_flag', ''),
+                'match_time': m.get('match_time', ''),
+                'match_time_iso': match_dt.isoformat(),
+                'minutes_to_match': int(delta_min),
+                'is_live': is_live,
+                'is_final': is_final,
+                'status': status_short,
+                'minute': live_minute,
+                'score': live_score,
+                'halftime': live_halftime,
+                'best_bet': {
+                    'label': bet_label,
+                    'odds': bet_odds,
+                    'ev': bet_ev,
+                    'prob': bet_prob,
+                },
+                'odds_trend': odds_trend,
+                'source': m.get('source', '70_percent'),
+                'total_xg': m.get('total_xg', 0),
+            })
+
+        logger.info(f"⚡ Live: {len(result)} матчей в окне")
+        return jsonify({
+            'status': 'ok',
+            'count': len(result),
+            'now': now_msk.strftime('%H:%M'),
+            'window': f"-{minutes_after}м .. +{hours_before}ч",
+            'matches': result,
+        })
+    except Exception as e:
+        logger.exception(f"api_live error: {e}")
+        return jsonify({'status': 'error', 'error': str(e), 'matches': []}), 500
 
 
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
