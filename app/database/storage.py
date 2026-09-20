@@ -2,7 +2,7 @@
    ★ SQLite для снимков кэфов и X2-кандидатов,
    ★ автоставки с CLV, ★ симуляции стратегий)
 
-★ Версия 4.1 — X2 с результатами и entry_odds
+★ Версия 4.2 — compact odds history для sparkline (Live)
 """
 import json
 import os
@@ -60,7 +60,7 @@ class Storage:
         self._x2_db_path = os.path.join(self.data_dir, 'x2_candidates.db')
         self._init_odds_db()
         self._init_x2_db()
-        self._migrate_x2_db()  # ★ Добавляем новые колонки
+        self._migrate_x2_db()
 
         logger.info(f"🗄️ Storage: {self.data_dir}")
 
@@ -217,6 +217,101 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ get_odds_history: {e}")
             return {} if not (market and selection) else []
+
+    # ============================================================
+    # ★ COMPACT ODDS HISTORY для sparkline (Live)
+    # ============================================================
+    def get_odds_history_compact(self, fixture_id, market='1X2', selection='1',
+                                   limit=10):
+        """
+        ★ Возвращает компактную историю: последние N точек с интервалом.
+        Для мини-графика в Live-карточках.
+        """
+        try:
+            conn = sqlite3.connect(self._odds_db_path, timeout=5)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT odds, created_at
+                FROM snapshots
+                WHERE fixture_id = ? AND market = ? AND selection = ?
+                ORDER BY id DESC
+                LIMIT ?
+            """, (int(fixture_id), str(market), str(selection), int(limit * 3)))
+            rows = [dict(r) for r in cur.fetchall()]
+            conn.close()
+
+            if not rows:
+                return []
+
+            # Разворачиваем (старые → новые)
+            rows = list(reversed(rows))
+
+            # Если много — сэмплируем
+            if len(rows) > limit:
+                step = len(rows) / limit
+                sampled = []
+                for i in range(limit):
+                    idx = int(i * step)
+                    sampled.append(rows[idx])
+                sampled.append(rows[-1])
+                rows = sampled
+
+            return [{'odds': r['odds'], 'ts': r['created_at']} for r in rows]
+        except Exception as e:
+            logger.error(f"❌ get_odds_history_compact: {e}")
+            return []
+
+    def get_odds_history_batch(self, fixture_ids, market='1X2',
+                                 selection='1', limit=10):
+        """
+        ★ Batch: компактная история для нескольких матчей одним запросом.
+        Возвращает: {fixture_id: [{'odds': X, 'ts': 'Y'}, ...]}
+        """
+        if not fixture_ids:
+            return {}
+        try:
+            conn = sqlite3.connect(self._odds_db_path, timeout=10)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            placeholders = ','.join(['?'] * len(fixture_ids))
+            cur.execute(f"""
+                SELECT fixture_id, odds, created_at
+                FROM snapshots
+                WHERE fixture_id IN ({placeholders}) AND market = ? AND selection = ?
+                ORDER BY fixture_id, id ASC
+            """, (*[int(f) for f in fixture_ids], str(market), str(selection)))
+
+            rows = [dict(r) for r in cur.fetchall()]
+            conn.close()
+
+            # Группируем по fixture_id
+            grouped = {}
+            for r in rows:
+                fid = r['fixture_id']
+                grouped.setdefault(fid, []).append({
+                    'odds': r['odds'],
+                    'ts': r['created_at']
+                })
+
+            # Сэмплируем до limit точек
+            result = {}
+            for fid, points in grouped.items():
+                if len(points) > limit:
+                    step = len(points) / limit
+                    sampled = []
+                    for i in range(limit):
+                        idx = int(i * step)
+                        sampled.append(points[idx])
+                    sampled.append(points[-1])
+                    result[fid] = sampled
+                else:
+                    result[fid] = points
+            return result
+        except Exception as e:
+            logger.error(f"❌ get_odds_history_batch: {e}")
+            return {}
 
     def get_latest_odds_before(self, fixture_id, market, selection, before_iso):
         try:
@@ -435,7 +530,6 @@ class Storage:
                           fixture_id, home_form='', away_form='', total_xg=0,
                           x2_side='X2', x2_ev=0, x2_prob=0,
                           entry_odds=0, entry_1x_odds=0):
-        """★ Возвращает True если записан (не дубликат)."""
         try:
             if hp < ap:
                 favorite, underdog = home, away
@@ -498,7 +592,6 @@ class Storage:
             return None
 
     def update_x2_result(self, candidate_id, result, profit, home_goals, away_goals):
-        """★ Обновляет результат X2-кандидата после матча."""
         try:
             conn = sqlite3.connect(self._x2_db_path, timeout=10)
             cur = conn.cursor()
@@ -517,7 +610,6 @@ class Storage:
             return False
 
     def update_x2_entry_odds(self, candidate_id, entry_odds, entry_1x_odds=None):
-        """★ Обновляет entry_odds у существующего кандидата."""
         try:
             conn = sqlite3.connect(self._x2_db_path, timeout=10)
             cur = conn.cursor()
@@ -641,7 +733,7 @@ class Storage:
             self._atomic_write('cache', cache)
 
     # ============================================================
-    # АВТОСТАВКИ (с CLV)
+    # АВТОСТАВКИ
     # ============================================================
     def autobet_load_all(self):
         data = self._read('autobets', [])
