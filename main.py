@@ -1874,7 +1874,7 @@ def update_odds_for_matches(matches):
                 except Exception as e:
                     logger.error(f"Ошибка записи снимка: {e}")
                 updated.append(md)
-                        else:
+            else:
                 reason = "нет fixture_id" if not fid else "Football API пусто"
                 logger.warning(f"⏭️ Кэф не найден для {home} vs {away} | fid={fid} | причина: {reason}")
                 updated.append(md)
