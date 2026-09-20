@@ -2,7 +2,7 @@
    ★ SQLite для снимков кэфов и X2-кандидатов,
    ★ автоставки с CLV, ★ симуляции стратегий)
 
-★ Версия 4.0 — персистентность на Render Disk (/data/)
+★ Версия 4.1 — X2 с результатами и entry_odds
 """
 import json
 import os
@@ -55,11 +55,12 @@ class Storage:
 
         self.ODDS_HISTORY_RETENTION_DAYS = 30
 
-        # ★ SQLite для снимков и X2
+        # ★ SQLite
         self._odds_db_path = os.path.join(self.data_dir, 'odds_snapshots.db')
         self._x2_db_path = os.path.join(self.data_dir, 'x2_candidates.db')
         self._init_odds_db()
         self._init_x2_db()
+        self._migrate_x2_db()  # ★ Добавляем новые колонки
 
         logger.info(f"🗄️ Storage: {self.data_dir}")
 
@@ -71,7 +72,6 @@ class Storage:
 
     def _atomic_write(self, name, data):
         target = self._path(name)
-        # ★ Бэкап ПЕРЕД записью
         if os.path.exists(target):
             try:
                 shutil.copy2(target, f"{target}.bak")
@@ -113,7 +113,7 @@ class Storage:
             return default
 
     # ============================================================
-    # ★ SQLITE: СНИМКИ КЭФОВ
+    # SQLITE: СНИМКИ КЭФОВ
     # ============================================================
     def _init_odds_db(self):
         try:
@@ -139,7 +139,6 @@ class Storage:
             logger.error(f"❌ _init_odds_db: {e}")
 
     def save_odds_snapshot(self, fixture_id, market, selection, odds, bookmaker='—'):
-        """★ Сохраняет снимок в SQLite. Возвращает True если записан."""
         if not fixture_id or not odds or odds <= 1.01:
             return False
         try:
@@ -180,7 +179,6 @@ class Storage:
             return False
 
     def get_odds_history(self, fixture_id, market=None, selection=None):
-        """★ История снимков для fixture из SQLite."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             conn.row_factory = sqlite3.Row
@@ -221,7 +219,6 @@ class Storage:
             return {} if not (market and selection) else []
 
     def get_latest_odds_before(self, fixture_id, market, selection, before_iso):
-        """★ CLV: последний снимок до указанного времени."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             cur = conn.cursor()
@@ -302,8 +299,7 @@ class Storage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT fixture_id, market, selection, odds, bookmaker,
-                       created_at
+                SELECT fixture_id, market, selection, odds, bookmaker, created_at
                 FROM snapshots
                 ORDER BY id DESC
             """)
@@ -323,8 +319,7 @@ class Storage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT fixture_id, market, selection, odds, bookmaker,
-                       created_at
+                SELECT fixture_id, market, selection, odds, bookmaker, created_at
                 FROM snapshots
                 WHERE created_at >= ?
                 ORDER BY id DESC
@@ -372,7 +367,7 @@ class Storage:
             return []
 
     # ============================================================
-    # ★ SQLITE: X2-КАНДИДАТЫ
+    # SQLITE: X2-КАНДИДАТЫ
     # ============================================================
     def _init_x2_db(self):
         try:
@@ -406,9 +401,40 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ _init_x2_db: {e}")
 
+    def _migrate_x2_db(self):
+        """★ Добавляет новые колонки если их нет."""
+        try:
+            conn = sqlite3.connect(self._x2_db_path, timeout=10)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(x2_candidates)")
+            existing = {row[1] for row in cur.fetchall()}
+
+            new_cols = {
+                'entry_odds': 'REAL DEFAULT 0',
+                'entry_1x_odds': 'REAL DEFAULT 0',
+                'result': "TEXT DEFAULT 'pending'",
+                'profit': 'REAL DEFAULT 0',
+                'home_goals': 'INTEGER',
+                'away_goals': 'INTEGER',
+                'settled_at': 'TIMESTAMP',
+            }
+            for col, definition in new_cols.items():
+                if col not in existing:
+                    try:
+                        cur.execute(f"ALTER TABLE x2_candidates ADD COLUMN {col} {definition}")
+                        logger.info(f"✅ Migration: added column '{col}' to x2_candidates")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Migration {col}: {e}")
+
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"❌ _migrate_x2_db: {e}")
+
     def save_x2_candidate(self, home, away, hp, ap, league_name, match_time,
                           fixture_id, home_form='', away_form='', total_xg=0,
-                          x2_side='X2', x2_ev=0, x2_prob=0):
+                          x2_side='X2', x2_ev=0, x2_prob=0,
+                          entry_odds=0, entry_1x_odds=0):
         """★ Возвращает True если записан (не дубликат)."""
         try:
             if hp < ap:
@@ -423,12 +449,15 @@ class Storage:
                     INSERT INTO x2_candidates
                     (home, away, match_time, favorite, underdog, x2_side,
                      x2_ev, x2_prob, home_position, away_position, league,
-                     fixture_id, home_form, away_form, total_xg)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     fixture_id, home_form, away_form, total_xg,
+                     entry_odds, entry_1x_odds)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (home, away, match_time, favorite, underdog, x2_side,
                       round(x2_ev, 1), round(x2_prob, 1), hp, ap,
                       league_name, fixture_id, home_form, away_form,
-                      round(total_xg, 2) if total_xg else 0))
+                      round(total_xg, 2) if total_xg else 0,
+                      round(entry_odds, 3) if entry_odds else 0,
+                      round(entry_1x_odds, 3) if entry_1x_odds else 0))
                 conn.commit()
                 conn.close()
                 return True
@@ -450,11 +479,67 @@ class Storage:
             """, (int(limit),))
             rows = [dict(r) for r in cur.fetchall()]
             conn.close()
-            # Переворачиваем, чтобы старые были первыми (как раньше)
             return list(reversed(rows))
         except Exception as e:
             logger.error(f"❌ get_x2_candidates: {e}")
             return []
+
+    def get_x2_candidate_by_id(self, candidate_id):
+        try:
+            conn = sqlite3.connect(self._x2_db_path, timeout=10)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM x2_candidates WHERE id=?", (int(candidate_id),))
+            row = cur.fetchone()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"❌ get_x2_candidate_by_id: {e}")
+            return None
+
+    def update_x2_result(self, candidate_id, result, profit, home_goals, away_goals):
+        """★ Обновляет результат X2-кандидата после матча."""
+        try:
+            conn = sqlite3.connect(self._x2_db_path, timeout=10)
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE x2_candidates
+                SET result=?, profit=?, home_goals=?, away_goals=?, settled_at=?
+                WHERE id=?
+            """, (result, float(profit), home_goals, away_goals,
+                  datetime.now().isoformat(), int(candidate_id)))
+            updated = cur.rowcount
+            conn.commit()
+            conn.close()
+            return updated > 0
+        except Exception as e:
+            logger.error(f"❌ update_x2_result: {e}")
+            return False
+
+    def update_x2_entry_odds(self, candidate_id, entry_odds, entry_1x_odds=None):
+        """★ Обновляет entry_odds у существующего кандидата."""
+        try:
+            conn = sqlite3.connect(self._x2_db_path, timeout=10)
+            cur = conn.cursor()
+            if entry_1x_odds is not None:
+                cur.execute("""
+                    UPDATE x2_candidates
+                    SET entry_odds=?, entry_1x_odds=?
+                    WHERE id=? AND (entry_odds IS NULL OR entry_odds=0)
+                """, (round(entry_odds, 3), round(entry_1x_odds, 3), int(candidate_id)))
+            else:
+                cur.execute("""
+                    UPDATE x2_candidates
+                    SET entry_odds=?
+                    WHERE id=? AND (entry_odds IS NULL OR entry_odds=0)
+                """, (round(entry_odds, 3), int(candidate_id)))
+            updated = cur.rowcount
+            conn.commit()
+            conn.close()
+            return updated > 0
+        except Exception as e:
+            logger.error(f"❌ update_x2_entry_odds: {e}")
+            return False
 
     def clear_x2_candidates(self):
         try:
@@ -556,7 +641,7 @@ class Storage:
             self._atomic_write('cache', cache)
 
     # ============================================================
-    # ★ АВТОСТАВКИ (с CLV)
+    # АВТОСТАВКИ (с CLV)
     # ============================================================
     def autobet_load_all(self):
         data = self._read('autobets', [])
@@ -713,7 +798,6 @@ class Storage:
                         b['halftime_home'] = halftime_home
                         b['halftime_away'] = halftime_away
                         b['settled_at'] = datetime.now().isoformat(timespec='seconds')
-                        # убираем live-поля
                         for k in ('live_score', 'live_status', 'live_minute', 'live_halftime'):
                             b.pop(k, None)
                         updated = True
@@ -727,7 +811,6 @@ class Storage:
 
     def autobet_update_live(self, match_key, home_goals, away_goals,
                             status, minute, halftime_home=None, halftime_away=None):
-        """★ Обновляет live-счёт pending-ставки."""
         with self._locks['autobets']:
             try:
                 bets = self._read('autobets', [])
@@ -840,7 +923,6 @@ class Storage:
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(dst, f'{name}.json'))
 
-            # ★ Копируем SQLite
             for db_path in (self._odds_db_path, self._x2_db_path):
                 if os.path.exists(db_path):
                     shutil.copy2(db_path, os.path.join(dst, os.path.basename(db_path)))
