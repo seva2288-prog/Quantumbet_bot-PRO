@@ -1503,7 +1503,7 @@
 
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT                                       -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (с X2 auto)                           -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -1528,7 +1528,8 @@ let currentSimResult = null;
 let currentPage = 'dashboard';
 let previousPage = 'dashboard';
 let isLoading = false;
-let x2Data = [];
+let x2Data = [];            // ручные X2 (localStorage)
+let autoX2Data = [];        // ★ авто X2 (API /api/x2_auto)
 let editingX2Index = null;
 let matchesSearchQuery = '';
 let matchesFilter = 'all';
@@ -1560,7 +1561,7 @@ function haptic(ms = 10) {
 }
 
 // ============================================================
-// УВЕДОМЛЕНИЯ (TOAST)
+// УВЕДОМЛЕНИЯ
 // ============================================================
 function showNotification(message, type = '') {
     const container = document.getElementById('toastContainer');
@@ -1577,7 +1578,7 @@ function showNotification(message, type = '') {
 }
 
 // ============================================================
-// ★ ESCAPE HTML
+// ESCAPE HTML
 // ============================================================
 function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, c => ({
@@ -1586,7 +1587,7 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// ★ ИСТОЧНИК КЭФА (badge для X2)
+// SOURCE BADGE
 // ============================================================
 function getSourceBadge(source) {
     if (!source) return '';
@@ -1602,7 +1603,7 @@ function getSourceBadge(source) {
 }
 
 // ============================================================
-// ЗВЁЗДЫ НА ФОНЕ
+// ЗВЁЗДЫ
 // ============================================================
 (function generateLoadingStars() {
     const container = document.getElementById('loadingStars');
@@ -1641,7 +1642,7 @@ function getSourceBadge(source) {
 })();
 
 // ============================================================
-// СКРЫТИЕ ЭКРАНА ЗАГРУЗКИ
+// LOADING SCREEN
 // ============================================================
 function hideLoadingScreen() {
     const loading = document.getElementById('loadingScreen');
@@ -1766,9 +1767,8 @@ function closeSettings() {
 // ============================================================
 function toggleMoreMenu() {
     const modal = document.getElementById('moreMenuModal');
-    if (modal.classList.contains('active')) {
-        closeMoreMenu();
-    } else {
+    if (modal.classList.contains('active')) closeMoreMenu();
+    else {
         modal.classList.add('active');
         haptic(6);
     }
@@ -1854,6 +1854,7 @@ function refreshData() {
         loadPageData(currentPage);
         if (currentPage === 'snapshots') loadSnapshots();
         if (currentPage === 'autobets') loadAutobets();
+        if (currentPage === 'x2') renderX2Page();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -1922,7 +1923,7 @@ function renderActiveMatchesList(matches) {
 }
 
 // ============================================================
-// АНОМАЛИИ КЭФОВ
+// АНОМАЛИИ
 // ============================================================
 async function loadAnomalies() {
     try {
@@ -1954,7 +1955,6 @@ async function loadAnomalies() {
                     </div>
                     <div style="margin-top:6px;font-size:11px;color:var(--text-secondary);">
                         🎯 ${selLabel}: ${a.first_odds} → <strong style="color:var(--gold-400);">${a.max_odds}</strong>
-                        <span style="color:var(--text-tertiary);margin-left:6px;">(${a.snapshots_count} снимков)</span>
                     </div>
                 </div>
             `;
@@ -1970,7 +1970,7 @@ function openSnapshotFromAnomaly(fid) {
 }
 
 // ============================================================
-// BET CARD ★ СО СТРАНОЙ И ФЛАГОМ
+// BET CARD
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2027,7 +2027,6 @@ function renderBetCard(m, isActive = false) {
 
     const itemIndex = m._index !== undefined ? m._index : -1;
 
-    // ★ Страна + флаг
     const countryHtml = m.country
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
@@ -2045,14 +2044,8 @@ function renderBetCard(m, isActive = false) {
                     <div class="bet-league">🏆 ${escapeHtml(league)}${countryHtml}</div>
                     <div class="bet-time">
                         <span>📅 ${escapeHtml(displayDate)}</span>
-                        ${showScore ? `
-                            <span class="bet-score" style="color:${scoreColor};">
-                                ${homeGoals} - ${awayGoals}
-                            </span>
-                        ` : ''}
-                        ${hasHalftime && showScore ? `
-                            <span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>
-                        ` : ''}
+                        ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
+                        ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -2133,19 +2126,10 @@ function initCardSwipes() {
         }, { passive: true });
 
         card.addEventListener('touchend', () => {
-            if (!isSwiping) {
-                startX = 0; currentX = 0;
-                return;
-            }
-            if (currentX > SWIPE_THRESHOLD) {
-                haptic(30);
-                quickSetResult(idx, 'win');
-            } else if (currentX < -SWIPE_THRESHOLD) {
-                haptic(30);
-                quickSetResult(idx, 'loss');
-            } else {
-                card.classList.remove('swipe-left', 'swipe-right');
-            }
+            if (!isSwiping) { startX = 0; currentX = 0; return; }
+            if (currentX > SWIPE_THRESHOLD) { haptic(30); quickSetResult(idx, 'win'); }
+            else if (currentX < -SWIPE_THRESHOLD) { haptic(30); quickSetResult(idx, 'loss'); }
+            else { card.classList.remove('swipe-left', 'swipe-right'); }
             startX = 0; currentX = 0; isSwiping = false;
         }, { passive: true });
     });
@@ -2155,13 +2139,11 @@ async function quickSetResult(displayIndex, result) {
     if (!cachedData) return;
     const item = getItemByIndex(displayIndex);
     if (!item) return;
-
     const historyIndex = getHistoryIndex(displayIndex);
     if (historyIndex === null) {
         showNotification('❌ Нельзя изменить активный матч', 'error');
         return;
     }
-
     try {
         const resp = await fetch(API_BASE + '/api/edit_bet', {
             method: 'POST',
@@ -2431,7 +2413,7 @@ function toggleShowAll() {
 }
 
 // ============================================================
-// MATCH DETAIL ★ СО СТРАНОЙ
+// MATCH DETAIL
 // ============================================================
 function showMatchDetail(match) {
     const modal = document.getElementById('matchDetailModal');
@@ -2441,7 +2423,6 @@ function showMatchDetail(match) {
     const best = match.best_bet || {};
     const bets = match.bets || [];
 
-    // ★ Страна
     const countryStr = match.country
         ? ` • ${match.country_flag || ''} ${escapeHtml(match.country)}`
         : '';
@@ -2652,9 +2633,7 @@ function renderSnapshotCard(s) {
                     ${hasAnomaly ? `<div class="snapshot-badge anomaly">🎯 Аномалия</div>` : `<div class="snapshot-badge">📸 ${s.snapshot_count}</div>`}
                 </div>
             </div>
-            <div class="snapshot-trends">
-                ${trendHtml}
-            </div>
+            <div class="snapshot-trends">${trendHtml}</div>
             ${anomalyHtml ? `<div style="padding-top:8px;margin-top:8px;border-top:1px solid var(--border-color);">${anomalyHtml}</div>` : ''}
         </div>
     `;
@@ -2715,32 +2694,19 @@ function renderSnapshotChart(history) {
         data: {
             labels: labels,
             datasets: [
-                {
-                    label: '1X (хозяева)',
-                    data: history.map(h => h.odds['1'] || null),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
-                },
-                {
-                    label: 'X (ничья)',
-                    data: history.map(h => h.odds['X'] || null),
-                    borderColor: '#fbbf24',
-                    backgroundColor: 'rgba(251, 191, 36, 0.08)',
-                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
-                },
-                {
-                    label: '2 (гости)',
-                    data: history.map(h => h.odds['2'] || null),
-                    borderColor: '#f87171',
-                    backgroundColor: 'rgba(248, 113, 113, 0.08)',
-                    tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true
-                }
+                { label: '1X (хозяева)', data: history.map(h => h.odds['1'] || null),
+                  borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
+                { label: 'X (ничья)', data: history.map(h => h.odds['X'] || null),
+                  borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.08)',
+                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
+                { label: '2 (гости)', data: history.map(h => h.odds['2'] || null),
+                  borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.08)',
+                  tension: 0.3, pointRadius: 3, pointHoverRadius: 6, spanGaps: true }
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
             plugins: { legend: { labels: { color: textColor, font: { size: 11 } } } },
             scales: {
@@ -2760,10 +2726,8 @@ function renderSnapshotStats(history) {
         const values = history.map(h => h.odds[sel]).filter(v => v > 0);
         if (values.length === 0) return;
         stats[sel] = {
-            first: values[0],
-            last: values[values.length - 1],
-            max: Math.max(...values),
-            min: Math.min(...values),
+            first: values[0], last: values[values.length - 1],
+            max: Math.max(...values), min: Math.min(...values),
             pct: ((values[values.length - 1] / values[0]) - 1) * 100
         };
     });
@@ -2961,10 +2925,25 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ X2 PAGE (с временем и источником)
+// ★ X2 PAGE — авто (API) + ручные (localStorage)
 // ============================================================
-function renderX2Page() {
-    loadX2Data();
+async function loadAutoX2() {
+    try {
+        const resp = await fetch(API_BASE + '/api/x2_auto?t=' + Date.now());
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.status === 'ok' && Array.isArray(data.candidates)) {
+            autoX2Data = data.candidates;
+        }
+    } catch (e) {
+        console.error('loadAutoX2:', e);
+    }
+}
+
+async function renderX2Page() {
+    loadX2Data();           // ручные из localStorage
+    await loadAutoX2();     // авто из API
+
     const stats = calcX2Stats();
     document.getElementById('x2TotalFull').textContent = stats.total;
     document.getElementById('x2WinsFull').textContent = stats.wins;
@@ -2976,55 +2955,127 @@ function renderX2Page() {
 function renderX2List() {
     const container = document.getElementById('x2List');
     if (!container) return;
-    let filtered = x2Data;
+
+    // ── Авто ──
+    const autoItems = (autoX2Data || []).map(c => ({
+        _source: 'auto',
+        _id: c.id,
+        match: c.match,
+        date: (c.match_time || '').split(' ')[0],
+        time: (c.match_time || '').split(' ')[1] || '',
+        favorite: c.favorite,
+        underdog: c.underdog,
+        league: c.league,
+        country: c.country,
+        country_flag: c.country_flag,
+        side: c.x2_side || 'X2',
+        odds: c.current_odds || 0,
+        prob: c.x2_prob || 0,
+        ev: c.x2_ev || 0,
+        trend: c.odds_trend || 0,
+        result: c.result || 'pending',
+        profit: c.profit || 0,
+        score: (c.home_goals != null && c.away_goals != null)
+                ? `${c.home_goals}:${c.away_goals}` : '-',
+    }));
+
+    // ── Ручные ──
+    const manualItems = (x2Data || []).map(m => ({
+        _source: 'manual',
+        _id: m.id,
+        match: m.match,
+        date: m.date,
+        time: m.time || '',
+        favorite: m.favorite,
+        underdog: m.underdog,
+        league: '',
+        country: '',
+        country_flag: '',
+        side: 'X2',
+        odds: m.odds || 0,
+        prob: m.prob || 0,
+        ev: 0,
+        trend: 0,
+        result: m.result || 'pending',
+        profit: m.profit || 0,
+        score: m.score || '-',
+    }));
+
+    let all = [...autoItems, ...manualItems];
+
     if (x2CurrentFilter !== 'all') {
-        filtered = filtered.filter(m => m.result === x2CurrentFilter);
+        all = all.filter(m => m.result === x2CurrentFilter);
     }
-    if (filtered.length === 0) {
+
+    if (all.length === 0) {
         container.innerHTML = `
             <div class="no-data">
                 <div class="emoji">📭</div>
                 <div class="title">Нет X2 матчей</div>
-                <div class="desc">Нажмите «Импорт» чтобы загрузить из логов</div>
+                <div class="desc">Бот найдёт кандидатов при следующем /update</div>
             </div>
         `;
         return;
     }
-    container.innerHTML = filtered.map((m) => {
-        const realIdx = x2Data.indexOf(m);
-        const profitColor = m.profit > 0 ? 'var(--emerald-400)' : m.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
-        const profitStr = m.result === 'win' ? `+$${m.profit}` : m.result === 'loss' ? `-$${m.stake}` : '$0';
-        const resultEmoji = m.result === 'win' ? '✅' : m.result === 'loss' ? '❌' : m.result === 'push' ? '🔄' : '⏳';
-        const oddsStr = m.odds > 0 ? m.odds : '—';
-        const probStr = m.prob > 0 ? m.prob + '%' : '—';
+
+    container.innerHTML = all.map((m) => {
+        const profitColor = m.profit > 0 ? 'var(--emerald-400)' :
+                            m.profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
+        const profitStr = m.result === 'win' ? `+$${m.profit}` :
+                          m.result === 'loss' ? `-$${Math.abs(m.profit) || 20}` : '$0';
+        const resultEmoji = m.result === 'win' ? '✅' :
+                            m.result === 'loss' ? '❌' :
+                            m.result === 'push' ? '🔄' : '⏳';
+
+        const oddsStr = m.odds > 0 ? m.odds.toFixed(2) : '—';
+        const probStr = m.prob > 0 ? m.prob.toFixed(1) + '%' : '—';
+        const evStr = m.ev > 0 ? `${m.ev >= 0 ? '+' : ''}${m.ev.toFixed(1)}%` : '';
+
+        const trendEmoji = m.trend > 1 ? '📈' : m.trend < -1 ? '📉' : '';
+        const trendStr = m.trend !== 0 ? ` (${m.trend > 0 ? '+' : ''}${m.trend.toFixed(1)}%)` : '';
 
         const dateTimeStr = m.time ? `${m.date} 🕐 ${m.time}` : m.date;
-        const sourceBadge = getSourceBadge(m.source);
+
+        const sourceBadge = m._source === 'auto'
+            ? '<span class="source-badge auto">🤖 Авто</span>'
+            : '<span class="source-badge manual">✏️ Ручной</span>';
+
+        const countryHtml = m.country
+            ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
+            : '';
+
+        const leagueHtml = m.league
+            ? `<div class="bet-league">🏆 ${escapeHtml(m.league)}${countryHtml}</div>`
+            : '';
+
+        const scoreHtml = (m.score && m.score !== '-' && m.result !== 'pending')
+            ? ` • <strong>${m.score}</strong>` : '';
 
         return `
-            <div class="bet-card" onclick="editX2Match(${realIdx})">
+            <div class="bet-card" onclick="openX2Detail('${m._source}', ${m._id})">
                 <div class="bet-header">
                     <div style="flex:1;min-width:0;">
                         <div class="bet-match">${escapeHtml(m.match)}</div>
-                        <div class="bet-league">📅 ${dateTimeStr}</div>
+                        ${leagueHtml}
+                        <div class="bet-league">📅 ${dateTimeStr}${scoreHtml}</div>
                         <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
                             🏆 ${escapeHtml(m.favorite)} vs 📉 ${escapeHtml(m.underdog)}
                         </div>
-                        ${sourceBadge ? `<div style="margin-top:4px;">${sourceBadge}</div>` : ''}
+                        <div style="margin-top:4px;">${sourceBadge}</div>
                     </div>
                     <div style="text-align:right;">
-                        <div class="bet-badge bet-x2" style="margin-bottom:4px;">X2</div>
+                        <div class="bet-badge bet-x2" style="margin-bottom:4px;">${m.side}</div>
                         <div style="font-size:14px;">${resultEmoji}</div>
                     </div>
                 </div>
                 <div class="bet-stats">
                     <div class="bet-stat">
                         <span class="stat-label">Кэф</span>
-                        <span class="stat-value">${oddsStr}</span>
+                        <span class="stat-value">${oddsStr}${trendEmoji}${trendStr}</span>
                     </div>
                     <div class="bet-stat">
-                        <span class="stat-label">Prob</span>
-                        <span class="stat-value gold">${probStr}</span>
+                        <span class="stat-label">Prob${evStr ? ' · EV' : ''}</span>
+                        <span class="stat-value gold">${probStr} ${evStr}</span>
                     </div>
                     <div class="bet-stat">
                         <span class="stat-label">Прибыль</span>
@@ -3036,12 +3087,41 @@ function renderX2List() {
     }).join('');
 }
 
+function openX2Detail(source, id) {
+    // Ручные → модалка редактирования
+    if (source === 'manual') {
+        const item = x2Data.find(m => m.id === id);
+        if (item) openX2Modal(item);
+        return;
+    }
+    // Авто → инфо-уведомление
+    const item = autoX2Data.find(c => c.id === id);
+    if (!item) return;
+    showNotification(
+        `💎 ${item.home} vs ${item.away} | ${item.x2_side} | Prob ${item.x2_prob}%`,
+        ''
+    );
+}
+
 function calcX2Stats() {
-    const total = x2Data.length;
-    const wins = x2Data.filter(m => m.result === 'win').length;
-    const losses = x2Data.filter(m => m.result === 'loss').length;
-    const totalProfit = x2Data.reduce((s, m) => s + (m.result === 'win' ? (m.profit || 0) : m.result === 'loss' ? -m.stake : 0), 0);
-    const totalStake = x2Data.reduce((s, m) => s + (m.stake || 0), 0);
+    const autoItems = (autoX2Data || []).map(c => ({
+        result: c.result || 'pending',
+        profit: c.profit || 0,
+        stake: 20,
+    }));
+    const manualItems = (x2Data || []).map(m => ({
+        result: m.result || 'pending',
+        profit: m.profit || 0,
+        stake: m.stake || 20,
+    }));
+    const all = [...autoItems, ...manualItems];
+
+    const total = all.length;
+    const wins = all.filter(m => m.result === 'win').length;
+    const losses = all.filter(m => m.result === 'loss').length;
+    const totalProfit = all.reduce((s, m) =>
+        s + (m.result === 'win' ? (m.profit || 0) : m.result === 'loss' ? -m.stake : 0), 0);
+    const totalStake = all.reduce((s, m) => s + (m.stake || 0), 0);
     const winrate = (wins + losses) > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
     const roi = totalStake > 0 ? Math.round((totalProfit / totalStake) * 100) : 0;
     return { total, wins, losses, totalProfit, winrate, roi };
@@ -3059,7 +3139,7 @@ function loadX2Data() {
             if (data && data.status === 'ok' && Array.isArray(data.data) && data.data.length > 0) {
                 x2Data = data.data;
                 localStorage.setItem('x2_matches', JSON.stringify(x2Data));
-                renderX2Page();
+                renderX2List();
             }
         })
         .catch(() => {});
@@ -3184,7 +3264,7 @@ function clearAllX2() {
 }
 
 // ============================================================
-// ★ AUTO-IMPORT X2
+// AUTO-IMPORT X2 (из логов)
 // ============================================================
 async function autoImportX2FromLogs() {
     try {
@@ -3225,8 +3305,7 @@ async function autoImportX2FromLogs() {
 
             uniqueMatches.set(matchName, {
                 home, away, favorite, underdog,
-                date: logDate,
-                time: logTime,
+                date: logDate, time: logTime,
                 note: 'Авто-импорт' + (xg ? ' | XG: ' + xg : '')
             });
         }
@@ -3236,15 +3315,12 @@ async function autoImportX2FromLogs() {
             if (existingNames.has(matchName)) continue;
             x2Data.push({
                 id: Date.now() + Math.random() * 1000 + newCount,
-                date: info.date,
-                time: info.time,
+                date: info.date, time: info.time,
                 match: matchName,
                 favorite: info.favorite,
                 underdog: info.underdog,
-                odds: 0, stake: 0,
-                score: '-',
-                result: 'pending',
-                profit: 0,
+                odds: 0, stake: 0, score: '-',
+                result: 'pending', profit: 0,
                 note: info.note,
                 source: 'auto'
             });
@@ -3305,8 +3381,7 @@ function importX2Excel() {
                     time: row['Время'] || row['time'] || '',
                     match, favorite, underdog, odds, stake, profit,
                     score: row['Счёт'] || '-',
-                    result,
-                    note: row['Примечание'] || 'Импорт',
+                    result, note: row['Примечание'] || 'Импорт',
                     source: 'import'
                 });
                 imported++;
@@ -3327,20 +3402,38 @@ function importX2Excel() {
 }
 
 function exportX2Excel() {
-    if (!x2Data.length) {
+    // Объединяем авто + ручные для экспорта
+    const autoItems = (autoX2Data || []).map(c => ({
+        date: (c.match_time || '').split(' ')[0],
+        time: (c.match_time || '').split(' ')[1] || '',
+        match: c.match, favorite: c.favorite, underdog: c.underdog,
+        odds: c.current_odds || 0, stake: 20,
+        score: (c.home_goals != null && c.away_goals != null) ? `${c.home_goals}:${c.away_goals}` : '-',
+        result: c.result || 'pending',
+        profit: c.profit || 0,
+        note: `Auto | Prob: ${c.x2_prob}% | EV: ${c.x2_ev}%`,
+    }));
+    const manualItems = (x2Data || []).map(m => ({
+        date: m.date, time: m.time || '',
+        match: m.match, favorite: m.favorite, underdog: m.underdog,
+        odds: m.odds || 0, stake: m.stake || 0,
+        score: m.score || '-',
+        result: m.result || 'pending',
+        profit: m.profit || 0,
+        note: m.note || 'Ручной',
+    }));
+    const all = [...autoItems, ...manualItems];
+
+    if (!all.length) {
         showNotification('❌ Нет данных', 'error');
         return;
     }
-    const data = x2Data.map((m, i) => ({
+
+    const data = all.map((m, i) => ({
         '#': i + 1,
-        'Дата': m.date,
-        'Время': m.time || '',
-        'Матч': m.match,
-        'Фаворит': m.favorite,
-        'Аутсайдер': m.underdog,
-        'Кэф X2': m.odds,
-        'Сумма': m.stake,
-        'Счёт': m.score,
+        'Дата': m.date, 'Время': m.time || '',
+        'Матч': m.match, 'Фаворит': m.favorite, 'Аутсайдер': m.underdog,
+        'Кэф X2': m.odds, 'Сумма': m.stake, 'Счёт': m.score,
         'Результат': (m.result || 'pending').toUpperCase(),
         'Прибыль': m.result === 'win' ? m.profit : m.result === 'loss' ? -m.stake : 0,
         'Примечание': m.note || ''
@@ -3397,10 +3490,8 @@ function renderAutobetsHistory(history) {
 
         let liveStr = '';
         if (b.result === 'pending' && b.live_score) {
-            const statusMap = {
-                '1H': '1-й тайм', 'HT': 'Перерыв', '2H': '2-й тайм',
-                'ET': 'Доп. время', 'P': 'Пенальти', 'LIVE': 'LIVE'
-            };
+            const statusMap = {'1H': '1-й тайм', 'HT': 'Перерыв', '2H': '2-й тайм',
+                               'ET': 'Доп. время', 'P': 'Пенальти', 'LIVE': 'LIVE'};
             const statusText = statusMap[b.live_status] || 'LIVE';
             const minuteStr = b.live_minute ? ` ${b.live_minute}'` : '';
             liveStr = `
@@ -3455,9 +3546,7 @@ function renderAutobetsHistory(history) {
                         </span>
                     </div>
                 </div>
-                ${liveStr}
-                ${score}
-                ${clvStr}
+                ${liveStr}${score}${clvStr}
             </div>
         `;
     }).join('');
@@ -3502,9 +3591,7 @@ async function autobetsReset() {
 async function computeClv() {
     showNotification('📊 Пересчитываю CLV...', '');
     try {
-        const r = await fetch(API_BASE + '/api/autobets/clv/compute', {
-            method: 'POST'
-        }).then(r => r.json());
+        const r = await fetch(API_BASE + '/api/autobets/clv/compute', { method: 'POST' }).then(r => r.json());
         showNotification(`✅ Обновлено: ${r.updated}`, 'success');
         loadAutobets();
         loadClvStats();
@@ -3555,10 +3642,7 @@ function applySimPreset(key) {
     if (!p) return;
     const set = (id, val) => {
         const el = document.getElementById(id);
-        if (el) {
-            el.value = val;
-            el.dispatchEvent(new Event('input'));
-        }
+        if (el) { el.value = val; el.dispatchEvent(new Event('input')); }
     };
     set('sim-min-ev', p.min_ev);
     set('sim-min-prob', p.min_prob);
@@ -3602,7 +3686,6 @@ async function runSimulation() {
 
         currentSimResult = r.result;
         const res = r.result;
-
         document.getElementById('sim-results').style.display = 'block';
 
         const profitEl = document.getElementById('sim-profit');
@@ -3630,15 +3713,12 @@ async function runSimulation() {
                     data: res.bets.map(b => b.bank_after),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 2,
-                    pointHoverRadius: 5
+                    fill: true, tension: 0.3,
+                    pointRadius: 2, pointHoverRadius: 5
                 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
                     x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
@@ -3661,12 +3741,10 @@ async function saveSimulation() {
         const r = await fetch(API_BASE + '/api/simulator/save', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                name,
-                result: currentSimResult
-            })
+            body: JSON.stringify({ name, result: currentSimResult })
         }).then(r => r.json());
-        showNotification(r.status === 'ok' ? '✅ Стратегия сохранена' : '❌ Ошибка', r.status === 'ok' ? 'success' : 'error');
+        showNotification(r.status === 'ok' ? '✅ Стратегия сохранена' : '❌ Ошибка',
+                          r.status === 'ok' ? 'success' : 'error');
     } catch (e) {
         showNotification('❌ Ошибка: ' + e.message, 'error');
     }
@@ -3676,7 +3754,7 @@ async function saveSimulation() {
 // GRID SEARCH
 // ============================================================
 async function runGridSearch() {
-    if (!confirm('🎯 Запустить Grid Search?\n\nЭто переберёт ~200 комбинаций параметров и найдёт лучшую стратегию. Займёт 30-60 секунд.')) return;
+    if (!confirm('🎯 Запустить Grid Search?\n\nЭто переберёт ~200 комбинаций параметров. Займёт 30-60 сек.')) return;
 
     showNotification('🎯 Grid Search запущен...', '');
     const btn = event.target;
@@ -3697,7 +3775,7 @@ async function runGridSearch() {
 
         const result = r.result;
         if (!result.top || result.top.length === 0) {
-            showNotification('❌ Не найдено стратегий с нужным количеством ставок', 'error');
+            showNotification('❌ Не найдено стратегий', 'error');
             return;
         }
 
@@ -3714,10 +3792,7 @@ async function runGridSearch() {
         set('sim-max-odds', p.max_odds);
         set('sim-stake', p.stake_pct);
 
-        showNotification(
-            `🏆 Лучшая: ROI ${best.roi}% | Ставок ${best.total_bets}`,
-            'success'
-        );
+        showNotification(`🏆 Лучшая: ROI ${best.roi}% | Ставок ${best.total_bets}`, 'success');
 
         await runSimulation();
         renderGridTop5(result.top);
@@ -3748,42 +3823,24 @@ function renderGridTop5(top) {
         const profitColor = t.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
         return `
             <tr style="${rowStyle}">
-                <td>${medal}</td>
-                <td>${t.params.min_ev}%</td>
-                <td>${t.params.min_prob}%</td>
-                <td>${t.params.min_odds}-${t.params.max_odds}</td>
-                <td>${t.total_bets}</td>
+                <td>${medal}</td><td>${t.params.min_ev}%</td><td>${t.params.min_prob}%</td>
+                <td>${t.params.min_odds}-${t.params.max_odds}</td><td>${t.total_bets}</td>
                 <td>${t.winrate}%</td>
-                <td style="color:${roiColor};font-weight:700;">
-                    ${t.roi >= 0 ? '+' : ''}${t.roi}%
-                </td>
-                <td style="color:${profitColor};">
-                    ${t.profit >= 0 ? '+' : ''}$${t.profit.toFixed(2)}
-                </td>
+                <td style="color:${roiColor};font-weight:700;">${t.roi >= 0 ? '+' : ''}${t.roi}%</td>
+                <td style="color:${profitColor};">${t.profit >= 0 ? '+' : ''}$${t.profit.toFixed(2)}</td>
                 <td>${t.max_drawdown}%</td>
             </tr>
         `;
     }).join('');
 
     gridDiv.innerHTML = `
-        <div class="card-header">
-            <h2>🏆 ТОП-5 СТРАТЕГИЙ</h2>
-        </div>
+        <div class="card-header"><h2>🏆 ТОП-5 СТРАТЕГИЙ</h2></div>
         <div style="overflow-x:auto;">
             <table style="width:100%; font-size:11px; min-width:500px;">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>EV</th>
-                        <th>Prob</th>
-                        <th>Кэф</th>
-                        <th>Ставок</th>
-                        <th>WR</th>
-                        <th>ROI</th>
-                        <th>Прибыль</th>
-                        <th>DD</th>
-                    </tr>
-                </thead>
+                <thead><tr>
+                    <th>#</th><th>EV</th><th>Prob</th><th>Кэф</th>
+                    <th>Ставок</th><th>WR</th><th>ROI</th><th>Прибыль</th><th>DD</th>
+                </tr></thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
         </div>
@@ -3800,7 +3857,7 @@ function renderGridTop5(top) {
 function renderSettings() {
     const bank = cachedData && cachedData.stats ? cachedData.stats.bank : 1000;
     document.getElementById('bankInput').value = bank;
-    document.getElementById('x2CountSettings').textContent = x2Data.length;
+    document.getElementById('x2CountSettings').textContent = x2Data.length + autoX2Data.length;
     document.getElementById('themeSelect').value = themeMode;
     fetch(API_BASE + '/api/snapshots?days=30&limit=1')
         .then(r => r.json())
@@ -3997,18 +4054,14 @@ function renderChart(profitData) {
                 data: data.profits,
                 borderColor: '#10b981',
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                fill: true,
-                tension: 0.4,
+                fill: true, tension: 0.4,
                 pointBackgroundColor: '#10b981',
                 pointBorderColor: isLight ? 'white' : '#0d1a17',
-                pointBorderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6
+                pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             onClick: (e) => {
                 const points = chartInstance.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
                 if (points.length) {
@@ -4071,6 +4124,8 @@ function startAutoRefresh() {
                 loadSnapshots();
             } else if (currentPage === 'autobets') {
                 loadAutobets();
+            } else if (currentPage === 'x2') {
+                renderX2Page();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -4177,6 +4232,8 @@ window.addEventListener('load', async () => {
     viewMode = localStorage.getItem('viewMode') || 'cards';
     setViewMode(viewMode);
     await loadPageData('dashboard');
+    // Предзагружаем авто-X2 в фоне
+    loadAutoX2();
     startKeepAlive();
     startAutoRefresh();
     autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
@@ -4215,10 +4272,8 @@ Object.assign(window, {
     loadSimPresets, applySimPreset, runSimulation, saveSimulation,
     computeClv, loadClvStats, runGridSearch, renderGridTop5,
     loadDashboardAutobets, getSourceBadge,
+    loadAutoX2, openX2Detail,
 });
 </script>
 </body>
-</html>
-<!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 3/3                                              -->
-<!-- ============================================================ -->    
+</html>    
