@@ -3042,7 +3042,7 @@ def _save_snapshot_from_odds(fo, fid):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (с update_x2_results + entry_odds)
+# main.py — ЧАСТЬ 3/3 (с sparkline для Live)
 # Schedulers, Webhook, API, __main__
 # ============================================================
 
@@ -3124,7 +3124,6 @@ def update_x2_results():
                 logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
                             f"(был {status}, {hours_ago:.1f}ч назад)")
 
-            # Логика X2 / 1X
             side = c.get('x2_side', 'X2')
             if side == 'X2':
                 result = 'win' if ag >= hg else 'loss'
@@ -3490,7 +3489,12 @@ def load_bot_settings():
                         'TM25_XG_MIN', 'TM25_XG_MAX', 'MAX_TM25_BETS',
                         'VALUE_MIN_ODDS', 'VALUE_MIN_EV', 'VALUE_MIN_PROB',
                         'VALUE_MIN_XG_DIFF', 'VALUE_MAX_RESULTS',
-                        'X2_MIN_EV', 'X2_MIN_PROB']:
+                        'X2_MIN_EV', 'X2_MIN_PROB',
+                        'LIVE_HOURS_BEFORE', 'LIVE_MINUTES_AFTER',
+                        'LIVE_REFRESH_SEC', 'LIVE_CACHE_TTL_LIVE',
+                        'LIVE_CACHE_TTL_SOON', 'LIVE_CACHE_TTL_FINAL',
+                        'LIVE_MAX_MATCHES', 'LIVE_SPARKLINE_ENABLED',
+                        'LIVE_SPARKLINE_POINTS']:
                 if key.lower() in s:
                     setattr(Config, key, s[key.lower()])
             logger.info("✅ Настройки загружены")
@@ -3882,17 +3886,205 @@ def serve_manifest():
 
 
 # ============================================================
+# ★ API: LIVE — активные матчи + sparkline
+# ============================================================
+@app.route('/api/live', methods=['GET'])
+def api_live():
+    """★ Активные матчи (идущие + ближайшие 2 часа) с live-счётом
+    и sparkline (мини-график движения кэфа)."""
+    try:
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+        today_str = now_msk.strftime('%Y-%m-%d')
+
+        # ── 1. Забираем матчи из кэша ──
+        with cache_lock:
+            cache = storage.load_cache()
+        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+        if not all_matches:
+            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
+                            'now': now_msk.strftime('%H:%M')})
+
+        # ── 2. Фильтр по времени: -30 мин .. +2ч ──
+        hours_before = getattr(Config, 'LIVE_HOURS_BEFORE', 2)
+        minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 30)
+        max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 30)
+
+        in_window = []
+        seen_fids = set()
+        for m in all_matches:
+            fid = m.get('fixture_id')
+            if not fid or fid in seen_fids:
+                continue
+            mt_str = m.get('match_time', '')
+            if not mt_str or mt_str == '?':
+                continue
+            try:
+                match_dt = datetime.strptime(mt_str, "%d.%m.%Y %H:%M")
+            except ValueError:
+                continue
+            delta_min = (match_dt - now_msk).total_seconds() / 60
+            if -minutes_after <= delta_min <= hours_before * 60:
+                in_window.append((m, match_dt, delta_min))
+                seen_fids.add(fid)
+
+        if not in_window:
+            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
+                            'now': now_msk.strftime('%H:%M')})
+
+        in_window.sort(key=lambda x: x[2])
+        in_window = in_window[:max_matches]
+
+        # ── 3. Batch-запрос к API: 1 запрос на все матчи дня ──
+        live_data = {}
+        if getattr(Config, 'LIVE_BATCH_ENABLED', True):
+            try:
+                batch = football_api._make_request('/fixtures', {
+                    'date': today_str,
+                    'timezone': 'Europe/Moscow'
+                })
+                if batch and batch.get('response'):
+                    for f in batch['response']:
+                        fid = f.get('fixture', {}).get('id')
+                        if fid:
+                            live_data[fid] = f
+                    logger.info(f"📡 Live batch: {len(live_data)} матчей на {today_str}")
+            except Exception as e:
+                logger.error(f"Live batch error: {e}")
+
+        # ── 3б. ★ Batch sparkline: одна история кэфов на все матчи ──
+        sparkline_data = {}
+        if getattr(Config, 'LIVE_SPARKLINE_ENABLED', True):
+            try:
+                all_fids = [m.get('fixture_id') for m, _, _ in in_window if m.get('fixture_id')]
+                if all_fids:
+                    sparkline_data = storage.get_odds_history_batch(
+                        fixture_ids=all_fids,
+                        market=getattr(Config, 'LIVE_SPARKLINE_MARKET', '1X2'),
+                        selection=getattr(Config, 'LIVE_SPARKLINE_SELECTION', '1'),
+                        limit=getattr(Config, 'LIVE_SPARKLINE_POINTS', 10),
+                    )
+                    logger.info(f"📈 Sparkline: {len(sparkline_data)} матчей")
+            except Exception as e:
+                logger.error(f"Sparkline batch error: {e}")
+
+        # ── 4. Формируем ответ ──
+        result = []
+        for m, match_dt, delta_min in in_window:
+            fid = m.get('fixture_id')
+
+            best_bet = m.get('best_bet', {})
+            bet_label = best_bet.get('label', '—')
+            bet_odds = best_bet.get('odds', 0)
+            bet_ev = best_bet.get('ev', 0)
+            bet_prob = best_bet.get('prob', 0)
+
+            live_status = None
+            live_minute = 0
+            live_score = None
+            live_halftime = None
+            is_live = False
+            is_final = False
+            status_short = 'NS'
+
+            if fid and fid in live_data:
+                f = live_data[fid]
+                status = f.get('fixture', {}).get('status', {})
+                goals = f.get('goals', {})
+                score = f.get('score', {})
+                status_short = status.get('short', 'NS')
+                live_minute = status.get('elapsed', 0) or 0
+
+                ht = score.get('halftime', {}) or {}
+                if ht.get('home') is not None and ht.get('away') is not None:
+                    live_halftime = f"{ht['home']}-{ht['away']}"
+
+                if status_short in FINAL_STATUSES:
+                    is_final = True
+                    hg = goals.get('home')
+                    ag = goals.get('away')
+                    if hg is not None and ag is not None:
+                        live_score = f"{hg}:{ag}"
+                elif status_short in LIVE_STATUSES:
+                    is_live = True
+                    hg = goals.get('home')
+                    ag = goals.get('away')
+                    if hg is not None and ag is not None:
+                        live_score = f"{hg}:{ag}"
+
+            # Тренд кэфа из снимков
+            odds_trend = 0
+            try:
+                if fid and bet_label:
+                    bt_lower = bet_label.lower()
+                    if 'x2' in bt_lower:
+                        dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
+                    elif '1x' in bt_lower:
+                        dc_hist = storage.get_odds_history(fid, 'DC', '1X')
+                    else:
+                        dc_hist = []
+                    if dc_hist and len(dc_hist) >= 2:
+                        f0 = float(dc_hist[0].get('odds', 0))
+                        f1 = float(dc_hist[-1].get('odds', 0))
+                        if f0 > 0:
+                            odds_trend = round(((f1 / f0) - 1) * 100, 1)
+            except Exception:
+                pass
+
+            # ★ Sparkline (сжатая история для мини-графика)
+            sparkline_points = []
+            raw_spark = sparkline_data.get(fid, [])
+            if raw_spark:
+                sparkline_points = [
+                    {'odds': p.get('odds', 0), 'ts': p.get('ts', '')}
+                    for p in raw_spark
+                ]
+
+            result.append({
+                'fixture_id': fid,
+                'home': m.get('home', '?'),
+                'away': m.get('away', '?'),
+                'league': m.get('league', '?'),
+                'country': m.get('country', ''),
+                'country_flag': m.get('country_flag', ''),
+                'match_time': m.get('match_time', ''),
+                'match_time_iso': match_dt.isoformat(),
+                'minutes_to_match': int(delta_min),
+                'is_live': is_live,
+                'is_final': is_final,
+                'status': status_short,
+                'minute': live_minute,
+                'score': live_score,
+                'halftime': live_halftime,
+                'best_bet': {
+                    'label': bet_label,
+                    'odds': bet_odds,
+                    'ev': bet_ev,
+                    'prob': bet_prob,
+                },
+                'odds_trend': odds_trend,
+                'sparkline': sparkline_points,   # ★ для мини-графика
+                'source': m.get('source', '70_percent'),
+                'total_xg': m.get('total_xg', 0),
+            })
+
+        logger.info(f"⚡ Live: {len(result)} матчей в окне")
+        return jsonify({
+            'status': 'ok',
+            'count': len(result),
+            'now': now_msk.strftime('%H:%M'),
+            'window': f"-{minutes_after}м .. +{hours_before}ч",
+            'matches': result,
+        })
+    except Exception as e:
+        logger.exception(f"api_live error: {e}")
+        return jsonify({'status': 'error', 'error': str(e), 'matches': []}), 500
+
+
+# ============================================================
 # API: X2 — АВТОМАТИЧЕСКИЕ КАНДИДАТЫ
 # ============================================================
 @app.route('/api/x2_auto', methods=['GET'])
 def api_x2_auto():
-    """
-    ★ Автоматические X2-кандидаты с обогащением:
-    - entry_odds (сохранённый при создании)
-    - current_odds (обновлённый из API, если матч не начался)
-    - odds_trend (% изменения из DC-снимков)
-    - country + country_flag
-    """
     try:
         candidates = storage.get_x2_candidates(limit=100)
         if not candidates:
@@ -3913,13 +4105,11 @@ def api_x2_auto():
                     league_id, ("", "")
                 )
 
-            # ★ Используем entry_odds из SQLite как базу
             current_odds = float(c.get('entry_odds', 0) or 0)
             current_1x_odds = float(c.get('entry_1x_odds', 0) or 0)
             odds_trend = 0
             try:
                 if fid:
-                    # Обновляем из API, если матч ещё не начался
                     md = football_api.get_match_result(fid)
                     if md and not md.get('is_final') and not md.get('is_live'):
                         odds_data = football_api.get_match_odds(fid)
@@ -3931,7 +4121,6 @@ def api_x2_auto():
                             if fresh_1x > 0:
                                 current_1x_odds = fresh_1x
 
-                    # Тренд из DC-снимков
                     if c.get('x2_side') == 'X2':
                         dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
                     else:
@@ -3942,13 +4131,11 @@ def api_x2_auto():
                         last_odd = float(dc_hist[-1].get('odds', 0))
                         if first_odd > 0:
                             odds_trend = round(((last_odd / first_odd) - 1) * 100, 1)
-                        # Если кэф всё ещё 0 — берём первый снимок
                         if current_odds <= 0 and first_odd > 0:
                             current_odds = first_odd
             except Exception as e:
                 logger.debug(f"x2_auto enrich {fid}: {e}")
 
-            # Если кэф всё ещё 0 — fallback из fair value
             if current_odds <= 0 and c.get('x2_prob', 0) > 0:
                 p = c.get('x2_prob', 0) / 100
                 if p > 0:
@@ -4356,176 +4543,6 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-@app.route('/api/live', methods=['GET'])
-def api_live():
-    """★ Активные матчи (идущие + ближайшие 2 часа) с live-счётом.
-    Batch-запрос к API вместо N одиночных."""
-    try:
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-        today_str = now_msk.strftime('%Y-%m-%d')
-
-        # ── 1. Забираем матчи из кэша ──
-        with cache_lock:
-            cache = storage.load_cache()
-        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
-        if not all_matches:
-            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
-                            'now': now_msk.strftime('%H:%M')})
-
-        # ── 2. Фильтр по времени: -30 мин .. +2ч ──
-        hours_before = getattr(Config, 'LIVE_HOURS_BEFORE', 2)
-        minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 30)
-        max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 30)
-
-        in_window = []
-        seen_fids = set()
-        for m in all_matches:
-            fid = m.get('fixture_id')
-            if not fid or fid in seen_fids:
-                continue
-            mt_str = m.get('match_time', '')
-            if not mt_str or mt_str == '?':
-                continue
-            try:
-                match_dt = datetime.strptime(mt_str, "%d.%m.%Y %H:%M")
-            except ValueError:
-                continue
-            delta_min = (match_dt - now_msk).total_seconds() / 60
-            # матч идёт или стартует в ближайшие X часов
-            if -minutes_after <= delta_min <= hours_before * 60:
-                in_window.append((m, match_dt, delta_min))
-                seen_fids.add(fid)
-
-        if not in_window:
-            return jsonify({'status': 'ok', 'count': 0, 'matches': [],
-                            'now': now_msk.strftime('%H:%M')})
-
-        # Сортируем: сначала идущие, потом ближайшие
-        in_window.sort(key=lambda x: x[2])
-        in_window = in_window[:max_matches]
-
-        # ── 3. Batch-запрос к API: 1 запрос на все матчи дня ──
-        live_data = {}
-        if getattr(Config, 'LIVE_BATCH_ENABLED', True):
-            try:
-                batch = football_api._make_request('/fixtures', {
-                    'date': today_str,
-                    'timezone': 'Europe/Moscow'
-                })
-                if batch and batch.get('response'):
-                    for f in batch['response']:
-                        fid = f.get('fixture', {}).get('id')
-                        if fid:
-                            live_data[fid] = f
-                    logger.info(f"📡 Live batch: {len(live_data)} матчей на {today_str}")
-            except Exception as e:
-                logger.error(f"Live batch error: {e}")
-
-        # ── 4. Формируем ответ ──
-        result = []
-        for m, match_dt, delta_min in in_window:
-            fid = m.get('fixture_id')
-
-            # Кэф из best_bet
-            best_bet = m.get('best_bet', {})
-            bet_label = best_bet.get('label', '—')
-            bet_odds = best_bet.get('odds', 0)
-            bet_ev = best_bet.get('ev', 0)
-            bet_prob = best_bet.get('prob', 0)
-
-            # Live-данные из batch
-            live_status = None
-            live_minute = 0
-            live_score = None
-            live_halftime = None
-            is_live = False
-            is_final = False
-            status_short = 'NS'
-
-            if fid and fid in live_data:
-                f = live_data[fid]
-                status = f.get('fixture', {}).get('status', {})
-                goals = f.get('goals', {})
-                score = f.get('score', {})
-                status_short = status.get('short', 'NS')
-                live_minute = status.get('elapsed', 0) or 0
-
-                ht = score.get('halftime', {}) or {}
-                if ht.get('home') is not None and ht.get('away') is not None:
-                    live_halftime = f"{ht['home']}-{ht['away']}"
-
-                if status_short in FINAL_STATUSES:
-                    is_final = True
-                    hg = goals.get('home')
-                    ag = goals.get('away')
-                    if hg is not None and ag is not None:
-                        live_score = f"{hg}:{ag}"
-                elif status_short in LIVE_STATUSES:
-                    is_live = True
-                    hg = goals.get('home')
-                    ag = goals.get('away')
-                    if hg is not None and ag is not None:
-                        live_score = f"{hg}:{ag}"
-
-            # Тренд кэфа из снимков
-            odds_trend = 0
-            try:
-                if fid and bet_label:
-                    bt_lower = bet_label.lower()
-                    if 'x2' in bt_lower:
-                        dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
-                    elif '1x' in bt_lower:
-                        dc_hist = storage.get_odds_history(fid, 'DC', '1X')
-                    else:
-                        dc_hist = []
-                    if dc_hist and len(dc_hist) >= 2:
-                        f0 = float(dc_hist[0].get('odds', 0))
-                        f1 = float(dc_hist[-1].get('odds', 0))
-                        if f0 > 0:
-                            odds_trend = round(((f1 / f0) - 1) * 100, 1)
-            except Exception:
-                pass
-
-            result.append({
-                'fixture_id': fid,
-                'home': m.get('home', '?'),
-                'away': m.get('away', '?'),
-                'league': m.get('league', '?'),
-                'country': m.get('country', ''),
-                'country_flag': m.get('country_flag', ''),
-                'match_time': m.get('match_time', ''),
-                'match_time_iso': match_dt.isoformat(),
-                'minutes_to_match': int(delta_min),
-                'is_live': is_live,
-                'is_final': is_final,
-                'status': status_short,
-                'minute': live_minute,
-                'score': live_score,
-                'halftime': live_halftime,
-                'best_bet': {
-                    'label': bet_label,
-                    'odds': bet_odds,
-                    'ev': bet_ev,
-                    'prob': bet_prob,
-                },
-                'odds_trend': odds_trend,
-                'source': m.get('source', '70_percent'),
-                'total_xg': m.get('total_xg', 0),
-            })
-
-        logger.info(f"⚡ Live: {len(result)} матчей в окне")
-        return jsonify({
-            'status': 'ok',
-            'count': len(result),
-            'now': now_msk.strftime('%H:%M'),
-            'window': f"-{minutes_after}м .. +{hours_before}ч",
-            'matches': result,
-        })
-    except Exception as e:
-        logger.exception(f"api_live error: {e}")
-        return jsonify({'status': 'error', 'error': str(e), 'matches': []}), 500
-
-
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
@@ -4713,7 +4730,10 @@ def update_settings():
                     'TM25_XG_MIN', 'TM25_XG_MAX', 'MAX_TM25_BETS',
                     'VALUE_MIN_ODDS', 'VALUE_MIN_EV', 'VALUE_MIN_PROB',
                     'VALUE_MIN_XG_DIFF', 'VALUE_MAX_RESULTS',
-                    'X2_MIN_EV', 'X2_MIN_PROB']:
+                    'X2_MIN_EV', 'X2_MIN_PROB',
+                    'LIVE_HOURS_BEFORE', 'LIVE_MINUTES_AFTER',
+                    'LIVE_REFRESH_SEC', 'LIVE_MAX_MATCHES',
+                    'LIVE_SPARKLINE_ENABLED', 'LIVE_SPARKLINE_POINTS']:
             if key.lower() in data:
                 setattr(Config, key, data[key.lower()])
         return jsonify({'success': True})
@@ -4939,6 +4959,9 @@ if __name__ == "__main__":
     logger.info(f"💎 VALUE: кэф>={getattr(Config, 'VALUE_MIN_ODDS', 2.5)} | "
                 f"EV>={getattr(Config, 'VALUE_MIN_EV', 50)}% | "
                 f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 60)}%")
+    logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 30)}м .. "
+                f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
+                f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
     logger.info("=" * 60)
 
