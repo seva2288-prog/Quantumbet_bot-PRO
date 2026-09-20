@@ -204,17 +204,17 @@ class Config:
     # ============================================================
     # === ТМ 2.5 ===
     # ============================================================
-    MAX_TM25_BETS = 5
+    MAX_TM25_BETS = 3
     MIN_TM25_EV = 15
     MIN_TM25_PROB = 55
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
     PREMIUM_MIN_EV = 25
-    PREMIUM_MIN_PROB = 58
+    PREMIUM_MIN_PROB = 60
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
-    STANDARD_MIN_EV = 15
-    STANDARD_MIN_PROB = 52
+    STANDARD_MIN_EV = 20
+    STANDARD_MIN_PROB = 60
     STANDARD_XG_MIN = 0.8
     STANDARD_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
