@@ -1381,7 +1381,7 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3
+# main.py — ЧАСТЬ 2/3 (с country + country_flag)
 # Стратегии, 3 потока поиска, обновление результатов
 # ============================================================
 
@@ -1597,6 +1597,17 @@ def analyze_form(form_string):
     if wins >= 3: return 'good'
     if wins >= 2: return 'average'
     return 'poor'
+
+
+def _get_country_flag(league_id):
+    """★ Возвращает (country_name, flag_emoji) для league_id."""
+    try:
+        lid = int(league_id) if league_id else None
+    except (ValueError, TypeError):
+        lid = None
+    if lid is None:
+        return ("", "")
+    return Config.LEAGUE_COUNTRY.get(lid, ("", ""))
 
 
 def export_to_excel():
@@ -1829,7 +1840,14 @@ def analyze_match(match_name):
                     'tm25_standard': '⭐ STANDARD ТМ 2.5',
                     '70_percent': '🎯 70%+',
                 }.get(src, '🎯')
-                r = f"📊 <b>АНАЛИЗ</b>\n🏟️ {full}\n🏆 {m.get('league', '?')}\n📅 {m.get('match_time', '?')}\n{src_label}\n\n"
+                country_str = ''
+                if m.get('country'):
+                    country_str = f" • {m.get('country_flag', '')} {m.get('country')}"
+                r = (f"📊 <b>АНАЛИЗ</b>\n"
+                     f"🏟️ {full}\n"
+                     f"🏆 {m.get('league', '?')}{country_str}\n"
+                     f"📅 {m.get('match_time', '?')}\n"
+                     f"{src_label}\n\n")
                 best = m.get('best_bet', {})
                 r += f"🎯 <b>{best.get('label', '—')}</b>\n"
                 r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
@@ -1848,13 +1866,12 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ★★★ ОБНОВЛЕНИЕ КЭФОВ (с двойной проверкой для VALUE)
+# ОБНОВЛЕНИЕ КЭФОВ
 # ============================================================
 def update_odds_for_matches(matches):
     if not matches:
         return []
 
-    # Группируем по (league_id, date)
     groups = defaultdict(list)
     for md in matches:
         fid = md.get('fixture_id')
@@ -1881,7 +1898,6 @@ def update_odds_for_matches(matches):
         else:
             groups[('single', fid)].append(md)
 
-    # Загружаем batch
     batch_odds = {}
     for key, group_matches in groups.items():
         if isinstance(key, tuple) and key[0] == 'single':
@@ -1916,12 +1932,10 @@ def update_odds_for_matches(matches):
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
 
-            # ★★ Двойная проверка для VALUE-матчей (защита от устаревших линий)
             if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
                 try:
                     fresh = football_api.get_match_odds(fid)
                     if fresh:
-                        # сравниваем 1x/x2/1/2
                         for k in ['1x_odds', 'x2_odds', 'home_odds', 'away_odds']:
                             old_v = fo.get(k, 0)
                             new_v = fresh.get(k, 0)
@@ -2048,7 +2062,6 @@ def get_matches_with_factors():
             league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
             processed += 1
 
-            # ★ Предзагрузка batch-кэфов и прогнозов (Ultra)
             batch_odds = {}
             batch_preds = {}
             if matches:
@@ -2098,7 +2111,6 @@ def get_matches_with_factors():
                     else:
                         m['weather_reason'] = "🌤️ Нет данных"
 
-                    # ★ Предзагрузка
                     if mid in batch_odds:
                         m['_preloaded_odds'] = batch_odds[mid]
                     if mid in batch_preds:
@@ -2267,7 +2279,6 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
-            # X2-сохранение
             if X2_ENABLED:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2300,8 +2311,12 @@ def find_top_matches(matches):
                     except Exception as e:
                         logger.error(f"X2 candidate save error: {e}")
 
+            # ★ Страна + флаг
+            country_name, country_flag = _get_country_flag(league_id)
+
             best_matches.append({
                 "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
                 "fixture_id": fid, "match_time": match_time,
                 "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
                 "total_xg": round(total_xg, 2),
@@ -2421,6 +2436,9 @@ def find_tm25_matches(matches):
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
 
+            # ★ Страна + флаг
+            country_name, country_flag = _get_country_flag(league_id)
+
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and p_under >= PREMIUM_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.35: continue
@@ -2431,6 +2449,7 @@ def find_tm25_matches(matches):
                             'level': 'PREMIUM', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
+                    "country": country_name, "country_flag": country_flag,
                     "fixture_id": fid, "match_time": match_time,
                     "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
                     "total_xg": round(total_xg, 2),
@@ -2453,6 +2472,7 @@ def find_tm25_matches(matches):
                             'level': 'STANDARD', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
+                    "country": country_name, "country_flag": country_flag,
                     "fixture_id": fid, "match_time": match_time,
                     "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
                     "total_xg": round(total_xg, 2),
@@ -2473,23 +2493,13 @@ def find_tm25_matches(matches):
 
 
 # ============================================================
-# ★★★ ПОТОК 3: VALUE (Birmingham vs Middlesbrough style)
+# ★ ПОТОК 3: VALUE
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=2):
-    """
-    ★ Ищет "золотые" матчи: высокий кэф + высокий EV.
-    Birmingham vs Middlesbrough: 1X @ 3.00, EV +105%, Prob 68%.
-
-    Фильтры (жёсткие):
-      - Кэф >= 2.50 (обычно 1X = 1.30-1.50)
-      - EV >= 50% (реальный value)
-      - Prob >= 60% (модель уверена)
-      - XG разница >= 0.3
-    """
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
-    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 50)
-    VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 60)
+    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
+    VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
     VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
     VALUE_MAX_RESULTS = max_bets
 
@@ -2513,7 +2523,6 @@ def find_value_matches(matches, max_bets=2):
             if any(bad in league_name.lower() for bad in blacklist): continue
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
 
-            # Форма и XG
             factors = match.get('factors', {}) or {}
             hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
             afd = factors.get('away_form') or football_api.get_form(at.get('id'))
@@ -2545,74 +2554,86 @@ def find_value_matches(matches, max_bets=2):
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form,
                                           h2h, api_predictions=api_predictions)
 
-            # Реальные кэфы
             fo = match.get('_preloaded_odds')
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
             if not fo:
                 continue
 
+            def _compute_value(model_prob, odds):
+                if model_prob <= 0 or odds <= 1.01:
+                    return None
+                if model_prob * 100 > getattr(Config, 'VALUE_MAX_PROB', 80):
+                    return None
+                market_prob = 1.0 / odds
+                ratio = model_prob / market_prob if market_prob > 0 else 0
+                if ratio > getattr(Config, 'VALUE_MAX_RATIO', 2.2):
+                    return None
+                blended = model_prob * 0.35 + market_prob * 0.65
+                ev = (blended * odds - 1) * 100
+                return (ev, blended)
+
             candidates_bc = []
 
-            # 1X
             p_1x = probs.get('1X', 0)
             odds_1x = fo.get('1x_odds', 0) or 0
-            if odds_1x > 0:
-                ev_1x = (p_1x * odds_1x - 1) * 100
-                if (odds_1x >= VALUE_MIN_ODDS and ev_1x >= VALUE_MIN_EV
-                    and p_1x * 100 >= VALUE_MIN_PROB):
-                    candidates_bc.append({
-                        'type': '1X', 'label': '1X 💎',
-                        'prob': round(p_1x * 100, 1),
-                        'ev': round(ev_1x, 1),
-                        'odds': odds_1x,
-                        'bookmaker': fo.get('bookmaker', '—'),
-                    })
+            if odds_1x >= VALUE_MIN_ODDS:
+                res = _compute_value(p_1x, odds_1x)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': '1X', 'label': '1X 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_1x * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_1x,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
 
-            # X2
             p_x2 = probs.get('X2', 0)
             odds_x2 = fo.get('x2_odds', 0) or 0
-            if odds_x2 > 0:
-                ev_x2 = (p_x2 * odds_x2 - 1) * 100
-                if (odds_x2 >= VALUE_MIN_ODDS and ev_x2 >= VALUE_MIN_EV
-                    and p_x2 * 100 >= VALUE_MIN_PROB):
-                    candidates_bc.append({
-                        'type': 'X2', 'label': 'X2 💎',
-                        'prob': round(p_x2 * 100, 1),
-                        'ev': round(ev_x2, 1),
-                        'odds': odds_x2,
-                        'bookmaker': fo.get('bookmaker', '—'),
-                    })
+            if odds_x2 >= VALUE_MIN_ODDS:
+                res = _compute_value(p_x2, odds_x2)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'X2', 'label': 'X2 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_x2 * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_x2,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
 
-            # П1
             p_home = probs.get('home_win', 0)
             odds_home = fo.get('home_odds', 0) or 0
-            if odds_home > 0:
-                ev_home = (p_home * odds_home - 1) * 100
-                if (odds_home >= VALUE_MIN_ODDS and ev_home >= VALUE_MIN_EV
-                    and p_home * 100 >= VALUE_MIN_PROB):
-                    candidates_bc.append({
-                        'type': 'П1', 'label': 'П1 💎',
-                        'prob': round(p_home * 100, 1),
-                        'ev': round(ev_home, 1),
-                        'odds': odds_home,
-                        'bookmaker': fo.get('bookmaker', '—'),
-                    })
+            if odds_home >= VALUE_MIN_ODDS:
+                res = _compute_value(p_home, odds_home)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'П1', 'label': 'П1 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_home * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_home,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
 
-            # П2
             p_away = probs.get('away_win', 0)
             odds_away = fo.get('away_odds', 0) or 0
-            if odds_away > 0:
-                ev_away = (p_away * odds_away - 1) * 100
-                if (odds_away >= VALUE_MIN_ODDS and ev_away >= VALUE_MIN_EV
-                    and p_away * 100 >= VALUE_MIN_PROB):
-                    candidates_bc.append({
-                        'type': 'П2', 'label': 'П2 💎',
-                        'prob': round(p_away * 100, 1),
-                        'ev': round(ev_away, 1),
-                        'odds': odds_away,
-                        'bookmaker': fo.get('bookmaker', '—'),
-                    })
+            if odds_away >= VALUE_MIN_ODDS:
+                res = _compute_value(p_away, odds_away)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'П2', 'label': 'П2 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_away * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_away,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
 
             if not candidates_bc:
                 continue
@@ -2620,8 +2641,12 @@ def find_value_matches(matches, max_bets=2):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
+            # ★ Страна + флаг
+            country_name, country_flag = _get_country_flag(league_id)
+
             value_candidates.append({
                 "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
                 "fixture_id": fid, "match_time": match_time,
                 "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
                 "total_xg": round(total_xg, 2),
@@ -2670,7 +2695,6 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=2)
 
-    # Объединяем — VALUE первыми
     combined = []
     keys = set()
 
@@ -2721,7 +2745,6 @@ def find_top_matches_with_tm25(matches):
         bb = m.get('best_bet', {})
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
-        # ★ VALUE — особый фильтр
         if m.get('source') == 'value':
             if ev < EV_MIN: continue
             if prob < PROB_MIN: continue
@@ -2743,7 +2766,6 @@ def find_top_matches_with_tm25(matches):
         cache['all_analyzed'] = all_before_odds_filter
         storage.save_cache(cache)
 
-    # Сохранение в историю
     history = storage.load_history()
     today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
     existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0])
@@ -2807,7 +2829,6 @@ def update_pending_bets():
                     if hg is None or ag is None:
                         continue
                     status = md.get('status', 'NS')
-
                     date_str = bet.get('date', '')
                     match_time_str = ''
                     if date_str and ' ' in date_str:
@@ -2818,9 +2839,7 @@ def update_pending_bets():
                                 match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
                             except Exception:
                                 pass
-
                     force_final = is_force_final(match_time_str, status)
-
                     if not md.get('is_final', False) and not force_final:
                         if md.get('is_live', False):
                             bet['live_score'] = f"{hg}-{ag}"
@@ -2831,7 +2850,6 @@ def update_pending_bets():
                                 bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
                             live_updated += 1
                         continue
-
                     result = determine_bet_result(bet.get('bet', ''), hg, ag)
                     if result != 'pending':
                         bet['result'] = result
@@ -2851,7 +2869,6 @@ def update_pending_bets():
                         bet.pop('live_minute', None)
                         bet.pop('live_halftime', None)
                         updated += 1
-
     if updated > 0 or live_updated > 0:
         storage.save_history(history)
         if updated > 0:
