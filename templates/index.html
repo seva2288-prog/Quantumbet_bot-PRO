@@ -1933,7 +1933,7 @@
 
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (с X2 auto)                           -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.4 с LIVE-минутой)                 -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2464,12 +2464,14 @@ function renderLive() {
 function renderLiveCard(m) {
     const isLive = m.is_live;
     const isFinal = m.is_final;
+    const minutes = m.minutes_to_match;
     const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
 
-    const minutes = m.minutes_to_match;
+    // ★ v4.4: LIVE-минута в тексте времени
     let timeInfo = '';
     if (isLive) {
-        timeInfo = '';
+        const minStr = m.minute ? `${m.minute}'` : '';
+        timeInfo = `<span style="color:var(--red-400);font-weight:700;">🔴 LIVE ${minStr}</span>`;
     } else if (isFinal) {
         timeInfo = `<span style="color:var(--emerald-400);">Завершён</span>`;
     } else if (minutes >= 0) {
@@ -2481,14 +2483,19 @@ function renderLiveCard(m) {
             timeInfo = `через <b>${h}ч ${mn}м</b>`;
         }
     } else {
-        timeInfo = `начался ${Math.round(-minutes)} мин назад`;
+        // Матч должен был начаться, но live-данных нет
+        timeInfo = `<span style="color:var(--red-400);">🔴 начался ${Math.round(-minutes)} мин назад</span>`;
     }
 
+    // ★ v4.4: бейдж статуса
     let statusBadge = '';
     if (isLive) {
         statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
     } else if (isFinal) {
         statusBadge = `<span class="live-badge-final">✅ Завершён</span>`;
+    } else if (minutes < 0) {
+        // Матч должен был начаться, но API молчит
+        statusBadge = `<span class="live-badge-live">⚽ LIVE ?</span>`;
     } else {
         statusBadge = `<span class="live-badge-soon">⏳ Скоро</span>`;
     }
@@ -2507,13 +2514,27 @@ function renderLiveCard(m) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
+    // ★ v4.4: счёт и минута внутри карточки
     let scoreHtml = '';
-    if ((isLive || isFinal) && m.score) {
-        const minuteStr = isLive && m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
+    if (isLive && m.score) {
+        const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
         scoreHtml = `
             <div style="display:flex;align-items:center;gap:8px;margin:6px 0 0;">
                 <span class="live-score">${escapeHtml(m.score)}</span>
                 ${minuteStr}
+            </div>
+        `;
+    } else if (isFinal && m.score) {
+        scoreHtml = `
+            <div style="display:flex;align-items:center;gap:8px;margin:6px 0 0;">
+                <span class="live-score" style="color:var(--emerald-400);">${escapeHtml(m.score)}</span>
+            </div>
+        `;
+    } else if (isLive && !m.score && m.minute) {
+        // LIVE, но счёт ещё не получили
+        scoreHtml = `
+            <div style="font-size:11px;color:var(--red-400);margin:6px 0 0;">
+                🔴 Идёт ${m.minute}'
             </div>
         `;
     }
@@ -3341,7 +3362,6 @@ async function loadSnapshots() {
     `;
     countEl.textContent = 'Загрузка...';
 
-    // ★ Загружаем статистику аномалий параллельно
     loadAnomalyStats();
 
     try {
