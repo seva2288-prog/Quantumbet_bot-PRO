@@ -1384,12 +1384,13 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.6 — CLV-фильтр)
+# main.py — ЧАСТЬ 2/3 (v4.7 — полный TM 2.5 + Kelly + CLV)
 # Стратегии, 3 потока поиска, обновление результатов
 # ★ Snapshots c home/away/league
-# ★ Исключение для сборных
+# ★ Исключение для сборных в 70%+
 # ★ Quarter-Kelly для расчёта stake
-# ★ CLV-фильтр для стратегий (v4.6)
+# ★ CLV-фильтр для стратегий
+# ★ Расширенный ТМ 2.5: whitelist, bonus EV, лимит лиг, форма, H2H
 # ============================================================
 
 # ============================================================
@@ -1590,12 +1591,24 @@ strategy_simulator = StrategySimulator()
 # ★ KELLY CRITERION (v4.5)
 # ============================================================
 def calculate_stake(bank, prob_pct, odds,
-                     base_pct=0.02, kelly_fraction=0.25,
-                     max_pct=0.05, min_stake=1.0):
+                     base_pct=None, kelly_fraction=None,
+                     max_pct=None, min_stake=None):
     """
     Quarter-Kelly с защитой.
-    Формула: f = (b*p - q) / b, где b = odds-1, p = prob, q = 1-p
+    Использует настройки из Config, если параметры не переданы.
     """
+    if base_pct is None:
+        base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
+    if kelly_fraction is None:
+        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
+    if max_pct is None:
+        max_pct = getattr(Config, 'KELLY_MAX_PCT', 0.05)
+    if min_stake is None:
+        min_stake = getattr(Config, 'KELLY_MIN_STAKE', 1.0)
+
+    if not getattr(Config, 'KELLY_ENABLED', True):
+        return max(round(bank * base_pct, 2), min_stake)
+
     if bank <= 0 or odds <= 1.01 or prob_pct <= 0:
         return min_stake
 
@@ -1613,8 +1626,11 @@ def calculate_stake(bank, prob_pct, odds,
     return max(stake, min_stake)
 
 
-def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=0.25):
+def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
     """Возвращает инфу о Kelly — для логирования/UI."""
+    if kelly_fraction is None:
+        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
+
     if odds <= 1.01 or prob_pct <= 0:
         return {'kelly_full': 0, 'kelly_quarter': 0, 'edge': 0}
     b = odds - 1
@@ -1634,18 +1650,22 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=0.25):
 # ============================================================
 _CLV_CACHE = {}
 _CLV_CACHE_TS = 0
-_CLV_CACHE_TTL = 600  # 10 минут
+_CLV_CACHE_TTL = 600
 
 
-def get_strategy_clv(source, days=30, min_samples=20):
+def get_strategy_clv(source, days=None, min_samples=None):
     """
     Возвращает CLV-статистику по стратегии (кэш 10 минут).
-    source: '70_percent' / 'value' / 'tm25_premium' / 'tm25_standard' / 'x2'
     """
     global _CLV_CACHE, _CLV_CACHE_TS
+    if days is None:
+        days = getattr(Config, 'CLV_LOOKBACK_DAYS', 30)
+    if min_samples is None:
+        min_samples = getattr(Config, 'CLV_MIN_SAMPLES', 20)
+
     now = time.time()
     if (not _CLV_CACHE or now - _CLV_CACHE_TS > _CLV_CACHE_TTL):
-        _CLV_CACHE = _compute_all_strategy_clv(days=days)
+        _CLV_CACHE = _compute_all_strategy_clv(days=days, min_samples=min_samples)
         _CLV_CACHE_TS = now
     return _CLV_CACHE.get(source, {
         'avg_clv': 0, 'count': 0, 'samples': 0,
@@ -1682,26 +1702,7 @@ def _compute_all_strategy_clv(days=30, min_samples=20):
             avg = sum(clvs) / len(clvs)
             n = len(clvs)
 
-            skip = False
-            multiplier = 1.0
-            status = 'active'
-
-            if n < min_samples:
-                status = 'insufficient_data'
-                multiplier = 1.0
-            elif avg > 1.0:
-                status = 'excellent'
-                multiplier = 1.25
-            elif avg > -0.5:
-                status = 'good'
-                multiplier = 1.0
-            elif avg > -2.0:
-                status = 'weak'
-                multiplier = 0.5
-            else:
-                status = 'critical'
-                multiplier = 0.5
-                skip = True
+            multiplier, skip, status = Config.get_clv_multiplier(avg, n)
 
             result[src] = {
                 'avg_clv': round(avg, 2),
@@ -1735,9 +1736,11 @@ def _guess_source_from_label(label):
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
     """
     Применяет CLV-фильтр.
-    Возвращает (final_stake, action_str):
-      action: 'normal' / 'boosted' / 'reduced' / 'skipped' / 'no_data'
+    Возвращает (final_stake, action_str).
     """
+    if not getattr(Config, 'CLV_FILTER_ENABLED', True):
+        return base_stake, 'disabled'
+
     clv_info = get_strategy_clv(source)
 
     if clv_info['status'] in ('no_data', 'insufficient_data'):
@@ -1752,7 +1755,7 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
         return base_stake, 'normal'
 
     new_stake = round(base_stake * mult, 2)
-    max_stake = round(bank * 0.05, 2)
+    max_stake = round(bank * getattr(Config, 'KELLY_MAX_PCT', 0.05), 2)
     if new_stake > max_stake:
         new_stake = max_stake
 
@@ -1783,7 +1786,6 @@ def analyze_form(form_string):
 
 
 def _get_country_flag(league_id):
-    """Возвращает (country_name, flag_emoji) для league_id."""
     try:
         lid = int(league_id) if league_id else None
     except (ValueError, TypeError):
@@ -1794,7 +1796,6 @@ def _get_country_flag(league_id):
 
 
 def _is_international_league(league_id, league_name):
-    """Проверяет, относится ли матч к турнирам сборных."""
     try:
         if league_id and int(league_id) in getattr(Config, 'INTERNATIONAL_LEAGUES', []):
             return True
@@ -1998,7 +1999,6 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
                 prob_pct=match['best_bet'].get('prob', 0),
                 odds=match['best_bet'].get('odds', 1.85),
             )
-            # ★ CLV-фильтр
             src = match.get('source', '70_percent')
             final_stake, clv_action = apply_clv_filter(
                 source=src,
@@ -2080,7 +2080,7 @@ def analyze_match(match_name):
                 r += f"🎯 <b>{best.get('label', '—')}</b>\n"
                 r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
                 r += f"💰 Кэф: {best.get('odds', 0)}\n"
-                r += f"💵 Ставка: ${best.get('stake', 0)}\n\n"
+                r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
                 for i, b in enumerate(m.get('bets', [])[:7], 1):
                     emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
                     r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
@@ -2245,7 +2245,6 @@ def update_odds_for_matches(matches):
                         prob_pct=best_bet.get('prob', 0),
                         odds=new_odds,
                     )
-                    # ★ CLV-фильтр
                     src_key = md.get('source', '70_percent')
                     final_stake, clv_action = apply_clv_filter(
                         source=src_key,
@@ -2536,7 +2535,6 @@ def find_top_matches(matches):
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
 
-            # ★ Kelly
             kelly_stake = calculate_stake(
                 bank=bank,
                 prob_pct=best_bet.get('prob', 0),
@@ -2550,7 +2548,6 @@ def find_top_matches(matches):
             best_bet['kelly_full'] = kelly_info['kelly_full']
             best_bet['kelly_quarter'] = kelly_info['kelly_quarter']
 
-            # ★ v4.6: CLV-фильтр
             final_stake, clv_action = apply_clv_filter(
                 source='70_percent',
                 base_stake=kelly_stake,
@@ -2575,7 +2572,6 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
-            # X2-сохранение
             if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2670,7 +2666,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (Kelly + CLV)
+# ★ ПОТОК 2: ТМ 2.5 (v4.7 — расширенный: whitelist, bonus, форма, H2H)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -2686,9 +2682,24 @@ def find_tm25_matches(matches):
     STANDARD_XG_MIN = getattr(Config, 'TM25_XG_MIN', 0.8)
     STANDARD_XG_MAX = getattr(Config, 'TM25_XG_MAX', 3.0)
 
-    logger.info("🔍 [ТМ 2.5] Единый поиск...")
-    stats = {'premium_found': 0, 'standard_found': 0, 'clv_skipped': 0}
+    INCLUDE_INTERNATIONAL = getattr(Config, 'TM25_INCLUDE_INTERNATIONAL', False)
+    USE_KELLY = getattr(Config, 'TM25_USE_KELLY', True)
+    FORM_FILTER = getattr(Config, 'TM25_FORM_FILTER', True)
+    H2H_FILTER = getattr(Config, 'TM25_H2H_FILTER', True)
+    H2H_MIN_MATCHES = getattr(Config, 'TM25_MIN_H2H_MATCHES', 3)
+    H2H_AVG_MAX = getattr(Config, 'TM25_H2H_AVG_MAX', 2.8)
+    LEAGUE_BONUS = getattr(Config, 'TM25_LEAGUE_BONUS', 5)
+    MAX_LEAGUE_BETS = getattr(Config, 'TM25_MAX_LEAGUE_BETS', 2)
+
+    logger.info("🔍 [ТМ 2.5 v4.7] Расширенный поиск...")
+    stats = {
+        'premium_found': 0, 'standard_found': 0,
+        'clv_skipped': 0, 'intl_skipped': 0,
+        'league_bonus': 0, 'league_limit': 0,
+        'form_skipped': 0, 'h2h_skipped': 0,
+    }
     seen_keys = set()
+    league_bet_count = {}
 
     for match in matches:
         if len(tm25_candidates) >= MAX_TM25_BETS: break
@@ -2708,6 +2719,19 @@ def find_tm25_matches(matches):
             league_name = ld.get('name', 'Unknown')
             league_id = ld.get('id')
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            # ★ Фильтр сборных
+            if not INCLUDE_INTERNATIONAL:
+                is_intl = _is_international_league(league_id, league_name)
+                if is_intl:
+                    stats['intl_skipped'] += 1
+                    continue
+
+            # ★ Лимит на лигу
+            cur_league_bets = league_bet_count.get(league_name, 0)
+            if cur_league_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
 
             stats_dict = football_api.get_match_statistics(fid) if fid else None
             home_xg = 1.2; away_xg = 1.0
@@ -2741,28 +2765,47 @@ def find_tm25_matches(matches):
             home_form = hfd.get('form', '') if hfd else ''
             away_form = afd.get('form', '') if afd else ''
 
+            # ★ FORM FILTER
+            if FORM_FILTER:
+                home_under = _form_is_under(home_form)
+                away_under = _form_is_under(away_form)
+                if not (home_under or away_under):
+                    stats['form_skipped'] += 1
+                    continue
+
             standings = football_api.get_standings(league_id) if league_id else None
             hp = standings.get(home, {}).get('position', 99) if standings else 99
             ap = standings.get(away, {}).get('position', 99) if standings else 99
 
             h2h = football_api.get_head_to_head(home, away)
+
+            # ★ H2H FILTER
+            if H2H_FILTER and h2h:
+                h2h_total = h2h.get('total_matches', 0)
+                h2h_avg = h2h.get('avg_goals', 0)
+                if h2h_total >= H2H_MIN_MATCHES and h2h_avg > H2H_AVG_MAX:
+                    stats['h2h_skipped'] += 1
+                    continue
+
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
             p_under = probs.get('under25', probs.get('under_2_5', 0))
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
+
+            # ★ League bonus
+            is_whitelisted = Config.is_tm25_league_whitelisted(league_name)
+            if is_whitelisted:
+                ev_under += LEAGUE_BONUS / 100
 
             country_name, country_flag = _get_country_flag(league_id)
 
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and p_under >= PREMIUM_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.35: continue
-                kelly_stake = calculate_stake(
-                    bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
-                )
-                # ★ CLV-фильтр
+                stake = _calculate_tm25_stake(USE_KELLY, bank, p_under * 100, odds_tm25)
                 final_stake, clv_action = apply_clv_filter(
                     source='tm25_premium',
-                    base_stake=kelly_stake,
+                    base_stake=stake,
                     prob_pct=p_under * 100,
                     odds=odds_tm25,
                     bank=bank,
@@ -2771,12 +2814,16 @@ def find_tm25_matches(matches):
                     logger.info(f"⏭️ CLV SKIP (tm25_premium): {home} vs {away}")
                     stats['clv_skipped'] += 1
                     continue
+                if is_whitelisted:
+                    stats['league_bonus'] += 1
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5 🔥',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
                             'odds': odds_tm25, 'stake': final_stake,
                             'clv_action': clv_action,
-                            'level': 'PREMIUM', 'odds_updated': False}
+                            'level': 'PREMIUM',
+                            'league_bonus': is_whitelisted,
+                            'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
                     "country": country_name, "country_flag": country_flag,
@@ -2790,18 +2837,16 @@ def find_tm25_matches(matches):
                     "_preloaded_odds": match.get('_preloaded_odds'),
                 })
                 stats['premium_found'] += 1
+                league_bet_count[league_name] = cur_league_bets + 1
                 continue
 
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV and p_under >= STANDARD_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.20: continue
-                kelly_stake = calculate_stake(
-                    bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
-                )
-                # ★ CLV-фильтр
+                stake = _calculate_tm25_stake(USE_KELLY, bank, p_under * 100, odds_tm25)
                 final_stake, clv_action = apply_clv_filter(
                     source='tm25_standard',
-                    base_stake=kelly_stake,
+                    base_stake=stake,
                     prob_pct=p_under * 100,
                     odds=odds_tm25,
                     bank=bank,
@@ -2810,12 +2855,16 @@ def find_tm25_matches(matches):
                     logger.info(f"⏭️ CLV SKIP (tm25_standard): {home} vs {away}")
                     stats['clv_skipped'] += 1
                     continue
+                if is_whitelisted:
+                    stats['league_bonus'] += 1
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
                             'odds': odds_tm25, 'stake': final_stake,
                             'clv_action': clv_action,
-                            'level': 'STANDARD', 'odds_updated': False}
+                            'level': 'STANDARD',
+                            'league_bonus': is_whitelisted,
+                            'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
                     "country": country_name, "country_flag": country_flag,
@@ -2829,14 +2878,34 @@ def find_tm25_matches(matches):
                     "_preloaded_odds": match.get('_preloaded_odds'),
                 })
                 stats['standard_found'] += 1
+                league_bet_count[league_name] = cur_league_bets + 1
         except Exception as e:
             logger.error(f"❌ [ТМ2.5] {e}")
             continue
 
-    logger.info(f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}, "
-                f"CLV-skip: {stats['clv_skipped']}")
+    logger.info(
+        f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']} | "
+        f"CLV-skip: {stats['clv_skipped']}, Intl-skip: {stats['intl_skipped']}, "
+        f"League-bonus: {stats['league_bonus']}, League-limit: {stats['league_limit']}, "
+        f"Form-skip: {stats['form_skipped']}, H2H-skip: {stats['h2h_skipped']}"
+    )
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     return tm25_candidates
+
+
+def _form_is_under(form_string):
+    """Проверяет, что команда в 'низовой' форме (много D/L)."""
+    if not form_string:
+        return False
+    wins = form_string.count('W')
+    return wins <= 2
+
+
+def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
+    """Расчёт stake для ТМ 2.5: Kelly или фиксированный $42.87."""
+    if use_kelly:
+        return calculate_stake(bank=bank, prob_pct=prob_pct, odds=odds)
+    return 42.87
 
 
 # ============================================================
@@ -2990,13 +3059,11 @@ def find_value_matches(matches, max_bets=2):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
-            # ★ Kelly
             kelly_stake = calculate_stake(
                 bank=bank,
                 prob_pct=best_bet.get('prob', 0),
                 odds=best_bet.get('odds', 1.85),
             )
-            # ★ CLV-фильтр
             final_stake, clv_action = apply_clv_filter(
                 source='value',
                 base_stake=kelly_stake,
@@ -3058,7 +3125,7 @@ def find_top_matches_with_tm25(matches):
     top_matches_70 = find_top_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 2: ТМ 2.5 (Kelly + CLV)")
+    logger.info("📊 ПОТОК 2: ТМ 2.5 (v4.7 расширенный)")
     logger.info("=" * 60)
     tm25_matches = find_tm25_matches(matches)
 
@@ -3351,7 +3418,6 @@ def snapshot_odds_for_upcoming():
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
-    """Сохраняет снимки: 1X2 + DC (X2 и 1X)."""
     try:
         if not fo:
             return 0
@@ -3399,7 +3465,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.6 — Kelly + CLV-фильтр) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v4.7 — полный TM 2.5 + Kelly + CLV) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v4.6 — CLV-фильтр)
