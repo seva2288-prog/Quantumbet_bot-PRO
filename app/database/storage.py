@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 def _get_data_dir():
     _RENDER_DISK = '/opt/render/project/src/data'
     if os.path.exists(_RENDER_DISK):
-        return os.path.join(_RENDER_DISK, 'storage')
+        return _RENDER_DISK
     if os.path.exists('/data'):
         return '/data/storage'
     return 'data'
