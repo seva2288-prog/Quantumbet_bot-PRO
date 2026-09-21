@@ -1034,6 +1034,23 @@
             </div>
         </div>
 
+        <!-- ★ СТАТИСТИКА АНОМАЛИЙ -->
+        <div class="card" id="anomalyStatsCard">
+            <div class="card-header">
+                <h2 class="emerald-title">📊 Статистика аномалий</h2>
+                <select id="anomalyStatsPeriod" onchange="loadAnomalyStats()"
+                        style="padding:4px 8px;font-size:11px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <option value="7">7 дней</option>
+                    <option value="14">14 дней</option>
+                    <option value="30" selected>30 дней</option>
+                </select>
+            </div>
+            <div id="anomalyStatsContent">
+                <div class="skeleton" style="width:80%"></div>
+                <div class="skeleton" style="width:60%"></div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2>📊 Фильтры</h2>
@@ -1098,7 +1115,7 @@
                 </div>
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);">
-                Матчи в ближайшие <b>2 часа</b> и <b>идущие сейчас</b> (до 30 мин после старта). Автообновление каждые <b>20 сек</b>.
+                Матчи в ближайшие <b>2 часа</b> и <b>идущие сейчас</b> (до 120 мин после старта). Автообновление каждые <b>20 сек</b>.
             </div>
             <div id="liveStats" style="display:flex;gap:12px;margin-top:10px;font-size:11px;">
                 <span>🎯 <b id="liveCountAll">0</b> матчей</span>
@@ -1649,87 +1666,6 @@
 
     <div class="footer">
         💎 Quantum Tracker v21.1 Emerald © 2026
-    </div>
-</div>
-
-<!-- ============================================================
-     BOTTOM NAV (⚡ Live вместо 📈 Аналитика)
-     ============================================================ -->
-<nav class="bottom-nav" role="navigation">
-    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
-        <span class="icon">📊</span>
-        <span class="label">Главная</span>
-    </button>
-    <button class="nav-item" data-page="matches" onclick="switchPage('matches')">
-        <span class="icon">🎯</span>
-        <span class="label">Матчи</span>
-    </button>
-    <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
-        <span class="icon">📸</span>
-        <span class="label">Снимки</span>
-    </button>
-    <button class="nav-item" data-page="live" onclick="switchPage('live')">
-        <span class="icon">⚡</span>
-        <span class="label">Live</span>
-        <span class="nav-badge" id="liveNavBadge" style="display:none;">0</span>
-    </button>
-    <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
-        <span class="icon">🔥</span>
-        <span class="label">X2</span>
-    </button>
-    <button class="nav-item" onclick="toggleMoreMenu()">
-        <span class="icon">⋯</span>
-        <span class="label">Ещё</span>
-    </button>
-</nav>
-
-<!-- ============================================================
-     BOTTOM SHEET "ЕЩЁ" (📈 Аналитика теперь здесь)
-     ============================================================ -->
-<div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
-    <div class="bottom-sheet">
-        <div class="bottom-sheet-handle"></div>
-        <div class="bottom-sheet-title">Меню</div>
-
-        <button class="sheet-item" onclick="openFromMore('analytics')">
-            <span class="sheet-icon">📈</span>
-            <div>
-                <div class="sheet-label">Аналитика</div>
-                <div class="sheet-desc">Графики, стратегии, типы ставок</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="openFromMore('autobets')">
-            <span class="sheet-icon">💸</span>
-            <div>
-                <div class="sheet-label">Автоставки</div>
-                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="openFromMore('simulator')">
-            <span class="sheet-icon">🧪</span>
-            <div>
-                <div class="sheet-label">Симулятор стратегий</div>
-                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
-            <span class="sheet-icon">⚙️</span>
-            <div>
-                <div class="sheet-label">Настройки</div>
-                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
-            <span class="sheet-icon">📲</span>
-            <div>
-                <div class="sheet-label">Установить приложение</div>
-                <div class="sheet-desc">Добавить на главный экран</div>
-            </div>
-        </button>
     </div>
 </div>
 
