@@ -883,6 +883,33 @@
             </div>
         </div>
 
+       <div class="card" id="lmDashboardCard" style="display:none;">
+            <div class="card-header">
+                <h2 class="emerald-title">📈 LINE MOVEMENT</h2>
+                <button class="btn btn-outline" onclick="switchPage('matches')" style="padding:4px 10px;font-size:10px;">
+                    Все →
+                </button>
+            </div>
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 0;">
+                <div class="stat-card">
+                    <div class="value" id="lm-total">0</div>
+                    <div class="label">📊 Всего</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="lm-wins">0</div>
+                    <div class="label">✅ WIN</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value emerald" id="lm-roi">0%</div>
+                    <div class="label">💎 ROI</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold" id="lm-wr">0%</div>
+                    <div class="label">🎯 WR</div>
+                </div>
+            </div>
+        </div>
+        
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🎯 Свежие ставки</h2>
@@ -1949,11 +1976,8 @@
 <!-- ============================================================ -->
 
 
-<<!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.5 без ? и с "идёт X-я минута")   -->
 <!-- ============================================================ -->
-<!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.7 — CLV-вкладка)                  -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v5.0 — Line Movement в UI)          -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2487,7 +2511,6 @@ function renderLiveCard(m) {
     const minutes = m.minutes_to_match;
     const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
 
-    // ★ LIVE-минута в тексте времени
     let timeInfo = '';
     if (isLive) {
         const minStr = m.minute ? `${m.minute}'` : '';
@@ -2503,12 +2526,10 @@ function renderLiveCard(m) {
             timeInfo = `через <b>${h}ч ${mn}м</b>`;
         }
     } else {
-        // ★ Матч должен был начаться, но live-данных нет — показываем "идёт X-я минута"
         const liveMin = Math.max(1, Math.round(-minutes));
         timeInfo = `<span style="color:var(--red-400);">🔴 идёт ${liveMin}-я минута</span>`;
     }
 
-    // ★ Бейдж статуса (без "?")
     let statusBadge = '';
     if (isLive) {
         statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
@@ -2534,7 +2555,6 @@ function renderLiveCard(m) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
-    // ★ Счёт и минута внутри карточки
     let scoreHtml = '';
     if (isLive && m.score) {
         const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
@@ -2639,7 +2659,46 @@ function renderDashboard(data) {
     document.getElementById('x2Wins').textContent = x2Stats.wins;
     document.getElementById('x2Winrate').textContent = x2Stats.winrate + '%';
 
+    // ★ v5.0: LINE MOVEMENT stats
+    renderLMDashboardStats(data.history || []);
+
     setTimeout(() => renderChart(data.profit_data), 50);
+}
+
+// ============================================================
+// ★ v5.0: LINE MOVEMENT Dashboard Stats
+// ============================================================
+function renderLMDashboardStats(history) {
+    const lmBets = history.filter(b => (b.source || '') === 'line_movement'
+                                     || (b.bet || '').includes('📈')
+                                     || (b.bet || '').toLowerCase().includes('line movement'));
+    const card = document.getElementById('lmDashboardCard');
+    if (!card) return;
+
+    const total = lmBets.length;
+    if (total === 0) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const wins = lmBets.filter(b => b.result === 'win').length;
+    const losses = lmBets.filter(b => b.result === 'loss').length;
+    const profit = lmBets.reduce((s, b) => s + (b.profit || 0), 0);
+    const stakeSum = lmBets.reduce((s, b) => s + (b.stake || 0), 0);
+    const wr = (wins + losses) > 0 ? (wins / (wins + losses) * 100) : 0;
+    const roi = stakeSum > 0 ? (profit / stakeSum * 100) : 0;
+
+    const totalEl = document.getElementById('lm-total');
+    const winsEl = document.getElementById('lm-wins');
+    const roiEl = document.getElementById('lm-roi');
+    const wrEl = document.getElementById('lm-wr');
+
+    if (totalEl) totalEl.textContent = total;
+    if (winsEl) winsEl.textContent = wins;
+    if (roiEl) roiEl.textContent = roi.toFixed(1) + '%';
+    if (wrEl) wrEl.textContent = wr.toFixed(1) + '%';
+
+    card.style.display = 'block';
 }
 
 async function loadDashboardAutobets() {
@@ -2724,11 +2783,14 @@ function openSnapshotFromAnomaly(fid) {
 }
 
 // ============================================================
-// BET CARD
+// BET CARD (★ v5.0 с LM-поддержкой)
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
     const betLabel = best.label || m.bet || '—';
+    const source = m.source || '';
+    const isLM = source === 'line_movement';
+
     const odds = best.odds || m.odds || 0;
     const ev = best.ev || m.ev || 0;
     const prob = best.prob || m.prob || 0;
@@ -2776,13 +2838,40 @@ function renderBetCard(m, isActive = false) {
     } catch (e) {}
 
     const oddsDisplay = odds > 0 ? odds.toFixed(2) : '—';
-    const evDisplay = ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—';
-    const probDisplay = prob > 0 ? prob.toFixed(0) + '%' : '—';
+
+    // ★ v5.0: LM показывает движение вместо EV/Prob
+    const evDisplay = isLM
+        ? (best.movement_pct !== undefined && best.movement_pct !== null
+            ? (best.movement_pct >= 0 ? '+' : '') + best.movement_pct + '%'
+            : '—')
+        : (ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—');
+
+    const probDisplay = isLM
+        ? (best.snapshots_count ? best.snapshots_count + ' сним.' : '—')
+        : (prob > 0 ? prob.toFixed(0) + '%' : '—');
+
+    const evLabel = isLM ? 'Движение' : 'EV';
+    const probLabel = isLM ? 'Снимков' : 'Prob';
 
     const itemIndex = m._index !== undefined ? m._index : -1;
 
     const countryHtml = m.country
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
+        : '';
+
+    // ★ v5.0: фиолетовый бейдж для LM
+    const lmBadge = isLM
+        ? `<span class="bet-badge" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);">
+             📈 LM ${best.direction === 'drop' ? '📉' : '📈'}
+           </span>`
+        : '';
+
+    // ★ v5.0: доп. строка движения для LM
+    const lmMovementHtml = isLM && best.old_odds
+        ? `<div style="margin-top:6px;font-size:10px;color:var(--text-tertiary);">
+             <span style="color:#a78bfa;font-weight:700;">${best.old_odds} → ${best.odds}</span>
+             ${best.movement_hours ? ` • за ${best.movement_hours}ч` : ''}
+           </div>`
         : '';
 
     return `
@@ -2803,6 +2892,7 @@ function renderBetCard(m, isActive = false) {
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                    ${lmBadge}
                     <span class="bet-badge ${betClass}">${escapeHtml(betLabel)}</span>
                     ${resultBadge}
                 </div>
@@ -2813,14 +2903,15 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-value">${oddsDisplay}</span>
                 </div>
                 <div class="bet-stat">
-                    <span class="stat-label">EV</span>
-                    <span class="stat-value ${evColor}">${evDisplay}</span>
+                    <span class="stat-label">${evLabel}</span>
+                    <span class="stat-value ${isLM ? 'gold' : evColor}">${evDisplay}</span>
                 </div>
                 <div class="bet-stat">
-                    <span class="stat-label">Prob</span>
-                    <span class="stat-value ${probColor}">${probDisplay}</span>
+                    <span class="stat-label">${probLabel}</span>
+                    <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
             </div>
+            ${lmMovementHtml}
         </div>
     `;
 }
@@ -3049,7 +3140,8 @@ function buildAllItems(history, matches) {
                 best_bet: best,
                 bets: m.bets || [],
                 halftime_home: null,
-                halftime_away: null
+                halftime_away: null,
+                source: m.source || '',  // ★ v5.0
             });
         });
     }
@@ -3079,7 +3171,8 @@ function buildAllItems(history, matches) {
                 halftime_home: h.halftime_home,
                 halftime_away: h.halftime_away,
                 home_goals: h.home_goals,
-                away_goals: h.away_goals
+                away_goals: h.away_goals,
+                source: h.source || '',  // ★ v5.0
             });
         });
     }
@@ -3175,6 +3268,7 @@ function showMatchDetail(match) {
     title.textContent = `${match.home} vs ${match.away}`;
     const best = match.best_bet || {};
     const bets = match.bets || [];
+    const isLM = (match.source || '') === 'line_movement';
 
     const countryStr = match.country
         ? ` • ${match.country_flag || ''} ${escapeHtml(match.country)}`
@@ -3188,31 +3282,76 @@ function showMatchDetail(match) {
             <div style="font-size:12px;color:var(--text-secondary);">${match.date || match.match_time || ''}</div>
             ${match.halftime_home != null ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">1-й тайм: ${match.halftime_home}-${match.halftime_away}</div>` : ''}
         </div>
-        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
-            <div class="stat-card">
-                <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
-                <div class="label">EV</div>
-            </div>
-            <div class="stat-card">
-                <div class="value">${best.odds ? best.odds.toFixed(2) : '—'}</div>
-                <div class="label">Кэф</div>
-            </div>
-            <div class="stat-card">
-                <div class="value gold">${best.prob ? best.prob.toFixed(0) + '%' : '—'}</div>
-                <div class="label">Prob</div>
-            </div>
-        </div>
     `;
-    if (bets.length > 1) {
-        html += `<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Все ставки</div>`;
-        html += bets.slice(0, 7).map(b => {
-            const emoji = b.ev > 10 ? '🟢' : b.ev > 5 ? '🟡' : '🔴';
-            return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);font-size:12px;">
-                <span>${emoji} ${b.label}</span>
-                <span style="color:var(--text-secondary);">EV ${b.ev}% · Кэф ${b.odds}</span>
-            </div>`;
-        }).join('');
+
+    if (isLM) {
+        // ★ v5.0: LM-модалка
+        const direction = best.direction === 'drop' ? '📉' : '📈';
+        html += `
+            <div style="text-align:center;padding:12px;background:rgba(167,139,250,0.08);border-radius:12px;border:1px solid rgba(167,139,250,0.2);margin-bottom:16px;">
+                <div style="font-size:11px;color:#a78bfa;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
+                    📈 LINE MOVEMENT
+                </div>
+                <div style="font-size:24px;font-weight:800;color:#a78bfa;">
+                    ${direction} ${best.movement_pct >= 0 ? '+' : ''}${best.movement_pct}%
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">
+                    за ${best.movement_hours || 0}ч
+                </div>
+            </div>
+            <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+                <div class="stat-card">
+                    <div class="value">${best.old_odds || '—'}</div>
+                    <div class="label">Было</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value emerald">${best.odds || '—'}</div>
+                    <div class="label">Стало</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold">${best.snapshots_count || 0}</div>
+                    <div class="label">Снимков</div>
+                </div>
+            </div>
+            <div style="text-align:center;padding:12px;background:rgba(167,139,250,0.05);border-radius:10px;border:1px solid rgba(167,139,250,0.15);">
+                <div style="font-size:11px;color:var(--text-tertiary);">
+                    💡 Кэф резко изменился — «умные деньги» идут в эту сторону
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;">
+                    💵 Stake: $${best.stake || 0}
+                </div>
+            </div>
+        `;
+    } else {
+        // Стандартная модалка
+        html += `
+            <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+                <div class="stat-card">
+                    <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
+                    <div class="label">EV</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${best.odds ? best.odds.toFixed(2) : '—'}</div>
+                    <div class="label">Кэф</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold">${best.prob ? best.prob.toFixed(0) + '%' : '—'}</div>
+                    <div class="label">Prob</div>
+                </div>
+            </div>
+        `;
+        if (bets.length > 1) {
+            html += `<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Все ставки</div>`;
+            html += bets.slice(0, 7).map(b => {
+                const emoji = b.ev > 10 ? '🟢' : b.ev > 5 ? '🟡' : '🔴';
+                return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);font-size:12px;">
+                    <span>${emoji} ${b.label}</span>
+                    <span style="color:var(--text-secondary);">EV ${b.ev}% · Кэф ${b.odds}</span>
+                </div>`;
+            }).join('');
+        }
     }
+
     body.innerHTML = html;
     modal.classList.add('active');
     haptic(8);
@@ -3696,7 +3835,6 @@ function renderAnalytics(data) {
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);
     renderLeagueBreakdown(history);
-    // ★ v4.7: CLV по стратегиям
     loadClvByStrategy();
 }
 
@@ -3760,13 +3898,16 @@ function renderStrategyBars(history) {
         '70%+': { wins: 0, losses: 0, profit: 0, stake: 0, label: '70%+ матчи' },
         'X2': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'X2 Стратегия' },
         'ТМ 2.5': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'ТМ 2.5' },
+        'LINE MOVEMENT': { wins: 0, losses: 0, profit: 0, stake: 0, label: '📈 LINE MOVEMENT' },
         'Другое': { wins: 0, losses: 0, profit: 0, stake: 0, label: 'Другое' }
     };
     history.forEach(b => {
         if (!b.result || b.result === 'pending') return;
         let key = 'Другое';
         const bet = (b.bet || '').toLowerCase();
-        if (bet.includes('x2')) key = 'X2';
+        const src = (b.source || '').toLowerCase();
+        if (src === 'line_movement' || bet.includes('📈') || bet.includes('line movement')) key = 'LINE MOVEMENT';
+        else if (bet.includes('x2')) key = 'X2';
         else if (bet.includes('тм') || bet.includes('under')) key = 'ТМ 2.5';
         else if (bet.includes('1x') || bet.includes('п1') || bet.includes('п2')) key = '70%+';
         const s = strategies[key];
@@ -3838,7 +3979,7 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ v4.7: CLV ПО СТРАТЕГИЯМ
+// ★ v5.0: CLV ПО СТРАТЕГИЯМ
 // ============================================================
 async function loadClvByStrategy() {
     const container = document.getElementById('clvByStrategyContent');
@@ -3888,8 +4029,10 @@ function renderClvByStrategy(strategies, period) {
     const labelMap = {
         '70_percent': '🎯 70%+',
         'value': '💎 VALUE',
+        'btts': '⚽ BTTS',
         'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
         'tm25_standard': '⭐ ТМ 2.5 STD',
+        'line_movement': '📈 LINE MOVEMENT',
         'x2': '🔥 X2',
     };
 
@@ -3901,6 +4044,7 @@ function renderClvByStrategy(strategies, period) {
         'insufficient_data': { emoji: '⚪', action: 'ожидаем',       color: 'var(--text-tertiary)' },
         'no_data':           { emoji: '⚪', action: 'нет данных',    color: 'var(--text-tertiary)' },
         'active':            { emoji: '⚪', action: 'ожидаем',       color: 'var(--text-tertiary)' },
+        'no_model':          { emoji: '🔵', action: 'N/A',          color: 'var(--text-tertiary)' },
     };
 
     const sorted = Object.entries(strategies).sort((a, b) =>
@@ -5330,6 +5474,7 @@ Object.assign(window, {
     renderSparkline,
     loadAnomalyStats, renderAnomalyStats,
     loadClvByStrategy, renderClvByStrategy,
+    renderLMDashboardStats,
 });
 </script>
 </body>
