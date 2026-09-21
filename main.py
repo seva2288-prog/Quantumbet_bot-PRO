@@ -26,7 +26,12 @@ from app.database.storage import storage
 from app.telegram.handlers import handlers
 from app.utils.logger import setup_logging, get_logger
 from app.scheduler import start_scheduler
-from app.llm import llm_analyze_match, llm_analyze_batch
+from app.llm import (
+    llm_analyze_match,
+    llm_analyze_batch,
+    llm_generate_reason,
+    llm_pick_best,
+)
 
 logger = get_logger(__name__)
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -1384,14 +1389,15 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.8 — BTTS-поток)
+# main.py — ЧАСТЬ 2/3 (v4.9 — LLM explanations + pick)
 # Стратегии, 4 потока поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
-# ★ Quarter-Kelly для расчёта stake
-# ★ CLV-фильтр для стратегий
-# ★ Расширенный ТМ 2.5: whitelist, bonus EV, лимит лиг, форма, H2H
-# ★ НОВЫЙ ПОТОК: BTTS (Обе Забьют) с Kelly + CLV
+# ★ Quarter-Kelly
+# ★ CLV-фильтр
+# ★ Расширенный ТМ 2.5
+# ★ BTTS-поток
+# ★ v4.9: LLM объяснения + DeepSeek pick
 # ============================================================
 
 # ============================================================
@@ -2082,6 +2088,8 @@ def analyze_match(match_name):
                     r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
                 r += f"\n⚽ XG: {m.get('total_xg', 0):.2f}\n"
                 r += f"📈 Форма: {m.get('home_form')} vs {m.get('away_form')}"
+                if best.get('llm_reason'):
+                    r += f"\n💡 <i>{best['llm_reason']}</i>"
                 if m.get('weather_reason'):
                     r += f"\n{m['weather_reason']}"
                 return r
@@ -2392,7 +2400,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (Kelly + CLV)
+# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM reasons)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -2643,6 +2651,7 @@ def find_top_matches(matches):
     top = best_matches[:max_bets]
     logger.info(f"📊 [70%+] Итого: {len(top)}, X2-сохранено: {x2_saved_count}")
 
+    # ★ v4.9: LLM анализ + объяснения
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
             llm_payload = [{'home': m['home'], 'away': m['away'], 'league': m['league'],
@@ -2656,13 +2665,23 @@ def find_top_matches(matches):
             for m, llm in zip(top[:20], llm_results):
                 if llm:
                     _apply_llm_to_match(m, llm, alpha=0.7)
+
+            # ★ v4.9: Объяснения от DeepSeek для топ-10
+            for m in top[:10]:
+                try:
+                    reason = llm_generate_reason(m)
+                    if reason:
+                        m['best_bet']['llm_reason'] = reason
+                        logger.info(f"💡 LLM reason: {m['home']} vs {m['away']} → {reason[:80]}")
+                except Exception as e:
+                    logger.debug(f"llm_generate_reason error: {e}")
         except Exception as e:
             logger.error(f"❌ LLM ошибка: {e}")
     return top
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (v4.7 расширенный)
+# ★ ПОТОК 2: ТМ 2.5
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -2900,7 +2919,7 @@ def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE (Kelly + CLV)
+# ★ ПОТОК 3: VALUE
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=2):
@@ -3106,7 +3125,7 @@ def find_value_matches(matches, max_bets=2):
 
 
 # ============================================================
-# ★ ПОТОК 4: BTTS (Обе Забьют) — v4.8
+# ★ ПОТОК 4: BTTS
 # ============================================================
 @timing_decorator()
 def find_btts_matches(matches):
@@ -3142,7 +3161,6 @@ def find_btts_matches(matches):
     stats = {
         'found': 0,
         'intl_skipped': 0,
-        'league_skipped': 0,
         'league_blacklist': 0,
         'league_limit': 0,
         'form_skipped': 0,
@@ -3341,14 +3359,12 @@ def find_btts_matches(matches):
 
 
 def _count_scoring_matches(form_string):
-    """Считает матчи с голом (эвристика по W+D)."""
     if not form_string:
         return 0
     return form_string.count('W') + form_string.count('D')
 
 
 def _calc_h2h_btts_pct(h2h_data):
-    """Считает % матчей H2H, где обе команды забили."""
     if not h2h_data or not h2h_data.get('matches'):
         return 0
     matches = h2h_data['matches']
@@ -3362,34 +3378,33 @@ def _calc_h2h_btts_pct(h2h_data):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК (v4.8 с BTTS)
+# КОМБИНИРОВАННЫЙ ПОИСК (v4.9)
 # ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV)")
+    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM)")
     logger.info("=" * 60)
     top_matches_70 = find_top_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 2: ТМ 2.5 (v4.7 расширенный)")
+    logger.info("📊 ПОТОК 2: ТМ 2.5")
     logger.info("=" * 60)
     tm25_matches = find_tm25_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 3: VALUE 💎 (Kelly + CLV)")
+    logger.info("📊 ПОТОК 3: VALUE 💎")
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=2)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 4: BTTS (Обе Забьют) v4.8")
+    logger.info("📊 ПОТОК 4: BTTS (Обе Забьют)")
     logger.info("=" * 60)
     btts_matches = find_btts_matches(matches)
 
     combined = []
     keys = set()
 
-    # Приоритет: VALUE → BTTS → 70%+ → ТМ 2.5
     for m in value_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
@@ -3489,10 +3504,35 @@ def find_top_matches_with_tm25(matches):
             'engine': Config.PREDICTION_ENGINE,
             'weather_reason': md.get('weather_reason', ''),
             'source': md.get('source', '70_percent'),
+            'llm_reason': bb.get('llm_reason', ''),
         })
         added += 1
     storage.save_history(history)
     logger.info(f"📝 Добавлено ставок: {added}")
+
+    # ★ v4.9: DeepSeek выбирает ОДИН лучший матч
+    if Config.LLM_ENABLED and filtered:
+        try:
+            pick = llm_pick_best(filtered)
+            if pick:
+                best_match = pick['match']
+                best = best_match.get('best_bet', {})
+                reason = pick.get('reason', '')
+                pick_msg = (
+                    f"🧠 <b>DeepSeek: МОЙ ВЫБОР ДНЯ</b>\n\n"
+                    f"🏟️ <b>{best_match.get('home')} vs {best_match.get('away')}</b>\n"
+                    f"🏆 {best_match.get('league', '?')}\n"
+                    f"📅 {best_match.get('match_time', '?')}\n\n"
+                    f"🎯 <b>{best.get('label', '—')}</b>\n"
+                    f"💰 Кэф: <b>{best.get('odds', 0)}</b>\n"
+                    f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
+                    f"💵 Stake: ${best.get('stake', 0)}\n\n"
+                    f"💡 <i>{reason}</i>"
+                )
+                send_telegram(pick_msg)
+                logger.info(f"🧠 DeepSeek pick: {best_match.get('home')} vs {best_match.get('away')} | {reason[:80]}")
+        except Exception as e:
+            logger.error(f"llm_pick_best error: {e}")
 
     try:
         placed = autobet_manager.place_bets_from_cache()
@@ -3718,7 +3758,6 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
             ):
                 saved += 1
 
-        # ★ BTTS snapshot (v4.8)
         btts_yes = fo.get('btts_yes', 0) or 0
         if btts_yes > 1.01:
             if storage.save_odds_snapshot(
@@ -3734,14 +3773,15 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.8 — BTTS-поток) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v4.9 — LLM explanations + pick) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v4.6 — CLV-фильтр)
+# main.py — ЧАСТЬ 3/3 (v4.9 — LLM explanations в Telegram)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
 # ★ v4.6: CLV по стратегиям
+# ★ v4.9: показ llm_reason в /update
 # ============================================================
 
 def safe_job(func, name):
@@ -4079,6 +4119,8 @@ class StrategyTester:
                              'wins': 0, 'losses': 0, 'total_stake': 0},
             'tm25_standard': {'name': '⭐ ТМ 2.5 STANDARD', 'bets': [], 'profit': 0,
                               'wins': 0, 'losses': 0, 'total_stake': 0},
+            'btts': {'name': '⚽ BTTS (Обе Забьют)', 'bets': [], 'profit': 0,
+                     'wins': 0, 'losses': 0, 'total_stake': 0},
         }
 
     def _classify(self, bet_label, source=None):
@@ -4088,6 +4130,8 @@ class StrategyTester:
             return 'tm25_premium'
         if source == 'tm25_standard':
             return 'tm25_standard'
+        if source == 'btts':
+            return 'btts'
         if not bet_label:
             return '70_percent'
         l = bet_label.lower()
@@ -4095,6 +4139,8 @@ class StrategyTester:
             return 'value'
         if '🔥' in bet_label or 'premium' in l:
             return 'tm25_premium'
+        if 'обз' in l or 'btts' in l:
+            return 'btts'
         if 'тм 2.5' in l or 'under' in l:
             return 'tm25_standard'
         return '70_percent'
@@ -4308,13 +4354,17 @@ def webhook():
                                             clv_icon = ' 🟢×1.25'
                                         elif b.get('clv_action') == 'reduced':
                                             clv_icon = ' 🟡×0.5'
+                                        llm_str = ""
+                                        if b.get('llm_reason'):
+                                            llm_str = f"💡 <i>{b['llm_reason']}</i>\n"
                                         msg += (f"{i}. <b>{m['home']} vs {m['away']}</b> 💎{clv_icon}\n"
                                                 f"🏆 {m.get('league', '?')}\n"
                                                 f"📅 {m.get('match_time', '?')}\n"
                                                 f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n"
                                                 f"📊 Prob: {b['prob']}% | XG: {m.get('total_xg', 0):.2f}\n"
                                                 f"💵 Stake: ${b.get('stake', 0)}\n"
-                                                f"🏷️ {b.get('bookmaker', '—')}\n\n")
+                                                f"🏷️ {b.get('bookmaker', '—')}\n"
+                                                f"{llm_str}\n")
 
                                 if other_list:
                                     msg += f"\n🎯 <b>ОСТАЛЬНЫЕ ({len(other_list)}):</b>\n\n"
@@ -4332,13 +4382,17 @@ def webhook():
                                             clv_icon = ' 🟢×1.25'
                                         elif b.get('clv_action') == 'reduced':
                                             clv_icon = ' 🟡×0.5'
+                                        llm_str = ""
+                                        if b.get('llm_reason'):
+                                            llm_str = f"💡 <i>{b['llm_reason']}</i>\n"
                                         msg += (f"{i}. <b>{m['home']} vs {m['away']}</b>{lv}{clv_icon}\n"
                                                 f"🏆 {m.get('league', '?')}\n"
                                                 f"📅 {m.get('match_time', '?')}\n"
                                                 f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%{bonus_str}{template_note}\n"
                                                 f"📊 Prob: {b['prob']}% | XG: {m.get('total_xg', 0):.2f}\n"
                                                 f"💵 Stake: ${b.get('stake', 0)}\n"
-                                                f"🏷️ {b.get('bookmaker', '—')}\n\n")
+                                                f"🏷️ {b.get('bookmaker', '—')}\n"
+                                                f"{llm_str}\n")
                                 send_telegram(msg)
                             else:
                                 send_telegram("❌ Ничего не найдено")
@@ -4370,7 +4424,6 @@ def webhook():
                 send_telegram(handlers.handle_timestats())
 
             elif text == '/strategies':
-                # ★ v4.6: добавить CLV-статус
                 report = strategy_tester.get_comparison_report()
                 try:
                     clv_stats = _compute_all_strategy_clv(days=30)
@@ -4389,6 +4442,7 @@ def webhook():
                                 'value': '💎 VALUE',
                                 'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
                                 'tm25_standard': '⭐ ТМ 2.5 STD',
+                                'btts': '⚽ BTTS',
                                 'x2': '🔥 X2',
                             }.get(src, src)
                             report += (
@@ -4421,6 +4475,7 @@ def webhook():
                                 'value': '💎 VALUE',
                                 'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
                                 'tm25_standard': '⭐ ТМ 2.5 STD',
+                                'btts': '⚽ BTTS',
                                 'x2': '🔥 X2',
                             }.get(src, src)
                             action = {
@@ -4708,7 +4763,6 @@ def api_live():
         in_window.sort(key=lambda x: x[2])
         in_window = in_window[:max_matches]
 
-        # Batch-запрос к API: 1 запрос на все матчи дня
         live_data = {}
         if getattr(Config, 'LIVE_BATCH_ENABLED', True):
             try:
@@ -4725,7 +4779,6 @@ def api_live():
             except Exception as e:
                 logger.error(f"Live batch error: {e}")
 
-        # ★ Batch sparkline
         sparkline_data = {}
         if getattr(Config, 'LIVE_SPARKLINE_ENABLED', True):
             try:
@@ -4741,13 +4794,10 @@ def api_live():
             except Exception as e:
                 logger.error(f"Sparkline batch error: {e}")
 
-        # Формируем ответ
         result = []
         for m, match_dt, delta_min in in_window:
             fid = m.get('fixture_id')
 
-            # ★ v4.4: если матч уже должен был начаться, но его нет в batch —
-            # запрашиваем результат индивидуально
             if (delta_min < 0 and fid and fid not in live_data
                     and delta_min > -180):
                 try:
@@ -5120,7 +5170,6 @@ def api_autobets_clv_stats():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-# ★ v4.6: CLV по стратегиям
 @app.route('/api/clv/by_strategy', methods=['GET'])
 def api_clv_by_strategy():
     try:
@@ -5882,7 +5931,7 @@ def register_bot_commands():
     try:
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
         commands = [
-            {"command": "update", "description": "🔍 Полный поиск (70%+ / ТМ 2.5 / 💎 VALUE)"},
+            {"command": "update", "description": "🔍 Полный поиск (70%+ / ТМ 2.5 / VALUE / BTTS)"},
             {"command": "today", "description": "🎯 ТОП-5 матчей"},
             {"command": "live", "description": "⚽ Активные live-матчи"},
             {"command": "snapshots", "description": "📸 Статистика снимков"},
@@ -5900,7 +5949,7 @@ def register_bot_commands():
             {"command": "report", "description": "📅 Отчёт за 7 дней"},
             {"command": "bettypes", "description": "🎲 По типам ставок"},
             {"command": "timestats", "description": "🕐 По времени"},
-            {"command": "strategies", "description": "📈 Сравнение стратегий + CLV"},
+            {"command": "strategies", "description": "📈 Стратегии + CLV"},
             {"command": "clv_strategies", "description": "📊 CLV по стратегиям"},
             {"command": "team", "description": "🏟️ По команде"},
             {"command": "autobet", "description": "💸 Вкл/выкл автоставки"},
@@ -5981,7 +6030,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.6 — Kelly + CLV)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.9 — LLM reasons)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
