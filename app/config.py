@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.5 — Турниры сборных + Live + Kelly + CLV + ТМ 2.5 + BTTS
+★ ВЕРСИЯ 3.6 — Турниры сборных + Live + Kelly + CLV + ТМ 2.5 + BTTS + Line Movement
 """
 import os
 import sys
@@ -105,18 +105,17 @@ class Config:
     X2_BOTH_SIDES = True
 
     # ============================================================
-    # ★ BTTS (Обе Забьют) — новый поток (v4.8)
+    # ★ BTTS (Обе Забьют) (v4.8)
     # ============================================================
     BTTS_ENABLED = True
-    BTTS_MAX_BETS = 3                     # максимум BTTS-ставок за прогон
-    BTTS_MIN_ODDS = 1.60                  # минимальный кэф на BTTS Yes
-    BTTS_MAX_ODDS = 2.20                  # максимальный кэф (отсекаем "мёртвые")
-    BTTS_MIN_EV = 8                       # минимальный EV
-    BTTS_MIN_PROB = 50                    # минимальная вероятность (модель)
-    BTTS_MIN_XG_EACH = 0.9                # xG каждой команды не меньше
-    BTTS_MIN_TOTAL_XG = 2.0               # суммарный xG не меньше
+    BTTS_MAX_BETS = 3
+    BTTS_MIN_ODDS = 1.60
+    BTTS_MAX_ODDS = 2.20
+    BTTS_MIN_EV = 8
+    BTTS_MIN_PROB = 50
+    BTTS_MIN_XG_EACH = 0.9
+    BTTS_MIN_TOTAL_XG = 2.0
 
-    # Лиги, где BTTS особенно хорош (бонус +5% к EV)
     BTTS_LEAGUE_WHITELIST = [
         'Bundesliga', '2. Bundesliga', '3. Liga',
         'Eredivisie', 'Eerste Divisie',
@@ -128,9 +127,8 @@ class Config:
         'MLS', 'J1 League', 'Chinese Super League',
         'South Africa Premier', 'A-League',
     ]
-    BTTS_LEAGUE_BONUS = 5                 # +5% к EV
+    BTTS_LEAGUE_BONUS = 5
 
-    # Лиги, где BTTS редко заходит — исключаем
     BTTS_LEAGUE_BLACKLIST = [
         'Serie A', 'Serie B', 'Ligue 2', 'La Liga 2',
         'Ekstraklasa', 'I Liga', 'HNL', '2. HNL',
@@ -138,23 +136,79 @@ class Config:
         'Persha Liga', 'Premier League Ukraine',
     ]
 
-    # Фильтр формы: обе команды забивают в 3 из 5
     BTTS_FORM_FILTER = True
-    BTTS_FORM_MIN_SCORING = 3             # минимум матчей с голом за 5
-
-    # H2H фильтр: в очных встречах BTTS ≥ 60%
-    BTTS_H2H_FILTER = False               # по умолчанию ВЫКЛ (мало данных)
+    BTTS_FORM_MIN_SCORING = 3
+    BTTS_H2H_FILTER = False
     BTTS_H2H_MIN_MATCHES = 4
     BTTS_H2H_MIN_PCT = 60
-
-    # Максимум BTTS-ставок на одну лигу
     BTTS_MAX_LEAGUE_BETS = 1
-
-    # Включать ли сборные
     BTTS_INCLUDE_INTERNATIONAL = False
 
     # ============================================================
-    # === VALUE (1 матч в день) ===
+    # ★ LINE MOVEMENT (Аномалии кэфов) — новый поток (v5.0)
+    # ============================================================
+    LINE_MOVEMENT_ENABLED = True
+
+    # Пороги движения
+    LINE_MOVEMENT_MIN_DROP_PCT = -6.0
+    LINE_MOVEMENT_MAX_DROP_PCT = -15.0
+    LINE_MOVEMENT_MIN_RISE_PCT = 8.0
+    LINE_MOVEMENT_MAX_RISE_PCT = 20.0
+
+    # Окно времени
+    LINE_MOVEMENT_HOURS_BEFORE = 6
+    LINE_MOVEMENT_MIN_SNAPSHOTS = 3
+    LINE_MOVEMENT_MAX_SNAPSHOTS = 20
+
+    # Направление
+    LINE_MOVEMENT_TRADE_DROPS = True
+    LINE_MOVEMENT_TRADE_RISES = False
+
+    # Типы ставок
+    LINE_MOVEMENT_BET_TYPES = ['1', 'X', '2', '1X', 'X2']
+
+    # Лимиты
+    LINE_MOVEMENT_MAX_BETS = 2
+    LINE_MOVEMENT_MAX_LEAGUE_BETS = 1
+
+    # Кэфы
+    LINE_MOVEMENT_MIN_ODDS = 1.40
+    LINE_MOVEMENT_MAX_ODDS = 3.50
+
+    # Фиксированный stake
+    LINE_MOVEMENT_STAKE_PCT = 0.015
+
+    LINE_MOVEMENT_LEAGUE_BLACKLIST = [
+        'Primera Federación', 'Serie C', '3. Liga', 'National',
+        'Eerste Divisie', 'Challenger Pro League',
+        'TFF 1. Lig', 'Persha Liga', 'I Liga', '2. HNL',
+        'OBOS-ligaen', '2. Liga', 'Вторая Лига Б',
+    ]
+
+    LINE_MOVEMENT_LEAGUE_WHITELIST = [
+        'Premier League', 'Championship', 'League One',
+        'La Liga', 'La Liga 2',
+        'Bundesliga', '2. Bundesliga',
+        'Serie A', 'Serie B',
+        'Ligue 1', 'Ligue 2',
+        'Eredivisie',
+        'Primeira Liga',
+        'Pro League',
+        'Süper Lig',
+        'Superliga', '1. Division',
+        'Eliteserien',
+        'Ekstraklasa',
+        'HNL',
+        'Brasileirão',
+        'Argentina Primera',
+        'MLS',
+        'J1 League',
+        'Saudi Pro League',
+        'A-League',
+    ]
+
+    # ============================================================
+    # === VALUE ===
     # ============================================================
     VALUE_MIN_ODDS = 2.50
     VALUE_MIN_EV = 25
@@ -168,24 +222,22 @@ class Config:
     # ★ KELLY CRITERION (v4.5)
     # ============================================================
     KELLY_ENABLED = True
-    KELLY_FRACTION = 0.25        # quarter-Kelly (0.5 = half, 1.0 = full)
-    KELLY_MAX_PCT = 0.05         # cap: не более 5% банка на одну ставку
-    KELLY_MIN_PCT = 0.02         # минимум 2% (как фиксированный stake)
-    KELLY_MIN_STAKE = 1.0        # минимум $1
+    KELLY_FRACTION = 0.25
+    KELLY_MAX_PCT = 0.05
+    KELLY_MIN_PCT = 0.02
+    KELLY_MIN_STAKE = 1.0
 
     # ============================================================
     # ★ CLV-ФИЛЬТР СТРАТЕГИЙ (v4.6)
     # ============================================================
     CLV_FILTER_ENABLED = True
-    CLV_LOOKBACK_DAYS = 30       # считать CLV за 30 дней
-    CLV_MIN_SAMPLES = 20         # минимум замеров, чтобы фильтр работал
-    CLV_CACHE_TTL = 600          # кэш CLV: 10 минут
+    CLV_LOOKBACK_DAYS = 30
+    CLV_MIN_SAMPLES = 20
+    CLV_CACHE_TTL = 600
 
-    # Пороги CLV → multiplier
-    CLV_EXCELLENT_THRESHOLD = 1.0    # > +1% → × 1.25
-    CLV_GOOD_THRESHOLD = -0.5        # -0.5% .. +1% → normal
-    CLV_WEAK_THRESHOLD = -2.0        # -2% .. -0.5% → × 0.5
-    # < -2% → SKIP
+    CLV_EXCELLENT_THRESHOLD = 1.0
+    CLV_GOOD_THRESHOLD = -0.5
+    CLV_WEAK_THRESHOLD = -2.0
 
     CLV_MULT_EXCELLENT = 1.25
     CLV_MULT_NORMAL = 1.0
@@ -307,19 +359,16 @@ class Config:
     TM25_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
 
-    # ── PREMIUM ──
     PREMIUM_MIN_EV = 25
     PREMIUM_MIN_PROB = 58
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
 
-    # ── STANDARD ──
     STANDARD_MIN_EV = 15
     STANDARD_MIN_PROB = 52
     STANDARD_XG_MIN = 0.8
     STANDARD_XG_MAX = 3.0
 
-    # ★ Расширенные настройки ТМ 2.5 (v4.7)
     TM25_USE_KELLY = True
     TM25_INCLUDE_INTERNATIONAL = False
     TM25_FORM_FILTER = True
@@ -713,9 +762,7 @@ class Config:
 
     @classmethod
     def get_clv_multiplier(cls, avg_clv, samples):
-        """
-        Возвращает (multiplier, skip, status) для CLV-фильтра.
-        """
+        """Возвращает (multiplier, skip, status) для CLV-фильтра."""
         if not cls.CLV_FILTER_ENABLED:
             return (1.0, False, 'disabled')
         if samples < cls.CLV_MIN_SAMPLES:
@@ -748,6 +795,21 @@ class Config:
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_BLACKLIST)
+
+    # ★ v5.0: Line Movement helpers
+    @classmethod
+    def is_lm_league_whitelisted(cls, league_name):
+        """Лига из whitelist для Line Movement."""
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_lm_league_blacklisted(cls, league_name):
+        """Лига из blacklist для Line Movement."""
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)
 
     @classmethod
     def check(cls):
@@ -794,6 +856,19 @@ class Config:
               f"Blacklist: {len(cls.BTTS_LEAGUE_BLACKLIST)} | bonus +{cls.BTTS_LEAGUE_BONUS}%")
         print(f"   • Форма-фильтр={cls.BTTS_FORM_FILTER} | "
               f"H2H-фильтр={cls.BTTS_H2H_FILTER} | сборные={cls.BTTS_INCLUDE_INTERNATIONAL}")
+        print(f"")
+        print(f"📈 LINE MOVEMENT: {'вкл' if cls.LINE_MOVEMENT_ENABLED else 'выкл'} | "
+              f"max={cls.LINE_MOVEMENT_MAX_BETS} | окно {cls.LINE_MOVEMENT_HOURS_BEFORE}ч")
+        print(f"   • Падение: {cls.LINE_MOVEMENT_MIN_DROP_PCT}% .. {cls.LINE_MOVEMENT_MAX_DROP_PCT}% | "
+              f"trade={cls.LINE_MOVEMENT_TRADE_DROPS}")
+        print(f"   • Рост: {cls.LINE_MOVEMENT_MIN_RISE_PCT}% .. {cls.LINE_MOVEMENT_MAX_RISE_PCT}% | "
+              f"trade={cls.LINE_MOVEMENT_TRADE_RISES}")
+        print(f"   • Снимков: {cls.LINE_MOVEMENT_MIN_SNAPSHOTS}..{cls.LINE_MOVEMENT_MAX_SNAPSHOTS} | "
+              f"типы: {cls.LINE_MOVEMENT_BET_TYPES}")
+        print(f"   • Кэф: {cls.LINE_MOVEMENT_MIN_ODDS}-{cls.LINE_MOVEMENT_MAX_ODDS} | "
+              f"stake={cls.LINE_MOVEMENT_STAKE_PCT*100}% банка")
+        print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
+              f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
