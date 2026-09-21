@@ -40,7 +40,8 @@ cache_lock = Lock()
 # ============================================================
 # ★ ПУТИ НА ПЕРСИСТЕНТНЫЙ ДИСК RENDER (/data)
 # ============================================================
-DATA_DIR = '/data' if os.path.exists('/data') else '.'
+_RENDER_DISK = '/opt/render/project/src/data'
+DATA_DIR = _RENDER_DISK if os.path.exists(_RENDER_DISK) else '/data' if os.path.exists('/data') else '.'
 X2_FILE = os.path.join(DATA_DIR, 'x2_data.json')
 LOG_PATH = os.path.join(DATA_DIR, 'matches_log.txt')
 STATE_PATH = os.path.join(DATA_DIR, 'bot_state.json')
