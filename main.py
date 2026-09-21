@@ -4983,8 +4983,9 @@ def add_manual_match():
         else: profit = 0
         history = storage.load_history()
         history.append({
-            'home': home-% or 'Unknown',d 'away': away or ' %Unknown',
-            'league': 'РHучное добавление',
+            'home': home or 'Unknown',
+            'away': away or 'Unknown',
+            'league': 'Ручное добавление',
 :%            'bet': bet_type, 'odds': odds, 'stake': stake,
             'ev': 0, 'prob': 0, 'result': result, 'profit': profit,
             'date': datetime.now().strftime('%Y-%M'),
