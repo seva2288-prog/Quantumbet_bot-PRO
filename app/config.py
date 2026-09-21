@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.4 — Турниры сборных + Live + Kelly + CLV + расширенный ТМ 2.5
+★ ВЕРСИЯ 3.5 — Турниры сборных + Live + Kelly + CLV + ТМ 2.5 + BTTS
 """
 import os
 import sys
@@ -103,6 +103,55 @@ class Config:
     X2_MIN_EV = 5
     X2_MIN_PROB = 55
     X2_BOTH_SIDES = True
+
+    # ============================================================
+    # ★ BTTS (Обе Забьют) — новый поток (v4.8)
+    # ============================================================
+    BTTS_ENABLED = True
+    BTTS_MAX_BETS = 3                     # максимум BTTS-ставок за прогон
+    BTTS_MIN_ODDS = 1.60                  # минимальный кэф на BTTS Yes
+    BTTS_MAX_ODDS = 2.20                  # максимальный кэф (отсекаем "мёртвые")
+    BTTS_MIN_EV = 8                       # минимальный EV
+    BTTS_MIN_PROB = 50                    # минимальная вероятность (модель)
+    BTTS_MIN_XG_EACH = 0.9                # xG каждой команды не меньше
+    BTTS_MIN_TOTAL_XG = 2.0               # суммарный xG не меньше
+
+    # Лиги, где BTTS особенно хорош (бонус +5% к EV)
+    BTTS_LEAGUE_WHITELIST = [
+        'Bundesliga', '2. Bundesliga', '3. Liga',
+        'Eredivisie', 'Eerste Divisie',
+        'Championship', 'League One',
+        'Süper Lig', 'Super League',
+        'Eliteserien', 'OBOS-ligaen',
+        'Superliga', '1. Division',
+        'Brasileirão', 'Argentina Primera',
+        'MLS', 'J1 League', 'Chinese Super League',
+        'South Africa Premier', 'A-League',
+    ]
+    BTTS_LEAGUE_BONUS = 5                 # +5% к EV
+
+    # Лиги, где BTTS редко заходит — исключаем
+    BTTS_LEAGUE_BLACKLIST = [
+        'Serie A', 'Serie B', 'Ligue 2', 'La Liga 2',
+        'Ekstraklasa', 'I Liga', 'HNL', '2. HNL',
+        'РПЛ', 'Первая Лига', 'Вторая Лига Б',
+        'Persha Liga', 'Premier League Ukraine',
+    ]
+
+    # Фильтр формы: обе команды забивают в 3 из 5
+    BTTS_FORM_FILTER = True
+    BTTS_FORM_MIN_SCORING = 3             # минимум матчей с голом за 5
+
+    # H2H фильтр: в очных встречах BTTS ≥ 60%
+    BTTS_H2H_FILTER = False               # по умолчанию ВЫКЛ (мало данных)
+    BTTS_H2H_MIN_MATCHES = 4
+    BTTS_H2H_MIN_PCT = 60
+
+    # Максимум BTTS-ставок на одну лигу
+    BTTS_MAX_LEAGUE_BETS = 1
+
+    # Включать ли сборные
+    BTTS_INCLUDE_INTERNATIONAL = False
 
     # ============================================================
     # === VALUE (1 матч в день) ===
@@ -271,13 +320,13 @@ class Config:
     STANDARD_XG_MAX = 3.0
 
     # ★ Расширенные настройки ТМ 2.5 (v4.7)
-    TM25_USE_KELLY = True                    # использовать Kelly вместо фиксированной $42.87
-    TM25_INCLUDE_INTERNATIONAL = False       # матчи сборных в ТМ 2.5 (обычно False)
-    TM25_FORM_FILTER = True                  # учитывать форму: обе команды в форме "under"
-    TM25_H2H_FILTER = True                   # учитывать H2H avg_goals < 2.5
-    TM25_MIN_H2H_MATCHES = 3                 # минимум 3 матча в H2H
-    TM25_H2H_AVG_MAX = 2.8                   # H2H avg_goals < 2.8
-    TM25_LEAGUE_WHITELIST = [                # лиги, где ТМ 2.5 особенно хорош
+    TM25_USE_KELLY = True
+    TM25_INCLUDE_INTERNATIONAL = False
+    TM25_FORM_FILTER = True
+    TM25_H2H_FILTER = True
+    TM25_MIN_H2H_MATCHES = 3
+    TM25_H2H_AVG_MAX = 2.8
+    TM25_LEAGUE_WHITELIST = [
         'Serie A', 'Serie B', 'La Liga 2', 'Primera Federación',
         'Ligue 2', 'Championship', 'League One',
         'Ekstraklasa', 'I Liga', 'Superliga', '1. Division',
@@ -285,9 +334,9 @@ class Config:
         'HNL', '2. HNL', 'Super League', 'Challenge League',
         'РПЛ', 'Первая Лига', 'Вторая Лига Б',
     ]
-    TM25_LEAGUE_BONUS = 5                    # +5% к EV для лиг из whitelist
-    TM25_MAX_LEAGUE_BETS = 2                 # не более 2 ТМ 2.5 на одну лигу
-    TM25_FORM_UNDER_REQUIRED = False         # если True — только если обе в форме "under"
+    TM25_LEAGUE_BONUS = 5
+    TM25_MAX_LEAGUE_BETS = 2
+    TM25_FORM_UNDER_REQUIRED = False
 
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
@@ -666,8 +715,6 @@ class Config:
     def get_clv_multiplier(cls, avg_clv, samples):
         """
         Возвращает (multiplier, skip, status) для CLV-фильтра.
-        - avg_clv: средний CLV в %
-        - samples: количество замеров
         """
         if not cls.CLV_FILTER_ENABLED:
             return (1.0, False, 'disabled')
@@ -687,6 +734,20 @@ class Config:
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.TM25_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_btts_league_whitelisted(cls, league_name):
+        """Лига из whitelist для BTTS (бонус к EV)."""
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_btts_league_blacklisted(cls, league_name):
+        """Лига из blacklist для BTTS (пропуск)."""
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_BLACKLIST)
 
     @classmethod
     def check(cls):
@@ -724,6 +785,15 @@ class Config:
         print(f"   • Kelly={cls.TM25_USE_KELLY} | сборные={cls.TM25_INCLUDE_INTERNATIONAL}")
         print(f"   • Лиг-whitelist: {len(cls.TM25_LEAGUE_WHITELIST)} | bonus EV +{cls.TM25_LEAGUE_BONUS}%")
         print(f"   • Лимит на лигу: {cls.TM25_MAX_LEAGUE_BETS}")
+        print(f"")
+        print(f"⚽ BTTS (Обе Забьют): {'вкл' if cls.BTTS_ENABLED else 'выкл'} | "
+              f"max={cls.BTTS_MAX_BETS} | кэф {cls.BTTS_MIN_ODDS}-{cls.BTTS_MAX_ODDS}")
+        print(f"   • EV>={cls.BTTS_MIN_EV}% | Prob>={cls.BTTS_MIN_PROB}% | "
+              f"xG each>={cls.BTTS_MIN_XG_EACH} | total>={cls.BTTS_MIN_TOTAL_XG}")
+        print(f"   • Whitelist: {len(cls.BTTS_LEAGUE_WHITELIST)} | "
+              f"Blacklist: {len(cls.BTTS_LEAGUE_BLACKLIST)} | bonus +{cls.BTTS_LEAGUE_BONUS}%")
+        print(f"   • Форма-фильтр={cls.BTTS_FORM_FILTER} | "
+              f"H2H-фильтр={cls.BTTS_H2H_FILTER} | сборные={cls.BTTS_INCLUDE_INTERNATIONAL}")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
