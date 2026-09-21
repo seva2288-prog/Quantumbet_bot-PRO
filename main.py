@@ -4525,6 +4525,29 @@ def api_snapshot():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/cleanup_empty_snapshots', methods=['POST', 'GET'])
+def api_cleanup_empty_snapshots():
+    """Удаляет снимки без названий команд (home='' или away='')."""
+    try:
+        import sqlite3
+        db_path = storage._odds_db_path
+        conn = sqlite3.connect(db_path, timeout=30)
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM snapshots
+            WHERE (home IS NULL OR home = '')
+              AND (away IS NULL OR away = '')
+        """)
+        removed = cur.rowcount
+        conn.commit()
+        conn.close()
+        logger.info(f"🧹 Удалено пустых снимков: {removed}")
+        return jsonify({'status': 'ok', 'removed': removed})
+    except Exception as e:
+        logger.exception(f"cleanup_empty_snapshots error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 # ============================================================
 # ★ API: СНИМКИ — список (v4.3 — без fallback'ов)
 # ============================================================
