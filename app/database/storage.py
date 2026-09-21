@@ -2,7 +2,7 @@
    ★ SQLite для снимков кэфов и X2-кандидатов,
    ★ автоставки с CLV, ★ симуляции стратегий)
 
-★ Версия 4.2 — compact odds history для sparkline (Live)
+★ Версия 4.3 — snapshots с home/away/league + авто-миграция
 """
 import json
 import os
@@ -118,6 +118,9 @@ class Storage:
     def _init_odds_db(self):
         try:
             conn = sqlite3.connect(self._odds_db_path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=5000")
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +129,9 @@ class Storage:
                     selection TEXT NOT NULL,
                     odds REAL NOT NULL,
                     bookmaker TEXT,
+                    home TEXT DEFAULT '',
+                    away TEXT DEFAULT '',
+                    league TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE INDEX IF NOT EXISTS idx_fixture ON snapshots(fixture_id);
@@ -135,10 +141,39 @@ class Storage:
             """)
             conn.commit()
             conn.close()
+            # ★ Авто-миграция для старых БД
+            self._migrate_odds_db()
         except Exception as e:
             logger.error(f"❌ _init_odds_db: {e}")
 
-    def save_odds_snapshot(self, fixture_id, market, selection, odds, bookmaker='—'):
+    def _migrate_odds_db(self):
+        """★ Добавляет колонки home/away/league, если их нет."""
+        try:
+            conn = sqlite3.connect(self._odds_db_path, timeout=10)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(snapshots)")
+            existing = {row[1] for row in cur.fetchall()}
+
+            new_cols = {
+                'home':   "TEXT DEFAULT ''",
+                'away':   "TEXT DEFAULT ''",
+                'league': "TEXT DEFAULT ''",
+            }
+            for col, definition in new_cols.items():
+                if col not in existing:
+                    try:
+                        cur.execute(f"ALTER TABLE snapshots ADD COLUMN {col} {definition}")
+                        logger.info(f"✅ Migration: added column '{col}' to snapshots")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Migration {col}: {e}")
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"❌ _migrate_odds_db: {e}")
+
+    def save_odds_snapshot(self, fixture_id, market, selection, odds,
+                            bookmaker='—', home='', away='', league=''):
+        """★ Сохраняет снимок с названиями команд/лиги."""
         if not fixture_id or not odds or odds <= 1.01:
             return False
         try:
@@ -167,10 +202,13 @@ class Storage:
                     return False
 
             cur.execute("""
-                INSERT INTO snapshots (fixture_id, market, selection, odds, bookmaker)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO snapshots
+                (fixture_id, market, selection, odds, bookmaker,
+                 home, away, league)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (int(fixture_id), str(market), str(selection),
-                  round(float(odds), 3), str(bookmaker)))
+                  round(float(odds), 3), str(bookmaker),
+                  str(home or ''), str(away or ''), str(league or '')))
             conn.commit()
             conn.close()
             return True
@@ -223,10 +261,7 @@ class Storage:
     # ============================================================
     def get_odds_history_compact(self, fixture_id, market='1X2', selection='1',
                                    limit=10):
-        """
-        ★ Возвращает компактную историю: последние N точек с интервалом.
-        Для мини-графика в Live-карточках.
-        """
+        """Компактная история: последние N точек с интервалом."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=5)
             conn.row_factory = sqlite3.Row
@@ -244,10 +279,8 @@ class Storage:
             if not rows:
                 return []
 
-            # Разворачиваем (старые → новые)
             rows = list(reversed(rows))
 
-            # Если много — сэмплируем
             if len(rows) > limit:
                 step = len(rows) / limit
                 sampled = []
@@ -264,10 +297,7 @@ class Storage:
 
     def get_odds_history_batch(self, fixture_ids, market='1X2',
                                  selection='1', limit=10):
-        """
-        ★ Batch: компактная история для нескольких матчей одним запросом.
-        Возвращает: {fixture_id: [{'odds': X, 'ts': 'Y'}, ...]}
-        """
+        """Batch: компактная история для нескольких матчей одним запросом."""
         if not fixture_ids:
             return {}
         try:
@@ -286,7 +316,6 @@ class Storage:
             rows = [dict(r) for r in cur.fetchall()]
             conn.close()
 
-            # Группируем по fixture_id
             grouped = {}
             for r in rows:
                 fid = r['fixture_id']
@@ -295,7 +324,6 @@ class Storage:
                     'ts': r['created_at']
                 })
 
-            # Сэмплируем до limit точек
             result = {}
             for fid, points in grouped.items():
                 if len(points) > limit:
@@ -394,7 +422,8 @@ class Storage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT fixture_id, market, selection, odds, bookmaker, created_at
+                SELECT fixture_id, market, selection, odds, bookmaker,
+                       home, away, league, created_at
                 FROM snapshots
                 ORDER BY id DESC
             """)
@@ -414,7 +443,8 @@ class Storage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT fixture_id, market, selection, odds, bookmaker, created_at
+                SELECT fixture_id, market, selection, odds, bookmaker,
+                       home, away, league, created_at
                 FROM snapshots
                 WHERE created_at >= ?
                 ORDER BY id DESC
@@ -432,7 +462,8 @@ class Storage:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT market, selection, odds, bookmaker, created_at
+                SELECT market, selection, odds, bookmaker,
+                       home, away, league, created_at
                 FROM snapshots
                 WHERE fixture_id = ?
                 ORDER BY id ASC
@@ -461,12 +492,39 @@ class Storage:
             logger.error(f"❌ get_unique_fixtures_with_snapshots: {e}")
             return []
 
+    def get_snapshot_match_info(self, fixture_id):
+        """★ Возвращает home/away/league для матча из снимков."""
+        try:
+            conn = sqlite3.connect(self._odds_db_path, timeout=10)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT home, away, league FROM snapshots
+                WHERE fixture_id = ? AND (home != '' OR away != '' OR league != '')
+                ORDER BY id DESC LIMIT 1
+            """, (int(fixture_id),))
+            row = cur.fetchone()
+            conn.close()
+            if not row:
+                return None
+            return {
+                'home': row['home'] or '',
+                'away': row['away'] or '',
+                'league': row['league'] or '',
+            }
+        except Exception as e:
+            logger.error(f"❌ get_snapshot_match_info: {e}")
+            return None
+
     # ============================================================
     # SQLITE: X2-КАНДИДАТЫ
     # ============================================================
     def _init_x2_db(self):
         try:
             conn = sqlite3.connect(self._x2_db_path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=5000")
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS x2_candidates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1015,9 +1073,22 @@ class Storage:
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(dst, f'{name}.json'))
 
+            # ★ Безопасный бэкап SQLite через .backup()
             for db_path in (self._odds_db_path, self._x2_db_path):
                 if os.path.exists(db_path):
-                    shutil.copy2(db_path, os.path.join(dst, os.path.basename(db_path)))
+                    try:
+                        src_conn = sqlite3.connect(db_path)
+                        dst_conn = sqlite3.connect(os.path.join(dst, os.path.basename(db_path)))
+                        src_conn.backup(dst_conn)
+                        dst_conn.close()
+                        src_conn.close()
+                    except Exception as e:
+                        logger.warning(f"⚠️ Бэкап {db_path}: {e}")
+                        # Fallback — обычное копирование
+                        try:
+                            shutil.copy2(db_path, os.path.join(dst, os.path.basename(db_path)))
+                        except Exception:
+                            pass
 
             logger.info(f"💾 Бэкап: {dst}")
             return dst
