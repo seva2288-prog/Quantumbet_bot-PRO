@@ -3101,9 +3101,10 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v4.3)
+# main.py — ЧАСТЬ 3/3 (v4.4)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов — работают напрямую из SQLite
+# ★ v4.4: single-fetch live status для матчей, выпавших из batch
 # ============================================================
 
 def safe_job(func, name):
@@ -3942,12 +3943,13 @@ def serve_manifest():
 
 
 # ============================================================
-# ★ API: LIVE — активные матчи + sparkline
+# ★ API: LIVE — активные матчи + sparkline (v4.4: single-fetch)
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
     """Активные матчи (идущие + ближайшие 2 часа) с live-счётом
-    и sparkline (мини-график движения кэфа)."""
+    и sparkline (мини-график движения кэфа).
+    ★ v4.4: если матч уже начался, но его нет в batch — запрашиваем индивидуально."""
     try:
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         today_str = now_msk.strftime('%Y-%m-%d')
@@ -4026,6 +4028,27 @@ def api_live():
         result = []
         for m, match_dt, delta_min in in_window:
             fid = m.get('fixture_id')
+
+            # ★ v4.4: если матч уже должен был начаться, но его нет в batch —
+            # запрашиваем результат индивидуально
+            if (delta_min < 0 and fid and fid not in live_data
+                    and delta_min > -180):
+                try:
+                    single = football_api.get_match_result(fid)
+                    if single:
+                        live_data[fid] = {
+                            'fixture': {'status': {
+                                'short': single.get('status', 'NS'),
+                                'elapsed': single.get('minute', 0)
+                            }},
+                            'goals': single.get('goals', {}),
+                            'score': {
+                                'halftime': single.get('halftime', {})
+                            }
+                        }
+                        logger.info(f"🔍 Live single fetch: {fid} → {single.get('status')}")
+                except Exception as e:
+                    logger.debug(f"Live single fetch {fid}: {e}")
 
             best_bet = m.get('best_bet', {})
             bet_label = best_bet.get('label', '—')
@@ -4525,31 +4548,8 @@ def api_snapshot():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-@app.route('/api/cleanup_empty_snapshots', methods=['POST', 'GET'])
-def api_cleanup_empty_snapshots():
-    """Удаляет снимки без названий команд (home='' или away='')."""
-    try:
-        import sqlite3
-        db_path = storage._odds_db_path
-        conn = sqlite3.connect(db_path, timeout=30)
-        cur = conn.cursor()
-        cur.execute("""
-            DELETE FROM snapshots
-            WHERE (home IS NULL OR home = '')
-              AND (away IS NULL OR away = '')
-        """)
-        removed = cur.rowcount
-        conn.commit()
-        conn.close()
-        logger.info(f"🧹 Удалено пустых снимков: {removed}")
-        return jsonify({'status': 'ok', 'removed': removed})
-    except Exception as e:
-        logger.exception(f"cleanup_empty_snapshots error: {e}")
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-
 # ============================================================
-# ★ API: СНИМКИ — список (v4.3 — без fallback'ов)
+# ★ API: СНИМКИ — список
 # ============================================================
 @app.route('/api/snapshots', methods=['GET'])
 def api_snapshots_list():
@@ -4575,7 +4575,6 @@ def api_snapshots_list():
                     'last_time': None,
                 }
             grouped[fid]['snapshots'].append(row)
-            # Берём названия из самой свежей записи, где они не пустые
             if row.get('home') and not grouped[fid]['home']:
                 grouped[fid]['home'] = row['home']
             if row.get('away') and not grouped[fid]['away']:
@@ -4590,7 +4589,6 @@ def api_snapshots_list():
                 if not grouped[fid]['last_time'] or t > grouped[fid]['last_time']:
                     grouped[fid]['last_time'] = t
 
-        # Подтягиваем match_time из кэша (match_time не хранится в snapshots)
         cache = storage.load_cache()
         all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
         match_time_lookup = {}
@@ -4652,7 +4650,7 @@ def api_snapshots_list():
 
 
 # ============================================================
-# ★ API: СНИМКИ — детали (v4.3 — без fallback'ов)
+# ★ API: СНИМКИ — детали
 # ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
@@ -4661,9 +4659,7 @@ def api_snapshots_detail(fixture_id):
         if not rows:
             return jsonify({'status': 'ok', 'fixture_id': fixture_id, 'history': []})
 
-        # ★ Названия берём напрямую из БД — не нужен fallback на cache/history
         m_info = storage.get_snapshot_match_info(fixture_id) or {}
-        # match_time — из кэша (в snapshots не хранится)
         match_time = '?'
         try:
             cache = storage.load_cache()
@@ -4710,7 +4706,7 @@ def api_snapshots_detail(fixture_id):
 
 
 # ============================================================
-# ★ API: АНОМАЛИИ (v4.3 — без fallback'ов)
+# ★ API: АНОМАЛИИ
 # ============================================================
 @app.route('/api/snapshot_anomalies', methods=['GET'])
 def api_snapshot_anomalies():
@@ -4739,7 +4735,6 @@ def api_snapshot_anomalies():
             if row.get('league') and grouped[fid]['league'] == '?':
                 grouped[fid]['league'] = row['league']
 
-        # match_time — из кэша
         match_time_lookup = {}
         try:
             cache = storage.load_cache()
@@ -4791,7 +4786,7 @@ def api_snapshot_anomalies():
 
 
 # ============================================================
-# ★ API: СТАТИСТИКА АНОМАЛИЙ (v4.3 — без fallback'ов)
+# ★ API: СТАТИСТИКА АНОМАЛИЙ
 # ============================================================
 @app.route('/api/snapshot_anomalies/stats', methods=['GET'])
 def api_snapshot_anomalies_stats():
@@ -4820,7 +4815,6 @@ def api_snapshot_anomalies_stats():
             if row.get('league') and grouped[fid]['league'] == '?':
                 grouped[fid]['league'] = row['league']
 
-        # Результаты матчей — из истории (home_goals/away_goals)
         history = storage.load_history()
         results_lookup = {}
         for h in history:
@@ -5258,7 +5252,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.3)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.4)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
