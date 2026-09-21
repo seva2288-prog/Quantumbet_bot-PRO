@@ -1383,8 +1383,10 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (с X2 entry_odds)
+# main.py — ЧАСТЬ 2/3 (v4.3)
 # Стратегии, 3 потока поиска, обновление результатов
+# ★ Snapshots c home/away/league
+# ★ Исключение для сборных в find_top_matches
 # ============================================================
 
 # ============================================================
@@ -1612,6 +1614,22 @@ def _get_country_flag(league_id):
     return Config.LEAGUE_COUNTRY.get(lid, ("", ""))
 
 
+def _is_international_league(league_id, league_name):
+    """★ Проверяет, относится ли матч к турнирам сборных."""
+    try:
+        if league_id and int(league_id) in getattr(Config, 'INTERNATIONAL_LEAGUES', []):
+            return True
+    except (ValueError, TypeError):
+        pass
+    ln = (league_name or '').lower()
+    markers = (
+        'nations league', 'world cup', 'euro championship',
+        'friendlies', 'international', 'wc qualification',
+        'euro qualification',
+    )
+    return any(x in ln for x in markers)
+
+
 def export_to_excel():
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -1743,15 +1761,21 @@ def calculate_h2h_probability(h2h_data):
 
 
 def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
-                          match_data=None, api_predictions=None):
+                          match_data=None, api_predictions=None,
+                          is_international=False):
     engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
     poisson = calculate_poisson_probability(home_xg, away_xg)
     form_prob = calculate_form_probability(home_form, away_form)
     h2h_prob = calculate_h2h_probability(h2h_data)
-    if engine == 'hybrid':
+
+    if is_international:
+        # ★ Для сборных форма клуба/H2H менее показательны — урезаем их вес
+        w_p, w_f, w_h = 0.60, 0.15, 0.10
+    elif engine == 'hybrid':
         w_p, w_f, w_h = 0.40, 0.30, 0.15
     else:
         w_p, w_f, w_h = 0.5, 0.3, 0.2
+
     final = {}
     all_keys = set(list(poisson.keys()) + list(form_prob.keys()) + list(h2h_prob.keys()))
     for k in all_keys:
@@ -2022,9 +2046,12 @@ def update_odds_for_matches(matches):
                         '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
                     }
                     mkt, sel = market_map.get(bt, (bt, 'unknown'))
+                    # ★ v4.3: передаём home/away/league в БД
                     storage.save_odds_snapshot(
                         fixture_id=fid, market=mkt,
-                        selection=sel, odds=new_odds, bookmaker=bookmaker
+                        selection=sel, odds=new_odds, bookmaker=bookmaker,
+                        home=home or '', away=away or '',
+                        league=md.get('league', '') or ''
                     )
                 except Exception as e:
                     logger.error(f"Ошибка записи снимка: {e}")
@@ -2045,7 +2072,7 @@ def update_odds_for_matches(matches):
 def get_matches_with_factors():
     all_matches = []
     today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
-    all_leagues = Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])
+    all_leagues = list(set(Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])))
     total_leagues = len(all_leagues)
     logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
     send_telegram(
@@ -2185,6 +2212,9 @@ def find_top_matches(matches):
             if any(bad in league_name.lower() for bad in blacklist): continue
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
 
+            # ★ v4.3: проверяем, турнир сборных
+            is_international = _is_international_league(league_id, league_name)
+
             factors = match.get('factors', {}) or {}
             hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
             afd = factors.get('away_form') or football_api.get_form(at.get('id'))
@@ -2200,7 +2230,12 @@ def find_top_matches(matches):
             a_inj = len(factors.get('away_injuries_list', []))
             if h_inj > 3: home_xg *= 0.8
             if a_inj > 3: away_xg *= 0.8
-            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+
+            # ★ v4.3: сборные играют на нейтральных полях
+            if is_international:
+                home_adv = 1.03
+            else:
+                home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
             home_xg *= home_adv
             away_xg /= home_adv
             total_xg = home_xg + away_xg
@@ -2226,19 +2261,27 @@ def find_top_matches(matches):
             standings = football_api.get_standings(league_id) if league_id else None
             hp = standings.get(home, {}).get('position', 99) if standings else 99
             ap = standings.get(away, {}).get('position', 99) if standings else 99
-            hm = get_motivation(hp); am = get_motivation(ap)
-            if getattr(Config, 'SKIP_MID_TABLE_70', False) and hm == 'mid_table' and am == 'mid_table':
-                continue
-            if hp > POS_MAX or ap > POS_MAX: continue
-            if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6: continue
+
+            # ★ v4.3: для сборных фильтры по позициям/мотивации не применяем
+            if is_international:
+                hm = am = 'international'
+            else:
+                hm = get_motivation(hp); am = get_motivation(ap)
+                if getattr(Config, 'SKIP_MID_TABLE_70', False) and hm == 'mid_table' and am == 'mid_table':
+                    continue
+                if hp > POS_MAX or ap > POS_MAX: continue
+                if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6: continue
 
             h2h = football_api.get_head_to_head(home, away)
             api_predictions = match.get('_preloaded_preds')
             if not api_predictions and fid:
                 api_predictions = football_api.get_predictions(fid)
 
-            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h,
-                                          match_data=None, api_predictions=api_predictions)
+            probs = ensemble_probability(
+                home_xg, away_xg, home_form, away_form, h2h,
+                match_data=None, api_predictions=api_predictions,
+                is_international=is_international
+            )
 
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
@@ -2282,7 +2325,8 @@ def find_top_matches(matches):
             if league_count[league_name] > LIMIT_LG: continue
 
             # ★★ X2-СОХРАНЕНИЕ с entry_odds
-            if X2_ENABLED:
+            # v4.3: для сборных X2 не применяем — позиции нерелевантны
+            if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
                 x2_side = None
@@ -2303,7 +2347,6 @@ def find_top_matches(matches):
                         log_no_motivation_match(home, away, hp, ap, total_xg, league_name,
                                                 favorite=favorite, underdog=underdog)
 
-                        # ★ Берём реальные кэфы из _preloaded_odds
                         pre_odds = match.get('_preloaded_odds') or {}
                         entry_odds = 0
                         entry_1x_odds = 0
@@ -2314,7 +2357,6 @@ def find_top_matches(matches):
                             entry_odds = pre_odds.get('1x_odds', 0) or 0
                             entry_1x_odds = pre_odds.get('x2_odds', 0) or 0
 
-                        # Если кэф не найден — вычисляем из fair value
                         if not entry_odds and x2_bet.get('prob', 0) > 0:
                             p = x2_bet.get('prob', 0) / 100
                             entry_odds = round((1 / p) * 0.95, 2) if p > 0 else 0
@@ -2333,7 +2375,6 @@ def find_top_matches(matches):
                     except Exception as e:
                         logger.error(f"X2 candidate save error: {e}")
 
-            # ★ Страна + флаг
             country_name, country_flag = _get_country_flag(league_id)
 
             best_matches.append({
@@ -2349,6 +2390,7 @@ def find_top_matches(matches):
                 "weather_reason": match.get('weather_reason', ''),
                 "api_predictions": api_predictions,
                 "factors": {}, "source": "70_percent",
+                "is_international": is_international,
                 "_preloaded_odds": match.get('_preloaded_odds'),
             })
         except Exception as e:
@@ -2589,8 +2631,7 @@ def find_value_matches(matches, max_bets=2):
                 market_prob = 1.0 / odds
                 ratio = model_prob / market_prob if market_prob > 0 else 0
                 if ratio > getattr(Config, 'VALUE_MAX_RATIO', 2.2):
-                    return None
-                blended = model_prob * 0.35 + market_prob * 0.65
+                    return None                blended = model_prob * 0.35 + market_prob * 0.65
                 ev = (blended * odds - 1) * 100
                 return (ev, blended)
 
@@ -2916,7 +2957,7 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ (★ с X2 и 1X)
+# СНИМКИ КЭФОВ (★ v4.3 с home/away/league)
 # ============================================================
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot: НАЧАЛО")
@@ -2965,7 +3006,13 @@ def snapshot_odds_for_upcoming():
                     fid = md.get('fixture_id')
                     fo = batch.get(fid)
                     if not fo: continue
-                    saved = _save_snapshot_from_odds(fo, fid)
+                    # ★ v4.3: передаём home/away/league
+                    saved = _save_snapshot_from_odds(
+                        fo, fid,
+                        home=md.get('home', ''),
+                        away=md.get('away', ''),
+                        league=md.get('league', ''),
+                    )
                     total_snapshots += saved
             except Exception as e:
                 logger.error(f"snapshot batch {league_id}: {e}")
@@ -2976,7 +3023,13 @@ def snapshot_odds_for_upcoming():
                 if not fid: continue
                 fo = football_api.get_match_odds(fid)
                 if not fo: continue
-                saved = _save_snapshot_from_odds(fo, fid)
+                # ★ v4.3: передаём home/away/league
+                saved = _save_snapshot_from_odds(
+                    fo, fid,
+                    home=md.get('home', ''),
+                    away=md.get('away', ''),
+                    league=md.get('league', ''),
+                )
                 total_snapshots += saved
             except Exception as e:
                 logger.error(f"snapshot single: {e}")
@@ -2988,9 +3041,10 @@ def snapshot_odds_for_upcoming():
         return 0
 
 
-def _save_snapshot_from_odds(fo, fid):
+def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
     """
     ★ Сохраняет снимки: 1X2 + DC (X2 и 1X).
+    ★ v4.3: принимает home/away/league для хранения в БД.
     """
     try:
         if not fo:
@@ -3012,7 +3066,8 @@ def _save_snapshot_from_odds(fo, fid):
                 if odd and odd > 1.01:
                     if storage.save_odds_snapshot(
                         fixture_id=fid, market='1X2',
-                        selection=sel, odds=odd, bookmaker=bookmaker
+                        selection=sel, odds=odd, bookmaker=bookmaker,
+                        home=home, away=away, league=league
                     ):
                         saved += 1
 
@@ -3022,13 +3077,15 @@ def _save_snapshot_from_odds(fo, fid):
         if x2_odd > 1.01:
             if storage.save_odds_snapshot(
                 fixture_id=fid, market='DC',
-                selection='X2', odds=x2_odd, bookmaker=bookmaker
+                selection='X2', odds=x2_odd, bookmaker=bookmaker,
+                home=home, away=away, league=league
             ):
                 saved += 1
         if x1_odd > 1.01:
             if storage.save_odds_snapshot(
                 fixture_id=fid, market='DC',
-                selection='1X', odds=x1_odd, bookmaker=bookmaker
+                selection='1X', odds=x1_odd, bookmaker=bookmaker,
+                home=home, away=away, league=league
             ):
                 saved += 1
 
@@ -3038,12 +3095,13 @@ def _save_snapshot_from_odds(fo, fid):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 ===
+# === КОНЕЦ ЧАСТИ 2/3 (v4.3) ===
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (с fallback для аномалий)
+# main.py — ЧАСТЬ 3/3 (v4.3)
 # Schedulers, Webhook, API, __main__
+# ★ Snapshots API без fallback'ов — работают напрямую из SQLite
 # ============================================================
 
 def safe_job(func, name):
@@ -3886,7 +3944,7 @@ def serve_manifest():
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
-    """★ Активные матчи (идущие + ближайшие 2 часа) с live-счётом
+    """Активные матчи (идущие + ближайшие 2 часа) с live-счётом
     и sparkline (мини-график движения кэфа)."""
     try:
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
@@ -3929,7 +3987,7 @@ def api_live():
         in_window.sort(key=lambda x: x[2])
         in_window = in_window[:max_matches]
 
-        # ── Batch-запрос к API: 1 запрос на все матчи дня ──
+        # Batch-запрос к API: 1 запрос на все матчи дня
         live_data = {}
         if getattr(Config, 'LIVE_BATCH_ENABLED', True):
             try:
@@ -3946,7 +4004,7 @@ def api_live():
             except Exception as e:
                 logger.error(f"Live batch error: {e}")
 
-        # ── ★ Batch sparkline ──
+        # ★ Batch sparkline
         sparkline_data = {}
         if getattr(Config, 'LIVE_SPARKLINE_ENABLED', True):
             try:
@@ -3962,7 +4020,7 @@ def api_live():
             except Exception as e:
                 logger.error(f"Sparkline batch error: {e}")
 
-        # ── Формируем ответ ──
+        # Формируем ответ
         result = []
         for m, match_dt, delta_min in in_window:
             fid = m.get('fixture_id')
@@ -4466,7 +4524,7 @@ def api_snapshot():
 
 
 # ============================================================
-# ★ API: СНИМКИ — список (с fallback на историю + X2)
+# ★ API: СНИМКИ — список (v4.3 — без fallback'ов)
 # ============================================================
 @app.route('/api/snapshots', methods=['GET'])
 def api_snapshots_list():
@@ -4482,9 +4540,24 @@ def api_snapshots_list():
             fid = row.get('fixture_id')
             if not fid: continue
             if fid not in grouped:
-                grouped[fid] = {'fixture_id': fid, 'snapshots': [],
-                                'first_time': None, 'last_time': None}
+                grouped[fid] = {
+                    'fixture_id': fid,
+                    'snapshots': [],
+                    'home': row.get('home', ''),
+                    'away': row.get('away', ''),
+                    'league': row.get('league', ''),
+                    'first_time': None,
+                    'last_time': None,
+                }
             grouped[fid]['snapshots'].append(row)
+            # Берём названия из самой свежей записи, где они не пустые
+            if row.get('home') and not grouped[fid]['home']:
+                grouped[fid]['home'] = row['home']
+            if row.get('away') and not grouped[fid]['away']:
+                grouped[fid]['away'] = row['away']
+            if row.get('league') and not grouped[fid]['league']:
+                grouped[fid]['league'] = row['league']
+
             t = row.get('created_at')
             if t:
                 if not grouped[fid]['first_time'] or t < grouped[fid]['first_time']:
@@ -4492,83 +4565,69 @@ def api_snapshots_list():
                 if not grouped[fid]['last_time'] or t > grouped[fid]['last_time']:
                     grouped[fid]['last_time'] = t
 
+        # Подтягиваем match_time из кэша (match_time не хранится в snapshots)
         cache = storage.load_cache()
         all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
-        match_lookup = {}
+        match_time_lookup = {}
         for m in all_matches:
             fid = m.get('fixture_id')
-            if fid:
-                match_lookup[fid] = {'home': m.get('home'), 'away': m.get('away'),
-                                     'league': m.get('league', ''),
-                                     'match_time': m.get('match_time', '')}
-
-        # ★ Fallback: история
-        try:
-            for h in storage.load_history():
-                fid = h.get('fixture_id')
-                if fid and fid not in match_lookup:
-                    match_lookup[fid] = {
-                        'home': h.get('home', '?'),
-                        'away': h.get('away', '?'),
-                        'league': h.get('league', '?'),
-                        'match_time': h.get('date', '?'),
-                    }
-        except Exception as e:
-            logger.debug(f"snapshots list history fallback: {e}")
-
-        # ★ Fallback: X2-кандидаты
-        try:
-            for x in storage.get_x2_candidates(limit=500):
-                fid = x.get('fixture_id')
-                if fid and fid not in match_lookup:
-                    match_lookup[fid] = {
-                        'home': x.get('home', '?'),
-                        'away': x.get('away', '?'),
-                        'league': x.get('league', '?'),
-                        'match_time': x.get('match_time', '?'),
-                    }
-        except Exception as e:
-            logger.debug(f"snapshots list x2 fallback: {e}")
+            if fid and fid not in match_time_lookup:
+                match_time_lookup[fid] = m.get('match_time', '?')
 
         result = []
         for fid, info in grouped.items():
             snaps = info['snapshots']
             if not snaps: continue
+
             first_odds = {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0}
             last_odds = {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0}
             anomalies = []
+
             for s in snaps:
                 sel = s.get('selection', '')
                 odd = s.get('odds', 0)
                 if sel in first_odds:
                     if not first_odds[sel]: first_odds[sel] = odd
                     last_odds[sel] = odd
+
             for sel in ['1', 'X', '2', '1X', 'X2']:
                 if first_odds[sel] > 0 and last_odds[sel] > 0:
                     trend = ((last_odds[sel] / first_odds[sel]) - 1) * 100
                     if abs(trend) > 5:
-                        anomalies.append({'selection': sel, 'first': first_odds[sel],
-                                          'last': last_odds[sel], 'trend': round(trend, 1)})
-            if only_anomaly and not anomalies: continue
-            m_info = match_lookup.get(fid, {})
+                        anomalies.append({
+                            'selection': sel, 'first': first_odds[sel],
+                            'last': last_odds[sel], 'trend': round(trend, 1)
+                        })
+            if only_anomaly and not anomalies:
+                continue
+
             result.append({
-                'fixture_id': fid, 'home': m_info.get('home', '?'),
-                'away': m_info.get('away', '?'), 'league': m_info.get('league', '?'),
-                'match_time': m_info.get('match_time', '?'),
-                'snapshot_count': len(snaps), 'first_time': info['first_time'],
-                'last_time': info['last_time'], 'first': first_odds, 'last': last_odds,
+                'fixture_id': fid,
+                'home': info['home'] or '?',
+                'away': info['away'] or '?',
+                'league': info['league'] or '?',
+                'match_time': match_time_lookup.get(fid, '?'),
+                'snapshot_count': len(snaps),
+                'first_time': info['first_time'],
+                'last_time': info['last_time'],
+                'first': first_odds,
+                'last': last_odds,
                 'anomalies': anomalies,
             })
+
         result.sort(key=lambda x: x.get('last_time', ''), reverse=True)
         result = result[:limit]
-        return jsonify({'status': 'ok', 'count': len(result), 'days': days,
-                        'only_anomaly': only_anomaly, 'matches': result})
+        return jsonify({
+            'status': 'ok', 'count': len(result), 'days': days,
+            'only_anomaly': only_anomaly, 'matches': result,
+        })
     except Exception as e:
+        logger.exception(f"api_snapshots_list error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 # ============================================================
-# ★ API: СНИМКИ — детали (с fallback)
+# ★ API: СНИМКИ — детали (v4.3 — без fallback'ов)
 # ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
@@ -4577,45 +4636,19 @@ def api_snapshots_detail(fixture_id):
         if not rows:
             return jsonify({'status': 'ok', 'fixture_id': fixture_id, 'history': []})
 
-        cache = storage.load_cache()
-        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
-        m_info = {}
-        for m in all_matches:
-            if m.get('fixture_id') == fixture_id:
-                m_info = {'home': m.get('home'), 'away': m.get('away'),
-                          'league': m.get('league', ''),
-                          'match_time': m.get('match_time', '')}
-                break
-
-        # ★ Fallback: история
-        if not m_info:
-            try:
-                for h in storage.load_history():
-                    if h.get('fixture_id') == fixture_id:
-                        m_info = {
-                            'home': h.get('home', '?'),
-                            'away': h.get('away', '?'),
-                            'league': h.get('league', '?'),
-                            'match_time': h.get('date', '?'),
-                        }
-                        break
-            except Exception as e:
-                logger.debug(f"snapshot detail history fallback: {e}")
-
-        # ★ Fallback: X2
-        if not m_info:
-            try:
-                for x in storage.get_x2_candidates(limit=500):
-                    if x.get('fixture_id') == fixture_id:
-                        m_info = {
-                            'home': x.get('home', '?'),
-                            'away': x.get('away', '?'),
-                            'league': x.get('league', '?'),
-                            'match_time': x.get('match_time', '?'),
-                        }
-                        break
-            except Exception as e:
-                logger.debug(f"snapshot detail x2 fallback: {e}")
+        # ★ Названия берём напрямую из БД — не нужен fallback на cache/history
+        m_info = storage.get_snapshot_match_info(fixture_id) or {}
+        # match_time — из кэша (в snapshots не хранится)
+        match_time = '?'
+        try:
+            cache = storage.load_cache()
+            all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+            for m in all_matches:
+                if m.get('fixture_id') == fixture_id:
+                    match_time = m.get('match_time', '?')
+                    break
+        except Exception:
+            pass
 
         history_map = {}
         for r in rows:
@@ -4628,20 +4661,31 @@ def api_snapshots_detail(fixture_id):
                 history_map[t] = {
                     'created_at': t,
                     'odds': {'1': 0, 'X': 0, '2': 0, '1X': 0, 'X2': 0},
-                    'bookmaker': bm
+                    'bookmaker': bm,
                 }
             if sel in history_map[t]['odds']:
                 history_map[t]['odds'][sel] = odd
             history_map[t]['bookmaker'] = bm
+
         history = sorted(history_map.values(), key=lambda x: x['created_at'])
-        return jsonify({'status': 'ok', 'fixture_id': fixture_id,
-                        'match': m_info, 'history': history})
+        return jsonify({
+            'status': 'ok',
+            'fixture_id': fixture_id,
+            'match': {
+                'home': m_info.get('home', '?'),
+                'away': m_info.get('away', '?'),
+                'league': m_info.get('league', '?'),
+                'match_time': match_time,
+            },
+            'history': history,
+        })
     except Exception as e:
+        logger.exception(f"api_snapshots_detail error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 # ============================================================
-# ★ API: АНОМАЛИИ (с fallback)
+# ★ API: АНОМАЛИИ (v4.3 — без fallback'ов)
 # ============================================================
 @app.route('/api/snapshot_anomalies', methods=['GET'])
 def api_snapshot_anomalies():
@@ -4650,46 +4694,41 @@ def api_snapshot_anomalies():
         limit = int(request.args.get('limit', 50))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
         matches_raw = storage.get_snapshots_since(cutoff)
+
         grouped = {}
         for row in matches_raw:
             fid = row.get('fixture_id')
             if not fid: continue
-            grouped.setdefault(fid, []).append(row)
+            if fid not in grouped:
+                grouped[fid] = {
+                    'snapshots': [],
+                    'home': row.get('home', '') or '?',
+                    'away': row.get('away', '') or '?',
+                    'league': row.get('league', '') or '?',
+                }
+            grouped[fid]['snapshots'].append(row)
+            if row.get('home') and grouped[fid]['home'] == '?':
+                grouped[fid]['home'] = row['home']
+            if row.get('away') and grouped[fid]['away'] == '?':
+                grouped[fid]['away'] = row['away']
+            if row.get('league') and grouped[fid]['league'] == '?':
+                grouped[fid]['league'] = row['league']
 
-        cache = storage.load_cache()
-        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
-        match_lookup = {m.get('fixture_id'): m for m in all_matches if m.get('fixture_id')}
-
-        # ★ Fallback: история
+        # match_time — из кэша
+        match_time_lookup = {}
         try:
-            for h in storage.load_history():
-                fid = h.get('fixture_id')
-                if fid and fid not in match_lookup:
-                    match_lookup[fid] = {
-                        'home': h.get('home', '?'),
-                        'away': h.get('away', '?'),
-                        'league': h.get('league', '?'),
-                        'match_time': h.get('date', '?'),
-                    }
-        except Exception as e:
-            logger.debug(f"anomalies history fallback: {e}")
-
-        # ★ Fallback: X2
-        try:
-            for x in storage.get_x2_candidates(limit=500):
-                fid = x.get('fixture_id')
-                if fid and fid not in match_lookup:
-                    match_lookup[fid] = {
-                        'home': x.get('home', '?'),
-                        'away': x.get('away', '?'),
-                        'league': x.get('league', '?'),
-                        'match_time': x.get('match_time', '?'),
-                    }
-        except Exception as e:
-            logger.debug(f"anomalies x2 fallback: {e}")
+            cache = storage.load_cache()
+            all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+            for m in all_matches:
+                fid = m.get('fixture_id')
+                if fid and fid not in match_time_lookup:
+                    match_time_lookup[fid] = m.get('match_time', '?')
+        except Exception:
+            pass
 
         result = []
-        for fid, snaps in grouped.items():
+        for fid, info in grouped.items():
+            snaps = info['snapshots']
             odds_by_time = {}
             for s in snaps:
                 t = s.get('created_at')
@@ -4697,6 +4736,7 @@ def api_snapshot_anomalies():
                 odd = s.get('odds', 0)
                 if not t or sel not in ['1', 'X', '2']: continue
                 odds_by_time.setdefault(t, {'1': 0, 'X': 0, '2': 0})[sel] = odd
+
             sorted_times = sorted(odds_by_time.keys())
             for sel in ['1', 'X', '2']:
                 values = [odds_by_time[t][sel] for t in sorted_times if odds_by_time[t][sel] > 0]
@@ -4705,13 +4745,12 @@ def api_snapshot_anomalies():
                 max_odd = max(values)
                 anomaly_pct = ((max_odd / first_odd) - 1) * 100 if first_odd > 0 else 0
                 if anomaly_pct > 5:
-                    m = match_lookup.get(fid, {})
                     result.append({
                         'fixture_id': fid,
-                        'home': m.get('home', '?'),
-                        'away': m.get('away', '?'),
-                        'league': m.get('league', '?'),
-                        'match_time': m.get('match_time', '?'),
+                        'home': info['home'],
+                        'away': info['away'],
+                        'league': info['league'],
+                        'match_time': match_time_lookup.get(fid, '?'),
                         'selection': sel,
                         'first_odds': first_odd,
                         'max_odds': max_odd,
@@ -4722,30 +4761,41 @@ def api_snapshot_anomalies():
         result = result[:limit]
         return jsonify({'status': 'ok', 'count': len(result), 'anomalies': result})
     except Exception as e:
+        logger.exception(f"api_snapshot_anomalies error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-
 # ============================================================
-# ★ API: СТАТИСТИКА АНОМАЛИЙ
+# ★ API: СТАТИСТИКА АНОМАЛИЙ (v4.3 — без fallback'ов)
 # ============================================================
 @app.route('/api/snapshot_anomalies/stats', methods=['GET'])
 def api_snapshot_anomalies_stats():
-    """★ Статистика аномалий: сколько сбылось / не сбылось."""
+    """Статистика аномалий: сколько сбылось / не сбылось."""
     try:
         days = int(request.args.get('days', 7))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
         matches_raw = storage.get_snapshots_since(cutoff)
 
-        # Группируем снимки по матчу
         grouped = {}
         for row in matches_raw:
             fid = row.get('fixture_id')
-            if not fid:
-                continue
-            grouped.setdefault(fid, []).append(row)
+            if not fid: continue
+            if fid not in grouped:
+                grouped[fid] = {
+                    'snapshots': [],
+                    'home': row.get('home', '') or '?',
+                    'away': row.get('away', '') or '?',
+                    'league': row.get('league', '') or '?',
+                }
+            grouped[fid]['snapshots'].append(row)
+            if row.get('home') and grouped[fid]['home'] == '?':
+                grouped[fid]['home'] = row['home']
+            if row.get('away') and grouped[fid]['away'] == '?':
+                grouped[fid]['away'] = row['away']
+            if row.get('league') and grouped[fid]['league'] == '?':
+                grouped[fid]['league'] = row['league']
 
-        # Получаем результаты матчей из истории
+        # Результаты матчей — из истории (home_goals/away_goals)
         history = storage.load_history()
         results_lookup = {}
         for h in history:
@@ -4757,7 +4807,6 @@ def api_snapshot_anomalies_stats():
                     'away_goals': h.get('away_goals'),
                 }
 
-        # Общая статистика
         total_matches = len(grouped)
         total_snapshots = len(matches_raw)
         total_anomalies = 0
@@ -4765,12 +4814,12 @@ def api_snapshot_anomalies_stats():
         wrong_anomalies = 0
         unknown_anomalies = 0
         sum_growth = 0
-        sum_trend = 0
+
         top_good = []
         top_bad = []
 
-        for fid, snaps in grouped.items():
-            # Группируем по времени
+        for fid, info in grouped.items():
+            snaps = info['snapshots']
             odds_by_time = {}
             for s in snaps:
                 t = s.get('created_at')
@@ -4788,25 +4837,20 @@ def api_snapshot_anomalies_stats():
                     continue
                 first_odd = values[0]
                 max_odd = max(values)
-                min_odd = min(values)
                 anomaly_pct = ((max_odd / first_odd) - 1) * 100 if first_odd > 0 else 0
 
-                # Аномалия: рост > 5%
                 if anomaly_pct < 5:
                     continue
 
                 total_anomalies += 1
                 sum_growth += anomaly_pct
 
-                # Проверяем "сбылась" ли аномалия:
-                # если матч завершён, смотрим результат
                 match_res = results_lookup.get(fid)
                 is_correct = None
                 if match_res and match_res.get('result') in ('win', 'loss'):
                     hg = match_res.get('home_goals')
                     ag = match_res.get('away_goals')
                     if hg is not None and ag is not None:
-                        # Логика: если выбранный исход ВЫИГРАЛ — аномалия сбылась
                         if sel == '1':
                             is_correct = hg > ag
                         elif sel == '2':
@@ -4816,11 +4860,12 @@ def api_snapshot_anomalies_stats():
 
                 if is_correct is True:
                     correct_anomalies += 1
-                    sum_trend += anomaly_pct
                     top_good.append({
                         'fixture_id': fid, 'selection': sel,
                         'first_odds': first_odd, 'max_odds': max_odd,
                         'anomaly_pct': round(anomaly_pct, 1),
+                        'home': info['home'], 'away': info['away'],
+                        'league': info['league'],
                     })
                 elif is_correct is False:
                     wrong_anomalies += 1
@@ -4828,24 +4873,11 @@ def api_snapshot_anomalies_stats():
                         'fixture_id': fid, 'selection': sel,
                         'first_odds': first_odd, 'max_odds': max_odd,
                         'anomaly_pct': round(anomaly_pct, 1),
+                        'home': info['home'], 'away': info['away'],
+                        'league': info['league'],
                     })
                 else:
                     unknown_anomalies += 1
-
-        # Обогащаем ТОП названиями матчей
-        def _enrich(items):
-            out = []
-            for it in items:
-                fid = it['fixture_id']
-                m = {}
-                for h in history:
-                    if h.get('fixture_id') == fid:
-                        m = {'home': h.get('home', '?'), 'away': h.get('away', '?'),
-                             'league': h.get('league', '?')}
-                        break
-                it.update(m)
-                out.append(it)
-            return out
 
         top_good_sorted = sorted(top_good, key=lambda x: x['anomaly_pct'], reverse=True)[:5]
         top_bad_sorted = sorted(top_bad, key=lambda x: x['anomaly_pct'])[:5]
@@ -4865,8 +4897,8 @@ def api_snapshot_anomalies_stats():
             'unknown_anomalies': unknown_anomalies,
             'hit_rate': hit_rate,
             'avg_growth': avg_growth,
-            'top_good': _enrich(top_good_sorted),
-            'top_bad': _enrich(top_bad_sorted),
+            'top_good': top_good_sorted,
+            'top_bad': top_bad_sorted,
         })
     except Exception as e:
         logger.exception(f"api_snapshot_anomalies_stats error: {e}")
@@ -4948,13 +4980,13 @@ def add_manual_match():
         if result == 'win': profit = round(stake * (odds - 1), 2)
         elif result == 'loss': profit = -stake
         else: profit = 0
-        history = storage.load_history()
+        history =m storage.load_history()
         history.append({
-            'home': home or 'Unknown', 'away': away or 'Unknown',
-            'league': 'Ручное добавление',
-            'bet': bet_type, 'odds': odds, 'stake': stake,
+            'home': home-% or 'Unknown',d 'away': away or ' %Unknown',
+            'league': 'РHучное добавление',
+:%            'bet': bet_type, 'odds': odds, 'stake': stake,
             'ev': 0, 'prob': 0, 'result': result, 'profit': profit,
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'date': datetime.now().strftime('%Y-%M'),
             'home_goals': hg, 'away_goals': ag,
             'manual': True, 'bookmaker': bookmaker,
             'source': 'manual',
@@ -5200,7 +5232,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.3)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
