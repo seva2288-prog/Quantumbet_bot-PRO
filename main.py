@@ -1384,10 +1384,11 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.3)
+# main.py — ЧАСТЬ 2/3 (v4.5 — Kelly Criterion)
 # Стратегии, 3 потока поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в find_top_matches
+# ★ Quarter-Kelly для расчёта stake (cap 5%)
 # ============================================================
 
 # ============================================================
@@ -1520,11 +1521,12 @@ class StrategySimulator:
         try:
             logger.info(f"🔍 GRID SEARCH: до {max_combinations} комбинаций...")
             grid = {
-                'min_ev': [5, 8, 10, 15, 20],
+                'min_ev': [5, 8, 10, 12],
                 'min_prob': [45, 50, 52, 55, 60],
-                'min_odds': [1.4, 1.5, 1.6, 1.7],
-                'max_odds': [3.0, 4.0, 5.0, 6.0, 8.0],
-                'stake_pct': [1.5, 2.0, 2.5, 3.0],
+                'min_odds': [1.4, 1.5, 1.6],
+                'max_odds': [2.5, 3.0, 4.0, 5.0],
+                'min_xg': [1.0, 1.2, 1.5],
+                'stake_pct': [1.5, 2.0, 3.0, 5.0],
             }
             results = []
             count = 0
@@ -1534,7 +1536,7 @@ class StrategySimulator:
                 if count >= max_combinations: break
                 params = dict(zip(keys, combo))
                 params.update({'max_ev': 500, 'max_prob': 100,
-                               'min_xg': 0.8, 'max_xg': 4.0,
+                               'max_xg': 4.0,
                                'bet_types': [], 'leagues': [], 'start_bank': 1000})
                 if params['min_odds'] >= params['max_odds']: continue
                 try:
@@ -1581,6 +1583,63 @@ class StrategySimulator:
 
 
 strategy_simulator = StrategySimulator()
+
+
+# ============================================================
+# ★ KELLY CRITERION для расчёта ставки (v4.5)
+# ============================================================
+def calculate_stake(bank, prob_pct, odds,
+                     base_pct=0.02, kelly_fraction=0.25,
+                     max_pct=0.05, min_stake=1.0):
+    """
+    Quarter-Kelly с защитой.
+    - bank: текущий банк
+    - prob_pct: вероятность в % (0-100)
+    - odds: коэффициент
+    - base_pct: минимальная ставка % банка (2%)
+    - kelly_fraction: доля Kelly (0.25 = quarter-Kelly)
+    - max_pct: cap на ставку (5% банка)
+    - min_stake: минимальная ставка в $
+
+    Формула Kelly: f = (b*p - q) / b
+    где b = odds-1, p = prob, q = 1-p
+    """
+    if bank <= 0 or odds <= 1.01 or prob_pct <= 0:
+        return min_stake
+
+    b = odds - 1
+    p = prob_pct / 100.0
+    q = 1 - p
+
+    kelly_full = (b * p - q) / b
+    if kelly_full <= 0:
+        # Kelly отрицательный — нет edge, ставим базовую ставку
+        return max(round(bank * base_pct, 2), min_stake)
+
+    # Quarter-Kelly
+    kelly_stake_pct = kelly_full * kelly_fraction
+
+    # Ограничиваем: не меньше base_pct, не больше max_pct
+    final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
+
+    stake = round(bank * final_pct, 2)
+    return max(stake, min_stake)
+
+
+def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=0.25):
+    """Возвращает инфу о Kelly — для логирования/UI."""
+    if odds <= 1.01 or prob_pct <= 0:
+        return {'kelly_full': 0, 'kelly_quarter': 0, 'edge': 0}
+    b = odds - 1
+    p = prob_pct / 100.0
+    q = 1 - p
+    kelly_full = (b * p - q) / b if b > 0 else 0
+    edge = (p * odds - 1) * 100
+    return {
+        'kelly_full': round(kelly_full * 100, 2),
+        'kelly_quarter': round(kelly_full * kelly_fraction * 100, 2),
+        'edge': round(edge, 2),
+    }
 
 
 # ============================================================
@@ -1770,7 +1829,6 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
     h2h_prob = calculate_h2h_probability(h2h_data)
 
     if is_international:
-        # ★ Для сборных форма клуба/H2H менее показательны — урезаем их вес
         w_p, w_f, w_h = 0.60, 0.15, 0.10
     elif engine == 'hybrid':
         w_p, w_f, w_h = 0.40, 0.30, 0.15
@@ -1814,6 +1872,19 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
     match['bets'].sort(key=lambda x: x['ev'], reverse=True)
     if match['bets']:
         match['best_bet'] = match['bets'][0]
+        # ★ v4.5: пересчёт stake по Kelly после LLM-коррекции
+        try:
+            bank = storage.load_bank()
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=match['best_bet'].get('prob', 0),
+                odds=match['best_bet'].get('odds', 1.85),
+            )
+            for b in match['bets']:
+                b['stake'] = kelly_stake
+            match['best_bet']['stake'] = kelly_stake
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -2035,6 +2106,19 @@ def update_odds_for_matches(matches):
                 best_bet['bookmaker'] = bookmaker
                 best_bet['odds_source'] = source
                 best_bet['odds_updated'] = True
+
+                # ★ v4.5: пересчёт stake по Kelly после обновления кэфа
+                try:
+                    bank = storage.load_bank()
+                    kelly_stake = calculate_stake(
+                        bank=bank,
+                        prob_pct=best_bet.get('prob', 0),
+                        odds=new_odds,
+                    )
+                    best_bet['stake'] = kelly_stake
+                except Exception as e:
+                    logger.error(f"Kelly recalc: {e}")
+
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
                 try:
@@ -2047,7 +2131,6 @@ def update_odds_for_matches(matches):
                         '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
                     }
                     mkt, sel = market_map.get(bt, (bt, 'unknown'))
-                    # ★ v4.3: передаём home/away/league в БД
                     storage.save_odds_snapshot(
                         fixture_id=fid, market=mkt,
                         selection=sel, odds=new_odds, bookmaker=bookmaker,
@@ -2174,14 +2257,14 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+
+# ★ ПОТОК 1: 70%+ (с Kelly)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
     max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 30)
     total_matches = len(matches)
-    logger.info(f"🔍 [70%+] Анализ {total_matches} матчей...")
+    logger.info(f"🔍 [70%+] Анализ {total_matches} матчей... (bank=${bank:.2f})")
     blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
     best_matches = []
     bet_type_count = {}
@@ -2213,7 +2296,6 @@ def find_top_matches(matches):
             if any(bad in league_name.lower() for bad in blacklist): continue
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
 
-            # ★ v4.3: проверяем, турнир сборных
             is_international = _is_international_league(league_id, league_name)
 
             factors = match.get('factors', {}) or {}
@@ -2232,7 +2314,6 @@ def find_top_matches(matches):
             if h_inj > 3: home_xg *= 0.8
             if a_inj > 3: away_xg *= 0.8
 
-            # ★ v4.3: сборные играют на нейтральных полях
             if is_international:
                 home_adv = 1.03
             else:
@@ -2263,7 +2344,6 @@ def find_top_matches(matches):
             hp = standings.get(home, {}).get('position', 99) if standings else 99
             ap = standings.get(away, {}).get('position', 99) if standings else 99
 
-            # ★ v4.3: для сборных фильтры по позициям/мотивации не применяем
             if is_international:
                 hm = am = 'international'
             else:
@@ -2289,7 +2369,7 @@ def find_top_matches(matches):
             elif am == 'relegation' and hm == 'mid_table':
                 probs['away_win'] = probs.get('away_win', 0) + 0.05
 
-            stake = round(bank * 0.02, 2) if bank > 0 else 10.0
+            # ★ v4.5: Kelly-stake считается после формирования bets
             bets = []
             odds_template = {'1X': 1.85, 'X2': 1.85, 'П1': 2.10, 'П2': 2.10,
                              'ТМ 2.5': 1.95, 'ТБ 2.5': 1.95, 'ОБЗ': 1.90}
@@ -2305,7 +2385,7 @@ def find_top_matches(matches):
                     'type': bt, 'label': label,
                     'prob': round(p * 100, 1),
                     'ev': round((p * odds_template[key] - 1) * 100, 1),
-                    'odds': odds_template[key], 'stake': stake,
+                    'odds': odds_template[key], 'stake': 0,
                     'odds_updated': False,
                 })
             if not bets: continue
@@ -2317,6 +2397,24 @@ def find_top_matches(matches):
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
 
+            # ★ v4.5: Kelly-stake для лучшей ставки
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            for b in bets:
+                b['stake'] = kelly_stake
+            best_bet['stake'] = kelly_stake
+
+            kelly_info = calculate_kelly_info(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            best_bet['kelly_full'] = kelly_info['kelly_full']
+            best_bet['kelly_quarter'] = kelly_info['kelly_quarter']
+
             bt = best_bet['type']
             LIMIT_BT = getattr(Config, 'LIMIT_BET_TYPE_70', 15)
             LIMIT_LG = getattr(Config, 'LIMIT_LEAGUE_70', 5)
@@ -2326,7 +2424,6 @@ def find_top_matches(matches):
             if league_count[league_name] > LIMIT_LG: continue
 
             # ★★ X2-СОХРАНЕНИЕ с entry_odds
-            # v4.3: для сборных X2 не применяем — позиции нерелевантны
             if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2421,10 +2518,11 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5
+# ★ ПОТОК 2: ТМ 2.5 (с Kelly)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
+    bank = storage.load_bank()  # ★ v4.5
     tm25_candidates = []
     MAX_TM25_BETS = getattr(Config, 'MAX_TM25_BETS', 5)
     PREMIUM_MIN_EV = getattr(Config, 'PREMIUM_MIN_EV', 25) / 100
@@ -2506,10 +2604,14 @@ def find_tm25_matches(matches):
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and p_under >= PREMIUM_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.35: continue
+                # ★ v4.5: Kelly-stake
+                kelly_stake = calculate_stake(
+                    bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
+                )
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5 🔥',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
-                            'odds': odds_tm25, 'stake': round(42.87, 2),
+                            'odds': odds_tm25, 'stake': kelly_stake,
                             'level': 'PREMIUM', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2529,10 +2631,14 @@ def find_tm25_matches(matches):
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV and p_under >= STANDARD_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.20: continue
+                # ★ v4.5: Kelly-stake
+                kelly_stake = calculate_stake(
+                    bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
+                )
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
-                            'odds': odds_tm25, 'stake': round(42.87, 2),
+                            'odds': odds_tm25, 'stake': kelly_stake,
                             'level': 'STANDARD', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2557,10 +2663,11 @@ def find_tm25_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE
+# ★ ПОТОК 3: VALUE (с Kelly)
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=2):
+    bank = storage.load_bank()  # ★ v4.5
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
     VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
     VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
@@ -2705,6 +2812,16 @@ def find_value_matches(matches, max_bets=2):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
+            # ★ v4.5: Kelly-stake
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            for b in candidates_bc:
+                b['stake'] = kelly_stake
+            best_bet['stake'] = kelly_stake
+
             country_name, country_flag = _get_country_flag(league_id)
 
             value_candidates.append({
@@ -2725,7 +2842,7 @@ def find_value_matches(matches, max_bets=2):
             logger.info(
                 f"💎 VALUE: {home} vs {away} | {best_bet['label']} @ "
                 f"{best_bet['odds']} | EV: {best_bet['ev']}% | "
-                f"Prob: {best_bet['prob']}%"
+                f"Prob: {best_bet['prob']}% | Stake: ${best_bet['stake']}"
             )
 
         except Exception as e:
@@ -2744,17 +2861,17 @@ def find_value_matches(matches, max_bets=2):
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 1: 70%+")
+    logger.info("📊 ПОТОК 1: 70%+ (Kelly)")
     logger.info("=" * 60)
     top_matches_70 = find_top_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 2: ТМ 2.5")
+    logger.info("📊 ПОТОК 2: ТМ 2.5 (Kelly)")
     logger.info("=" * 60)
     tm25_matches = find_tm25_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 3: VALUE 💎")
+    logger.info("📊 ПОТОК 3: VALUE 💎 (Kelly)")
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=2)
 
@@ -2959,7 +3076,7 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ (★ v4.3 с home/away/league)
+# СНИМКИ КЭФОВ (★ v4.5 с home/away/league)
 # ============================================================
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot: НАЧАЛО")
@@ -3008,7 +3125,6 @@ def snapshot_odds_for_upcoming():
                     fid = md.get('fixture_id')
                     fo = batch.get(fid)
                     if not fo: continue
-                    # ★ v4.3: передаём home/away/league
                     saved = _save_snapshot_from_odds(
                         fo, fid,
                         home=md.get('home', ''),
@@ -3025,7 +3141,6 @@ def snapshot_odds_for_upcoming():
                 if not fid: continue
                 fo = football_api.get_match_odds(fid)
                 if not fo: continue
-                # ★ v4.3: передаём home/away/league
                 saved = _save_snapshot_from_odds(
                     fo, fid,
                     home=md.get('home', ''),
@@ -3044,17 +3159,13 @@ def snapshot_odds_for_upcoming():
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
-    """
-    ★ Сохраняет снимки: 1X2 + DC (X2 и 1X).
-    ★ v4.3: принимает home/away/league для хранения в БД.
-    """
+    """Сохраняет снимки: 1X2 + DC (X2 и 1X)."""
     try:
         if not fo:
             return 0
         bookmaker = fo.get('bookmaker', 'Football API')
         saved = 0
 
-        # ── 1X2 ──
         has_1x2 = (fo.get('home_odds', 0) > 1.01 or
                    fo.get('away_odds', 0) > 1.01 or
                    fo.get('draw_odds', 0) > 1.01)
@@ -3073,7 +3184,6 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
                     ):
                         saved += 1
 
-        # ── ★ DC (X2 и 1X) ──
         x2_odd = fo.get('x2_odds', 0) or 0
         x1_odd = fo.get('1x_odds', 0) or 0
         if x2_odd > 1.01:
@@ -3097,7 +3207,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.3) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v4.5 — Kelly Criterion) ===
 
 
 # ============================================================
