@@ -706,3 +706,129 @@ def _normalize(data) -> dict | None:
         'draw_potential': _f('draw_potential', 0.5),
         'underdog_potential': _f('underdog_potential', 0.4),
     }
+
+# ============================================================
+# ★ v4.9: Генерация объяснения для ставки
+# ============================================================
+def llm_generate_reason(match_data: dict) -> str:
+    """
+    Генерирует 1-2 предложения — почему эта ставка выгодна.
+    Работает только с данными, которые уже есть в match_data.
+    Возвращает строку или '' при ошибке.
+    """
+    if not Config.LLM_ENABLED or not match_data:
+        return ''
+    try:
+        home = match_data.get('home', '?')
+        away = match_data.get('away', '?')
+        league = match_data.get('league', '?')
+        best = match_data.get('best_bet', {})
+        label = best.get('label', '?')
+        odds = best.get('odds', 0)
+        home_xg = match_data.get('home_xg', 0)
+        away_xg = match_data.get('away_xg', 0)
+        total_xg = match_data.get('total_xg', 0)
+        home_form = match_data.get('home_form', '')
+        away_form = match_data.get('away_form', '')
+        standings = match_data.get('standings', {}) or {}
+        hp = standings.get('home_position', '?')
+        ap = standings.get('away_position', '?')
+        hm = _motivation_text(standings.get('home_motivation', 'mid_table'))
+        am = _motivation_text(standings.get('away_motivation', 'mid_table'))
+
+        prompt = (
+            f"Ты футбольный аналитик. Объясни ОДНИМ-ДВУМЯ предложениями "
+            f"(макс 25 слов) ПОЧЕМУ эта ставка выгодна. Без воды, без цифр EV/Prob.\n\n"
+            f"Матч: {home} vs {away}\n"
+            f"Лига: {league}\n"
+            f"Ставка: {label} @ {odds}\n"
+            f"xG: {home} {home_xg} — {away} {away_xg} (сумма {total_xg})\n"
+            f"Форма: {home} [{home_form}] vs {away} [{away_form}]\n"
+            f"Позиции: {hp} ({hm}) vs {ap} ({am})\n\n"
+            f"Отвечай ТОЛЬКО текстом объяснения на русском, без префиксов."
+        )
+
+        with _semaphore:
+            client = _get_client()
+            response = client.chat.completions.create(
+                model=Config.LLM_MODEL,
+                messages=[
+                    {'role': 'system',
+                     'content': 'Ты краткий футбольный аналитик. Отвечай 1-2 предложениями на русском.'},
+                    {'role': 'user', 'content': prompt},
+                ],
+                temperature=0.7,
+                max_tokens=80,
+            )
+        text = response.choices[0].message.content.strip()
+
+        # Чистим возможные префиксы
+        for prefix in ['Объяснение:', 'Почему:', 'Причина:', '**']:
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+        text = text.replace('**', '').strip()
+        return text[:200]
+    except Exception as e:
+        logger.error(f"llm_generate_reason: {e}")
+        return ''
+
+
+# ============================================================
+# ★ v4.9: DeepSeek выбирает ОДИН лучший матч
+# ============================================================
+def llm_pick_best(matches: list) -> dict | None:
+    """
+    DeepSeek выбирает ОДИН самый уверенный матч из списка.
+    Возвращает dict {'match': {...}, 'reason': '...'} или None.
+    """
+    if not Config.LLM_ENABLED or not matches:
+        return None
+    try:
+        top = matches[:20]
+        lines = []
+        for i, m in enumerate(top, 1):
+            best = m.get('best_bet', {})
+            lines.append(
+                f"{i}. {m.get('home', '?')} vs {m.get('away', '?')} | "
+                f"{m.get('league', '?')} | "
+                f"Ставка: {best.get('label', '?')} @ {best.get('odds', 0)} | "
+                f"EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}% | "
+                f"xG: {m.get('total_xg', 0):.2f} | "
+                f"Форма: {m.get('home_form', '')} vs {m.get('away_form', '')}"
+            )
+        matches_text = '\n'.join(lines)
+
+        prompt = (
+            f"Ты профессиональный футбольный аналитик. Из списка матчей "
+            f"выбери ОДИН, в котором ты больше всего уверен.\n\n"
+            f"{matches_text}\n\n"
+            f"Ответь строго в формате JSON:\n"
+            f'{{"index": <номер_матча_1_до_N>, "reason": "<кратко 1 предложение почему именно он>"}}\n'
+            f"Только JSON, без markdown-обёрток."
+        )
+
+        with _semaphore:
+            client = _get_client()
+            response = client.chat.completions.create(
+                model=Config.LLM_MODEL,
+                messages=[
+                    {'role': 'system', 'content': 'Ты аналитик ставок. Отвечай только JSON.'},
+                    {'role': 'user', 'content': prompt},
+                ],
+                temperature=0.3,
+                max_tokens=200,
+                response_format={'type': 'json_object'},
+            )
+        content = response.choices[0].message.content.strip()
+        content = content.replace('```json', '').replace('```', '').strip()
+        parsed = json.loads(content)
+
+        idx = int(parsed.get('index', 0)) - 1
+        reason = str(parsed.get('reason', '')).strip()[:200]
+
+        if 0 <= idx < len(top):
+            return {'match': top[idx], 'reason': reason}
+        return None
+    except Exception as e:
+        logger.error(f"llm_pick_best: {e}")
+        return None
