@@ -3042,7 +3042,7 @@ def _save_snapshot_from_odds(fo, fid):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (с sparkline для Live)
+# main.py — ЧАСТЬ 3/3 (с fallback для аномалий)
 # Schedulers, Webhook, API, __main__
 # ============================================================
 
@@ -3075,12 +3075,9 @@ def schedule_updates():
     logger.info("⏰ Авто-обновление: 6ч")
 
 
-# ============================================================
-# ★ ОБНОВЛЕНИЕ X2-РЕЗУЛЬТАТОВ
-# ============================================================
 def update_x2_results():
     """Обновляет X2-кандидатов после завершения матчей.
-    ★ Fallback: если API залип на NS, но матч был >2.5ч назад — закрываем по времени."""
+    Fallback: если API залип на NS, но матч был >2.5ч назад — закрываем по времени."""
     try:
         candidates = storage.get_x2_candidates(limit=200)
         updated = 0
@@ -3106,7 +3103,6 @@ def update_x2_results():
             status = md.get('status', 'NS')
             is_final = md.get('is_final', False)
 
-            # ★ FALLBACK: если не финал, но матч был >2.5ч назад
             force_final = False
             hours_ago = 0
             if not is_final:
@@ -3896,7 +3892,6 @@ def api_live():
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         today_str = now_msk.strftime('%Y-%m-%d')
 
-        # ── 1. Забираем матчи из кэша ──
         with cache_lock:
             cache = storage.load_cache()
         all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
@@ -3904,9 +3899,8 @@ def api_live():
             return jsonify({'status': 'ok', 'count': 0, 'matches': [],
                             'now': now_msk.strftime('%H:%M')})
 
-        # ── 2. Фильтр по времени: -30 мин .. +2ч ──
         hours_before = getattr(Config, 'LIVE_HOURS_BEFORE', 2)
-        minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 30)
+        minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 120)
         max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 30)
 
         in_window = []
@@ -3929,12 +3923,13 @@ def api_live():
 
         if not in_window:
             return jsonify({'status': 'ok', 'count': 0, 'matches': [],
-                            'now': now_msk.strftime('%H:%M')})
+                            'now': now_msk.strftime('%H:%M'),
+                            'window': f"-{minutes_after}м .. +{hours_before}ч"})
 
         in_window.sort(key=lambda x: x[2])
         in_window = in_window[:max_matches]
 
-        # ── 3. Batch-запрос к API: 1 запрос на все матчи дня ──
+        # ── Batch-запрос к API: 1 запрос на все матчи дня ──
         live_data = {}
         if getattr(Config, 'LIVE_BATCH_ENABLED', True):
             try:
@@ -3951,7 +3946,7 @@ def api_live():
             except Exception as e:
                 logger.error(f"Live batch error: {e}")
 
-        # ── 3б. ★ Batch sparkline: одна история кэфов на все матчи ──
+        # ── ★ Batch sparkline ──
         sparkline_data = {}
         if getattr(Config, 'LIVE_SPARKLINE_ENABLED', True):
             try:
@@ -3967,7 +3962,7 @@ def api_live():
             except Exception as e:
                 logger.error(f"Sparkline batch error: {e}")
 
-        # ── 4. Формируем ответ ──
+        # ── Формируем ответ ──
         result = []
         for m, match_dt, delta_min in in_window:
             fid = m.get('fixture_id')
@@ -4011,7 +4006,6 @@ def api_live():
                     if hg is not None and ag is not None:
                         live_score = f"{hg}:{ag}"
 
-            # Тренд кэфа из снимков
             odds_trend = 0
             try:
                 if fid and bet_label:
@@ -4030,7 +4024,6 @@ def api_live():
             except Exception:
                 pass
 
-            # ★ Sparkline (сжатая история для мини-графика)
             sparkline_points = []
             raw_spark = sparkline_data.get(fid, [])
             if raw_spark:
@@ -4062,7 +4055,7 @@ def api_live():
                     'prob': bet_prob,
                 },
                 'odds_trend': odds_trend,
-                'sparkline': sparkline_points,   # ★ для мини-графика
+                'sparkline': sparkline_points,
                 'source': m.get('source', '70_percent'),
                 'total_xg': m.get('total_xg', 0),
             })
@@ -4472,6 +4465,9 @@ def api_snapshot():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# ============================================================
+# ★ API: СНИМКИ — список (с fallback на историю + X2)
+# ============================================================
 @app.route('/api/snapshots', methods=['GET'])
 def api_snapshots_list():
     try:
@@ -4505,6 +4501,34 @@ def api_snapshots_list():
                 match_lookup[fid] = {'home': m.get('home'), 'away': m.get('away'),
                                      'league': m.get('league', ''),
                                      'match_time': m.get('match_time', '')}
+
+        # ★ Fallback: история
+        try:
+            for h in storage.load_history():
+                fid = h.get('fixture_id')
+                if fid and fid not in match_lookup:
+                    match_lookup[fid] = {
+                        'home': h.get('home', '?'),
+                        'away': h.get('away', '?'),
+                        'league': h.get('league', '?'),
+                        'match_time': h.get('date', '?'),
+                    }
+        except Exception as e:
+            logger.debug(f"snapshots list history fallback: {e}")
+
+        # ★ Fallback: X2-кандидаты
+        try:
+            for x in storage.get_x2_candidates(limit=500):
+                fid = x.get('fixture_id')
+                if fid and fid not in match_lookup:
+                    match_lookup[fid] = {
+                        'home': x.get('home', '?'),
+                        'away': x.get('away', '?'),
+                        'league': x.get('league', '?'),
+                        'match_time': x.get('match_time', '?'),
+                    }
+        except Exception as e:
+            logger.debug(f"snapshots list x2 fallback: {e}")
 
         result = []
         for fid, info in grouped.items():
@@ -4543,12 +4567,16 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# ★ API: СНИМКИ — детали (с fallback)
+# ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
         rows = storage.get_snapshots_by_fixture(fixture_id)
         if not rows:
             return jsonify({'status': 'ok', 'fixture_id': fixture_id, 'history': []})
+
         cache = storage.load_cache()
         all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
         m_info = {}
@@ -4558,6 +4586,37 @@ def api_snapshots_detail(fixture_id):
                           'league': m.get('league', ''),
                           'match_time': m.get('match_time', '')}
                 break
+
+        # ★ Fallback: история
+        if not m_info:
+            try:
+                for h in storage.load_history():
+                    if h.get('fixture_id') == fixture_id:
+                        m_info = {
+                            'home': h.get('home', '?'),
+                            'away': h.get('away', '?'),
+                            'league': h.get('league', '?'),
+                            'match_time': h.get('date', '?'),
+                        }
+                        break
+            except Exception as e:
+                logger.debug(f"snapshot detail history fallback: {e}")
+
+        # ★ Fallback: X2
+        if not m_info:
+            try:
+                for x in storage.get_x2_candidates(limit=500):
+                    if x.get('fixture_id') == fixture_id:
+                        m_info = {
+                            'home': x.get('home', '?'),
+                            'away': x.get('away', '?'),
+                            'league': x.get('league', '?'),
+                            'match_time': x.get('match_time', '?'),
+                        }
+                        break
+            except Exception as e:
+                logger.debug(f"snapshot detail x2 fallback: {e}")
+
         history_map = {}
         for r in rows:
             t = r.get('created_at')
@@ -4581,6 +4640,9 @@ def api_snapshots_detail(fixture_id):
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# ★ API: АНОМАЛИИ (с fallback)
+# ============================================================
 @app.route('/api/snapshot_anomalies', methods=['GET'])
 def api_snapshot_anomalies():
     try:
@@ -4593,9 +4655,39 @@ def api_snapshot_anomalies():
             fid = row.get('fixture_id')
             if not fid: continue
             grouped.setdefault(fid, []).append(row)
+
         cache = storage.load_cache()
         all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
         match_lookup = {m.get('fixture_id'): m for m in all_matches if m.get('fixture_id')}
+
+        # ★ Fallback: история
+        try:
+            for h in storage.load_history():
+                fid = h.get('fixture_id')
+                if fid and fid not in match_lookup:
+                    match_lookup[fid] = {
+                        'home': h.get('home', '?'),
+                        'away': h.get('away', '?'),
+                        'league': h.get('league', '?'),
+                        'match_time': h.get('date', '?'),
+                    }
+        except Exception as e:
+            logger.debug(f"anomalies history fallback: {e}")
+
+        # ★ Fallback: X2
+        try:
+            for x in storage.get_x2_candidates(limit=500):
+                fid = x.get('fixture_id')
+                if fid and fid not in match_lookup:
+                    match_lookup[fid] = {
+                        'home': x.get('home', '?'),
+                        'away': x.get('away', '?'),
+                        'league': x.get('league', '?'),
+                        'match_time': x.get('match_time', '?'),
+                    }
+        except Exception as e:
+            logger.debug(f"anomalies x2 fallback: {e}")
+
         result = []
         for fid, snaps in grouped.items():
             odds_by_time = {}
@@ -4615,11 +4707,16 @@ def api_snapshot_anomalies():
                 if anomaly_pct > 5:
                     m = match_lookup.get(fid, {})
                     result.append({
-                        'fixture_id': fid, 'home': m.get('home', '?'),
-                        'away': m.get('away', '?'), 'league': m.get('league', '?'),
+                        'fixture_id': fid,
+                        'home': m.get('home', '?'),
+                        'away': m.get('away', '?'),
+                        'league': m.get('league', '?'),
                         'match_time': m.get('match_time', '?'),
-                        'selection': sel, 'first_odds': first_odd, 'max_odds': max_odd,
-                        'anomaly_pct': round(anomaly_pct, 1), 'snapshots_count': len(values)
+                        'selection': sel,
+                        'first_odds': first_odd,
+                        'max_odds': max_odd,
+                        'anomaly_pct': round(anomaly_pct, 1),
+                        'snapshots_count': len(values),
                     })
         result.sort(key=lambda x: x['anomaly_pct'], reverse=True)
         result = result[:limit]
@@ -4628,6 +4725,9 @@ def api_snapshot_anomalies():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+# ============================================================
+# API: РЕДАКТИРОВАНИЕ СТАВОК
+# ============================================================
 @app.route('/api/edit_bet', methods=['POST'])
 def edit_bet():
     try:
@@ -4959,7 +5059,7 @@ if __name__ == "__main__":
     logger.info(f"💎 VALUE: кэф>={getattr(Config, 'VALUE_MIN_ODDS', 2.5)} | "
                 f"EV>={getattr(Config, 'VALUE_MIN_EV', 50)}% | "
                 f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 60)}%")
-    logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 30)}м .. "
+    logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 120)}м .. "
                 f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
                 f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
