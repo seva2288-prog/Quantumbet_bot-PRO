@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.3 — с турнирами сборных + Live-страница
+★ ВЕРСИЯ 3.4 — Турниры сборных + Live + Kelly + CLV + расширенный ТМ 2.5
 """
 import os
 import sys
@@ -116,36 +116,55 @@ class Config:
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
+    # ★ KELLY CRITERION (v4.5)
+    # ============================================================
+    KELLY_ENABLED = True
+    KELLY_FRACTION = 0.25        # quarter-Kelly (0.5 = half, 1.0 = full)
+    KELLY_MAX_PCT = 0.05         # cap: не более 5% банка на одну ставку
+    KELLY_MIN_PCT = 0.02         # минимум 2% (как фиксированный stake)
+    KELLY_MIN_STAKE = 1.0        # минимум $1
+
+    # ============================================================
+    # ★ CLV-ФИЛЬТР СТРАТЕГИЙ (v4.6)
+    # ============================================================
+    CLV_FILTER_ENABLED = True
+    CLV_LOOKBACK_DAYS = 30       # считать CLV за 30 дней
+    CLV_MIN_SAMPLES = 20         # минимум замеров, чтобы фильтр работал
+    CLV_CACHE_TTL = 600          # кэш CLV: 10 минут
+
+    # Пороги CLV → multiplier
+    CLV_EXCELLENT_THRESHOLD = 1.0    # > +1% → × 1.25
+    CLV_GOOD_THRESHOLD = -0.5        # -0.5% .. +1% → normal
+    CLV_WEAK_THRESHOLD = -2.0        # -2% .. -0.5% → × 0.5
+    # < -2% → SKIP
+
+    CLV_MULT_EXCELLENT = 1.25
+    CLV_MULT_NORMAL = 1.0
+    CLV_MULT_WEAK = 0.5
+    CLV_SKIP_CRITICAL = True
+
+    # ============================================================
     # ★ LIVE-СТРАНИЦА (⚡)
     # ============================================================
-    # Окно матчей: от -30 минут после начала до +2 часов до старта
-    LIVE_HOURS_BEFORE = 2         # матч в ближайшие 2 часа
-    LIVE_MINUTES_AFTER = 120       # +30 минут после начала
-
-    # Автообновление UI
-    LIVE_REFRESH_SEC = 20         # обновлять каждые 20 сек (если страница активна)
-
-    # Batch-запросы к API (экономия лимита)
-    LIVE_BATCH_ENABLED = True     # использовать /fixtures?date=X вместо /fixtures?id=Y
-
-    # TTL кэша для live-данных
-    LIVE_CACHE_TTL_LIVE = 30      # 30 сек — для идущих матчей
-    LIVE_CACHE_TTL_SOON = 300     # 5 мин — для матчей в ближайшие 2ч
-    LIVE_CACHE_TTL_FINAL = 3600   # 1 час — для завершённых
-
-    # Максимум матчей на странице
+    LIVE_HOURS_BEFORE = 2
+    LIVE_MINUTES_AFTER = 120
+    LIVE_REFRESH_SEC = 20
+    LIVE_BATCH_ENABLED = True
+    LIVE_CACHE_TTL_LIVE = 30
+    LIVE_CACHE_TTL_SOON = 300
+    LIVE_CACHE_TTL_FINAL = 3600
     LIVE_MAX_MATCHES = 30
 
     # ============================================================
-    # ★ LIVE SPARKLINE (мини-график движения кэфа)
+    # ★ LIVE SPARKLINE
     # ============================================================
-    LIVE_SPARKLINE_ENABLED = True     # показывать мини-график в карточке
-    LIVE_SPARKLINE_POINTS = 10        # максимум точек на графике
-    LIVE_SPARKLINE_MARKET = '1X2'     # рынок: 1X2 или DC
-    LIVE_SPARKLINE_SELECTION = '1'    # выделение: '1', 'X', '2', '1X', 'X2'
+    LIVE_SPARKLINE_ENABLED = True
+    LIVE_SPARKLINE_POINTS = 10
+    LIVE_SPARKLINE_MARKET = '1X2'
+    LIVE_SPARKLINE_SELECTION = '1'
 
     # ============================================================
-    # === WHITELIST (текстовый фильтр для /leagues API) ===
+    # === WHITELIST ===
     # ============================================================
     WHITELIST_LEAGUES = [
         'premier league', 'championship',
@@ -178,7 +197,6 @@ class Config:
         'champions league', 'uefa champions',
         'europa league', 'uefa europa',
         'conference league', 'uefa europa conference',
-        # ★ Турниры сборных
         'nations league', 'uefa nations',
         'world cup', 'wc qualification',
         'euro championship', 'euro qualification',
@@ -186,7 +204,7 @@ class Config:
     ]
 
     # ============================================================
-    # === BLACKLIST (текстовый фильтр) ===
+    # === BLACKLIST ===
     # ============================================================
     BLACKLIST_LEAGUES = [
         'isthmian', 'northern premier', 'southern league',
@@ -231,22 +249,45 @@ class Config:
     ]
 
     # ============================================================
-    # === ТМ 2.5 ===
+    # ★ ТМ 2.5 — РАСШИРЕННЫЕ ПАРАМЕТРЫ (v4.7)
     # ============================================================
     MAX_TM25_BETS = 5
     MIN_TM25_EV = 15
     MIN_TM25_PROB = 55
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
+    TM25_TOP_LEAGUE_EV = 35
+
+    # ── PREMIUM ──
     PREMIUM_MIN_EV = 25
     PREMIUM_MIN_PROB = 58
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
+
+    # ── STANDARD ──
     STANDARD_MIN_EV = 15
     STANDARD_MIN_PROB = 52
     STANDARD_XG_MIN = 0.8
     STANDARD_XG_MAX = 3.0
-    TM25_TOP_LEAGUE_EV = 35
+
+    # ★ Расширенные настройки ТМ 2.5 (v4.7)
+    TM25_USE_KELLY = True                    # использовать Kelly вместо фиксированной $42.87
+    TM25_INCLUDE_INTERNATIONAL = False       # матчи сборных в ТМ 2.5 (обычно False)
+    TM25_FORM_FILTER = True                  # учитывать форму: обе команды в форме "under"
+    TM25_H2H_FILTER = True                   # учитывать H2H avg_goals < 2.5
+    TM25_MIN_H2H_MATCHES = 3                 # минимум 3 матча в H2H
+    TM25_H2H_AVG_MAX = 2.8                   # H2H avg_goals < 2.8
+    TM25_LEAGUE_WHITELIST = [                # лиги, где ТМ 2.5 особенно хорош
+        'Serie A', 'Serie B', 'La Liga 2', 'Primera Federación',
+        'Ligue 2', 'Championship', 'League One',
+        'Ekstraklasa', 'I Liga', 'Superliga', '1. Division',
+        'Eliteserien', 'OBOS-ligaen',
+        'HNL', '2. HNL', 'Super League', 'Challenge League',
+        'РПЛ', 'Первая Лига', 'Вторая Лига Б',
+    ]
+    TM25_LEAGUE_BONUS = 5                    # +5% к EV для лиг из whitelist
+    TM25_MAX_LEAGUE_BETS = 2                 # не более 2 ТМ 2.5 на одну лигу
+    TM25_FORM_UNDER_REQUIRED = False         # если True — только если обе в форме "under"
 
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
@@ -306,158 +347,70 @@ class Config:
     # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID
     # ============================================================
     LEAGUE_COUNTRY = {
-        # ── Европейские кубки ──
-        2:   ("Европа", "🇪🇺"),
-        3:   ("Европа", "🇪🇺"),
-        848: ("Европа", "🇪🇺"),
-        # ── Англия ──
-        39:  ("Англия", "🇬🇧"),
-        40:  ("Англия", "🇬🇧"),
-        41:  ("Англия", "🇬🇧"),
-        # ── Испания ──
-        140: ("Испания", "🇪🇸"),
-        141: ("Испания", "🇪🇸"),
-        142: ("Испания", "🇪🇸"),
-        # ── Германия ──
-        78:  ("Германия", "🇩🇪"),
-        79:  ("Германия", "🇩🇪"),
-        80:  ("Германия", "🇩🇪"),
-        # ── Италия ──
-        135: ("Италия", "🇮🇹"),
-        136: ("Италия", "🇮🇹"),
-        137: ("Италия", "🇮🇹"),
-        # ── Франция ──
-        61:  ("Франция", "🇫🇷"),
-        62:  ("Франция", "🇫🇷"),
-        63:  ("Франция", "🇫🇷"),
-        # ── Нидерланды ──
-        88:  ("Нидерланды", "🇳🇱"),
-        89:  ("Нидерланды", "🇳🇱"),
-        # ── Португалия ──
+        2:   ("Европа", "🇪🇺"), 3:   ("Европа", "🇪🇺"), 848: ("Европа", "🇪🇺"),
+        39:  ("Англия", "🇬🇧"), 40:  ("Англия", "🇬🇧"), 41:  ("Англия", "🇬🇧"),
+        140: ("Испания", "🇪🇸"), 141: ("Испания", "🇪🇸"), 142: ("Испания", "🇪🇸"),
+        78:  ("Германия", "🇩🇪"), 79:  ("Германия", "🇩🇪"), 80:  ("Германия", "🇩🇪"),
+        135: ("Италия", "🇮🇹"), 136: ("Италия", "🇮🇹"), 137: ("Италия", "🇮🇹"),
+        61:  ("Франция", "🇫🇷"), 62:  ("Франция", "🇫🇷"), 63:  ("Франция", "🇫🇷"),
+        88:  ("Нидерланды", "🇳🇱"), 89:  ("Нидерланды", "🇳🇱"),
         94:  ("Португалия", "🇵🇹"),
-        # ── Бельгия ──
-        144: ("Бельгия", "🇧🇪"),
-        145: ("Бельгия", "🇧🇪"),
-        # ── Турция ──
-        203: ("Турция", "🇹🇷"),
-        204: ("Турция", "🇹🇷"),
-        # ── Украина ──
-        95:  ("Украина", "🇺🇦"),
-        96:  ("Украина", "🇺🇦"),
-        # ── Польша ──
-        106: ("Польша", "🇵🇱"),
-        107: ("Польша", "🇵🇱"),
-        # ── Дания ──
-        119: ("Дания", "🇩🇰"),
-        120: ("Дания", "🇩🇰"),
-        # ── Норвегия ──
-        164: ("Норвегия", "🇳🇴"),
-        165: ("Норвегия", "🇳🇴"),
-        # ── Хорватия ──
-        166: ("Хорватия", "🇭🇷"),
-        167: ("Хорватия", "🇭🇷"),
-        # ── Швейцария ──
-        206: ("Швейцария", "🇨🇭"),
-        207: ("Швейцария", "🇨🇭"),
-        # ── Австрия ──
+        144: ("Бельгия", "🇧🇪"), 145: ("Бельгия", "🇧🇪"),
+        203: ("Турция", "🇹🇷"), 204: ("Турция", "🇹🇷"),
+        95:  ("Украина", "🇺🇦"), 96:  ("Украина", "🇺🇦"),
+        106: ("Польша", "🇵🇱"), 107: ("Польша", "🇵🇱"),
+        119: ("Дания", "🇩🇰"), 120: ("Дания", "🇩🇰"),
+        164: ("Норвегия", "🇳🇴"), 165: ("Норвегия", "🇳🇴"),
+        166: ("Хорватия", "🇭🇷"), 167: ("Хорватия", "🇭🇷"),
+        206: ("Швейцария", "🇨🇭"), 207: ("Швейцария", "🇨🇭"),
         187: ("Австрия", "🇦🇹"),
-        # ── Греция ──
         197: ("Греция", "🇬🇷"),
-        # ── Чехия ──
         261: ("Чехия", "🇨🇿"),
-        # ── Америка ──
-        71:  ("Бразилия", "🇧🇷"),
-        128: ("Аргентина", "🇦🇷"),
-        253: ("США", "🇺🇸"),
-        # ── Азия ──
-        150: ("Япония", "🇯🇵"),
-        169: ("Китай", "🇨🇳"),
-        307: ("Саудовская Аравия", "🇸🇦"),
-        # ── Африка ──
-        276: ("ЮАР", "🇿🇦"),
-        278: ("Марокко", "🇲🇦"),
-        # ── Австралия ──
+        71:  ("Бразилия", "🇧🇷"), 128: ("Аргентина", "🇦🇷"), 253: ("США", "🇺🇸"),
+        150: ("Япония", "🇯🇵"), 169: ("Китай", "🇨🇳"), 307: ("Саудовская Аравия", "🇸🇦"),
+        276: ("ЮАР", "🇿🇦"), 278: ("Марокко", "🇲🇦"),
         183: ("Австралия", "🇦🇺"),
-        # ── Россия ──
-        179: ("Россия", "🇷🇺"),
-        180: ("Россия", "🇷🇺"),
-        182: ("Россия", "🇷🇺"),
-        # ★ ── ТУРНИРЫ СБОРНЫХ ──
+        179: ("Россия", "🇷🇺"), 180: ("Россия", "🇷🇺"), 182: ("Россия", "🇷🇺"),
         5:   ("Европа", "🇪🇺"),
-        29:  ("Мир", "🌍"),
-        30:  ("Азия", "🌏"),
-        31:  ("Африка", "🌍"),
-        32:  ("Европа", "🇪🇺"),
-        33:  ("Ю. Америка", "🌎"),
-        34:  ("Океания", "🌏"),
+        29:  ("Мир", "🌍"), 30:  ("Азия", "🌏"), 31:  ("Африка", "🌍"),
+        32:  ("Европа", "🇪🇺"), 33:  ("Ю. Америка", "🌎"), 34:  ("Океания", "🌏"),
         35:  ("С. Америка", "🌎"),
-        960: ("Европа", "🇪🇺"),
-        10:  ("Мир", "🌍"),
-        1:   ("Мир", "🏆"),
-        4:   ("Европа", "🏆"),
+        960: ("Европа", "🇪🇺"), 10:  ("Мир", "🌍"), 1:   ("Мир", "🏆"), 4:   ("Европа", "🏆"),
     }
 
     # ============================================================
     # ★ ТУРНИРЫ СБОРНЫХ
     # ============================================================
-    INTERNATIONAL_LEAGUES = [
-        5, 29, 30, 31, 32, 33, 34, 35,
-        960, 10, 1, 4,
-    ]
+    INTERNATIONAL_LEAGUES = [5, 29, 30, 31, 32, 33, 34, 35, 960, 10, 1, 4]
 
     # ============================================================
     # ★ ЛИГИ + ТУРНИРЫ СБОРНЫХ
     # ============================================================
     LEAGUES = [
-        # ── Англия ──
         39, 40, 41,
-        # ── Испания ──
         140, 141, 142,
-        # ── Германия ──
         78, 79, 80,
-        # ── Италия ──
         135, 136, 137,
-        # ── Франция ──
         61, 62, 63,
-        # ── Нидерланды ──
         88, 89,
-        # ── Португалия ──
         94,
-        # ── Бельгия ──
         144, 145,
-        # ── Турция ──
         203, 204,
-        # ── Украина ──
         95, 96,
-        # ── Польша ──
         106, 107,
-        # ── Дания ──
         119, 120,
-        # ── Норвегия ──
         164, 165,
-        # ── Хорватия ──
         166, 167,
-        # ── Швейцария ──
         206, 207,
-        # ── Австрия ──
         187,
-        # ── Греция ──
         197,
-        # ── Чехия ──
         261,
-        # ── Америка ──
         71, 128, 253,
-        # ── Азия ──
         150, 169, 307,
-        # ── Африка ──
         276, 278,
-        # ── Австралия ──
         183,
-        # ── Россия ──
         179, 180, 182,
-        # ── Кубки ──
         2, 3, 848,
-        # ★ ── ТУРНИРЫ СБОРНЫХ ──
         5,
         29, 30, 31, 32, 33, 34, 35,
         960,
@@ -472,83 +425,30 @@ class Config:
     # ★ LEAGUE_NAMES
     # ============================================================
     LEAGUE_NAMES = {
-        # Кубки
-        2: "UEFA Champions League",
-        3: "UEFA Europa League",
-        848: "UEFA Conference League",
-        # Англия
-        39: "Premier League",
-        40: "Championship",
-        41: "League One",
-        # Испания
-        140: "La Liga",
-        141: "La Liga 2",
-        142: "Primera Federación",
-        # Германия
-        78: "Bundesliga",
-        79: "2. Bundesliga",
-        80: "3. Liga",
-        # Италия
-        135: "Serie A",
-        136: "Serie B",
-        137: "Serie C",
-        # Франция
-        61: "Ligue 1",
-        62: "Ligue 2",
-        63: "National",
-        # Нидерланды
-        88: "Eredivisie",
-        89: "Eerste Divisie",
-        # Португалия
+        2: "UEFA Champions League", 3: "UEFA Europa League", 848: "UEFA Conference League",
+        39: "Premier League", 40: "Championship", 41: "League One",
+        140: "La Liga", 141: "La Liga 2", 142: "Primera Federación",
+        78: "Bundesliga", 79: "2. Bundesliga", 80: "3. Liga",
+        135: "Serie A", 136: "Serie B", 137: "Serie C",
+        61: "Ligue 1", 62: "Ligue 2", 63: "National",
+        88: "Eredivisie", 89: "Eerste Divisie",
         94: "Primeira Liga",
-        # Бельгия
-        144: "Pro League",
-        145: "Challenger Pro League",
-        # Турция
-        203: "Süper Lig",
-        204: "TFF 1. Lig",
-        # Украина
-        95: "Premier League",
-        96: "Persha Liga",
-        # Польша
-        106: "Ekstraklasa",
-        107: "I Liga",
-        # Дания
-        119: "Superliga",
-        120: "1. Division",
-        # Норвегия
-        164: "Eliteserien",
-        165: "OBOS-ligaen",
-        # Хорватия
-        166: "HNL",
-        167: "2. HNL",
-        # Швейцария
-        206: "Super League",
-        207: "Challenge League",
-        # Австрия
+        144: "Pro League", 145: "Challenger Pro League",
+        203: "Süper Lig", 204: "TFF 1. Lig",
+        95: "Premier League", 96: "Persha Liga",
+        106: "Ekstraklasa", 107: "I Liga",
+        119: "Superliga", 120: "1. Division",
+        164: "Eliteserien", 165: "OBOS-ligaen",
+        166: "HNL", 167: "2. HNL",
+        206: "Super League", 207: "Challenge League",
         187: "Bundesliga",
-        # Греция
         197: "Super League",
-        # Чехия
         261: "2. Liga",
-        # Америка
-        71: "Brasileirão",
-        128: "Argentina Primera",
-        253: "MLS",
-        # Азия
-        150: "J1 League",
-        169: "Chinese Super League",
-        307: "Saudi Pro League",
-        # Африка
-        276: "South Africa Premier",
-        278: "Botola Pro",
-        # Австралия
+        71: "Brasileirão", 128: "Argentina Primera", 253: "MLS",
+        150: "J1 League", 169: "Chinese Super League", 307: "Saudi Pro League",
+        276: "South Africa Premier", 278: "Botola Pro",
         183: "A-League",
-        # Россия
-        179: "РПЛ",
-        180: "Первая Лига",
-        182: "Вторая Лига Б",
-        # ★ Турниры сборных
+        179: "РПЛ", 180: "Первая Лига", 182: "Вторая Лига Б",
         5:   "UEFA Nations League",
         29:  "World Cup Qualification",
         30:  "WC Qualification Asia",
@@ -763,6 +663,32 @@ class Config:
         return cls.get_weather(coords[0], coords[1])
 
     @classmethod
+    def get_clv_multiplier(cls, avg_clv, samples):
+        """
+        Возвращает (multiplier, skip, status) для CLV-фильтра.
+        - avg_clv: средний CLV в %
+        - samples: количество замеров
+        """
+        if not cls.CLV_FILTER_ENABLED:
+            return (1.0, False, 'disabled')
+        if samples < cls.CLV_MIN_SAMPLES:
+            return (1.0, False, 'insufficient_data')
+        if avg_clv > cls.CLV_EXCELLENT_THRESHOLD:
+            return (cls.CLV_MULT_EXCELLENT, False, 'excellent')
+        if avg_clv > cls.CLV_GOOD_THRESHOLD:
+            return (cls.CLV_MULT_NORMAL, False, 'good')
+        if avg_clv > cls.CLV_WEAK_THRESHOLD:
+            return (cls.CLV_MULT_WEAK, False, 'weak')
+        return (cls.CLV_MULT_WEAK, cls.CLV_SKIP_CRITICAL, 'critical')
+
+    @classmethod
+    def is_tm25_league_whitelisted(cls, league_name):
+        """Лига из whitelist для ТМ 2.5 (бонус к EV)."""
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.TM25_LEAGUE_WHITELIST)
+
+    @classmethod
     def check(cls):
         missing = []
         if not cls.TELEGRAM_TOKEN: missing.append("TELEGRAM_TOKEN")
@@ -783,6 +709,21 @@ class Config:
         print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
         print(f"🌐 Турниров сборных: {len(cls.INTERNATIONAL_LEAGUES)}")
         print(f"⚡ LIVE: окно -{cls.LIVE_MINUTES_AFTER}м .. +{cls.LIVE_HOURS_BEFORE}ч | refresh {cls.LIVE_REFRESH_SEC}с")
+        print(f"")
+        print(f"💰 KELLY: {'вкл' if cls.KELLY_ENABLED else 'выкл'} | "
+              f"fraction={cls.KELLY_FRACTION} | cap={cls.KELLY_MAX_PCT*100}% | min={cls.KELLY_MIN_PCT*100}%")
+        print(f"📊 CLV-ФИЛЬТР: {'вкл' if cls.CLV_FILTER_ENABLED else 'выкл'} | "
+              f"lookback={cls.CLV_LOOKBACK_DAYS}д | min_samples={cls.CLV_MIN_SAMPLES}")
+        print(f"   • CLV > {cls.CLV_EXCELLENT_THRESHOLD}% → ×{cls.CLV_MULT_EXCELLENT}")
+        print(f"   • CLV > {cls.CLV_GOOD_THRESHOLD}% → ×{cls.CLV_MULT_NORMAL}")
+        print(f"   • CLV > {cls.CLV_WEAK_THRESHOLD}% → ×{cls.CLV_MULT_WEAK}")
+        print(f"   • CLV < {cls.CLV_WEAK_THRESHOLD}% → {'SKIP' if cls.CLV_SKIP_CRITICAL else 'x'+str(cls.CLV_MULT_WEAK)}")
+        print(f"")
+        print(f"⚽ ТМ 2.5: PREMIUM EV>={cls.PREMIUM_MIN_EV}% Prob>={cls.PREMIUM_MIN_PROB}% | "
+              f"STANDARD EV>={cls.STANDARD_MIN_EV}% Prob>={cls.STANDARD_MIN_PROB}%")
+        print(f"   • Kelly={cls.TM25_USE_KELLY} | сборные={cls.TM25_INCLUDE_INTERNATIONAL}")
+        print(f"   • Лиг-whitelist: {len(cls.TM25_LEAGUE_WHITELIST)} | bonus EV +{cls.TM25_LEAGUE_BONUS}%")
+        print(f"   • Лимит на лигу: {cls.TM25_MAX_LEAGUE_BETS}")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
