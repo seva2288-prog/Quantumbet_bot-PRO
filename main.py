@@ -1389,14 +1389,15 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.9 — LLM explanations + pick)
-# Стратегии, 4 потока поиска, обновление результатов
+# main.py — ЧАСТЬ 2/3 (v5.0 — Line Movement + LLM)
+# Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
 # ★ Quarter-Kelly
 # ★ CLV-фильтр
 # ★ Расширенный ТМ 2.5
 # ★ BTTS-поток
+# ★ v5.0: LINE MOVEMENT (аномалии кэфов)
 # ★ v4.9: LLM объяснения + DeepSeek pick
 # ============================================================
 
@@ -1724,6 +1725,8 @@ def _compute_all_strategy_clv(days=30, min_samples=20):
 def _guess_source_from_label(label):
     """Восстанавливает source по label, если не сохранён."""
     l = (label or '').lower()
+    if '📈' in (label or '') or 'line movement' in l or 'движение' in l:
+        return 'line_movement'
     if '💎' in (label or ''):
         return 'value'
     if '🔥' in (label or '') or 'premium' in l:
@@ -1738,7 +1741,11 @@ def _guess_source_from_label(label):
 
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
-    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
+    """Применяет CLV-фильтр. Возвращает (final_stake, action_str).
+    Для line_movement не применяется (нет prob модели)."""
+    if source == 'line_movement':
+        return base_stake, 'no_model'
+
     if not getattr(Config, 'CLV_FILTER_ENABLED', True):
         return base_stake, 'disabled'
 
@@ -2068,6 +2075,7 @@ def analyze_match(match_name):
                     'btts': '⚽ BTTS (Обе Забьют)',
                     'tm25_premium': '🔥 PREMIUM ТМ 2.5',
                     'tm25_standard': '⭐ STANDARD ТМ 2.5',
+                    'line_movement': '📈 LINE MOVEMENT',
                     '70_percent': '🎯 70%+',
                 }.get(src, '🎯')
                 country_str = ''
@@ -2080,8 +2088,13 @@ def analyze_match(match_name):
                      f"{src_label}\n\n")
                 best = m.get('best_bet', {})
                 r += f"🎯 <b>{best.get('label', '—')}</b>\n"
-                r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
-                r += f"💰 Кэф: {best.get('odds', 0)}\n"
+                if src == 'line_movement':
+                    r += f"📉 Движение: {best.get('movement_pct', 0)}% за {best.get('movement_hours', 0)}ч\n"
+                    r += f"💰 Было: {best.get('old_odds', 0)} → Стало: {best.get('odds', 0)}\n"
+                    r += f"📸 Снимков: {best.get('snapshots_count', 0)}\n"
+                else:
+                    r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
+                    r += f"💰 Кэф: {best.get('odds', 0)}\n"
                 r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
                 for i, b in enumerate(m.get('bets', [])[:7], 1):
                     emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
@@ -2651,7 +2664,6 @@ def find_top_matches(matches):
     top = best_matches[:max_bets]
     logger.info(f"📊 [70%+] Итого: {len(top)}, X2-сохранено: {x2_saved_count}")
 
-    # ★ v4.9: LLM анализ + объяснения
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
             llm_payload = [{'home': m['home'], 'away': m['away'], 'league': m['league'],
@@ -2904,7 +2916,6 @@ def find_tm25_matches(matches):
 
 
 def _form_is_under(form_string):
-    """Проверяет, что команда в 'низовой' форме (много D/L)."""
     if not form_string:
         return False
     wins = form_string.count('W')
@@ -2912,7 +2923,6 @@ def _form_is_under(form_string):
 
 
 def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
-    """Расчёт stake для ТМ 2.5: Kelly или фиксированный $42.87."""
     if use_kelly:
         return calculate_stake(bank=bank, prob_pct=prob_pct, odds=odds)
     return 42.87
@@ -3378,7 +3388,267 @@ def _calc_h2h_btts_pct(h2h_data):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК (v4.9)
+# ★ ПОТОК 5: LINE MOVEMENT (v5.0) — аномалии кэфов
+# ============================================================
+@timing_decorator()
+def find_line_movement_matches(matches):
+    """
+    Ищет аномалии движения кэфов в таблице snapshots.
+    Работает НЕ с матчами из API, а с историей кэфов.
+    """
+    LM_ENABLED = getattr(Config, 'LINE_MOVEMENT_ENABLED', True)
+    if not LM_ENABLED:
+        logger.info("⏭️ [LINE MOVEMENT] Отключено в конфиге")
+        return []
+
+    bank = storage.load_bank()
+    MAX_BETS = getattr(Config, 'LINE_MOVEMENT_MAX_BETS', 2)
+    MIN_DROP = getattr(Config, 'LINE_MOVEMENT_MIN_DROP_PCT', -6.0)
+    MAX_DROP = getattr(Config, 'LINE_MOVEMENT_MAX_DROP_PCT', -15.0)
+    MIN_RISE = getattr(Config, 'LINE_MOVEMENT_MIN_RISE_PCT', 8.0)
+    MAX_RISE = getattr(Config, 'LINE_MOVEMENT_MAX_RISE_PCT', 20.0)
+    HOURS_BEFORE = getattr(Config, 'LINE_MOVEMENT_HOURS_BEFORE', 6)
+    MIN_SNAPS = getattr(Config, 'LINE_MOVEMENT_MIN_SNAPSHOTS', 3)
+    MAX_SNAPS = getattr(Config, 'LINE_MOVEMENT_MAX_SNAPSHOTS', 20)
+    TRADE_DROPS = getattr(Config, 'LINE_MOVEMENT_TRADE_DROPS', True)
+    TRADE_RISES = getattr(Config, 'LINE_MOVEMENT_TRADE_RISES', False)
+    BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
+    MAX_LEAGUE_BETS = getattr(Config, 'LINE_MOVEMENT_MAX_LEAGUE_BETS', 1)
+    MIN_ODDS = getattr(Config, 'LINE_MOVEMENT_MIN_ODDS', 1.40)
+    MAX_ODDS = getattr(Config, 'LINE_MOVEMENT_MAX_ODDS', 3.50)
+    STAKE_PCT = getattr(Config, 'LINE_MOVEMENT_STAKE_PCT', 0.015)
+
+    logger.info("🔍 [LINE MOVEMENT v5.0] Поиск аномалий кэфов...")
+    stats = {
+        'found': 0,
+        'blacklist': 0,
+        'whitelist_miss': 0,
+        'no_snaps': 0,
+        'no_drop': 0,
+        'no_bet': 0,
+        'league_limit': 0,
+        'odds_filter': 0,
+    }
+
+    # Строим lookup матчей из переданного списка (для получения метаданных)
+    match_lookup = {}
+    for m in matches:
+        if not isinstance(m, dict): continue
+        fixture = m.get('fixture')
+        if not fixture or not isinstance(fixture, dict): continue
+        fid = fixture.get('id')
+        if not fid: continue
+        teams = m.get('teams', {})
+        ht = teams.get('home', {}); at = teams.get('away', {})
+        ld = m.get('league', {})
+        match_lookup[fid] = {
+            'home': ht.get('name', 'Unknown'),
+            'away': at.get('name', 'Unknown'),
+            'league': ld.get('name', 'Unknown') if isinstance(ld, dict) else 'Unknown',
+            'match_time': parse_match_time_to_msk(fixture.get('date', '')),
+            'fixture_date': fixture.get('date', ''),
+        }
+
+    # Окно: последние N часов до старта + матч ещё не начался
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    cutoff_time = now_msk + timedelta(hours=HOURS_BEFORE)
+
+    # Получаем все снимки за последние 2 суток (для скорости)
+    snapshots_cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        all_snaps = storage.get_snapshots_since(snapshots_cutoff)
+    except Exception as e:
+        logger.error(f"[LM] Ошибка получения снимков: {e}")
+        return []
+
+    if not all_snaps:
+        logger.info("[LM] Нет снимков в БД")
+        return []
+
+    # Группируем по fixture_id + market + selection
+    groups = defaultdict(list)
+    for s in all_snaps:
+        fid = s.get('fixture_id')
+        if not fid: continue
+        market = s.get('market', '1X2')
+        sel = s.get('selection', '')
+        if market != '1X2' or sel not in ['1', 'X', '2']:
+            continue
+        groups[(fid, market, sel)].append(s)
+
+    logger.info(f"[LM] Групп: {len(groups)}, снимков: {len(all_snaps)}")
+
+    candidates = []
+    league_bet_count = {}
+
+    for (fid, market, sel), snaps in groups.items():
+        if len(candidates) >= MAX_BETS * 3:
+            break
+        try:
+            # Проверяем метаданные матча
+            if fid not in match_lookup:
+                continue
+            meta = match_lookup[fid]
+            league_name = meta['league']
+
+            if Config.is_lm_league_blacklisted(league_name):
+                stats['blacklist'] += 1
+                continue
+            if not Config.is_lm_league_whitelisted(league_name):
+                stats['whitelist_miss'] += 1
+                continue
+
+            # Проверяем, что матч ещё не начался
+            try:
+                match_dt = datetime.strptime(meta['match_time'], "%d.%m.%Y %H:%M")
+                if match_dt < now_msk:
+                    continue
+                if match_dt > cutoff_time:
+                    continue
+            except Exception:
+                continue
+
+            # Лимит на лигу
+            cur_league_bets = league_bet_count.get(league_name, 0)
+            if cur_league_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            # Сортируем снимки по времени
+            snaps_sorted = sorted(snaps, key=lambda x: x.get('created_at', ''))
+            if len(snaps_sorted) < MIN_SNAPS:
+                stats['no_snaps'] += 1
+                continue
+            if len(snaps_sorted) > MAX_SNAPS:
+                snaps_sorted = snaps_sorted[-MAX_SNAPS:]
+
+            # Берём первый и последний
+            first = snaps_sorted[0]
+            last = snaps_sorted[-1]
+
+            old_odds = float(first.get('odds', 0))
+            new_odds = float(last.get('odds', 0))
+            if old_odds <= 1.01 or new_odds <= 1.01:
+                continue
+
+            # Изменение
+            change_pct = ((new_odds / old_odds) - 1) * 100
+
+            # Время между снимками
+            try:
+                t1 = datetime.fromisoformat(str(first.get('created_at', '')))
+                t2 = datetime.fromisoformat(str(last.get('created_at', '')))
+                hours_diff = (t2 - t1).total_seconds() / 3600
+                if hours_diff < 0.5:  # слишком близко — шум
+                    continue
+            except Exception:
+                hours_diff = 0
+
+            is_drop = change_pct <= MIN_DROP and change_pct >= MAX_DROP
+            is_rise = change_pct >= MIN_RISE and change_pct <= MAX_RISE
+
+            if is_drop and not TRADE_DROPS:
+                stats['no_drop'] += 1
+                continue
+            if is_rise and not TRADE_RISES:
+                stats['no_drop'] += 1
+                continue
+            if not (is_drop or is_rise):
+                stats['no_drop'] += 1
+                continue
+
+            # Итоговый кэф
+            if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
+                stats['odds_filter'] += 1
+                continue
+
+            # Формируем ставку
+            if sel == '1':
+                label = 'П1'
+            elif sel == '2':
+                label = 'П2'
+            else:
+                label = 'X'
+
+            # Для падений — ставим на текущий кэф
+            # Для роста — если TRADE_RISES, ставим тоже (на движение)
+            final_odds = new_odds
+
+            # Фиксированный stake (нет prob модели)
+            final_stake = round(bank * STAKE_PCT, 2)
+            if final_stake < 1:
+                final_stake = 1.0
+
+            direction = "📉" if is_drop else "📈"
+            label_full = f'{label} {direction}'
+
+            best_bet = {
+                'type': 'lm_' + sel.lower(),
+                'label': label_full,
+                'prob': 0,  # нет prob модели
+                'ev': 0,    # нет EV модели
+                'odds': final_odds,
+                'stake': final_stake,
+                'clv_action': 'no_model',
+                'bookmaker': last.get('bookmaker', '—'),
+                'movement_pct': round(change_pct, 1),
+                'movement_hours': round(hours_diff, 1),
+                'old_odds': round(old_odds, 2),
+                'snapshots_count': len(snaps_sorted),
+                'direction': 'drop' if is_drop else 'rise',
+                'odds_updated': True,
+            }
+
+            country_name, country_flag = "", ""
+            # Пробуем найти league_id по league_name
+            for lid, lname in Config.LEAGUE_NAMES.items():
+                if lname == league_name:
+                    country_name, country_flag = Config.LEAGUE_COUNTRY.get(lid, ("", ""))
+                    break
+
+            candidates.append({
+                "home": meta['home'], "away": meta['away'],
+                "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": meta['match_time'],
+                "home_xg": 0, "away_xg": 0, "total_xg": 0,
+                "home_form": '', "away_form": '',
+                "standings": {},
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "line_movement",
+                "weather_reason": "",
+                "_preloaded_odds": {},
+            })
+            stats['found'] += 1
+            league_bet_count[league_name] = cur_league_bets + 1
+
+            logger.info(
+                f"📈 LM: {meta['home']} vs {meta['away']} | {label} @ {final_odds} | "
+                f"Δ {change_pct:+.1f}% за {hours_diff:.1f}ч | "
+                f"снимков: {len(snaps_sorted)} | stake ${final_stake}"
+            )
+        except Exception as e:
+            logger.error(f"❌ [LM] {fid}: {e}")
+            continue
+
+    candidates.sort(
+        key=lambda x: abs(x['best_bet'].get('movement_pct', 0)),
+        reverse=True
+    )
+    top = candidates[:MAX_BETS]
+
+    logger.info(
+        f"📈 [LINE MOVEMENT] Найдено: {len(candidates)}, взято: {len(top)} | "
+        f"blacklist: {stats['blacklist']}, whitelist_miss: {stats['whitelist_miss']}, "
+        f"no_snaps: {stats['no_snaps']}, no_drop: {stats['no_drop']}, "
+        f"league_limit: {stats['league_limit']}, odds_filter: {stats['odds_filter']}"
+    )
+    return top
+
+
+# ============================================================
+# КОМБИНИРОВАННЫЙ ПОИСК (v5.0)
 # ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
@@ -3402,15 +3672,30 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     btts_matches = find_btts_matches(matches)
 
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 5: LINE MOVEMENT (Аномалии)")
+    logger.info("=" * 60)
+    try:
+        lm_matches = find_line_movement_matches(matches)
+    except Exception as e:
+        logger.error(f"❌ LINE MOVEMENT упал: {e}")
+        lm_matches = []
+
     combined = []
     keys = set()
 
+    # Приоритет: VALUE → BTTS → LINE MOVEMENT → 70%+ → ТМ 2.5
     for m in value_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
             combined.append(m); keys.add(key)
 
     for m in btts_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in lm_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
             combined.append(m); keys.add(key)
@@ -3425,7 +3710,14 @@ def find_top_matches_with_tm25(matches):
         if key not in keys:
             combined.append(m); keys.add(key)
 
-    combined.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    # Сортировка: line_movement не имеет EV — ставим его отдельно в конце
+    def _sort_key(m):
+        src = m.get('source', '')
+        if src == 'line_movement':
+            return (1, abs(m['best_bet'].get('movement_pct', 0)))
+        return (0, m['best_bet'].get('ev', 0))
+
+    combined.sort(key=_sort_key, reverse=True)
     all_before_odds_filter = copy.deepcopy(combined)
 
     if combined:
@@ -3458,9 +3750,9 @@ def find_top_matches_with_tm25(matches):
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
         src = m.get('source', '')
-        if src in ('value', 'btts'):
+        if src in ('value', 'btts', 'line_movement'):
             if ev < EV_MIN: continue
-            if prob < PROB_MIN: continue
+            if src != 'line_movement' and prob < PROB_MIN: continue
         else:
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
@@ -3510,7 +3802,6 @@ def find_top_matches_with_tm25(matches):
     storage.save_history(history)
     logger.info(f"📝 Добавлено ставок: {added}")
 
-    # ★ v4.9: DeepSeek выбирает ОДИН лучший матч
     if Config.LLM_ENABLED and filtered:
         try:
             pick = llm_pick_best(filtered)
@@ -3773,15 +4064,16 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.9 — LLM explanations + pick) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v5.0 — Line Movement + LLM) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v4.9 — LLM explanations в Telegram)
+# main.py — ЧАСТЬ 3/3 (v5.0 — Line Movement + LLM)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
 # ★ v4.6: CLV по стратегиям
 # ★ v4.9: показ llm_reason в /update
+# ★ v5.0: показ line_movement в /update + StrategyTester
 # ============================================================
 
 def safe_job(func, name):
@@ -4121,6 +4413,8 @@ class StrategyTester:
                               'wins': 0, 'losses': 0, 'total_stake': 0},
             'btts': {'name': '⚽ BTTS (Обе Забьют)', 'bets': [], 'profit': 0,
                      'wins': 0, 'losses': 0, 'total_stake': 0},
+            'line_movement': {'name': '📈 LINE MOVEMENT', 'bets': [], 'profit': 0,
+                              'wins': 0, 'losses': 0, 'total_stake': 0},
         }
 
     def _classify(self, bet_label, source=None):
@@ -4132,9 +4426,13 @@ class StrategyTester:
             return 'tm25_standard'
         if source == 'btts':
             return 'btts'
+        if source == 'line_movement':
+            return 'line_movement'
         if not bet_label:
             return '70_percent'
         l = bet_label.lower()
+        if '📈' in bet_label or 'line movement' in l:
+            return 'line_movement'
         if '💎' in bet_label:
             return 'value'
         if '🔥' in bet_label or 'premium' in l:
@@ -4341,7 +4639,8 @@ def webhook():
                             top = find_top_matches_with_tm25(matches)
                             if top:
                                 value_list = [m for m in top if m.get('source') == 'value']
-                                other_list = [m for m in top if m.get('source') != 'value']
+                                lm_list = [m for m in top if m.get('source') == 'line_movement']
+                                other_list = [m for m in top if m.get('source') not in ('value', 'line_movement')]
 
                                 msg = f"✅ <b>НАЙДЕНО: {len(top)}</b>\n"
 
@@ -4365,6 +4664,20 @@ def webhook():
                                                 f"💵 Stake: ${b.get('stake', 0)}\n"
                                                 f"🏷️ {b.get('bookmaker', '—')}\n"
                                                 f"{llm_str}\n")
+
+                                if lm_list:
+                                    msg += f"\n📈 <b>LINE MOVEMENT ({len(lm_list)}):</b>\n\n"
+                                    for i, m in enumerate(lm_list, 1):
+                                        b = m['best_bet']
+                                        direction = "📉" if b.get('direction') == 'drop' else "📈"
+                                        msg += (f"{i}. <b>{m['home']} vs {m['away']}</b> {direction}\n"
+                                                f"🏆 {m.get('league', '?')}\n"
+                                                f"📅 {m.get('match_time', '?')}\n"
+                                                f"🎯 {b['label']} | КЭФ: {b['odds']} (было {b.get('old_odds', 0)})\n"
+                                                f"{direction} Движение: <b>{b.get('movement_pct', 0)}%</b> за {b.get('movement_hours', 0)}ч\n"
+                                                f"📸 Снимков: {b.get('snapshots_count', 0)}\n"
+                                                f"💵 Stake: ${b.get('stake', 0)}\n"
+                                                f"💡 Кэф резко изменился — деньги идут в эту сторону\n\n")
 
                                 if other_list:
                                     msg += f"\n🎯 <b>ОСТАЛЬНЫЕ ({len(other_list)}):</b>\n\n"
@@ -4443,6 +4756,7 @@ def webhook():
                                 'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
                                 'tm25_standard': '⭐ ТМ 2.5 STD',
                                 'btts': '⚽ BTTS',
+                                'line_movement': '📈 LINE MOVEMENT',
                                 'x2': '🔥 X2',
                             }.get(src, src)
                             report += (
@@ -4476,6 +4790,7 @@ def webhook():
                                 'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
                                 'tm25_standard': '⭐ ТМ 2.5 STD',
                                 'btts': '⚽ BTTS',
+                                'line_movement': '📈 LINE MOVEMENT',
                                 'x2': '🔥 X2',
                             }.get(src, src)
                             action = {
@@ -4716,7 +5031,7 @@ def serve_manifest():
 
 
 # ============================================================
-# ★ API: LIVE — активные матчи + sparkline (v4.4 single-fetch)
+# ★ API: LIVE — активные матчи + sparkline
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
@@ -5931,7 +6246,7 @@ def register_bot_commands():
     try:
         url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
         commands = [
-            {"command": "update", "description": "🔍 Полный поиск (70%+ / ТМ 2.5 / VALUE / BTTS)"},
+            {"command": "update", "description": "🔍 Полный поиск (5 потоков)"},
             {"command": "today", "description": "🎯 ТОП-5 матчей"},
             {"command": "live", "description": "⚽ Активные live-матчи"},
             {"command": "snapshots", "description": "📸 Статистика снимков"},
@@ -6030,13 +6345,16 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.9 — LLM reasons)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.0 — Line Movement)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
     logger.info(f"💎 VALUE: кэф>={getattr(Config, 'VALUE_MIN_ODDS', 2.5)} | "
                 f"EV>={getattr(Config, 'VALUE_MIN_EV', 50)}% | "
                 f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 60)}%")
+    logger.info(f"📈 LINE MOVEMENT: {'вкл' if getattr(Config, 'LINE_MOVEMENT_ENABLED', True) else 'выкл'} | "
+                f"drop {getattr(Config, 'LINE_MOVEMENT_MIN_DROP_PCT', -6)}% .. "
+                f"{getattr(Config, 'LINE_MOVEMENT_MAX_DROP_PCT', -15)}%")
     logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 120)}м .. "
                 f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
                 f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
