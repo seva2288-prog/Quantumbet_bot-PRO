@@ -4986,7 +4986,7 @@ def add_manual_match():
             'home': home or 'Unknown',
             'away': away or 'Unknown',
             'league': 'Ручное добавление',
-:%            'bet': bet_type, 'odds': odds, 'stake': stake,
+            'bet': bet_type, 'odds': odds, 'stake': stake,
             'ev': 0, 'prob': 0, 'result': result, 'profit': profit,
             'date': datetime.now().strftime('%Y-%M'),
             'home_goals': hg, 'away_goals': ag,
