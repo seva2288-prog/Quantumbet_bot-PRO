@@ -2631,7 +2631,8 @@ def find_value_matches(matches, max_bets=2):
                 market_prob = 1.0 / odds
                 ratio = model_prob / market_prob if market_prob > 0 else 0
                 if ratio > getattr(Config, 'VALUE_MAX_RATIO', 2.2):
-                    return None                blended = model_prob * 0.35 + market_prob * 0.65
+                    return None
+                blended = model_prob * 0.35 + market_prob * 0.65
                 ev = (blended * odds - 1) * 100
                 return (ev, blended)
 
