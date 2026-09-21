@@ -21,7 +21,9 @@ logger = get_logger(__name__)
 # ★ ОПРЕДЕЛЕНИЕ ПУТИ К ДИСКУ RENDER
 # ============================================================
 def _get_data_dir():
-    """Возвращает путь к персистентному диску или локальной папке."""
+    _RENDER_DISK = '/opt/render/project/src/data'
+    if os.path.exists(_RENDER_DISK):
+        return os.path.join(_RENDER_DISK, 'storage')
     if os.path.exists('/data'):
         return '/data/storage'
     return 'data'
