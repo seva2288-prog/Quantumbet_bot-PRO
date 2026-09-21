@@ -1384,13 +1384,14 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.7 — полный TM 2.5 + Kelly + CLV)
-# Стратегии, 3 потока поиска, обновление результатов
+# main.py — ЧАСТЬ 2/3 (v4.8 — BTTS-поток)
+# Стратегии, 4 потока поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
 # ★ Quarter-Kelly для расчёта stake
 # ★ CLV-фильтр для стратегий
 # ★ Расширенный ТМ 2.5: whitelist, bonus EV, лимит лиг, форма, H2H
+# ★ НОВЫЙ ПОТОК: BTTS (Обе Забьют) с Kelly + CLV
 # ============================================================
 
 # ============================================================
@@ -1593,10 +1594,7 @@ strategy_simulator = StrategySimulator()
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=None, kelly_fraction=None,
                      max_pct=None, min_stake=None):
-    """
-    Quarter-Kelly с защитой.
-    Использует настройки из Config, если параметры не переданы.
-    """
+    """Quarter-Kelly с защитой."""
     if base_pct is None:
         base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
     if kelly_fraction is None:
@@ -1654,9 +1652,7 @@ _CLV_CACHE_TTL = 600
 
 
 def get_strategy_clv(source, days=None, min_samples=None):
-    """
-    Возвращает CLV-статистику по стратегии (кэш 10 минут).
-    """
+    """Возвращает CLV-статистику по стратегии (кэш 10 минут)."""
     global _CLV_CACHE, _CLV_CACHE_TS
     if days is None:
         days = getattr(Config, 'CLV_LOOKBACK_DAYS', 30)
@@ -1726,6 +1722,8 @@ def _guess_source_from_label(label):
         return 'value'
     if '🔥' in (label or '') or 'premium' in l:
         return 'tm25_premium'
+    if 'обз' in l or 'btts' in l:
+        return 'btts'
     if 'тм 2.5' in l or 'under' in l:
         return 'tm25_standard'
     if 'x2' in l:
@@ -1734,10 +1732,7 @@ def _guess_source_from_label(label):
 
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
-    """
-    Применяет CLV-фильтр.
-    Возвращает (final_stake, action_str).
-    """
+    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
     if not getattr(Config, 'CLV_FILTER_ENABLED', True):
         return base_stake, 'disabled'
 
@@ -2064,6 +2059,7 @@ def analyze_match(match_name):
                 src = m.get('source', '70_percent')
                 src_label = {
                     'value': '💎 VALUE',
+                    'btts': '⚽ BTTS (Обе Забьют)',
                     'tm25_premium': '🔥 PREMIUM ТМ 2.5',
                     'tm25_standard': '⭐ STANDARD ТМ 2.5',
                     '70_percent': '🎯 70%+',
@@ -2666,7 +2662,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (v4.7 — расширенный: whitelist, bonus, форма, H2H)
+# ★ ПОТОК 2: ТМ 2.5 (v4.7 расширенный)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -2720,14 +2716,12 @@ def find_tm25_matches(matches):
             league_id = ld.get('id')
             match_time = parse_match_time_to_msk(fixture.get('date', ''))
 
-            # ★ Фильтр сборных
             if not INCLUDE_INTERNATIONAL:
                 is_intl = _is_international_league(league_id, league_name)
                 if is_intl:
                     stats['intl_skipped'] += 1
                     continue
 
-            # ★ Лимит на лигу
             cur_league_bets = league_bet_count.get(league_name, 0)
             if cur_league_bets >= MAX_LEAGUE_BETS:
                 stats['league_limit'] += 1
@@ -2765,7 +2759,6 @@ def find_tm25_matches(matches):
             home_form = hfd.get('form', '') if hfd else ''
             away_form = afd.get('form', '') if afd else ''
 
-            # ★ FORM FILTER
             if FORM_FILTER:
                 home_under = _form_is_under(home_form)
                 away_under = _form_is_under(away_form)
@@ -2779,7 +2772,6 @@ def find_tm25_matches(matches):
 
             h2h = football_api.get_head_to_head(home, away)
 
-            # ★ H2H FILTER
             if H2H_FILTER and h2h:
                 h2h_total = h2h.get('total_matches', 0)
                 h2h_avg = h2h.get('avg_goals', 0)
@@ -2792,7 +2784,6 @@ def find_tm25_matches(matches):
             odds_tm25 = 1.95
             ev_under = (p_under * odds_tm25) - 1
 
-            # ★ League bonus
             is_whitelisted = Config.is_tm25_league_whitelisted(league_name)
             if is_whitelisted:
                 ev_under += LEAGUE_BONUS / 100
@@ -3115,7 +3106,263 @@ def find_value_matches(matches, max_bets=2):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК
+# ★ ПОТОК 4: BTTS (Обе Забьют) — v4.8
+# ============================================================
+@timing_decorator()
+def find_btts_matches(matches):
+    bank = storage.load_bank()
+    BTTS_ENABLED = getattr(Config, 'BTTS_ENABLED', True)
+    if not BTTS_ENABLED:
+        logger.info("⏭️ [BTTS] Отключено в конфиге")
+        return []
+
+    MAX_BETS = getattr(Config, 'BTTS_MAX_BETS', 3)
+    MIN_ODDS = getattr(Config, 'BTTS_MIN_ODDS', 1.60)
+    MAX_ODDS = getattr(Config, 'BTTS_MAX_ODDS', 2.20)
+    MIN_EV = getattr(Config, 'BTTS_MIN_EV', 8)
+    MIN_PROB = getattr(Config, 'BTTS_MIN_PROB', 50)
+    MIN_XG_EACH = getattr(Config, 'BTTS_MIN_XG_EACH', 0.9)
+    MIN_TOTAL_XG = getattr(Config, 'BTTS_MIN_TOTAL_XG', 2.0)
+
+    LEAGUE_WHITELIST = getattr(Config, 'BTTS_LEAGUE_WHITELIST', [])
+    LEAGUE_BLACKLIST = getattr(Config, 'BTTS_LEAGUE_BLACKLIST', [])
+    LEAGUE_BONUS = getattr(Config, 'BTTS_LEAGUE_BONUS', 5)
+    MAX_LEAGUE_BETS = getattr(Config, 'BTTS_MAX_LEAGUE_BETS', 1)
+
+    FORM_FILTER = getattr(Config, 'BTTS_FORM_FILTER', True)
+    FORM_MIN_SCORING = getattr(Config, 'BTTS_FORM_MIN_SCORING', 3)
+
+    H2H_FILTER = getattr(Config, 'BTTS_H2H_FILTER', False)
+    H2H_MIN_MATCHES = getattr(Config, 'BTTS_H2H_MIN_MATCHES', 4)
+    H2H_MIN_PCT = getattr(Config, 'BTTS_H2H_MIN_PCT', 60)
+
+    INCLUDE_INTERNATIONAL = getattr(Config, 'BTTS_INCLUDE_INTERNATIONAL', False)
+
+    logger.info("🔍 [BTTS v4.8] Поиск 'Обе Забьют'...")
+    stats = {
+        'found': 0,
+        'intl_skipped': 0,
+        'league_skipped': 0,
+        'league_blacklist': 0,
+        'league_limit': 0,
+        'form_skipped': 0,
+        'h2h_skipped': 0,
+        'xg_skipped': 0,
+        'clv_skipped': 0,
+        'league_bonus': 0,
+        'no_odds': 0,
+    }
+
+    candidates = []
+    league_bet_count = {}
+    seen_keys = set()
+
+    for match in matches:
+        if len(candidates) >= MAX_BETS: break
+        if not match or not isinstance(match, dict): continue
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams: continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            key = f"{home}_{away}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
+
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            if not INCLUDE_INTERNATIONAL:
+                if _is_international_league(league_id, league_name):
+                    stats['intl_skipped'] += 1
+                    continue
+
+            if any(b.lower() in league_name.lower() for b in LEAGUE_BLACKLIST):
+                stats['league_blacklist'] += 1
+                continue
+
+            cur_bets = league_bet_count.get(league_name, 0)
+            if cur_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            factors = match.get('factors', {}) or {}
+            hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
+            afd = factors.get('away_form') or football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+
+            hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
+            aga = afd.get('goals_avg', 1.0) if afd else 1.0
+            hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
+            aca = afd.get('conceded_avg', 1.2) if afd else 1.2
+
+            home_xg = (hga + aca) / 2
+            away_xg = (aga + hca) / 2
+
+            if _is_international_league(league_id, league_name):
+                home_adv = 1.03
+            else:
+                home_adv = HOME_ADVANTAGE.get(league_name, 1.08)
+            home_xg *= home_adv
+            away_xg /= home_adv
+
+            total_xg = home_xg + away_xg
+
+            if home_xg < MIN_XG_EACH or away_xg < MIN_XG_EACH:
+                stats['xg_skipped'] += 1
+                continue
+            if total_xg < MIN_TOTAL_XG:
+                stats['xg_skipped'] += 1
+                continue
+
+            if FORM_FILTER:
+                home_scoring = _count_scoring_matches(home_form)
+                away_scoring = _count_scoring_matches(away_form)
+                if home_scoring < FORM_MIN_SCORING or away_scoring < FORM_MIN_SCORING:
+                    stats['form_skipped'] += 1
+                    continue
+
+            h2h = None
+            if H2H_FILTER:
+                h2h = football_api.get_head_to_head(home, away)
+                if h2h and h2h.get('total_matches', 0) >= H2H_MIN_MATCHES:
+                    h2h_btts_pct = _calc_h2h_btts_pct(h2h)
+                    if h2h_btts_pct < H2H_MIN_PCT:
+                        stats['h2h_skipped'] += 1
+                        continue
+
+            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
+            p_btts = probs.get('btts', 0)
+            if p_btts * 100 < MIN_PROB:
+                continue
+
+            fo = match.get('_preloaded_odds') or {}
+            btts_odds = fo.get('btts_yes', 0) or 0
+            if btts_odds <= 1.01 and fid:
+                fo_fresh = football_api.get_match_odds(fid)
+                if fo_fresh:
+                    btts_odds = fo_fresh.get('btts_yes', 0) or 0
+
+            if btts_odds <= 1.01:
+                stats['no_odds'] += 1
+                continue
+
+            if btts_odds < MIN_ODDS or btts_odds > MAX_ODDS:
+                continue
+
+            ev_btts = (p_btts * btts_odds - 1) * 100
+
+            is_whitelisted = any(w.lower() in league_name.lower() for w in LEAGUE_WHITELIST)
+            if is_whitelisted:
+                ev_btts += LEAGUE_BONUS
+
+            if ev_btts < MIN_EV:
+                continue
+
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=p_btts * 100,
+                odds=btts_odds,
+            )
+            final_stake, clv_action = apply_clv_filter(
+                source='btts',
+                base_stake=kelly_stake,
+                prob_pct=p_btts * 100,
+                odds=btts_odds,
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (btts): {home} vs {away}")
+                stats['clv_skipped'] += 1
+                continue
+            if is_whitelisted:
+                stats['league_bonus'] += 1
+
+            country_name, country_flag = _get_country_flag(league_id)
+
+            best_bet = {
+                'type': 'btts',
+                'label': 'ОБЗ 🔥' if is_whitelisted else 'ОБЗ',
+                'prob': round(p_btts * 100, 1),
+                'ev': round(ev_btts, 1),
+                'odds': btts_odds,
+                'stake': final_stake,
+                'clv_action': clv_action,
+                'bookmaker': fo.get('bookmaker', '—'),
+                'league_bonus': is_whitelisted,
+                'odds_updated': True,
+            }
+
+            candidates.append({
+                "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": match_time,
+                "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form, "away_form": away_form,
+                "standings": {},
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "btts",
+                "weather_reason": match.get('weather_reason', ''),
+                "_preloaded_odds": fo,
+            })
+            stats['found'] += 1
+            league_bet_count[league_name] = cur_bets + 1
+
+            logger.info(
+                f"⚽ BTTS: {home} vs {away} | ОБЗ @ {btts_odds} | "
+                f"EV: {ev_btts:.1f}% | Prob: {p_btts*100:.1f}% | "
+                f"Stake: ${final_stake} ({clv_action})"
+                + (" [+bonus]" if is_whitelisted else "")
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [BTTS] {e}")
+            continue
+
+    candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    top = candidates[:MAX_BETS]
+
+    logger.info(
+        f"📊 [BTTS] Найдено: {len(candidates)}, взято: {len(top)} | "
+        f"intl-skip: {stats['intl_skipped']}, blacklist: {stats['league_blacklist']}, "
+        f"limit: {stats['league_limit']}, xg-skip: {stats['xg_skipped']}, "
+        f"form-skip: {stats['form_skipped']}, h2h-skip: {stats['h2h_skipped']}, "
+        f"clv-skip: {stats['clv_skipped']}, bonus: {stats['league_bonus']}, "
+        f"no-odds: {stats['no_odds']}"
+    )
+    return top
+
+
+def _count_scoring_matches(form_string):
+    """Считает матчи с голом (эвристика по W+D)."""
+    if not form_string:
+        return 0
+    return form_string.count('W') + form_string.count('D')
+
+
+def _calc_h2h_btts_pct(h2h_data):
+    """Считает % матчей H2H, где обе команды забили."""
+    if not h2h_data or not h2h_data.get('matches'):
+        return 0
+    matches = h2h_data['matches']
+    if not matches:
+        return 0
+    btts_count = 0
+    for m in matches:
+        if m.get('home_score', 0) > 0 and m.get('away_score', 0) > 0:
+            btts_count += 1
+    return round(btts_count / len(matches) * 100, 1)
+
+
+# ============================================================
+# КОМБИНИРОВАННЫЙ ПОИСК (v4.8 с BTTS)
 # ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
@@ -3134,10 +3381,21 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=2)
 
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 4: BTTS (Обе Забьют) v4.8")
+    logger.info("=" * 60)
+    btts_matches = find_btts_matches(matches)
+
     combined = []
     keys = set()
 
+    # Приоритет: VALUE → BTTS → 70%+ → ТМ 2.5
     for m in value_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in btts_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
             combined.append(m); keys.add(key)
@@ -3184,7 +3442,8 @@ def find_top_matches_with_tm25(matches):
         bb = m.get('best_bet', {})
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
-        if m.get('source') == 'value':
+        src = m.get('source', '')
+        if src in ('value', 'btts'):
             if ev < EV_MIN: continue
             if prob < PROB_MIN: continue
         else:
@@ -3459,13 +3718,23 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
             ):
                 saved += 1
 
+        # ★ BTTS snapshot (v4.8)
+        btts_yes = fo.get('btts_yes', 0) or 0
+        if btts_yes > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='BTTS',
+                selection='BTTS', odds=btts_yes, bookmaker=bookmaker,
+                home=home, away=away, league=league
+            ):
+                saved += 1
+
         return saved
     except Exception as e:
         logger.error(f"_save_snapshot_from_odds: {e}")
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.7 — полный TM 2.5 + Kelly + CLV) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v4.8 — BTTS-поток) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v4.6 — CLV-фильтр)
