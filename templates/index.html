@@ -805,7 +805,7 @@
 
 
  <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы + навигация + модалки)-->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы)                     -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1670,265 +1670,7 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- BOTTOM NAV (навигация)                                       -->
-<!-- ============================================================ -->
-<nav class="bottom-nav" role="navigation">
-    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
-        <span class="icon">📊</span>
-        <span class="label">Главная</span>
-    </button>
-    <button class="nav-item" data-page="matches" onclick="switchPage('matches')">
-        <span class="icon">🎯</span>
-        <span class="label">Матчи</span>
-    </button>
-    <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
-        <span class="icon">📸</span>
-        <span class="label">Снимки</span>
-    </button>
-    <button class="nav-item" data-page="live" onclick="switchPage('live')">
-        <span class="icon">⚡</span>
-        <span class="label">Live</span>
-        <span class="nav-badge" id="liveNavBadge" style="display:none;">0</span>
-    </button>
-    <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
-        <span class="icon">🔥</span>
-        <span class="label">X2</span>
-    </button>
-    <button class="nav-item" onclick="toggleMoreMenu()">
-        <span class="icon">⋯</span>
-        <span class="label">Ещё</span>
-    </button>
-</nav>
-
-<!-- ============================================================ -->
-<!-- BOTTOM SHEET "ЕЩЁ"                                           -->
-<!-- ============================================================ -->
-<div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
-    <div class="bottom-sheet">
-        <div class="bottom-sheet-handle"></div>
-        <div class="bottom-sheet-title">Меню</div>
-
-        <button class="sheet-item" onclick="openFromMore('analytics')">
-            <span class="sheet-icon">📈</span>
-            <div>
-                <div class="sheet-label">Аналитика</div>
-                <div class="sheet-desc">Графики, стратегии, типы ставок</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="openFromMore('autobets')">
-            <span class="sheet-icon">💸</span>
-            <div>
-                <div class="sheet-label">Автоставки</div>
-                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="openFromMore('simulator')">
-            <span class="sheet-icon">🧪</span>
-            <div>
-                <div class="sheet-label">Симулятор стратегий</div>
-                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
-            <span class="sheet-icon">⚙️</span>
-            <div>
-                <div class="sheet-label">Настройки</div>
-                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
-            </div>
-        </button>
-
-        <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
-            <span class="sheet-icon">📲</span>
-            <div>
-                <div class="sheet-label">Установить приложение</div>
-                <div class="sheet-desc">Добавить на главный экран</div>
-            </div>
-        </button>
-    </div>
-</div>
-
-<!-- ============================================================ -->
-<!-- МОДАЛКИ                                                       -->
-<!-- ============================================================ -->
-
-<!-- MODAL: ADD MATCH -->
-<div class="modal-overlay" id="addMatchModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>➕ Добавить матч</h3>
-            <button class="modal-close" onclick="hideAddMatchModal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <label>🏟️ Название матча</label>
-            <input type="text" id="matchNameInput" placeholder="Real Madrid vs Barcelona">
-        </div>
-        <div class="modal-field">
-            <label>⚽ Счёт</label>
-            <input type="text" id="matchScoreInput" placeholder="2-1">
-        </div>
-        <div class="modal-field">
-            <label>📊 Ставка</label>
-            <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>💰 Коэф</label>
-                    <input type="number" id="matchOddsInput" value="1.85" step="0.01">
-                </div>
-                <div>
-                    <label>💵 Сумма</label>
-                    <input type="number" id="matchStakeInput" value="42.87" step="0.01">
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>📊 Результат</label>
-            <select id="matchResultSelect">
-                <option value="win">✅ WIN</option>
-                <option value="loss">❌ LOSS</option>
-                <option value="push">🔄 PUSH</option>
-                <option value="pending">⏳ PENDING</option>
-            </select>
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
-            <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: X2 MATCH -->
-<div class="modal-overlay" id="x2Modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="x2ModalTitle">➕ X2 Матч</h3>
-            <button class="modal-close" onclick="closeX2Modal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>📅 Дата</label>
-                    <input type="date" id="x2Date">
-                </div>
-                <div>
-                    <label>🕐 Время (МСК)</label>
-                    <input type="time" id="x2Time" placeholder="21:45">
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>🏟️ Матч</label>
-            <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>🏆 Фаворит</label>
-                    <input type="text" id="x2Favorite">
-                </div>
-                <div>
-                    <label>📉 Аутсайдер</label>
-                    <input type="text" id="x2Underdog">
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>📊 Кэф X2</label>
-                    <input type="number" id="x2Odds" step="0.01">
-                </div>
-                <div>
-                    <label>💰 Сумма</label>
-                    <input type="number" id="x2Stake" step="0.5">
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <div class="row">
-                <div>
-                    <label>⚽ Счёт</label>
-                    <input type="text" id="x2Score" placeholder="0:0">
-                </div>
-                <div>
-                    <label>📊 Результат</label>
-                    <select id="x2Result">
-                        <option value="pending">⏳ PENDING</option>
-                        <option value="win">✅ WIN</option>
-                        <option value="loss">❌ LOSS</option>
-                        <option value="push">🔄 PUSH</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="modal-field">
-            <label>📝 Примечание</label>
-            <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
-            <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: IMPORT X2 EXCEL -->
-<div class="modal-overlay" id="x2ImportModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>📤 Импорт X2</h3>
-            <button class="modal-close" onclick="closeX2ImportModal()">✕</button>
-        </div>
-        <div class="modal-field">
-            <label>📁 Excel файл</label>
-            <input type="file" id="x2ImportFile" accept=".xlsx,.xls,.csv" style="padding:8px;">
-        </div>
-        <div style="font-size:10px;color:var(--text-tertiary);padding:8px 0;">
-            📋 Формат: Дата | Время | Матч | Фаворит | Аутсайдер | Кэф | Сумма | Счёт | Результат | Примечание
-        </div>
-        <div id="x2ImportStatus" style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;"></div>
-        <div class="modal-actions">
-            <button class="btn btn-success" onclick="importX2Excel()">📤 Импортировать</button>
-            <button class="btn btn-outline" onclick="closeX2ImportModal()">Отмена</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: MATCH DETAIL -->
-<div class="modal-overlay" id="matchDetailModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3 id="matchDetailTitle">Детали матча</h3>
-            <button class="modal-close" onclick="closeMatchDetail()">✕</button>
-        </div>
-        <div id="matchDetailBody"></div>
-    </div>
-</div>
-
-<!-- MODAL: SNAPSHOT CHART -->
-<div class="modal-overlay" id="snapshotChartModal">
-    <div class="modal modal-large">
-        <div class="modal-header">
-            <h3 id="snapshotChartTitle">📈 Движение кэфов</h3>
-            <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
-        </div>
-        <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
-        <div class="chart-modal-container">
-            <canvas id="snapshotChart"></canvas>
-        </div>
-        <div id="snapshotChartStats"></div>
-    </div>
-</div>
-
-<!-- TOAST -->
-<div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
-
-<!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3                                              -->
+<!-- КОНЕЦ ЧАСТИ 2/3 — ПРОДОЛЖЕНИЕ В ЧАСТИ 3/3 (JS)               -->
 <!-- ============================================================ -->
 
 
@@ -2034,7 +1776,7 @@ function getSourceBadge(source) {
 }
 
 // ============================================================
-// ★ SPARKLINE
+// ★ SPARKLINE — SVG-мини-график движения кэфа
 // ============================================================
 function renderSparkline(points, width = 200, height = 32) {
     if (!points || points.length < 2) {
@@ -2054,6 +1796,7 @@ function renderSparkline(points, width = 200, height = 32) {
     const innerW = width - padding * 2;
     const innerH = height - padding * 2;
 
+    // Нормализация точек в координаты SVG
     const coords = points.map((p, i) => {
         const x = padding + (i / (points.length - 1)) * innerW;
         const val = parseFloat(p.odds) || 0;
@@ -2061,18 +1804,25 @@ function renderSparkline(points, width = 200, height = 32) {
         return { x, y, odds: val };
     });
 
+    // Путь
     const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+
+    // Первая и последняя точки
     const first = oddsValues[0];
     const last = oddsValues[oddsValues.length - 1];
     const pctChange = ((last / first) - 1) * 100;
 
+    // Цвет линии: рост кэфа = зелёный (хорошо для value), падение = красный
     const trendUp = pctChange >= 0;
     const lineColor = trendUp ? '#34d399' : '#f87171';
     const fillColor = trendUp ? 'rgba(52, 211, 153, 0.12)' : 'rgba(248, 113, 113, 0.12)';
     const arrow = trendUp ? '📈' : '📉';
     const pctStr = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(1) + '%';
 
+    // Площадь под линией
     const areaD = `${pathD} L${coords[coords.length - 1].x.toFixed(1)},${height - padding} L${coords[0].x.toFixed(1)},${height - padding} Z`;
+
+    // Последняя точка — точка маркер
     const lastCoord = coords[coords.length - 1];
 
     return `
@@ -2135,6 +1885,9 @@ function renderSparkline(points, width = 200, height = 32) {
     }
 })();
 
+// ============================================================
+// LOADING SCREEN
+// ============================================================
 function hideLoadingScreen() {
     const loading = document.getElementById('loadingScreen');
     if (loading && !loading.classList.contains('hidden')) {
@@ -2285,7 +2038,7 @@ function openFromMore(page) {
 }
 
 // ============================================================
-// СВАЙПЫ
+// СВАЙПЫ МЕЖДУ ВКЛАДКАМИ
 // ============================================================
 (function initSwipe() {
     let touchStartX = 0;
@@ -2368,7 +2121,7 @@ function updateLastUpdate() {
 }
 
 // ============================================================
-// LIVE
+// ★ LIVE-СТРАНИЦА
 // ============================================================
 async function loadLive(force = false) {
     const container = document.getElementById('liveList');
@@ -2518,6 +2271,7 @@ function renderLiveCard(m) {
         `;
     }
 
+    // ★ Sparkline
     const sparklineHtml = renderSparkline(m.sparkline || []);
 
     return `
@@ -2643,7 +2397,7 @@ function renderActiveMatchesList(matches) {
 }
 
 // ============================================================
-// АНОМАЛИИ НА DASHBOARD
+// АНОМАЛИИ
 // ============================================================
 async function loadAnomalies() {
     try {
@@ -3189,144 +2943,6 @@ function closeMatchDetail() {
 }
 
 // ============================================================
-// ★ СТАТИСТИКА АНОМАЛИЙ
-// ============================================================
-async function loadAnomalyStats() {
-    const container = document.getElementById('anomalyStatsContent');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="skeleton" style="width:80%"></div>
-        <div class="skeleton" style="width:60%"></div>
-    `;
-
-    try {
-        const period = document.getElementById('anomalyStatsPeriod')?.value || 30;
-        const resp = await fetch(API_BASE + `/api/snapshot_anomalies/stats?days=${period}&t=` + Date.now());
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const data = await resp.json();
-        if (data.status !== 'ok') throw new Error(data.error || 'API error');
-
-        renderAnomalyStats(data);
-    } catch (e) {
-        console.error('loadAnomalyStats:', e);
-        container.innerHTML = `
-            <div style="padding:12px;color:var(--red-400);font-size:12px;">
-                ❌ Ошибка: ${e.message}
-            </div>
-        `;
-    }
-}
-
-function renderAnomalyStats(data) {
-    const container = document.getElementById('anomalyStatsContent');
-    if (!container) return;
-
-    const total = data.total_anomalies || 0;
-    const correct = data.correct_anomalies || 0;
-    const wrong = data.wrong_anomalies || 0;
-    const unknown = data.unknown_anomalies || 0;
-    const hitRate = data.hit_rate || 0;
-    const avgGrowth = data.avg_growth || 0;
-
-    let html = `
-        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;">
-            <div class="stat-card">
-                <div class="value">${data.total_matches || 0}</div>
-                <div class="label">🎯 Матчей</div>
-            </div>
-            <div class="stat-card">
-                <div class="value">${data.total_snapshots || 0}</div>
-                <div class="label">📸 Снимков</div>
-            </div>
-            <div class="stat-card">
-                <div class="value gold">${total}</div>
-                <div class="label">🎯 Аномалий</div>
-            </div>
-            <div class="stat-card">
-                <div class="value ${hitRate >= 55 ? 'green' : 'red'}">${hitRate}%</div>
-                <div class="label">✅ Hit Rate</div>
-            </div>
-        </div>
-    `;
-
-    html += `
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 0;border-bottom:1px solid var(--border-color);">
-            <div style="text-align:center;">
-                <div style="font-size:16px;font-weight:800;color:var(--emerald-400);">${correct}</div>
-                <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">✅ Сбылось</div>
-            </div>
-            <div style="text-align:center;">
-                <div style="font-size:16px;font-weight:800;color:var(--red-400);">${wrong}</div>
-                <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">❌ Не сбылось</div>
-            </div>
-            <div style="text-align:center;">
-                <div style="font-size:16px;font-weight:800;color:var(--text-tertiary);">${unknown}</div>
-                <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">⏳ Ждём</div>
-            </div>
-        </div>
-    `;
-
-    html += `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:12px;">
-            <span style="color:var(--text-tertiary);">Средний рост кэфа:</span>
-            <span style="font-weight:700;color:var(--gold-400);">+${avgGrowth}%</span>
-        </div>
-    `;
-
-    if (data.top_good && data.top_good.length > 0) {
-        html += `
-            <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:12px;margin-bottom:6px;">
-                🏆 ТОП успешных
-            </div>
-        `;
-        html += data.top_good.map(a => {
-            const selLabel = a.selection === '1' ? '1X' : a.selection;
-            return `
-                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-color);font-size:11px;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-weight:600;">${escapeHtml(a.home || '?')} vs ${escapeHtml(a.away || '?')}</div>
-                        <div style="color:var(--text-tertiary);font-size:10px;">${escapeHtml(a.league || '')} • ${selLabel}: ${a.first_odds.toFixed(2)} → ${a.max_odds.toFixed(2)}</div>
-                    </div>
-                    <div style="font-weight:700;color:var(--emerald-400);white-space:nowrap;padding-left:8px;">+${a.anomaly_pct}%</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    if (data.top_bad && data.top_bad.length > 0) {
-        html += `
-            <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-top:12px;margin-bottom:6px;">
-                📉 ТОП провальных
-            </div>
-        `;
-        html += data.top_bad.map(a => {
-            const selLabel = a.selection === '1' ? '1X' : a.selection;
-            return `
-                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-color);font-size:11px;">
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-weight:600;">${escapeHtml(a.home || '?')} vs ${escapeHtml(a.away || '?')}</div>
-                        <div style="color:var(--text-tertiary);font-size:10px;">${escapeHtml(a.league || '')} • ${selLabel}: ${a.first_odds.toFixed(2)} → ${a.max_odds.toFixed(2)}</div>
-                    </div>
-                    <div style="font-weight:700;color:var(--red-400);white-space:nowrap;padding-left:8px;">+${a.anomaly_pct}%</div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    if (total === 0) {
-        html += `
-            <div class="no-data" style="padding:20px;">
-                <div class="emoji">📭</div>
-                <div class="desc">Пока нет аномалий за этот период</div>
-            </div>
-        `;
-    }
-
-    container.innerHTML = html;
-}
-
-// ============================================================
 // SNAPSHOTS
 // ============================================================
 async function loadSnapshots() {
@@ -3340,9 +2956,6 @@ async function loadSnapshots() {
         <div class="skeleton" style="height:100px;"></div>
     `;
     countEl.textContent = 'Загрузка...';
-
-    // ★ Загружаем статистику аномалий параллельно
-    loadAnomalyStats();
 
     try {
         let url = API_BASE + '/api/snapshots?days=7&limit=100';
@@ -5154,7 +4767,6 @@ Object.assign(window, {
     loadAutoX2, openX2Detail,
     loadLive, renderLive, startLiveRefresh,
     renderSparkline,
-    loadAnomalyStats, renderAnomalyStats,
 });
 </script>
 </body>
