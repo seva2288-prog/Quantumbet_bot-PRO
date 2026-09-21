@@ -4725,6 +4725,154 @@ def api_snapshot_anomalies():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+
+# ============================================================
+# ★ API: СТАТИСТИКА АНОМАЛИЙ
+# ============================================================
+@app.route('/api/snapshot_anomalies/stats', methods=['GET'])
+def api_snapshot_anomalies_stats():
+    """★ Статистика аномалий: сколько сбылось / не сбылось."""
+    try:
+        days = int(request.args.get('days', 7))
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+        matches_raw = storage.get_snapshots_since(cutoff)
+
+        # Группируем снимки по матчу
+        grouped = {}
+        for row in matches_raw:
+            fid = row.get('fixture_id')
+            if not fid:
+                continue
+            grouped.setdefault(fid, []).append(row)
+
+        # Получаем результаты матчей из истории
+        history = storage.load_history()
+        results_lookup = {}
+        for h in history:
+            fid = h.get('fixture_id')
+            if fid:
+                results_lookup[fid] = {
+                    'result': h.get('result'),
+                    'home_goals': h.get('home_goals'),
+                    'away_goals': h.get('away_goals'),
+                }
+
+        # Общая статистика
+        total_matches = len(grouped)
+        total_snapshots = len(matches_raw)
+        total_anomalies = 0
+        correct_anomalies = 0
+        wrong_anomalies = 0
+        unknown_anomalies = 0
+        sum_growth = 0
+        sum_trend = 0
+        top_good = []
+        top_bad = []
+
+        for fid, snaps in grouped.items():
+            # Группируем по времени
+            odds_by_time = {}
+            for s in snaps:
+                t = s.get('created_at')
+                sel = s.get('selection')
+                odd = s.get('odds', 0)
+                if not t or sel not in ['1', 'X', '2']:
+                    continue
+                odds_by_time.setdefault(t, {'1': 0, 'X': 0, '2': 0})[sel] = odd
+
+            sorted_times = sorted(odds_by_time.keys())
+
+            for sel in ['1', 'X', '2']:
+                values = [odds_by_time[t][sel] for t in sorted_times if odds_by_time[t][sel] > 0]
+                if len(values) < 2:
+                    continue
+                first_odd = values[0]
+                max_odd = max(values)
+                min_odd = min(values)
+                anomaly_pct = ((max_odd / first_odd) - 1) * 100 if first_odd > 0 else 0
+
+                # Аномалия: рост > 5%
+                if anomaly_pct < 5:
+                    continue
+
+                total_anomalies += 1
+                sum_growth += anomaly_pct
+
+                # Проверяем "сбылась" ли аномалия:
+                # если матч завершён, смотрим результат
+                match_res = results_lookup.get(fid)
+                is_correct = None
+                if match_res and match_res.get('result') in ('win', 'loss'):
+                    hg = match_res.get('home_goals')
+                    ag = match_res.get('away_goals')
+                    if hg is not None and ag is not None:
+                        # Логика: если выбранный исход ВЫИГРАЛ — аномалия сбылась
+                        if sel == '1':
+                            is_correct = hg > ag
+                        elif sel == '2':
+                            is_correct = ag > hg
+                        elif sel == 'X':
+                            is_correct = hg == ag
+
+                if is_correct is True:
+                    correct_anomalies += 1
+                    sum_trend += anomaly_pct
+                    top_good.append({
+                        'fixture_id': fid, 'selection': sel,
+                        'first_odds': first_odd, 'max_odds': max_odd,
+                        'anomaly_pct': round(anomaly_pct, 1),
+                    })
+                elif is_correct is False:
+                    wrong_anomalies += 1
+                    top_bad.append({
+                        'fixture_id': fid, 'selection': sel,
+                        'first_odds': first_odd, 'max_odds': max_odd,
+                        'anomaly_pct': round(anomaly_pct, 1),
+                    })
+                else:
+                    unknown_anomalies += 1
+
+        # Обогащаем ТОП названиями матчей
+        def _enrich(items):
+            out = []
+            for it in items:
+                fid = it['fixture_id']
+                m = {}
+                for h in history:
+                    if h.get('fixture_id') == fid:
+                        m = {'home': h.get('home', '?'), 'away': h.get('away', '?'),
+                             'league': h.get('league', '?')}
+                        break
+                it.update(m)
+                out.append(it)
+            return out
+
+        top_good_sorted = sorted(top_good, key=lambda x: x['anomaly_pct'], reverse=True)[:5]
+        top_bad_sorted = sorted(top_bad, key=lambda x: x['anomaly_pct'])[:5]
+
+        total_resolved = correct_anomalies + wrong_anomalies
+        hit_rate = round(correct_anomalies / total_resolved * 100, 1) if total_resolved > 0 else 0
+        avg_growth = round(sum_growth / total_anomalies, 1) if total_anomalies > 0 else 0
+
+        return jsonify({
+            'status': 'ok',
+            'days': days,
+            'total_matches': total_matches,
+            'total_snapshots': total_snapshots,
+            'total_anomalies': total_anomalies,
+            'correct_anomalies': correct_anomalies,
+            'wrong_anomalies': wrong_anomalies,
+            'unknown_anomalies': unknown_anomalies,
+            'hit_rate': hit_rate,
+            'avg_growth': avg_growth,
+            'top_good': _enrich(top_good_sorted),
+            'top_bad': _enrich(top_bad_sorted),
+        })
+    except Exception as e:
+        logger.exception(f"api_snapshot_anomalies_stats error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 # ============================================================
 # API: РЕДАКТИРОВАНИЕ СТАВОК
 # ============================================================
