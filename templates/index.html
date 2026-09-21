@@ -1932,8 +1932,8 @@
 <!-- ============================================================ -->
 
 
-<!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.4 с LIVE-минутой)                 -->
+<<!-- ============================================================ -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.5 без ? и с "идёт X-я минута")   -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2467,7 +2467,7 @@ function renderLiveCard(m) {
     const minutes = m.minutes_to_match;
     const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
 
-    // ★ v4.4: LIVE-минута в тексте времени
+    // ★ v4.5: LIVE-минута в тексте времени
     let timeInfo = '';
     if (isLive) {
         const minStr = m.minute ? `${m.minute}'` : '';
@@ -2483,19 +2483,19 @@ function renderLiveCard(m) {
             timeInfo = `через <b>${h}ч ${mn}м</b>`;
         }
     } else {
-        // Матч должен был начаться, но live-данных нет
-        timeInfo = `<span style="color:var(--red-400);">🔴 начался ${Math.round(-minutes)} мин назад</span>`;
+        // ★ v4.5: матч должен был начаться, но live-данных нет — показываем "идёт X-я минута"
+        const liveMin = Math.max(1, Math.round(-minutes));
+        timeInfo = `<span style="color:var(--red-400);">🔴 идёт ${liveMin}-я минута</span>`;
     }
 
-    // ★ v4.4: бейдж статуса
+    // ★ v4.5: бейдж статуса (без "?" для live без данных)
     let statusBadge = '';
     if (isLive) {
         statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
     } else if (isFinal) {
         statusBadge = `<span class="live-badge-final">✅ Завершён</span>`;
     } else if (minutes < 0) {
-        // Матч должен был начаться, но API молчит
-        statusBadge = `<span class="live-badge-live">⚽ LIVE ?</span>`;
+        statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
     } else {
         statusBadge = `<span class="live-badge-soon">⏳ Скоро</span>`;
     }
@@ -2514,7 +2514,7 @@ function renderLiveCard(m) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
-    // ★ v4.4: счёт и минута внутри карточки
+    // ★ v4.5: счёт и минута внутри карточки
     let scoreHtml = '';
     if (isLive && m.score) {
         const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
@@ -2528,13 +2528,6 @@ function renderLiveCard(m) {
         scoreHtml = `
             <div style="display:flex;align-items:center;gap:8px;margin:6px 0 0;">
                 <span class="live-score" style="color:var(--emerald-400);">${escapeHtml(m.score)}</span>
-            </div>
-        `;
-    } else if (isLive && !m.score && m.minute) {
-        // LIVE, но счёт ещё не получили
-        scoreHtml = `
-            <div style="font-size:11px;color:var(--red-400);margin:6px 0 0;">
-                🔴 Идёт ${m.minute}'
             </div>
         `;
     }
