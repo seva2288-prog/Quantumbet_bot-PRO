@@ -1384,11 +1384,12 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v4.5 — Kelly Criterion)
+# main.py — ЧАСТЬ 2/3 (v4.6 — CLV-фильтр)
 # Стратегии, 3 потока поиска, обновление результатов
 # ★ Snapshots c home/away/league
-# ★ Исключение для сборных в find_top_matches
-# ★ Quarter-Kelly для расчёта stake (cap 5%)
+# ★ Исключение для сборных
+# ★ Quarter-Kelly для расчёта stake
+# ★ CLV-фильтр для стратегий (v4.6)
 # ============================================================
 
 # ============================================================
@@ -1586,23 +1587,14 @@ strategy_simulator = StrategySimulator()
 
 
 # ============================================================
-# ★ KELLY CRITERION для расчёта ставки (v4.5)
+# ★ KELLY CRITERION (v4.5)
 # ============================================================
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=0.02, kelly_fraction=0.25,
                      max_pct=0.05, min_stake=1.0):
     """
     Quarter-Kelly с защитой.
-    - bank: текущий банк
-    - prob_pct: вероятность в % (0-100)
-    - odds: коэффициент
-    - base_pct: минимальная ставка % банка (2%)
-    - kelly_fraction: доля Kelly (0.25 = quarter-Kelly)
-    - max_pct: cap на ставку (5% банка)
-    - min_stake: минимальная ставка в $
-
-    Формула Kelly: f = (b*p - q) / b
-    где b = odds-1, p = prob, q = 1-p
+    Формула: f = (b*p - q) / b, где b = odds-1, p = prob, q = 1-p
     """
     if bank <= 0 or odds <= 1.01 or prob_pct <= 0:
         return min_stake
@@ -1613,15 +1605,10 @@ def calculate_stake(bank, prob_pct, odds,
 
     kelly_full = (b * p - q) / b
     if kelly_full <= 0:
-        # Kelly отрицательный — нет edge, ставим базовую ставку
         return max(round(bank * base_pct, 2), min_stake)
 
-    # Quarter-Kelly
     kelly_stake_pct = kelly_full * kelly_fraction
-
-    # Ограничиваем: не меньше base_pct, не больше max_pct
     final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
-
     stake = round(bank * final_pct, 2)
     return max(stake, min_stake)
 
@@ -1640,6 +1627,138 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=0.25):
         'kelly_quarter': round(kelly_full * kelly_fraction * 100, 2),
         'edge': round(edge, 2),
     }
+
+
+# ============================================================
+# ★ CLV-ФИЛЬТР для стратегий (v4.6)
+# ============================================================
+_CLV_CACHE = {}
+_CLV_CACHE_TS = 0
+_CLV_CACHE_TTL = 600  # 10 минут
+
+
+def get_strategy_clv(source, days=30, min_samples=20):
+    """
+    Возвращает CLV-статистику по стратегии (кэш 10 минут).
+    source: '70_percent' / 'value' / 'tm25_premium' / 'tm25_standard' / 'x2'
+    """
+    global _CLV_CACHE, _CLV_CACHE_TS
+    now = time.time()
+    if (not _CLV_CACHE or now - _CLV_CACHE_TS > _CLV_CACHE_TTL):
+        _CLV_CACHE = _compute_all_strategy_clv(days=days)
+        _CLV_CACHE_TS = now
+    return _CLV_CACHE.get(source, {
+        'avg_clv': 0, 'count': 0, 'samples': 0,
+        'status': 'no_data', 'multiplier': 1.0, 'skip': False,
+    })
+
+
+def _compute_all_strategy_clv(days=30, min_samples=20):
+    """Считает CLV по каждой стратегии из автобетов."""
+    result = {}
+    try:
+        bets = storage.autobet_load_all()
+        cutoff = (datetime.now() - timedelta(days=days)).timestamp()
+        by_source = defaultdict(list)
+
+        for b in bets:
+            clv = b.get('clv')
+            if clv is None:
+                continue
+            created = b.get('created_at', '')
+            try:
+                ct = datetime.fromisoformat(created).timestamp()
+                if ct < cutoff:
+                    continue
+            except Exception:
+                pass
+
+            src = b.get('source', '') or _guess_source_from_label(b.get('bet_label', ''))
+            by_source[src].append(clv)
+
+        for src, clvs in by_source.items():
+            if not clvs:
+                continue
+            avg = sum(clvs) / len(clvs)
+            n = len(clvs)
+
+            skip = False
+            multiplier = 1.0
+            status = 'active'
+
+            if n < min_samples:
+                status = 'insufficient_data'
+                multiplier = 1.0
+            elif avg > 1.0:
+                status = 'excellent'
+                multiplier = 1.25
+            elif avg > -0.5:
+                status = 'good'
+                multiplier = 1.0
+            elif avg > -2.0:
+                status = 'weak'
+                multiplier = 0.5
+            else:
+                status = 'critical'
+                multiplier = 0.5
+                skip = True
+
+            result[src] = {
+                'avg_clv': round(avg, 2),
+                'count': n,
+                'samples': n,
+                'status': status,
+                'multiplier': multiplier,
+                'skip': skip,
+            }
+    except Exception as e:
+        logger.error(f"_compute_all_strategy_clv: {e}")
+
+    logger.info(f"📊 CLV по стратегиям: {result}")
+    return result
+
+
+def _guess_source_from_label(label):
+    """Восстанавливает source по label, если не сохранён."""
+    l = (label or '').lower()
+    if '💎' in (label or ''):
+        return 'value'
+    if '🔥' in (label or '') or 'premium' in l:
+        return 'tm25_premium'
+    if 'тм 2.5' in l or 'under' in l:
+        return 'tm25_standard'
+    if 'x2' in l:
+        return 'x2'
+    return '70_percent'
+
+
+def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
+    """
+    Применяет CLV-фильтр.
+    Возвращает (final_stake, action_str):
+      action: 'normal' / 'boosted' / 'reduced' / 'skipped' / 'no_data'
+    """
+    clv_info = get_strategy_clv(source)
+
+    if clv_info['status'] in ('no_data', 'insufficient_data'):
+        return base_stake, 'no_data'
+
+    if clv_info['skip']:
+        logger.warning(f"⏭️ CLV SKIP {source}: avg={clv_info['avg_clv']}% n={clv_info['count']}")
+        return 0, 'skipped'
+
+    mult = clv_info['multiplier']
+    if mult == 1.0:
+        return base_stake, 'normal'
+
+    new_stake = round(base_stake * mult, 2)
+    max_stake = round(bank * 0.05, 2)
+    if new_stake > max_stake:
+        new_stake = max_stake
+
+    action = 'boosted' if mult > 1.0 else 'reduced'
+    logger.info(f"🎯 CLV {source}: {action} stake {base_stake} → {new_stake} (x{mult})")
+    return new_stake, action
 
 
 # ============================================================
@@ -1664,7 +1783,7 @@ def analyze_form(form_string):
 
 
 def _get_country_flag(league_id):
-    """★ Возвращает (country_name, flag_emoji) для league_id."""
+    """Возвращает (country_name, flag_emoji) для league_id."""
     try:
         lid = int(league_id) if league_id else None
     except (ValueError, TypeError):
@@ -1675,7 +1794,7 @@ def _get_country_flag(league_id):
 
 
 def _is_international_league(league_id, league_name):
-    """★ Проверяет, относится ли матч к турнирам сборных."""
+    """Проверяет, относится ли матч к турнирам сборных."""
     try:
         if league_id and int(league_id) in getattr(Config, 'INTERNATIONAL_LEAGUES', []):
             return True
@@ -1872,7 +1991,6 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
     match['bets'].sort(key=lambda x: x['ev'], reverse=True)
     if match['bets']:
         match['best_bet'] = match['bets'][0]
-        # ★ v4.5: пересчёт stake по Kelly после LLM-коррекции
         try:
             bank = storage.load_bank()
             kelly_stake = calculate_stake(
@@ -1880,9 +1998,21 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
                 prob_pct=match['best_bet'].get('prob', 0),
                 odds=match['best_bet'].get('odds', 1.85),
             )
-            for b in match['bets']:
-                b['stake'] = kelly_stake
-            match['best_bet']['stake'] = kelly_stake
+            # ★ CLV-фильтр
+            src = match.get('source', '70_percent')
+            final_stake, clv_action = apply_clv_filter(
+                source=src,
+                base_stake=kelly_stake,
+                prob_pct=match['best_bet'].get('prob', 0),
+                odds=match['best_bet'].get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake > 0:
+                for b in match['bets']:
+                    b['stake'] = final_stake
+                    b['clv_action'] = clv_action
+                match['best_bet']['stake'] = final_stake
+                match['best_bet']['clv_action'] = clv_action
         except Exception:
             pass
 
@@ -1949,7 +2079,8 @@ def analyze_match(match_name):
                 best = m.get('best_bet', {})
                 r += f"🎯 <b>{best.get('label', '—')}</b>\n"
                 r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
-                r += f"💰 Кэф: {best.get('odds', 0)}\n\n"
+                r += f"💰 Кэф: {best.get('odds', 0)}\n"
+                r += f"💵 Ставка: ${best.get('stake', 0)}\n\n"
                 for i, b in enumerate(m.get('bets', [])[:7], 1):
                     emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
                     r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
@@ -2107,7 +2238,6 @@ def update_odds_for_matches(matches):
                 best_bet['odds_source'] = source
                 best_bet['odds_updated'] = True
 
-                # ★ v4.5: пересчёт stake по Kelly после обновления кэфа
                 try:
                     bank = storage.load_bank()
                     kelly_stake = calculate_stake(
@@ -2115,9 +2245,19 @@ def update_odds_for_matches(matches):
                         prob_pct=best_bet.get('prob', 0),
                         odds=new_odds,
                     )
-                    best_bet['stake'] = kelly_stake
+                    # ★ CLV-фильтр
+                    src_key = md.get('source', '70_percent')
+                    final_stake, clv_action = apply_clv_filter(
+                        source=src_key,
+                        base_stake=kelly_stake,
+                        prob_pct=best_bet.get('prob', 0),
+                        odds=new_odds,
+                        bank=bank,
+                    )
+                    best_bet['stake'] = final_stake if final_stake > 0 else kelly_stake
+                    best_bet['clv_action'] = clv_action
                 except Exception as e:
-                    logger.error(f"Kelly recalc: {e}")
+                    logger.error(f"Kelly/CLV recalc: {e}")
 
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
@@ -2257,7 +2397,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (с Kelly)
+# ★ ПОТОК 1: 70%+ (Kelly + CLV)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -2369,7 +2509,6 @@ def find_top_matches(matches):
             elif am == 'relegation' and hm == 'mid_table':
                 probs['away_win'] = probs.get('away_win', 0) + 0.05
 
-            # ★ v4.5: Kelly-stake считается после формирования bets
             bets = []
             odds_template = {'1X': 1.85, 'X2': 1.85, 'П1': 2.10, 'П2': 2.10,
                              'ТМ 2.5': 1.95, 'ТБ 2.5': 1.95, 'ОБЗ': 1.90}
@@ -2397,16 +2536,12 @@ def find_top_matches(matches):
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
 
-            # ★ v4.5: Kelly-stake для лучшей ставки
+            # ★ Kelly
             kelly_stake = calculate_stake(
                 bank=bank,
                 prob_pct=best_bet.get('prob', 0),
                 odds=best_bet.get('odds', 1.85),
             )
-            for b in bets:
-                b['stake'] = kelly_stake
-            best_bet['stake'] = kelly_stake
-
             kelly_info = calculate_kelly_info(
                 bank=bank,
                 prob_pct=best_bet.get('prob', 0),
@@ -2414,6 +2549,23 @@ def find_top_matches(matches):
             )
             best_bet['kelly_full'] = kelly_info['kelly_full']
             best_bet['kelly_quarter'] = kelly_info['kelly_quarter']
+
+            # ★ v4.6: CLV-фильтр
+            final_stake, clv_action = apply_clv_filter(
+                source='70_percent',
+                base_stake=kelly_stake,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (70_percent): {home} vs {away}")
+                continue
+            for b in bets:
+                b['stake'] = final_stake
+                b['clv_action'] = clv_action
+            best_bet['stake'] = final_stake
+            best_bet['clv_action'] = clv_action
 
             bt = best_bet['type']
             LIMIT_BT = getattr(Config, 'LIMIT_BET_TYPE_70', 15)
@@ -2423,7 +2575,7 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
-            # ★★ X2-СОХРАНЕНИЕ с entry_odds
+            # X2-сохранение
             if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2518,11 +2670,11 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (с Kelly)
+# ★ ПОТОК 2: ТМ 2.5 (Kelly + CLV)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
-    bank = storage.load_bank()  # ★ v4.5
+    bank = storage.load_bank()
     tm25_candidates = []
     MAX_TM25_BETS = getattr(Config, 'MAX_TM25_BETS', 5)
     PREMIUM_MIN_EV = getattr(Config, 'PREMIUM_MIN_EV', 25) / 100
@@ -2535,7 +2687,7 @@ def find_tm25_matches(matches):
     STANDARD_XG_MAX = getattr(Config, 'TM25_XG_MAX', 3.0)
 
     logger.info("🔍 [ТМ 2.5] Единый поиск...")
-    stats = {'premium_found': 0, 'standard_found': 0}
+    stats = {'premium_found': 0, 'standard_found': 0, 'clv_skipped': 0}
     seen_keys = set()
 
     for match in matches:
@@ -2604,14 +2756,26 @@ def find_tm25_matches(matches):
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and p_under >= PREMIUM_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.35: continue
-                # ★ v4.5: Kelly-stake
                 kelly_stake = calculate_stake(
                     bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
                 )
+                # ★ CLV-фильтр
+                final_stake, clv_action = apply_clv_filter(
+                    source='tm25_premium',
+                    base_stake=kelly_stake,
+                    prob_pct=p_under * 100,
+                    odds=odds_tm25,
+                    bank=bank,
+                )
+                if final_stake <= 0:
+                    logger.info(f"⏭️ CLV SKIP (tm25_premium): {home} vs {away}")
+                    stats['clv_skipped'] += 1
+                    continue
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5 🔥',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
-                            'odds': odds_tm25, 'stake': kelly_stake,
+                            'odds': odds_tm25, 'stake': final_stake,
+                            'clv_action': clv_action,
                             'level': 'PREMIUM', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2631,14 +2795,26 @@ def find_tm25_matches(matches):
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV and p_under >= STANDARD_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.20: continue
-                # ★ v4.5: Kelly-stake
                 kelly_stake = calculate_stake(
                     bank=bank, prob_pct=p_under * 100, odds=odds_tm25,
                 )
+                # ★ CLV-фильтр
+                final_stake, clv_action = apply_clv_filter(
+                    source='tm25_standard',
+                    base_stake=kelly_stake,
+                    prob_pct=p_under * 100,
+                    odds=odds_tm25,
+                    bank=bank,
+                )
+                if final_stake <= 0:
+                    logger.info(f"⏭️ CLV SKIP (tm25_standard): {home} vs {away}")
+                    stats['clv_skipped'] += 1
+                    continue
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5',
                             'prob': round(p_under * 100, 1),
                             'ev': round(ev_under * 100, 1),
-                            'odds': odds_tm25, 'stake': kelly_stake,
+                            'odds': odds_tm25, 'stake': final_stake,
+                            'clv_action': clv_action,
                             'level': 'STANDARD', 'odds_updated': False}
                 tm25_candidates.append({
                     "home": home, "away": away, "league": league_name,
@@ -2657,17 +2833,18 @@ def find_tm25_matches(matches):
             logger.error(f"❌ [ТМ2.5] {e}")
             continue
 
-    logger.info(f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}")
+    logger.info(f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']}, "
+                f"CLV-skip: {stats['clv_skipped']}")
     tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     return tm25_candidates
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE (с Kelly)
+# ★ ПОТОК 3: VALUE (Kelly + CLV)
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=2):
-    bank = storage.load_bank()  # ★ v4.5
+    bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
     VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
     VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
@@ -2678,6 +2855,7 @@ def find_value_matches(matches, max_bets=2):
 
     value_candidates = []
     blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
+    clv_skipped = 0
 
     for match in matches:
         if not match or not isinstance(match, dict): continue
@@ -2812,15 +2990,29 @@ def find_value_matches(matches, max_bets=2):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
-            # ★ v4.5: Kelly-stake
+            # ★ Kelly
             kelly_stake = calculate_stake(
                 bank=bank,
                 prob_pct=best_bet.get('prob', 0),
                 odds=best_bet.get('odds', 1.85),
             )
+            # ★ CLV-фильтр
+            final_stake, clv_action = apply_clv_filter(
+                source='value',
+                base_stake=kelly_stake,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (value): {home} vs {away}")
+                clv_skipped += 1
+                continue
             for b in candidates_bc:
-                b['stake'] = kelly_stake
-            best_bet['stake'] = kelly_stake
+                b['stake'] = final_stake
+                b['clv_action'] = clv_action
+            best_bet['stake'] = final_stake
+            best_bet['clv_action'] = clv_action
 
             country_name, country_flag = _get_country_flag(league_id)
 
@@ -2842,7 +3034,7 @@ def find_value_matches(matches, max_bets=2):
             logger.info(
                 f"💎 VALUE: {home} vs {away} | {best_bet['label']} @ "
                 f"{best_bet['odds']} | EV: {best_bet['ev']}% | "
-                f"Prob: {best_bet['prob']}% | Stake: ${best_bet['stake']}"
+                f"Prob: {best_bet['prob']}% | Stake: ${best_bet['stake']} ({clv_action})"
             )
 
         except Exception as e:
@@ -2851,7 +3043,7 @@ def find_value_matches(matches, max_bets=2):
 
     value_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     top = value_candidates[:VALUE_MAX_RESULTS]
-    logger.info(f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}")
+    logger.info(f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}, CLV-skip: {clv_skipped}")
     return top
 
 
@@ -2861,17 +3053,17 @@ def find_value_matches(matches, max_bets=2):
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 1: 70%+ (Kelly)")
+    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV)")
     logger.info("=" * 60)
     top_matches_70 = find_top_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 2: ТМ 2.5 (Kelly)")
+    logger.info("📊 ПОТОК 2: ТМ 2.5 (Kelly + CLV)")
     logger.info("=" * 60)
     tm25_matches = find_tm25_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 3: VALUE 💎 (Kelly)")
+    logger.info("📊 ПОТОК 3: VALUE 💎 (Kelly + CLV)")
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=2)
 
@@ -3076,7 +3268,7 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ (★ v4.5 с home/away/league)
+# СНИМКИ КЭФОВ
 # ============================================================
 def snapshot_odds_for_upcoming():
     logger.info("🔍 snapshot: НАЧАЛО")
@@ -3207,14 +3399,14 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v4.5 — Kelly Criterion) ===
-
+# === КОНЕЦ ЧАСТИ 2/3 (v4.6 — Kelly + CLV-фильтр) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v4.4)
+# main.py — ЧАСТЬ 3/3 (v4.6 — CLV-фильтр)
 # Schedulers, Webhook, API, __main__
-# ★ Snapshots API без fallback'ов — работают напрямую из SQLite
-# ★ v4.4: single-fetch live status для матчей, выпавших из batch
+# ★ Snapshots API без fallback'ов
+# ★ v4.4: single-fetch live status
+# ★ v4.6: CLV по стратегиям
 # ============================================================
 
 def safe_job(func, name):
@@ -3776,11 +3968,17 @@ def webhook():
                                     msg += f"\n💎 <b>VALUE ({len(value_list)}):</b>\n\n"
                                     for i, m in enumerate(value_list, 1):
                                         b = m['best_bet']
-                                        msg += (f"{i}. <b>{m['home']} vs {m['away']}</b> 💎\n"
+                                        clv_icon = ''
+                                        if b.get('clv_action') == 'boosted':
+                                            clv_icon = ' 🟢×1.25'
+                                        elif b.get('clv_action') == 'reduced':
+                                            clv_icon = ' 🟡×0.5'
+                                        msg += (f"{i}. <b>{m['home']} vs {m['away']}</b> 💎{clv_icon}\n"
                                                 f"🏆 {m.get('league', '?')}\n"
                                                 f"📅 {m.get('match_time', '?')}\n"
                                                 f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%\n"
                                                 f"📊 Prob: {b['prob']}% | XG: {m.get('total_xg', 0):.2f}\n"
+                                                f"💵 Stake: ${b.get('stake', 0)}\n"
                                                 f"🏷️ {b.get('bookmaker', '—')}\n\n")
 
                                 if other_list:
@@ -3794,11 +3992,17 @@ def webhook():
                                               else (" ⭐ STANDARD" if src == 'tm25_standard' else ""))
                                         template_note = (" ⚠️ кэф шаблонный"
                                                          if b.get('odds_source') == 'template' else "")
-                                        msg += (f"{i}. <b>{m['home']} vs {m['away']}</b>{lv}\n"
+                                        clv_icon = ''
+                                        if b.get('clv_action') == 'boosted':
+                                            clv_icon = ' 🟢×1.25'
+                                        elif b.get('clv_action') == 'reduced':
+                                            clv_icon = ' 🟡×0.5'
+                                        msg += (f"{i}. <b>{m['home']} vs {m['away']}</b>{lv}{clv_icon}\n"
                                                 f"🏆 {m.get('league', '?')}\n"
                                                 f"📅 {m.get('match_time', '?')}\n"
                                                 f"🎯 {b['label']} | КЭФ: {b['odds']} | EV: {b['ev']}%{bonus_str}{template_note}\n"
                                                 f"📊 Prob: {b['prob']}% | XG: {m.get('total_xg', 0):.2f}\n"
+                                                f"💵 Stake: ${b.get('stake', 0)}\n"
                                                 f"🏷️ {b.get('bookmaker', '—')}\n\n")
                                 send_telegram(msg)
                             else:
@@ -3829,8 +4033,77 @@ def webhook():
                 send_telegram(handlers.handle_bettypes())
             elif text == '/timestats':
                 send_telegram(handlers.handle_timestats())
+
             elif text == '/strategies':
-                send_telegram(strategy_tester.get_comparison_report())
+                # ★ v4.6: добавить CLV-статус
+                report = strategy_tester.get_comparison_report()
+                try:
+                    clv_stats = _compute_all_strategy_clv(days=30)
+                    if clv_stats:
+                        report += "📊 <b>CLV ПО СТРАТЕГИЯМ (30д)</b>\n\n"
+                        for src, st in clv_stats.items():
+                            emoji = {
+                                'excellent': '🟢',
+                                'good': '🔵',
+                                'weak': '🟡',
+                                'critical': '🔴',
+                                'insufficient_data': '⚪',
+                            }.get(st['status'], '⚪')
+                            label = {
+                                '70_percent': '🎯 70%+',
+                                'value': '💎 VALUE',
+                                'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
+                                'tm25_standard': '⭐ ТМ 2.5 STD',
+                                'x2': '🔥 X2',
+                            }.get(src, src)
+                            report += (
+                                f"{emoji} <b>{label}</b>\n"
+                                f"   CLV: <b>{st['avg_clv']:+.2f}%</b> | "
+                                f"Замеров: {st['count']} | "
+                                f"x{st['multiplier']}\n\n"
+                            )
+                except Exception as e:
+                    logger.error(f"CLV report: {e}")
+                send_telegram(report)
+
+            elif text == '/clv_strategies':
+                try:
+                    clv_stats = _compute_all_strategy_clv(days=30)
+                    if not clv_stats:
+                        send_telegram("📭 Нет данных CLV")
+                    else:
+                        msg = "📊 <b>CLV ПО СТРАТЕГИЯМ (30д)</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        for src, st in sorted(clv_stats.items(), key=lambda x: x[1]['avg_clv'], reverse=True):
+                            emoji = {
+                                'excellent': '🟢',
+                                'good': '🔵',
+                                'weak': '🟡',
+                                'critical': '🔴',
+                                'insufficient_data': '⚪',
+                            }.get(st['status'], '⚪')
+                            label = {
+                                '70_percent': '🎯 70%+',
+                                'value': '💎 VALUE',
+                                'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
+                                'tm25_standard': '⭐ ТМ 2.5 STD',
+                                'x2': '🔥 X2',
+                            }.get(src, src)
+                            action = {
+                                'excellent': 'x1.25 BOOST',
+                                'good': 'normal',
+                                'weak': 'x0.5 REDUCE',
+                                'critical': '🛑 SKIP',
+                                'insufficient_data': 'awaiting data',
+                            }.get(st['status'], '')
+                            msg += (
+                                f"{emoji} <b>{label}</b>\n"
+                                f"   CLV: <b>{st['avg_clv']:+.2f}%</b>\n"
+                                f"   Замеров: {st['count']}\n"
+                                f"   Действие: <b>{action}</b>\n\n"
+                            )
+                        send_telegram(msg)
+                except Exception as e:
+                    send_telegram(f"❌ Ошибка: {e}")
 
             elif text == '/x2_info':
                 try:
@@ -4053,13 +4326,12 @@ def serve_manifest():
 
 
 # ============================================================
-# ★ API: LIVE — активные матчи + sparkline (v4.4: single-fetch)
+# ★ API: LIVE — активные матчи + sparkline (v4.4 single-fetch)
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
     """Активные матчи (идущие + ближайшие 2 часа) с live-счётом
-    и sparkline (мини-график движения кэфа).
-    ★ v4.4: если матч уже начался, но его нет в batch — запрашиваем индивидуально."""
+    и sparkline (мини-график движения кэфа)."""
     try:
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         today_str = now_msk.strftime('%Y-%m-%d')
@@ -4509,6 +4781,17 @@ def api_autobets_clv_stats():
             'negative_count': len(negative),
             'positive_rate': round(len(positive) / len(clv_values) * 100, 1),
         })
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ★ v4.6: CLV по стратегиям
+@app.route('/api/clv/by_strategy', methods=['GET'])
+def api_clv_by_strategy():
+    try:
+        days = int(request.args.get('days', 30))
+        stats = _compute_all_strategy_clv(days=days)
+        return jsonify({'status': 'ok', 'days': days, 'strategies': stats})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
@@ -5282,7 +5565,8 @@ def register_bot_commands():
             {"command": "report", "description": "📅 Отчёт за 7 дней"},
             {"command": "bettypes", "description": "🎲 По типам ставок"},
             {"command": "timestats", "description": "🕐 По времени"},
-            {"command": "strategies", "description": "📈 Сравнение стратегий"},
+            {"command": "strategies", "description": "📈 Сравнение стратегий + CLV"},
+            {"command": "clv_strategies", "description": "📊 CLV по стратегиям"},
             {"command": "team", "description": "🏟️ По команде"},
             {"command": "autobet", "description": "💸 Вкл/выкл автоставки"},
             {"command": "autobet_state", "description": "📊 Состояние автоставок"},
@@ -5362,7 +5646,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.4)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v4.6 — Kelly + CLV)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
