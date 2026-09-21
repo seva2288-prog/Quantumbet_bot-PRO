@@ -805,7 +805,7 @@
 
 
  <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы + навигация + модалки)-->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v4.6 + CLV-раздел)                -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1198,6 +1198,23 @@
             <div id="leagueBreakdown">
                 <div class="skeleton" style="width:70%"></div>
                 <div class="skeleton" style="width:50%"></div>
+            </div>
+        </div>
+
+        <!-- ★ v4.6: CLV по стратегиям -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="emerald-title">📊 CLV по стратегиям</h2>
+                <select id="clvPeriod" onchange="loadClvByStrategy()"
+                        style="padding:4px 8px;font-size:11px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <option value="7">7 дней</option>
+                    <option value="14">14 дней</option>
+                    <option value="30" selected>30 дней</option>
+                </select>
+            </div>
+            <div id="clvByStrategyContent">
+                <div class="skeleton" style="width:80%"></div>
+                <div class="skeleton" style="width:60%"></div>
             </div>
         </div>
     </div>
@@ -1712,7 +1729,7 @@
             <span class="sheet-icon">📈</span>
             <div>
                 <div class="sheet-label">Аналитика</div>
-                <div class="sheet-desc">Графики, стратегии, типы ставок</div>
+                <div class="sheet-desc">Графики, стратегии, типы ставок, CLV</div>
             </div>
         </button>
 
@@ -1928,12 +1945,15 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3                                              -->
+<!-- КОНЕЦ ЧАСТИ 2/3 (v4.6 — с CLV-карточкой)                     -->
 <!-- ============================================================ -->
 
 
 <<!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.5 без ? и с "идёт X-я минута")   -->
+<!-- ============================================================ -->
+<!-- ============================================================ -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v4.7 — CLV-вкладка)                  -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2467,7 +2487,7 @@ function renderLiveCard(m) {
     const minutes = m.minutes_to_match;
     const cls = isLive ? 'is-live' : (isFinal ? '' : 'is-soon');
 
-    // ★ v4.5: LIVE-минута в тексте времени
+    // ★ LIVE-минута в тексте времени
     let timeInfo = '';
     if (isLive) {
         const minStr = m.minute ? `${m.minute}'` : '';
@@ -2483,12 +2503,12 @@ function renderLiveCard(m) {
             timeInfo = `через <b>${h}ч ${mn}м</b>`;
         }
     } else {
-        // ★ v4.5: матч должен был начаться, но live-данных нет — показываем "идёт X-я минута"
+        // ★ Матч должен был начаться, но live-данных нет — показываем "идёт X-я минута"
         const liveMin = Math.max(1, Math.round(-minutes));
         timeInfo = `<span style="color:var(--red-400);">🔴 идёт ${liveMin}-я минута</span>`;
     }
 
-    // ★ v4.5: бейдж статуса (без "?" для live без данных)
+    // ★ Бейдж статуса (без "?")
     let statusBadge = '';
     if (isLive) {
         statusBadge = `<span class="live-badge-live">⚽ LIVE</span>`;
@@ -2514,7 +2534,7 @@ function renderLiveCard(m) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
-    // ★ v4.5: счёт и минута внутри карточки
+    // ★ Счёт и минута внутри карточки
     let scoreHtml = '';
     if (isLive && m.score) {
         const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
@@ -3676,6 +3696,8 @@ function renderAnalytics(data) {
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);
     renderLeagueBreakdown(history);
+    // ★ v4.7: CLV по стратегиям
+    loadClvByStrategy();
 }
 
 function renderAnalyticsChart() {
@@ -3813,6 +3835,145 @@ function renderLeagueBreakdown(history) {
             <span style="color:${color};font-weight:700;font-size:12px;">${s.profit >= 0 ? '+' : ''}$${s.profit.toFixed(2)}</span>
         </div>`;
     }).join('');
+}
+
+// ============================================================
+// ★ v4.7: CLV ПО СТРАТЕГИЯМ
+// ============================================================
+async function loadClvByStrategy() {
+    const container = document.getElementById('clvByStrategyContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="skeleton" style="width:80%"></div>
+        <div class="skeleton" style="width:60%"></div>
+    `;
+
+    try {
+        const period = document.getElementById('clvPeriod')?.value || 30;
+        const resp = await fetch(API_BASE + `/api/clv/by_strategy?days=${period}&t=` + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        if (data.status !== 'ok') throw new Error(data.error || 'API error');
+
+        const strategies = data.strategies || {};
+        if (Object.keys(strategies).length === 0) {
+            container.innerHTML = `
+                <div class="no-data" style="padding:20px;">
+                    <div class="emoji">📭</div>
+                    <div class="title">Пока нет CLV-данных</div>
+                    <div class="desc">Нужно больше рассчитанных автоставок. Подожди 2-3 дня.</div>
+                </div>
+            `;
+            return;
+        }
+
+        renderClvByStrategy(strategies, period);
+    } catch (e) {
+        console.error('loadClvByStrategy:', e);
+        container.innerHTML = `
+            <div style="padding:12px;color:var(--red-400);font-size:12px;">
+                ❌ Ошибка: ${e.message}
+                <button class="btn btn-outline" onclick="loadClvByStrategy()" style="margin-left:8px;padding:2px 8px;font-size:10px;">🔄</button>
+            </div>
+        `;
+    }
+}
+
+function renderClvByStrategy(strategies, period) {
+    const container = document.getElementById('clvByStrategyContent');
+    if (!container) return;
+
+    const labelMap = {
+        '70_percent': '🎯 70%+',
+        'value': '💎 VALUE',
+        'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
+        'tm25_standard': '⭐ ТМ 2.5 STD',
+        'x2': '🔥 X2',
+    };
+
+    const statusMap = {
+        'excellent':         { emoji: '🟢', action: '×1.25 BOOST', color: 'var(--emerald-400)' },
+        'good':              { emoji: '🔵', action: 'normal',       color: 'var(--blue-400)' },
+        'weak':              { emoji: '🟡', action: '×0.5 REDUCE',  color: 'var(--gold-400)' },
+        'critical':          { emoji: '🔴', action: '🛑 SKIP',      color: 'var(--red-400)' },
+        'insufficient_data': { emoji: '⚪', action: 'ожидаем',       color: 'var(--text-tertiary)' },
+        'no_data':           { emoji: '⚪', action: 'нет данных',    color: 'var(--text-tertiary)' },
+        'active':            { emoji: '⚪', action: 'ожидаем',       color: 'var(--text-tertiary)' },
+    };
+
+    const sorted = Object.entries(strategies).sort((a, b) =>
+        (b[1].avg_clv || 0) - (a[1].avg_clv || 0)
+    );
+
+    const positive = sorted.filter(([_, s]) => s.avg_clv > 0).length;
+    const total = sorted.length;
+
+    let html = `
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px;">
+            <div class="stat-card">
+                <div class="value emerald">${positive}/${total}</div>
+                <div class="label">📈 С CLV+</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">${period}д</div>
+                <div class="label">📅 Период</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">${
+                    sorted.reduce((s, [_, x]) => s + (x.count || 0), 0)
+                }</div>
+                <div class="label">📊 Замеров</div>
+            </div>
+        </div>
+    `;
+
+    html += sorted.map(([src, st]) => {
+        const label = labelMap[src] || src;
+        const meta = statusMap[st.status] || statusMap['no_data'];
+        const avgClv = st.avg_clv || 0;
+        const clvClass = avgClv >= 0 ? 'up' : 'down';
+        const clvStr = (avgClv >= 0 ? '+' : '') + avgClv.toFixed(2) + '%';
+
+        const barPct = Math.min(Math.abs(avgClv) / 3 * 100, 100);
+        const barColor = avgClv >= 0 ? 'linear-gradient(90deg, var(--emerald-500), var(--emerald-400))' :
+                                       'linear-gradient(90deg, var(--red-500), var(--red-400))';
+
+        return `
+            <div style="padding:12px;margin-bottom:8px;border-radius:10px;
+                        background:rgba(255,255,255,0.02);
+                        border:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:700;color:${meta.color};">
+                            ${meta.emoji} ${label}
+                        </div>
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
+                            ${st.count} замеров • действие: <b style="color:${meta.color};">${meta.action}</b>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="trend-pct ${clvClass}" style="font-size:16px;font-weight:800;">
+                            ${clvStr}
+                        </div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">avg CLV</div>
+                    </div>
+                </div>
+                <div style="height:6px;background:rgba(255,255,255,0.05);border-radius:999px;overflow:hidden;">
+                    <div style="height:100%;width:${barPct}%;background:${barColor};transition:width 0.5s;"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    html += `
+        <div style="font-size:10px;color:var(--text-tertiary);margin-top:12px;padding-top:10px;border-top:1px solid var(--border-color);">
+            💡 CLV > +1% → Kelly × 1.25 • CLV < -0.5% → Kelly × 0.5 • CLV < -2% → пропуск ставки
+        </div>
+    `;
+
+    container.innerHTML = html;
 }
 
 // ============================================================
@@ -5168,6 +5329,7 @@ Object.assign(window, {
     loadLive, renderLive, startLiveRefresh,
     renderSparkline,
     loadAnomalyStats, renderAnomalyStats,
+    loadClvByStrategy, renderClvByStrategy,
 });
 </script>
 </body>
