@@ -4988,7 +4988,7 @@ def add_manual_match():
             'league': 'Ручное добавление',
             'bet': bet_type, 'odds': odds, 'stake': stake,
             'ev': 0, 'prob': 0, 'result': result, 'profit': profit,
-            'date': datetime.now().strftime('%Y-%M'),
+            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
             'home_goals': hg, 'away_goals': ag,
             'manual': True, 'bookmaker': bookmaker,
             'source': 'manual',
