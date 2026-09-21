@@ -805,7 +805,7 @@
 
 
  <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы)                     -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (все страницы + навигация + модалки)-->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1670,7 +1670,265 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 — ПРОДОЛЖЕНИЕ В ЧАСТИ 3/3 (JS)               -->
+<!-- BOTTOM NAV (навигация)                                       -->
+<!-- ============================================================ -->
+<nav class="bottom-nav" role="navigation">
+    <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
+        <span class="icon">📊</span>
+        <span class="label">Главная</span>
+    </button>
+    <button class="nav-item" data-page="matches" onclick="switchPage('matches')">
+        <span class="icon">🎯</span>
+        <span class="label">Матчи</span>
+    </button>
+    <button class="nav-item" data-page="snapshots" onclick="switchPage('snapshots')">
+        <span class="icon">📸</span>
+        <span class="label">Снимки</span>
+    </button>
+    <button class="nav-item" data-page="live" onclick="switchPage('live')">
+        <span class="icon">⚡</span>
+        <span class="label">Live</span>
+        <span class="nav-badge" id="liveNavBadge" style="display:none;">0</span>
+    </button>
+    <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
+        <span class="icon">🔥</span>
+        <span class="label">X2</span>
+    </button>
+    <button class="nav-item" onclick="toggleMoreMenu()">
+        <span class="icon">⋯</span>
+        <span class="label">Ещё</span>
+    </button>
+</nav>
+
+<!-- ============================================================ -->
+<!-- BOTTOM SHEET "ЕЩЁ"                                           -->
+<!-- ============================================================ -->
+<div class="modal-overlay" id="moreMenuModal" onclick="if(event.target===this) closeMoreMenu()">
+    <div class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-title">Меню</div>
+
+        <button class="sheet-item" onclick="openFromMore('analytics')">
+            <span class="sheet-icon">📈</span>
+            <div>
+                <div class="sheet-label">Аналитика</div>
+                <div class="sheet-desc">Графики, стратегии, типы ставок</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="openFromMore('autobets')">
+            <span class="sheet-icon">💸</span>
+            <div>
+                <div class="sheet-label">Автоставки</div>
+                <div class="sheet-desc">Виртуальный банк с реальными кэфами</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="openFromMore('simulator')">
+            <span class="sheet-icon">🧪</span>
+            <div>
+                <div class="sheet-label">Симулятор стратегий</div>
+                <div class="sheet-desc">Проверка стратегий + Grid Search</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="closeMoreMenu(); openSettings()">
+            <span class="sheet-icon">⚙️</span>
+            <div>
+                <div class="sheet-label">Настройки</div>
+                <div class="sheet-desc">Банк, тема, экспорт, бэкап</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="closeMoreMenu(); installPWA()">
+            <span class="sheet-icon">📲</span>
+            <div>
+                <div class="sheet-label">Установить приложение</div>
+                <div class="sheet-desc">Добавить на главный экран</div>
+            </div>
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- МОДАЛКИ                                                       -->
+<!-- ============================================================ -->
+
+<!-- MODAL: ADD MATCH -->
+<div class="modal-overlay" id="addMatchModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>➕ Добавить матч</h3>
+            <button class="modal-close" onclick="hideAddMatchModal()">✕</button>
+        </div>
+        <div class="modal-field">
+            <label>🏟️ Название матча</label>
+            <input type="text" id="matchNameInput" placeholder="Real Madrid vs Barcelona">
+        </div>
+        <div class="modal-field">
+            <label>⚽ Счёт</label>
+            <input type="text" id="matchScoreInput" placeholder="2-1">
+        </div>
+        <div class="modal-field">
+            <label>📊 Ставка</label>
+            <input type="text" id="matchBetInput" placeholder="ТМ 2.5">
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>💰 Коэф</label>
+                    <input type="number" id="matchOddsInput" value="1.85" step="0.01">
+                </div>
+                <div>
+                    <label>💵 Сумма</label>
+                    <input type="number" id="matchStakeInput" value="42.87" step="0.01">
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <label>📊 Результат</label>
+            <select id="matchResultSelect">
+                <option value="win">✅ WIN</option>
+                <option value="loss">❌ LOSS</option>
+                <option value="push">🔄 PUSH</option>
+                <option value="pending">⏳ PENDING</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="saveManualMatch()">💾 Сохранить</button>
+            <button class="btn btn-outline" onclick="hideAddMatchModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: X2 MATCH -->
+<div class="modal-overlay" id="x2Modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="x2ModalTitle">➕ X2 Матч</h3>
+            <button class="modal-close" onclick="closeX2Modal()">✕</button>
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>📅 Дата</label>
+                    <input type="date" id="x2Date">
+                </div>
+                <div>
+                    <label>🕐 Время (МСК)</label>
+                    <input type="time" id="x2Time" placeholder="21:45">
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <label>🏟️ Матч</label>
+            <input type="text" id="x2Match" placeholder="Al-Ettifaq vs Al-Faisaly">
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>🏆 Фаворит</label>
+                    <input type="text" id="x2Favorite">
+                </div>
+                <div>
+                    <label>📉 Аутсайдер</label>
+                    <input type="text" id="x2Underdog">
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>📊 Кэф X2</label>
+                    <input type="number" id="x2Odds" step="0.01">
+                </div>
+                <div>
+                    <label>💰 Сумма</label>
+                    <input type="number" id="x2Stake" step="0.5">
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>⚽ Счёт</label>
+                    <input type="text" id="x2Score" placeholder="0:0">
+                </div>
+                <div>
+                    <label>📊 Результат</label>
+                    <select id="x2Result">
+                        <option value="pending">⏳ PENDING</option>
+                        <option value="win">✅ WIN</option>
+                        <option value="loss">❌ LOSS</option>
+                        <option value="push">🔄 PUSH</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-field">
+            <label>📝 Примечание</label>
+            <input type="text" id="x2Note" placeholder="Нет мотивации у фаворита">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="saveX2Match()">💾 Сохранить</button>
+            <button class="btn btn-outline" onclick="closeX2Modal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: IMPORT X2 EXCEL -->
+<div class="modal-overlay" id="x2ImportModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>📤 Импорт X2</h3>
+            <button class="modal-close" onclick="closeX2ImportModal()">✕</button>
+        </div>
+        <div class="modal-field">
+            <label>📁 Excel файл</label>
+            <input type="file" id="x2ImportFile" accept=".xlsx,.xls,.csv" style="padding:8px;">
+        </div>
+        <div style="font-size:10px;color:var(--text-tertiary);padding:8px 0;">
+            📋 Формат: Дата | Время | Матч | Фаворит | Аутсайдер | Кэф | Сумма | Счёт | Результат | Примечание
+        </div>
+        <div id="x2ImportStatus" style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="importX2Excel()">📤 Импортировать</button>
+            <button class="btn btn-outline" onclick="closeX2ImportModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: MATCH DETAIL -->
+<div class="modal-overlay" id="matchDetailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="matchDetailTitle">Детали матча</h3>
+            <button class="modal-close" onclick="closeMatchDetail()">✕</button>
+        </div>
+        <div id="matchDetailBody"></div>
+    </div>
+</div>
+
+<!-- MODAL: SNAPSHOT CHART -->
+<div class="modal-overlay" id="snapshotChartModal">
+    <div class="modal modal-large">
+        <div class="modal-header">
+            <h3 id="snapshotChartTitle">📈 Движение кэфов</h3>
+            <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
+        </div>
+        <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
+        <div class="chart-modal-container">
+            <canvas id="snapshotChart"></canvas>
+        </div>
+        <div id="snapshotChartStats"></div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
+
+<!-- ============================================================ -->
+<!-- КОНЕЦ ЧАСТИ 2/3                                              -->
 <!-- ============================================================ -->
 
 
