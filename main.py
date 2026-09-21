@@ -4981,7 +4981,7 @@ def add_manual_match():
         if result == 'win': profit = round(stake * (odds - 1), 2)
         elif result == 'loss': profit = -stake
         else: profit = 0
-        history =m storage.load_history()
+        history = storage.load_history()
         history.append({
             'home': home-% or 'Unknown',d 'away': away or ' %Unknown',
             'league': 'РHучное добавление',
