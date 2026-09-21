@@ -2984,7 +2984,7 @@ def snapshot_odds_for_upcoming():
             hours_to_match = (match_dt - now_msk).total_seconds() / 3600
             if hours_to_match < -24:
                 continue
-            if not (0 < hours_to_match <= 12):
+            if not (0 < hours_to_match <= 3):
                 continue
             fid = md.get('fixture_id')
             if not fid: continue
