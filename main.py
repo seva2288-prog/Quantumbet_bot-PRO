@@ -2427,6 +2427,7 @@ def find_top_matches(matches):
     bet_type_count = {}
     league_count = {}
     x2_saved_count = 0
+    cheap_fav_skipped = 0  # ★ счётчик отсечённых дешёвых фаворитов
 
     X2_ENABLED = getattr(Config, 'X2_ENABLED', True)
     X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
@@ -2435,11 +2436,15 @@ def find_top_matches(matches):
     X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
     X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
 
+    # ★ ПУНКТ 2: минимальный кэф для П1/1X
+    MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.50)
+
     for match_idx, match in enumerate(matches):
         if not match or not isinstance(match, dict): continue
         if (match_idx + 1) % 30 == 0:
             send_telegram(f"💓 <b>АНАЛИЗ 70%+</b> | {match_idx + 1}/{total_matches}\n"
-                          f"🎯 Кандидатов: {len(best_matches)} | X2: {x2_saved_count}")
+                          f"🎯 Кандидатов: {len(best_matches)} | X2: {x2_saved_count} | "
+                          f"Skip-1X: {cheap_fav_skipped}")
         try:
             fixture = match.get('fixture')
             teams = match.get('teams')
@@ -2547,6 +2552,15 @@ def find_top_matches(matches):
             if not bets: continue
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
+
+            # ★ ПУНКТ 2: фильтр дешёвых фаворитов (1X/П1 с кэфом < 1.50)
+            if best_bet['type'] in ('П1', '1X') and best_bet['odds'] < MIN_ODDS_1X:
+                cheap_fav_skipped += 1
+                logger.info(
+                    f"⏭️ 1X/П1 SKIP (кэф {best_bet['odds']} < {MIN_ODDS_1X}): "
+                    f"{home} vs {away}"
+                )
+                continue
 
             EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
@@ -2698,7 +2712,10 @@ def find_top_matches(matches):
 
     best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
     top = best_matches[:max_bets]
-    logger.info(f"📊 [70%+] Итого: {len(top)}, X2-сохранено: {x2_saved_count}")
+    logger.info(
+        f"📊 [70%+] Итого: {len(top)}, X2-сохранено: {x2_saved_count}, "
+        f"Skip 1X/П1 (кэф < {MIN_ODDS_1X}): {cheap_fav_skipped}"
+    )
 
     if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
         try:
