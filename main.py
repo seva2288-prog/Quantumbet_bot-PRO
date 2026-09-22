@@ -4074,6 +4074,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v4.6: CLV по стратегиям
 # ★ v4.9: показ llm_reason в /update
 # ★ v5.0: показ line_movement в /update + StrategyTester
+# ★ v5.1: bet_info в /api/snapshots/<fid> (для модалки)
 # ============================================================
 
 def safe_job(func, name):
@@ -5742,26 +5743,64 @@ def api_snapshots_list():
 
 
 # ============================================================
-# ★ API: СНИМКИ — детали
+# ★ API: СНИМКИ — детали (с bet_info для модалки)
 # ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
         rows = storage.get_snapshots_by_fixture(fixture_id)
         if not rows:
-            return jsonify({'status': 'ok', 'fixture_id': fixture_id, 'history': []})
+            return jsonify({
+                'status': 'ok',
+                'fixture_id': fixture_id,
+                'bet': None,
+                'history': [],
+            })
 
         m_info = storage.get_snapshot_match_info(fixture_id) or {}
         match_time = '?'
+        bet_info = None
         try:
             cache = storage.load_cache()
             all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
             for m in all_matches:
-                if m.get('fixture_id') == fixture_id:
-                    match_time = m.get('match_time', '?')
-                    break
-        except Exception:
-            pass
+                if m.get('fixture_id') != fixture_id:
+                    continue
+                match_time = m.get('match_time', '?')
+
+                # ★ Ищем best_bet
+                bb = m.get('best_bet') or {}
+                if bb.get('label') and bb.get('odds', 0) > 1.01:
+                    minutes_to_match = None
+                    if match_time and match_time != '?':
+                        try:
+                            match_dt = datetime.strptime(match_time, "%d.%m.%Y %H:%M")
+                            now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+                            minutes_to_match = int((match_dt - now_msk).total_seconds() / 60)
+                        except Exception:
+                            pass
+
+                    # Показываем ставку, если ≤30 мин до матча
+                    # или матч идёт (до 120 мин после старта)
+                    if minutes_to_match is not None and -120 <= minutes_to_match <= 30:
+                        bet_info = {
+                            'label': bb.get('label'),
+                            'odds': bb.get('odds'),
+                            'ev': bb.get('ev', 0),
+                            'prob': bb.get('prob', 0),
+                            'stake': bb.get('stake', 0),
+                            'source': m.get('source', '70_percent'),
+                            'bookmaker': bb.get('bookmaker', '—'),
+                            'movement_pct': bb.get('movement_pct'),
+                            'movement_hours': bb.get('movement_hours'),
+                            'old_odds': bb.get('old_odds'),
+                            'snapshots_count': bb.get('snapshots_count'),
+                            'llm_reason': bb.get('llm_reason', ''),
+                            'minutes_to_match': minutes_to_match,
+                        }
+                break
+        except Exception as e:
+            logger.error(f"snapshot bet lookup error: {e}")
 
         history_map = {}
         for r in rows:
@@ -5790,6 +5829,7 @@ def api_snapshots_detail(fixture_id):
                 'league': m_info.get('league', '?'),
                 'match_time': match_time,
             },
+            'bet': bet_info,
             'history': history,
         })
     except Exception as e:
@@ -6345,7 +6385,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.0 — Line Movement)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.1 — bet_info в модалке)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
