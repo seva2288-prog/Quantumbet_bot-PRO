@@ -1389,7 +1389,7 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v5.0 — Line Movement + LLM)
+# main.py — ЧАСТЬ 2/3 (v5.1 — X2 home advantage)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
@@ -1399,6 +1399,7 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 # ★ BTTS-поток
 # ★ v5.0: LINE MOVEMENT (аномалии кэфов)
 # ★ v4.9: LLM объяснения + DeepSeek pick
+# ★ v5.1: X2 home advantage bonus/penalty
 # ============================================================
 
 # ============================================================
@@ -2413,7 +2414,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM reasons)
+# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM reasons + X2 home advantage)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -2589,6 +2590,9 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
+            # ============================================================
+            # ★ X2 СТРАТЕГИЯ + HOME ADVANTAGE (v5.1)
+            # ============================================================
             if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2599,6 +2603,38 @@ def find_top_matches(matches):
                         x2_bet = b; x2_side = 'X2'; break
                     elif X2_BOTH_SIDES and b_type == '1X' and ap < hp:
                         x2_bet = b; x2_side = '1X'; break
+
+                # ★ HOME ADVANTAGE: бонус если андердог играет дома
+                if x2_bet is not None:
+                    X2_HOME_BONUS = getattr(Config, 'X2_HOME_BONUS', 3.0)
+                    X2_AWAY_PENALTY = getattr(Config, 'X2_AWAY_PENALTY', 2.0)
+                    underdog_is_home = (x2_side == 'X2')  # X2 → андердог home
+                    original_prob = x2_bet.get('prob', 0)
+
+                    if underdog_is_home:
+                        x2_bet['prob'] = round(original_prob + X2_HOME_BONUS, 1)
+                        x2_bet['home_advantage'] = True
+                        logger.info(
+                            f"🏠 X2 HOME: {home} vs {away} | {x2_side} | "
+                            f"prob {original_prob}% → {x2_bet['prob']}%"
+                        )
+                    else:
+                        x2_bet['prob'] = round(original_prob - X2_AWAY_PENALTY, 1)
+                        x2_bet['home_advantage'] = False
+                        logger.info(
+                            f"✈️ X2 AWAY: {home} vs {away} | {x2_side} | "
+                            f"prob {original_prob}% → {x2_bet['prob']}%"
+                        )
+
+                    # Пересчёт EV
+                    if x2_bet.get('odds', 0) > 1.01:
+                        new_prob = x2_bet['prob'] / 100
+                        x2_bet['ev'] = round((new_prob * x2_bet['odds'] - 1) * 100, 1)
+
+                    # Пересортировка ставок
+                    bets.sort(key=lambda x: x['ev'], reverse=True)
+                    best_bet = bets[0]
+
                 if (x2_bet is not None
                     and position_diff >= X2_MIN_POSITION_DIFF
                     and hp < X2_MAX_POSITION and ap < X2_MAX_POSITION
@@ -2678,7 +2714,6 @@ def find_top_matches(matches):
                 if llm:
                     _apply_llm_to_match(m, llm, alpha=0.7)
 
-            # ★ v4.9: Объяснения от DeepSeek для топ-10
             for m in top[:10]:
                 try:
                     reason = llm_generate_reason(m)
@@ -3430,7 +3465,6 @@ def find_line_movement_matches(matches):
         'odds_filter': 0,
     }
 
-    # Строим lookup матчей из переданного списка (для получения метаданных)
     match_lookup = {}
     for m in matches:
         if not isinstance(m, dict): continue
@@ -3449,11 +3483,9 @@ def find_line_movement_matches(matches):
             'fixture_date': fixture.get('date', ''),
         }
 
-    # Окно: последние N часов до старта + матч ещё не начался
     now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
     cutoff_time = now_msk + timedelta(hours=HOURS_BEFORE)
 
-    # Получаем все снимки за последние 2 суток (для скорости)
     snapshots_cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
     try:
         all_snaps = storage.get_snapshots_since(snapshots_cutoff)
@@ -3465,7 +3497,6 @@ def find_line_movement_matches(matches):
         logger.info("[LM] Нет снимков в БД")
         return []
 
-    # Группируем по fixture_id + market + selection
     groups = defaultdict(list)
     for s in all_snaps:
         fid = s.get('fixture_id')
@@ -3485,7 +3516,6 @@ def find_line_movement_matches(matches):
         if len(candidates) >= MAX_BETS * 3:
             break
         try:
-            # Проверяем метаданные матча
             if fid not in match_lookup:
                 continue
             meta = match_lookup[fid]
@@ -3498,7 +3528,6 @@ def find_line_movement_matches(matches):
                 stats['whitelist_miss'] += 1
                 continue
 
-            # Проверяем, что матч ещё не начался
             try:
                 match_dt = datetime.strptime(meta['match_time'], "%d.%m.%Y %H:%M")
                 if match_dt < now_msk:
@@ -3508,13 +3537,11 @@ def find_line_movement_matches(matches):
             except Exception:
                 continue
 
-            # Лимит на лигу
             cur_league_bets = league_bet_count.get(league_name, 0)
             if cur_league_bets >= MAX_LEAGUE_BETS:
                 stats['league_limit'] += 1
                 continue
 
-            # Сортируем снимки по времени
             snaps_sorted = sorted(snaps, key=lambda x: x.get('created_at', ''))
             if len(snaps_sorted) < MIN_SNAPS:
                 stats['no_snaps'] += 1
@@ -3522,7 +3549,6 @@ def find_line_movement_matches(matches):
             if len(snaps_sorted) > MAX_SNAPS:
                 snaps_sorted = snaps_sorted[-MAX_SNAPS:]
 
-            # Берём первый и последний
             first = snaps_sorted[0]
             last = snaps_sorted[-1]
 
@@ -3531,15 +3557,13 @@ def find_line_movement_matches(matches):
             if old_odds <= 1.01 or new_odds <= 1.01:
                 continue
 
-            # Изменение
             change_pct = ((new_odds / old_odds) - 1) * 100
 
-            # Время между снимками
             try:
                 t1 = datetime.fromisoformat(str(first.get('created_at', '')))
                 t2 = datetime.fromisoformat(str(last.get('created_at', '')))
                 hours_diff = (t2 - t1).total_seconds() / 3600
-                if hours_diff < 0.5:  # слишком близко — шум
+                if hours_diff < 0.5:
                     continue
             except Exception:
                 hours_diff = 0
@@ -3557,12 +3581,10 @@ def find_line_movement_matches(matches):
                 stats['no_drop'] += 1
                 continue
 
-            # Итоговый кэф
             if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
                 stats['odds_filter'] += 1
                 continue
 
-            # Формируем ставку
             if sel == '1':
                 label = 'П1'
             elif sel == '2':
@@ -3570,11 +3592,8 @@ def find_line_movement_matches(matches):
             else:
                 label = 'X'
 
-            # Для падений — ставим на текущий кэф
-            # Для роста — если TRADE_RISES, ставим тоже (на движение)
             final_odds = new_odds
 
-            # Фиксированный stake (нет prob модели)
             final_stake = round(bank * STAKE_PCT, 2)
             if final_stake < 1:
                 final_stake = 1.0
@@ -3585,8 +3604,8 @@ def find_line_movement_matches(matches):
             best_bet = {
                 'type': 'lm_' + sel.lower(),
                 'label': label_full,
-                'prob': 0,  # нет prob модели
-                'ev': 0,    # нет EV модели
+                'prob': 0,
+                'ev': 0,
                 'odds': final_odds,
                 'stake': final_stake,
                 'clv_action': 'no_model',
@@ -3600,7 +3619,6 @@ def find_line_movement_matches(matches):
             }
 
             country_name, country_flag = "", ""
-            # Пробуем найти league_id по league_name
             for lid, lname in Config.LEAGUE_NAMES.items():
                 if lname == league_name:
                     country_name, country_flag = Config.LEAGUE_COUNTRY.get(lid, ("", ""))
@@ -3648,12 +3666,12 @@ def find_line_movement_matches(matches):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК (v5.0)
+# КОМБИНИРОВАННЫЙ ПОИСК (v5.1)
 # ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM)")
+    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 home)")
     logger.info("=" * 60)
     top_matches_70 = find_top_matches(matches)
 
@@ -3684,7 +3702,6 @@ def find_top_matches_with_tm25(matches):
     combined = []
     keys = set()
 
-    # Приоритет: VALUE → BTTS → LINE MOVEMENT → 70%+ → ТМ 2.5
     for m in value_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
@@ -3710,7 +3727,6 @@ def find_top_matches_with_tm25(matches):
         if key not in keys:
             combined.append(m); keys.add(key)
 
-    # Сортировка: line_movement не имеет EV — ставим его отдельно в конце
     def _sort_key(m):
         src = m.get('source', '')
         if src == 'line_movement':
@@ -4064,7 +4080,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v5.0 — Line Movement + LLM) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v5.1 — X2 home advantage) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v5.0 — Line Movement + LLM)
