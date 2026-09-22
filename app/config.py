@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.6 — Турниры сборных + Live + Kelly + CLV + ТМ 2.5 + BTTS + Line Movement
+★ ВЕРСИЯ 3.7 — X2 home advantage + Line Movement
 """
 import os
 import sys
@@ -103,6 +103,10 @@ class Config:
     X2_MIN_EV = 5
     X2_MIN_PROB = 55
     X2_BOTH_SIDES = True
+
+    # ★ X2: home/away context (v3.7)
+    X2_HOME_BONUS = 3.0        # +3% к prob если андердог дома
+    X2_AWAY_PENALTY = 2.0      # -2% если в гостях
 
     # ============================================================
     # ★ BTTS (Обе Забьют) (v4.8)
@@ -811,6 +815,20 @@ class Config:
             return False
         return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)
 
+    # ★ v3.7: X2 helpers
+    @classmethod
+    def get_x2_prob_bonus(cls, side):
+        """
+        Возвращает бонус к prob для X2 в зависимости от того,
+        играет ли андердог дома или в гостях.
+        side: 'X2' (андердог = home) или '1X' (андердог = away)
+        """
+        if side == 'X2':
+            return cls.X2_HOME_BONUS
+        elif side == '1X':
+            return -cls.X2_AWAY_PENALTY
+        return 0.0
+
     @classmethod
     def check(cls):
         missing = []
@@ -869,6 +887,10 @@ class Config:
               f"stake={cls.LINE_MOVEMENT_STAKE_PCT*100}% банка")
         print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
               f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
+        print(f"")
+        print(f"🔥 X2: позиции >= {cls.X2_MIN_POSITION_DIFF} | "
+              f"EV>={cls.X2_MIN_EV}% | Prob>={cls.X2_MIN_PROB}%")
+        print(f"   • Дома bonus: +{cls.X2_HOME_BONUS}% | Гости penalty: -{cls.X2_AWAY_PENALTY}%")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
