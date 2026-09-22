@@ -805,7 +805,7 @@
 
 
  <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v4.6 + CLV-раздел)                -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v5.1 + bet_info)                   -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1953,7 +1953,7 @@
     </div>
 </div>
 
-<!-- MODAL: SNAPSHOT CHART -->
+<!-- MODAL: SNAPSHOT CHART (★ v5.1 — с блоком рекомендации) -->
 <div class="modal-overlay" id="snapshotChartModal">
     <div class="modal modal-large">
         <div class="modal-header">
@@ -1961,6 +1961,10 @@
             <button class="modal-close" onclick="closeSnapshotChart()">✕</button>
         </div>
         <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
+
+        <!-- ★ НОВЫЙ БЛОК: рекомендация ставки (заполняется JS) -->
+        <div id="snapshotBetBlock"></div>
+
         <div class="chart-modal-container">
             <canvas id="snapshotChart"></canvas>
         </div>
@@ -1972,12 +1976,12 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 (v4.6 — с CLV-карточкой)                     -->
+<!-- КОНЕЦ ЧАСТИ 2/3 (v5.1 — с блоком рекомендации)               -->
 <!-- ============================================================ -->
 
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v5.0 — Line Movement в UI)          -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v5.1 — bet_info в модалке снимка)     -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -3141,7 +3145,7 @@ function buildAllItems(history, matches) {
                 bets: m.bets || [],
                 halftime_home: null,
                 halftime_away: null,
-                source: m.source || '',  // ★ v5.0
+                source: m.source || '',
             });
         });
     }
@@ -3172,7 +3176,7 @@ function buildAllItems(history, matches) {
                 halftime_away: h.halftime_away,
                 home_goals: h.home_goals,
                 away_goals: h.away_goals,
-                source: h.source || '',  // ★ v5.0
+                source: h.source || '',
             });
         });
     }
@@ -3285,7 +3289,6 @@ function showMatchDetail(match) {
     `;
 
     if (isLM) {
-        // ★ v5.0: LM-модалка
         const direction = best.direction === 'drop' ? '📉' : '📈';
         html += `
             <div style="text-align:center;padding:12px;background:rgba(167,139,250,0.08);border-radius:12px;border:1px solid rgba(167,139,250,0.2);margin-bottom:16px;">
@@ -3323,7 +3326,6 @@ function showMatchDetail(match) {
             </div>
         `;
     } else {
-        // Стандартная модалка
         html += `
             <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
                 <div class="stat-card">
@@ -3671,6 +3673,145 @@ function renderSnapshotCard(s) {
     `;
 }
 
+// ============================================================
+// ★ v5.1: БЛОК РЕКОМЕНДАЦИИ В МОДАЛКЕ СНИМКА
+// ============================================================
+function renderSnapshotBetBlock(bet) {
+    const container = document.getElementById('snapshotBetBlock');
+    if (!container) return;
+
+    if (!bet) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const m = bet.minutes_to_match;
+    let timeIcon = '⏰';
+    let timeText = '';
+    if (m > 0 && m <= 30) {
+        timeText = `Матч через ${m} мин`;
+    } else if (m >= -120 && m <= 0) {
+        timeIcon = '🔴';
+        timeText = `Матч идёт (~${-m} мин)`;
+    } else {
+        container.innerHTML = '';
+        return;
+    }
+
+    // Иконка + название источника
+    const srcMap = {
+        'value':         '💎 VALUE',
+        'line_movement': '📈 LINE MOVEMENT',
+        'btts':          '⚽ BTTS',
+        'tm25_premium':  '🔥 ТМ 2.5 PREMIUM',
+        'tm25_standard': '⭐ ТМ 2.5',
+        '70_percent':    '🎯 70%+',
+    };
+    const srcLabel = srcMap[bet.source] || '🎯 70%+';
+
+    // Цвет EV
+    const ev = bet.ev || 0;
+    const evColor = ev >= 15 ? 'var(--emerald-400)'
+                  : ev >= 5  ? 'var(--gold-400)'
+                  : 'var(--text-secondary)';
+
+    // Доп. инфо для Line Movement
+    let movementHtml = '';
+    if (bet.source === 'line_movement' && bet.movement_pct != null) {
+        const arrow = bet.movement_pct < 0 ? '📉' : '📈';
+        movementHtml = `
+            <div style="display:flex;justify-content:space-between;padding:8px 0;
+                        border-bottom:1px solid rgba(167,139,250,0.15);">
+                <span style="color:var(--text-tertiary);font-size:11px;">Движение кэфа</span>
+                <span style="color:#a78bfa;font-weight:800;font-size:13px;">
+                    ${arrow} ${bet.movement_pct >= 0 ? '+' : ''}${bet.movement_pct}%
+                    ${bet.movement_hours ? `<span style="font-size:10px;color:var(--text-tertiary);"> за ${bet.movement_hours}ч</span>` : ''}
+                </span>
+            </div>
+        `;
+        if (bet.old_odds) {
+            movementHtml += `
+                <div style="display:flex;justify-content:space-between;padding:8px 0;
+                            border-bottom:1px solid rgba(167,139,250,0.15);">
+                    <span style="color:var(--text-tertiary);font-size:11px;">Кэф</span>
+                    <span style="font-size:13px;">
+                        <span style="color:var(--text-tertiary);">${bet.old_odds}</span>
+                        <span style="color:var(--text-tertiary);"> → </span>
+                        <span style="color:#a78bfa;font-weight:800;">${bet.odds}</span>
+                    </span>
+                </div>
+            `;
+        }
+    }
+
+    // LLM-объяснение
+    const llmHtml = bet.llm_reason
+        ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(96,165,250,0.08);
+                       border-left:3px solid var(--blue-400);border-radius:6px;
+                       font-size:11px;color:var(--text-secondary);font-style:italic;">
+             💡 ${escapeHtml(bet.llm_reason)}
+           </div>`
+        : '';
+
+    container.innerHTML = `
+        <div style="margin-bottom:14px;padding:14px;
+                    background:linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%);
+                    border:1px solid rgba(16,185,129,0.3);border-radius:12px;
+                    box-shadow:0 0 20px rgba(16,185,129,0.08);">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <span style="font-size:11px;color:var(--emerald-400);font-weight:800;
+                             text-transform:uppercase;letter-spacing:1px;">
+                    ${timeIcon} ${timeText}
+                </span>
+                <span style="font-size:10px;color:var(--text-tertiary);font-weight:600;">
+                    ${srcLabel}
+                </span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:22px;font-weight:800;color:var(--text-primary);
+                                letter-spacing:-0.5px;">
+                        ${escapeHtml(bet.label)}
+                    </div>
+                    <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">
+                        📊 Prob: <b style="color:var(--text-primary);">${(bet.prob || 0).toFixed(0)}%</b>
+                        &nbsp;•&nbsp;
+                        EV: <b style="color:${evColor};">${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%</b>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:32px;font-weight:800;color:var(--emerald-400);
+                                font-variant-numeric:tabular-nums;line-height:1;">
+                        ${(bet.odds || 0).toFixed(2)}
+                    </div>
+                    ${bet.stake ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">
+                        💵 $${bet.stake.toFixed(2)}
+                    </div>` : ''}
+                </div>
+            </div>
+
+            ${movementHtml ? `<div style="margin-top:10px;padding-top:4px;">${movementHtml}</div>` : ''}
+
+            ${bet.bookmaker && bet.bookmaker !== '—' ? `
+                <div style="display:flex;justify-content:space-between;padding:8px 0;
+                            border-top:1px solid rgba(16,185,129,0.15);margin-top:6px;">
+                    <span style="color:var(--text-tertiary);font-size:11px;">Букмекер</span>
+                    <span style="color:var(--text-primary);font-size:11px;font-weight:600;">
+                        ${escapeHtml(bet.bookmaker)}
+                    </span>
+                </div>
+            ` : ''}
+
+            ${llmHtml}
+        </div>
+    `;
+}
+
+// ============================================================
+// SNAPSHOT CHART MODAL
+// ============================================================
 async function showSnapshotChart(fixtureId) {
     const modal = document.getElementById('snapshotChartModal');
     const title = document.getElementById('snapshotChartTitle');
@@ -3682,6 +3823,10 @@ async function showSnapshotChart(fixtureId) {
     title.textContent = '📈 Движение кэфов';
     info.textContent = 'Загрузка...';
     statsEl.innerHTML = '';
+
+    // ★ Очистить блок ставки при открытии
+    const betBlock = document.getElementById('snapshotBetBlock');
+    if (betBlock) betBlock.innerHTML = '';
 
     try {
         const resp = await fetch(API_BASE + `/api/snapshots/${fixtureId}?t=` + Date.now());
@@ -3696,6 +3841,9 @@ async function showSnapshotChart(fixtureId) {
             📅 ${escapeHtml(m.match_time || '—')} &nbsp;•&nbsp;
             📸 ${data.history.length} снимков
         `;
+
+        // ★ Блок рекомендации
+        renderSnapshotBetBlock(data.bet);
 
         renderSnapshotChart(data.history);
         renderSnapshotStats(data.history);
@@ -3814,6 +3962,9 @@ function closeSnapshotChart() {
         snapshotChartInstance = null;
     }
     currentSnapshotFixture = null;
+    // ★ Очистка блока ставки
+    const betBlock = document.getElementById('snapshotBetBlock');
+    if (betBlock) betBlock.innerHTML = '';
 }
 
 // ============================================================
@@ -5475,7 +5626,7 @@ Object.assign(window, {
     loadAnomalyStats, renderAnomalyStats,
     loadClvByStrategy, renderClvByStrategy,
     renderLMDashboardStats,
+    // ★ v5.1: новый блок рекомендации в модалке
+    renderSnapshotBetBlock,
 });
-</script>
-</body>
-</html>    
+</script>   
