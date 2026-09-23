@@ -805,7 +805,7 @@
 
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v5.2 + Калибровка)                 -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v22.1 + Calibration Snapshots)     -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1518,20 +1518,37 @@
     </div>
 
     <!-- ============================================================
-         PAGE: CALIBRATION (★ НОВАЯ)
+         PAGE: CALIBRATION (v22.1 — со снапшотами)
          ============================================================ -->
     <div id="page-calibration" class="page">
 
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">📊 Анализ калибровки</h2>
-                <button class="btn btn-outline" onclick="loadCalibration()" style="padding:4px 10px;font-size:10px;">
+                <button class="btn btn-outline" onclick="loadCalibrationFull()" style="padding:4px 10px;font-size:10px;">
                     🔄 Обновить
                 </button>
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);">
                 Проверка: соответствует ли модель <b>prob</b> реальному winrate.
                 Если модель говорит 60%, а выигрывает 45% — она <b>завышает</b>.
+            </div>
+        </div>
+
+        <!-- ★ v22.1: Блок сохранённых результатов -->
+        <div class="card" id="calibrationSnapshotsCard">
+            <div class="card-header">
+                <h2 class="emerald-title">📸 Сохранённые результаты</h2>
+                <button class="btn btn-gold" onclick="saveCalibrationSnapshot()" style="padding:4px 10px;font-size:10px;">
+                    💾 Сохранить сейчас
+                </button>
+            </div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:10px;">
+                Автосохранение раз в 14 дней. Хранятся максимум 2 снапшота:
+                свежий + предыдущий (24 часа). Так можно сравнивать динамику.
+            </div>
+            <div id="calibrationSnapshotsList">
+                <div class="skeleton" style="height:60px;"></div>
             </div>
         </div>
 
@@ -1726,15 +1743,15 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v22 Emerald • Live + X2 + CLV + Calibration</div>
+                    <div class="desc">v22.1 Emerald • Live + X2 + CLV + Calibration</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.0</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.1</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v22.0 Emerald © 2026
+        💎 Quantum Tracker v22.1 Emerald © 2026
     </div>
 </div>
 
@@ -1801,7 +1818,7 @@
             </div>
         </button>
 
-        <!-- ★ НОВОЕ: Анализ калибровки -->
+        <!-- ★ Анализ калибровки -->
         <button class="sheet-item" onclick="openFromMore('calibration')">
             <span class="sheet-icon">📊</span>
             <div>
@@ -1987,7 +2004,7 @@
     </div>
 </div>
 
-<!-- MODAL: SNAPSHOT CHART (★ с блоком рекомендации) -->
+<!-- MODAL: SNAPSHOT CHART -->
 <div class="modal-overlay" id="snapshotChartModal">
     <div class="modal modal-large">
         <div class="modal-header">
@@ -1996,7 +2013,7 @@
         </div>
         <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
 
-        <!-- ★ Блок рекомендации (заполняется JS) -->
+        <!-- ★ Блок рекомендации -->
         <div id="snapshotBetBlock"></div>
 
         <div class="chart-modal-container">
@@ -2010,11 +2027,11 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 (v22.0 — с Анализом калибровки)              -->
+<!-- КОНЕЦ ЧАСТИ 2/3 (v22.1 — Calibration Snapshots)              -->
 <!-- ============================================================ -->
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.0 — Calibration UI)              -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.1 — Calibration Snapshots)       -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2115,7 +2132,7 @@ function getSourceBadge(source) {
 }
 
 // ============================================================
-// ★ SPARKLINE
+// SPARKLINE
 // ============================================================
 function renderSparkline(points, width = 200, height = 32) {
     if (!points || points.length < 2) {
@@ -2315,7 +2332,7 @@ function switchPage(page) {
     else if (page === 'snapshots') loadSnapshots();
     else if (page === 'autobets') loadAutobets();
     else if (page === 'simulator') loadSimPresets();
-    else if (page === 'calibration') loadCalibration();
+    else if (page === 'calibration') loadCalibrationFull();
 }
 
 function openSettings() {
@@ -2438,7 +2455,7 @@ function refreshData() {
         if (currentPage === 'autobets') loadAutobets();
         if (currentPage === 'x2') renderX2Page();
         if (currentPage === 'live') loadLive();
-        if (currentPage === 'calibration') loadCalibration();
+        if (currentPage === 'calibration') loadCalibrationFull();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -2703,9 +2720,6 @@ function renderDashboard(data) {
     setTimeout(() => renderChart(data.profit_data), 50);
 }
 
-// ============================================================
-// ★ v5.0: LINE MOVEMENT Dashboard Stats
-// ============================================================
 function renderLMDashboardStats(history) {
     const lmBets = history.filter(b => (b.source || '') === 'line_movement'
                                      || (b.bet || '').includes('📈')
@@ -3395,7 +3409,7 @@ function closeMatchDetail() {
 }
 
 // ============================================================
-// ★ СТАТИСТИКА АНОМАЛИЙ
+// СТАТИСТИКА АНОМАЛИЙ
 // ============================================================
 async function loadAnomalyStats() {
     const container = document.getElementById('anomalyStatsContent');
@@ -3558,7 +3572,7 @@ async function loadSnapshots() {
         snapshotsData = data.matches || [];
         renderSnapshots();
 
-        // ★ Авто-обновление каждые 30 сек, если есть матчи ≤30 мин
+        // Авто-обновление каждые 30 сек, если есть матчи ≤30 мин
         if (window._snapFastRefresh) clearTimeout(window._snapFastRefresh);
         const hasSoon = snapshotsData.some(s => {
             if (!s.match_time || s.match_time === '?') return false;
@@ -4174,7 +4188,7 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ CLV ПО СТРАТЕГИЯМ
+// CLV ПО СТРАТЕГИЯМ
 // ============================================================
 async function loadClvByStrategy() {
     const container = document.getElementById('clvByStrategyContent');
@@ -5230,7 +5244,7 @@ function renderGridTop5(top) {
 }
 
 // ============================================================
-// ★ КАЛИБРОВКА (НОВОЕ)
+// ★ КАЛИБРОВКА
 // ============================================================
 async function loadCalibration() {
     const container = document.getElementById('calibrationContent');
@@ -5439,6 +5453,186 @@ function renderCalibration(data) {
 }
 
 // ============================================================
+// ★ v22.1: СНАПШОТЫ КАЛИБРОВКИ
+// ============================================================
+async function loadCalibrationSnapshots() {
+    const container = document.getElementById('calibrationSnapshotsList');
+    if (!container) return;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/calibration/snapshots?t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        if (data.status !== 'ok') throw new Error(data.error || 'API error');
+
+        if (!data.snapshots || data.snapshots.length === 0) {
+            container.innerHTML = `
+                <div style="padding:12px;text-align:center;color:var(--text-tertiary);font-size:11px;">
+                    📭 Пока нет сохранённых снапшотов.<br>
+                    Первый сохранится автоматически 1-го или 15-го числа.
+                </div>
+            `;
+            return;
+        }
+
+        renderCalibrationSnapshots(data.snapshots);
+    } catch (e) {
+        console.error('loadCalibrationSnapshots:', e);
+        container.innerHTML = `
+            <div style="padding:12px;color:var(--red-400);font-size:11px;">
+                ❌ Ошибка: ${e.message}
+            </div>
+        `;
+    }
+}
+
+function renderCalibrationSnapshots(snapshots) {
+    const container = document.getElementById('calibrationSnapshotsList');
+    if (!container) return;
+
+    let comparisonHtml = '';
+    if (snapshots.length >= 2) {
+        const [latest, prev] = snapshots;
+        const diffOverall = (latest.overall.actual - prev.overall.actual).toFixed(1);
+        const diffPredicted = (latest.overall.predicted - prev.overall.predicted).toFixed(1);
+        const diffCount = latest.total - prev.total;
+
+        comparisonHtml = `
+            <div style="padding:12px;background:rgba(16,185,129,0.06);
+                        border-radius:10px;border:1px solid rgba(16,185,129,0.2);
+                        margin-bottom:12px;">
+                <div style="font-size:11px;color:var(--emerald-400);font-weight:700;
+                            text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                    📊 Сравнение (последние 2)
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">СТАВОК</div>
+                        <div style="font-size:14px;font-weight:800;">${latest.total}</div>
+                        <div style="font-size:9px;color:${diffCount >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                            ${diffCount >= 0 ? '+' : ''}${diffCount}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">МОДЕЛЬ</div>
+                        <div style="font-size:14px;font-weight:800;">${latest.overall.predicted}%</div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">
+                            ${diffPredicted >= 0 ? '+' : ''}${diffPredicted}%
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">РЕАЛЬНО</div>
+                        <div style="font-size:14px;font-weight:800;">${latest.overall.actual}%</div>
+                        <div style="font-size:9px;color:${diffOverall >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                            ${diffOverall >= 0 ? '+' : ''}${diffOverall}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    const itemsHtml = snapshots.map((s, idx) => {
+        const ov = s.overall || {};
+        const diff = ov.diff || 0;
+        const verdict = diff < -10 ? '🔴' : diff < -3 ? '🟡' : diff > 3 ? '🔵' : '✅';
+
+        let ageStr = '';
+        try {
+            const savedTs = s.saved_at_ts || 0;
+            const ageHours = (Date.now() / 1000 - savedTs) / 3600;
+            if (ageHours < 24) {
+                ageStr = `<span style="font-size:9px;color:var(--gold-400);">
+                    (удалится через ${Math.round(24 - ageHours)}ч)
+                </span>`;
+            } else {
+                ageStr = `<span style="font-size:9px;color:var(--text-tertiary);">архив</span>`;
+            }
+        } catch (e) {}
+
+        const isLatest = idx === 0;
+        const borderColor = isLatest ? 'rgba(16,185,129,0.4)' : 'var(--border-color)';
+
+        return `
+            <div style="padding:10px;border-radius:8px;
+                        background:${isLatest ? 'rgba(16,185,129,0.05)' : 'rgba(255,255,255,0.02)'};
+                        border:1px solid ${borderColor};
+                        margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div>
+                        <span style="font-size:11px;font-weight:700;">
+                            ${isLatest ? '🆕 ' : '📁 '}${s.saved_at}
+                        </span>
+                        ${ageStr}
+                    </div>
+                    <button class="btn btn-outline"
+                            onclick="deleteCalibrationSnapshot(${idx})"
+                            style="padding:2px 6px;font-size:9px;">✕</button>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:10px;">
+                    <div>
+                        <div style="color:var(--text-tertiary);">Модель</div>
+                        <div style="font-weight:700;">${ov.predicted || 0}%</div>
+                    </div>
+                    <div>
+                        <div style="color:var(--text-tertiary);">Реально</div>
+                        <div style="font-weight:700;">${ov.actual || 0}%</div>
+                    </div>
+                    <div>
+                        <div style="color:var(--text-tertiary);">Разница</div>
+                        <div style="font-weight:700;color:${diff >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                            ${verdict} ${diff >= 0 ? '+' : ''}${diff}%
+                        </div>
+                    </div>
+                </div>
+                <div style="font-size:9px;color:var(--text-tertiary);margin-top:4px;">
+                    Ставок: ${s.total || 0} • фактор: ${ov.calibration_factor || 1.0}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = comparisonHtml + itemsHtml;
+}
+
+async function saveCalibrationSnapshot() {
+    if (!confirm('💾 Сохранить текущий снапшот калибровки?\n\nБудет добавлен к существующим (максимум 2).')) return;
+    showNotification('💾 Сохраняю...', '');
+    try {
+        const r = await fetch(API_BASE + '/api/calibration/save', { method: 'POST' }).then(r => r.json());
+        if (r.status === 'ok') {
+            showNotification('✅ Снапшот сохранён', 'success');
+            loadCalibrationSnapshots();
+        } else {
+            showNotification('❌ Ошибка: ' + (r.error || 'неизвестно'), 'error');
+        }
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function deleteCalibrationSnapshot(idx) {
+    if (!confirm('Удалить этот снапшот?')) return;
+    try {
+        const r = await fetch(API_BASE + `/api/calibration/snapshots/${idx}`, { method: 'DELETE' }).then(r => r.json());
+        if (r.status === 'ok') {
+            showNotification('🗑️ Удалено', '');
+            loadCalibrationSnapshots();
+        }
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function loadCalibrationFull() {
+    await Promise.all([
+        loadCalibration(),
+        loadCalibrationSnapshots(),
+    ]);
+}
+
+// ============================================================
 // SETTINGS
 // ============================================================
 function renderSettings() {
@@ -5523,7 +5717,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.0',
+        version: '22.1',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -5714,7 +5908,7 @@ function startAutoRefresh() {
             } else if (currentPage === 'x2') {
                 renderX2Page();
             } else if (currentPage === 'calibration') {
-                loadCalibration();
+                loadCalibrationFull();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -5882,8 +6076,11 @@ Object.assign(window, {
     loadClvByStrategy, renderClvByStrategy,
     renderLMDashboardStats,
     renderSnapshotBetBlock,
-    // ★ v22.0: калибровка
+    // ★ v22.1: калибровка + снапшоты
     loadCalibration, renderCalibration,
+    loadCalibrationSnapshots, renderCalibrationSnapshots,
+    saveCalibrationSnapshot, deleteCalibrationSnapshot,
+    loadCalibrationFull,
 });
 </script>
 </body>
