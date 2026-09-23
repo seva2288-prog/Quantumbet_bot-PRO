@@ -804,8 +804,8 @@
 <!-- ============================================================ -->
 
 
- <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v5.1 + bet_info)                   -->
+<!-- ============================================================ -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v5.2 + Калибровка)                 -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1518,6 +1518,31 @@
     </div>
 
     <!-- ============================================================
+         PAGE: CALIBRATION (★ НОВАЯ)
+         ============================================================ -->
+    <div id="page-calibration" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">📊 Анализ калибровки</h2>
+                <button class="btn btn-outline" onclick="loadCalibration()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Обновить
+                </button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Проверка: соответствует ли модель <b>prob</b> реальному winrate.
+                Если модель говорит 60%, а выигрывает 45% — она <b>завышает</b>.
+            </div>
+        </div>
+
+        <div id="calibrationContent">
+            <div class="skeleton" style="height:100px;"></div>
+            <div class="skeleton" style="height:150px;"></div>
+            <div class="skeleton" style="height:100px;"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================
          PAGE: SETTINGS
          ============================================================ -->
     <div id="page-settings" class="page">
@@ -1701,15 +1726,15 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v21 Emerald • Live + X2 + CLV + Grid Search</div>
+                    <div class="desc">v22 Emerald • Live + X2 + CLV + Calibration</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v21.1</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.0</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v21.1 Emerald © 2026
+        💎 Quantum Tracker v22.0 Emerald © 2026
     </div>
 </div>
 
@@ -1773,6 +1798,15 @@
             <div>
                 <div class="sheet-label">Симулятор стратегий</div>
                 <div class="sheet-desc">Проверка стратегий + Grid Search</div>
+            </div>
+        </button>
+
+        <!-- ★ НОВОЕ: Анализ калибровки -->
+        <button class="sheet-item" onclick="openFromMore('calibration')">
+            <span class="sheet-icon">📊</span>
+            <div>
+                <div class="sheet-label">Анализ калибровки</div>
+                <div class="sheet-desc">Проверка: завышает ли модель prob</div>
             </div>
         </button>
 
@@ -1953,7 +1987,7 @@
     </div>
 </div>
 
-<!-- MODAL: SNAPSHOT CHART (★ v5.1 — с блоком рекомендации) -->
+<!-- MODAL: SNAPSHOT CHART (★ с блоком рекомендации) -->
 <div class="modal-overlay" id="snapshotChartModal">
     <div class="modal modal-large">
         <div class="modal-header">
@@ -1962,7 +1996,7 @@
         </div>
         <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
 
-        <!-- ★ НОВЫЙ БЛОК: рекомендация ставки (заполняется JS) -->
+        <!-- ★ Блок рекомендации (заполняется JS) -->
         <div id="snapshotBetBlock"></div>
 
         <div class="chart-modal-container">
@@ -1976,12 +2010,11 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 (v5.1 — с блоком рекомендации)               -->
+<!-- КОНЕЦ ЧАСТИ 2/3 (v22.0 — с Анализом калибровки)              -->
 <!-- ============================================================ -->
 
-
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v5.1 — bet_info в модалке снимка)     -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.0 — Calibration UI)              -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2244,7 +2277,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics') {
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -2282,6 +2315,7 @@ function switchPage(page) {
     else if (page === 'snapshots') loadSnapshots();
     else if (page === 'autobets') loadAutobets();
     else if (page === 'simulator') loadSimPresets();
+    else if (page === 'calibration') loadCalibration();
 }
 
 function openSettings() {
@@ -2348,7 +2382,7 @@ function openFromMore(page) {
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
         if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics') return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2404,6 +2438,7 @@ function refreshData() {
         if (currentPage === 'autobets') loadAutobets();
         if (currentPage === 'x2') renderX2Page();
         if (currentPage === 'live') loadLive();
+        if (currentPage === 'calibration') loadCalibration();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -2663,7 +2698,6 @@ function renderDashboard(data) {
     document.getElementById('x2Wins').textContent = x2Stats.wins;
     document.getElementById('x2Winrate').textContent = x2Stats.winrate + '%';
 
-    // ★ v5.0: LINE MOVEMENT stats
     renderLMDashboardStats(data.history || []);
 
     setTimeout(() => renderChart(data.profit_data), 50);
@@ -2787,7 +2821,7 @@ function openSnapshotFromAnomaly(fid) {
 }
 
 // ============================================================
-// BET CARD (★ v5.0 с LM-поддержкой)
+// BET CARD
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -2843,7 +2877,6 @@ function renderBetCard(m, isActive = false) {
 
     const oddsDisplay = odds > 0 ? odds.toFixed(2) : '—';
 
-    // ★ v5.0: LM показывает движение вместо EV/Prob
     const evDisplay = isLM
         ? (best.movement_pct !== undefined && best.movement_pct !== null
             ? (best.movement_pct >= 0 ? '+' : '') + best.movement_pct + '%'
@@ -2863,14 +2896,12 @@ function renderBetCard(m, isActive = false) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
-    // ★ v5.0: фиолетовый бейдж для LM
     const lmBadge = isLM
         ? `<span class="bet-badge" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);">
              📈 LM ${best.direction === 'drop' ? '📉' : '📈'}
            </span>`
         : '';
 
-    // ★ v5.0: доп. строка движения для LM
     const lmMovementHtml = isLM && best.old_odds
         ? `<div style="margin-top:6px;font-size:10px;color:var(--text-tertiary);">
              <span style="color:#a78bfa;font-weight:700;">${best.old_odds} → ${best.odds}</span>
@@ -3526,6 +3557,26 @@ async function loadSnapshots() {
         const data = await resp.json();
         snapshotsData = data.matches || [];
         renderSnapshots();
+
+        // ★ Авто-обновление каждые 30 сек, если есть матчи ≤30 мин
+        if (window._snapFastRefresh) clearTimeout(window._snapFastRefresh);
+        const hasSoon = snapshotsData.some(s => {
+            if (!s.match_time || s.match_time === '?') return false;
+            try {
+                const parts = s.match_time.split(' ');
+                if (parts.length < 2) return false;
+                const [d, m, y] = parts[0].split('.').map(Number);
+                const [hh, mm] = parts[1].split(':').map(Number);
+                const dt = new Date(y, m - 1, d, hh, mm);
+                const mins = Math.round((dt - new Date()) / 60000);
+                return mins > 0 && mins <= 30;
+            } catch { return false; }
+        });
+        if (hasSoon && currentPage === 'snapshots') {
+            window._snapFastRefresh = setTimeout(() => {
+                if (currentPage === 'snapshots') loadSnapshots();
+            }, 30000);
+        }
     } catch (e) {
         console.error('Ошибка загрузки снимков:', e);
         container.innerHTML = `
@@ -3674,7 +3725,7 @@ function renderSnapshotCard(s) {
 }
 
 // ============================================================
-// ★ v5.1: БЛОК РЕКОМЕНДАЦИИ В МОДАЛКЕ СНИМКА
+// БЛОК РЕКОМЕНДАЦИИ В МОДАЛКЕ СНИМКА
 // ============================================================
 function renderSnapshotBetBlock(bet) {
     const container = document.getElementById('snapshotBetBlock');
@@ -3698,7 +3749,6 @@ function renderSnapshotBetBlock(bet) {
         return;
     }
 
-    // Иконка + название источника
     const srcMap = {
         'value':         '💎 VALUE',
         'line_movement': '📈 LINE MOVEMENT',
@@ -3709,13 +3759,11 @@ function renderSnapshotBetBlock(bet) {
     };
     const srcLabel = srcMap[bet.source] || '🎯 70%+';
 
-    // Цвет EV
     const ev = bet.ev || 0;
     const evColor = ev >= 15 ? 'var(--emerald-400)'
                   : ev >= 5  ? 'var(--gold-400)'
                   : 'var(--text-secondary)';
 
-    // Доп. инфо для Line Movement
     let movementHtml = '';
     if (bet.source === 'line_movement' && bet.movement_pct != null) {
         const arrow = bet.movement_pct < 0 ? '📉' : '📈';
@@ -3744,7 +3792,6 @@ function renderSnapshotBetBlock(bet) {
         }
     }
 
-    // LLM-объяснение
     const llmHtml = bet.llm_reason
         ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(96,165,250,0.08);
                        border-left:3px solid var(--blue-400);border-radius:6px;
@@ -3824,7 +3871,6 @@ async function showSnapshotChart(fixtureId) {
     info.textContent = 'Загрузка...';
     statsEl.innerHTML = '';
 
-    // ★ Очистить блок ставки при открытии
     const betBlock = document.getElementById('snapshotBetBlock');
     if (betBlock) betBlock.innerHTML = '';
 
@@ -3842,7 +3888,6 @@ async function showSnapshotChart(fixtureId) {
             📸 ${data.history.length} снимков
         `;
 
-        // ★ Блок рекомендации
         renderSnapshotBetBlock(data.bet);
 
         renderSnapshotChart(data.history);
@@ -3962,7 +4007,6 @@ function closeSnapshotChart() {
         snapshotChartInstance = null;
     }
     currentSnapshotFixture = null;
-    // ★ Очистка блока ставки
     const betBlock = document.getElementById('snapshotBetBlock');
     if (betBlock) betBlock.innerHTML = '';
 }
@@ -4130,7 +4174,7 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ v5.0: CLV ПО СТРАТЕГИЯМ
+// ★ CLV ПО СТРАТЕГИЯМ
 // ============================================================
 async function loadClvByStrategy() {
     const container = document.getElementById('clvByStrategyContent');
@@ -5186,6 +5230,215 @@ function renderGridTop5(top) {
 }
 
 // ============================================================
+// ★ КАЛИБРОВКА (НОВОЕ)
+// ============================================================
+async function loadCalibration() {
+    const container = document.getElementById('calibrationContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="skeleton" style="height:100px;"></div>
+        <div class="skeleton" style="height:150px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+    `;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/calibration?t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        if (data.status !== 'ok') throw new Error(data.error || 'API error');
+
+        if (data.total === 0) {
+            container.innerHTML = `
+                <div class="no-data">
+                    <div class="emoji">📭</div>
+                    <div class="title">Нет данных</div>
+                    <div class="desc">Нужно ≥50 завершённых ставок с prob</div>
+                </div>
+            `;
+            return;
+        }
+
+        renderCalibration(data);
+    } catch (e) {
+        console.error('loadCalibration:', e);
+        container.innerHTML = `
+            <div style="padding:12px;color:var(--red-400);font-size:12px;">
+                ❌ Ошибка: ${e.message}
+                <button class="btn btn-outline" onclick="loadCalibration()" style="margin-left:8px;padding:2px 8px;font-size:10px;">🔄</button>
+            </div>
+        `;
+    }
+}
+
+function renderCalibration(data) {
+    const container = document.getElementById('calibrationContent');
+    if (!container) return;
+
+    const ov = data.overall;
+    const diff = ov.diff;
+    let verdict, verdictColor, verdictEmoji, verdictDesc;
+
+    if (Math.abs(diff) < 3) {
+        verdict = 'ХОРОШАЯ КАЛИБРОВКА';
+        verdictColor = 'var(--emerald-400)';
+        verdictEmoji = '✅';
+        verdictDesc = 'Модель точна. EV можно доверять.';
+    } else if (diff < -10) {
+        verdict = 'СИЛЬНО ЗАВЫШАЕТ';
+        verdictColor = 'var(--red-400)';
+        verdictEmoji = '🔴';
+        verdictDesc = `Модель даёт prob на ${Math.abs(diff).toFixed(1)}% выше реальности. EV фиктивный.`;
+    } else if (diff < -3) {
+        verdict = 'ЗАВЫШАЕТ';
+        verdictColor = 'var(--gold-400)';
+        verdictEmoji = '🟡';
+        verdictDesc = `Модель завышает prob на ${Math.abs(diff).toFixed(1)}%. EV завышен.`;
+    } else if (diff > 10) {
+        verdict = 'СИЛЬНО ЗАНИЖАЕТ';
+        verdictColor = 'var(--blue-400)';
+        verdictEmoji = '🔵';
+        verdictDesc = `Модель недооценивает на ${diff.toFixed(1)}%. Есть скрытый edge.`;
+    } else {
+        verdict = 'ЗАНИЖАЕТ';
+        verdictColor = 'var(--blue-400)';
+        verdictEmoji = '🔵';
+        verdictDesc = `Модель занижает prob на ${diff.toFixed(1)}%.`;
+    }
+
+    let html = `
+        <div class="card" style="border-color:${verdictColor}40;">
+            <div class="card-header">
+                <h2 style="color:${verdictColor};">${verdictEmoji} ${verdict}</h2>
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+                ${verdictDesc}
+            </div>
+            <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+                <div class="stat-card">
+                    <div class="value">${ov.predicted}%</div>
+                    <div class="label">📊 Прогноз</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value ${diff >= 0 ? 'green' : 'red'}">${ov.actual}%</div>
+                    <div class="label">🎯 Реальность</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" style="color:${verdictColor};">
+                        ${diff >= 0 ? '+' : ''}${diff}%
+                    </div>
+                    <div class="label">📈 Разница</div>
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:10px;">
+                Всего ставок: <b>${data.total}</b> •
+                Калибровочный коэффициент: <b style="color:${verdictColor};">${ov.calibration_factor}</b>
+            </div>
+        </div>
+    `;
+
+    if (data.buckets && data.buckets.length > 0) {
+        html += `
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 По бакетам</h2>
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">
+                    Если "Реально" &lt; "Модель" → переоценка
+                </div>
+        `;
+
+        data.buckets.forEach(b => {
+            const ok = Math.abs(b.diff) < 5;
+            const warn = Math.abs(b.diff) < 10;
+            const color = ok ? 'var(--emerald-400)' : warn ? 'var(--gold-400)' : 'var(--red-400)';
+            const icon = ok ? '🟢' : warn ? '🟡' : '🔴';
+
+            html += `
+                <div style="padding:8px 0;border-bottom:1px solid var(--border-color);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+                        <span style="font-weight:700;">${icon} ${b.range}</span>
+                        <span style="color:var(--text-tertiary);font-size:10px;">${b.count} ставок</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;">
+                        <span style="color:var(--text-tertiary);">
+                            Модель: <b style="color:var(--text-primary);">${b.predicted}%</b>
+                        </span>
+                        <span style="color:var(--text-tertiary);">
+                            Реально: <b style="color:var(--text-primary);">${b.actual}%</b>
+                        </span>
+                        <span style="color:${color};font-weight:700;">
+                            ${b.diff >= 0 ? '+' : ''}${b.diff}%
+                        </span>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+    }
+
+    if (data.sources && data.sources.length > 0) {
+        html += `
+            <div class="card">
+                <div class="card-header">
+                    <h2>💎 По стратегиям</h2>
+                </div>
+        `;
+
+        data.sources.sort((a, b) => a.diff - b.diff).forEach(s => {
+            const ok = Math.abs(s.diff) < 5;
+            const color = ok ? 'var(--emerald-400)' : (s.diff < 0 ? 'var(--red-400)' : 'var(--blue-400)');
+            const labelMap = {
+                '70_percent': '🎯 70%+',
+                'value': '💎 VALUE',
+                'x2': '🔥 X2',
+                'btts': '⚽ BTTS',
+                'tm25_premium': '🔥 ТМ 2.5 PREMIUM',
+                'tm25_standard': '⭐ ТМ 2.5',
+                'line_movement': '📈 LINE MOVEMENT',
+            };
+            const label = labelMap[s.source] || s.source;
+
+            html += `
+                <div style="padding:10px 0;border-bottom:1px solid var(--border-color);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:12px;font-weight:700;">${label}</span>
+                        <span style="color:${color};font-weight:700;font-size:13px;">
+                            ${s.diff >= 0 ? '+' : ''}${s.diff}%
+                        </span>
+                    </div>
+                    <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
+                        ${s.count} ставок • модель ${s.avg_prob}% → реально ${s.avg_actual}%
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+    }
+
+    html += `
+        <div class="card" style="background:rgba(16,185,129,0.04);">
+            <div class="card-header">
+                <h2 class="emerald-title">💡 Что это значит</h2>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                • Если модель <b>завышает</b> prob — EV фиктивный, ставки переоценены<br>
+                • Если <b>занижает</b> — есть скрытый edge<br>
+                • Если <b>точно</b> — можно доверять EV и Kelly<br>
+                • <b>Калибровочный коэффициент</b> = actual / predicted<br>
+                &nbsp;&nbsp;&nbsp;×0.8 → умножать prob на 0.8 перед EV<br>
+                &nbsp;&nbsp;&nbsp;×1.1 → умножать на 1.1 (есть edge)
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+// ============================================================
 // SETTINGS
 // ============================================================
 function renderSettings() {
@@ -5270,7 +5523,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '21.1',
+        version: '22.0',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -5460,6 +5713,8 @@ function startAutoRefresh() {
                 loadAutobets();
             } else if (currentPage === 'x2') {
                 renderX2Page();
+            } else if (currentPage === 'calibration') {
+                loadCalibration();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -5626,7 +5881,10 @@ Object.assign(window, {
     loadAnomalyStats, renderAnomalyStats,
     loadClvByStrategy, renderClvByStrategy,
     renderLMDashboardStats,
-    // ★ v5.1: новый блок рекомендации в модалке
     renderSnapshotBetBlock,
+    // ★ v22.0: калибровка
+    loadCalibration, renderCalibration,
 });
-</script>   
+</script>
+</body>
+</html>   
