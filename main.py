@@ -53,6 +53,7 @@ STATE_PATH = os.path.join(DATA_DIR, 'bot_state.json')
 SETTINGS_PATH = os.path.join(DATA_DIR, 'bot_settings.json')
 BACKUP_DIR = os.path.join(DATA_DIR, 'backups')
 GEOCODING_CACHE_FILE = os.path.join(DATA_DIR, 'geocoding_cache.json')
+CALIBRATION_FILE = os.path.join(DATA_DIR, 'calibration_snapshots.json')
 
 _x2_candidates_lock = Lock()
 
@@ -4100,7 +4101,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # === КОНЕЦ ЧАСТИ 2/3 (v5.1 — X2 home advantage) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v5.2 — Calibration API)
+# main.py — ЧАСТЬ 3/3 (v22.1 — Calibration Snapshots)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
@@ -4109,6 +4110,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v5.0: показ line_movement в /update + StrategyTester
 # ★ v5.1: bet_info в /api/snapshots/<fid>
 # ★ v5.2: /api/calibration для анализа калибровки
+# ★ v22.1: снапшоты калибровки раз в 14 дней (2 слота)
 # ============================================================
 
 def safe_job(func, name):
@@ -4397,6 +4399,20 @@ def schedule_auto_backup():
     scheduler.add_job(
         func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', day_of_week='mon', hour=4, minute=0, id='cleanup_odds',
+        replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+    # ★ v22.1: автосохранение калибровки раз в 14 дней (1 и 15 числа в 05:00)
+    scheduler.add_job(
+        func=safe_job(save_calibration_snapshot, "save_calibration"),
+        trigger='cron', day='1,15', hour=5, minute=0, id='save_calibration',
+        replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+    # ★ v22.1: ежедневная очистка старых снапшотов (>24ч, кроме свежего)
+    scheduler.add_job(
+        func=safe_job(_cleanup_and_save_snapshots, "cleanup_calibration_snaps"),
+        trigger='cron', hour=6, minute=0, id='cleanup_calibration_snaps',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
@@ -5055,6 +5071,18 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка калибровки: {e}")
 
+            elif text == '/calibration_save':
+                send_telegram("💾 Сохраняю снапшот калибровки...")
+                try:
+                    ok = save_calibration_snapshot()
+                    if ok:
+                        snaps = _load_calibration_snapshots()
+                        send_telegram(f"✅ Снапшот сохранён. Всего: <b>{len(snaps)}</b>")
+                    else:
+                        send_telegram("❌ Не удалось сохранить")
+                except Exception as e:
+                    send_telegram(f"❌ Ошибка: {e}")
+
             elif text == '/status':
                 report = bot_state.get_status_report()
                 try:
@@ -5102,8 +5130,6 @@ def serve_manifest():
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
-    """Активные матчи (идущие + ближайшие 2 часа) с live-счётом
-    и sparkline (мини-график движения кэфа)."""
     try:
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
         today_str = now_msk.strftime('%Y-%m-%d')
@@ -5225,7 +5251,6 @@ def api_live():
                 if ht.get('home') is not None and ht.get('away') is not None:
                     live_halftime = f"{ht['home']}-{ht['away']}"
 
-                # ★ FIX: force-final при minute >= 95
                 force_final_by_minute = (
                     live_minute >= 95
                     and status_short not in ('HT', 'ET', 'BT', 'P', 'SUSP')
@@ -5643,24 +5668,16 @@ def api_simulator_grid_search():
 # ============================================================
 @app.route('/api/calibration', methods=['GET'])
 def api_calibration():
-    """Разбивает prob на бакеты, считает фактический winrate.
-    Показывает, завышает ли модель вероятности."""
     try:
         history = storage.load_history()
-
         finished = [
             b for b in history
-            if b.get('result') in ('win', 'loss')
-            and b.get('prob', 0) > 0
+            if b.get('result') in ('win', 'loss') and b.get('prob', 0) > 0
         ]
-
         if not finished:
             return jsonify({
-                'status': 'ok',
-                'total': 0,
-                'message': 'Нет завершённых ставок с prob',
-                'buckets': [],
-                'overall': {},
+                'status': 'ok', 'total': 0, 'message': 'Нет завершённых ставок с prob',
+                'buckets': [], 'overall': {}, 'sources': [],
             })
 
         buckets_map = defaultdict(list)
@@ -5671,8 +5688,7 @@ def api_calibration():
                 continue
             if bucket > 95:
                 bucket = 95
-            result = 1 if b['result'] == 'win' else 0
-            buckets_map[bucket].append(result)
+            buckets_map[bucket].append(1 if b['result'] == 'win' else 0)
 
         buckets = []
         for bucket in sorted(buckets_map.keys()):
@@ -5742,7 +5758,6 @@ def api_calibration():
 
 
 def _build_calibration_message():
-    """Строит текстовое сообщение о калибровке для /calibration."""
     history = storage.load_history()
     finished = [b for b in history if b.get('result') in ('win', 'loss') and b.get('prob', 0) > 0]
 
@@ -5814,6 +5829,193 @@ def _build_calibration_message():
         msg += f"{icon} {bucket}-{bucket+5}%: {predicted:.0f}% → {actual:.0f}% ({d:+.1f}%)\n"
 
     return msg
+
+
+# ============================================================
+# ★ v22.1: CALIBRATION SNAPSHOTS
+# ============================================================
+def _load_calibration_snapshots():
+    try:
+        if os.path.exists(CALIBRATION_FILE):
+            with open(CALIBRATION_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+    except Exception as e:
+        logger.error(f"_load_calibration_snapshots: {e}")
+    return []
+
+
+def _save_calibration_snapshots(snapshots):
+    try:
+        os.makedirs(os.path.dirname(CALIBRATION_FILE) or '.', exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CALIBRATION_FILE) or '.', suffix='.tmp')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(snapshots, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, CALIBRATION_FILE)
+        return True
+    except Exception as e:
+        logger.error(f"_save_calibration_snapshots: {e}")
+        return False
+
+
+def _cleanup_calibration_snapshots(snapshots):
+    """
+    Оставляет максимум 2 снапшота:
+    - свежий — всегда
+    - предыдущий — если ему <24ч
+    """
+    now = time.time()
+    cleaned = []
+    for s in snapshots:
+        saved_at = s.get('saved_at_ts', 0)
+        cleaned.append((saved_at, s))
+    cleaned.sort(key=lambda x: x[0], reverse=True)
+
+    result = []
+    for i, (saved_at, s) in enumerate(cleaned):
+        if i == 0:
+            result.append(s)
+        else:
+            age_hours = (now - saved_at) / 3600
+            if age_hours < 24:
+                result.append(s)
+    return result
+
+
+def _build_calibration_data():
+    """Строит полный dict для снапшота."""
+    history = storage.load_history()
+    finished = [
+        b for b in history
+        if b.get('result') in ('win', 'loss') and b.get('prob', 0) > 0
+    ]
+
+    buckets_map = defaultdict(list)
+    for b in finished:
+        prob = b.get('prob', 0)
+        bucket = int(prob // 5) * 5
+        if bucket < 30:
+            continue
+        if bucket > 95:
+            bucket = 95
+        buckets_map[bucket].append(1 if b['result'] == 'win' else 0)
+
+    buckets = []
+    for bucket in sorted(buckets_map.keys()):
+        results = buckets_map[bucket]
+        n = len(results)
+        if n < 3:
+            continue
+        actual = sum(results) / n * 100
+        predicted = bucket + 2.5
+        buckets.append({
+            'range': f'{bucket}-{bucket+5}%',
+            'count': n,
+            'predicted': round(predicted, 1),
+            'actual': round(actual, 1),
+            'diff': round(actual - predicted, 1),
+        })
+
+    total_n = sum(b['count'] for b in buckets)
+    if total_n > 0:
+        overall_predicted = sum(b['predicted'] * b['count'] for b in buckets) / total_n
+        overall_actual = sum(b['actual'] * b['count'] for b in buckets) / total_n
+        overall_diff = overall_actual - overall_predicted
+    else:
+        overall_predicted = overall_actual = overall_diff = 0
+
+    return {
+        'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'saved_at_ts': time.time(),
+        'total': len(finished),
+        'buckets': buckets,
+        'overall': {
+            'count': total_n,
+            'predicted': round(overall_predicted, 1),
+            'actual': round(overall_actual, 1),
+            'diff': round(overall_diff, 1),
+            'calibration_factor': round(overall_actual / overall_predicted, 3) if overall_predicted > 0 else 1.0,
+        },
+    }
+
+
+def save_calibration_snapshot():
+    """Сохраняет текущий снапшот. Оставляет максимум 2."""
+    try:
+        snapshots = _load_calibration_snapshots()
+        new_snap = _build_calibration_data()
+        snapshots.append(new_snap)
+        snapshots = _cleanup_calibration_snapshots(snapshots)
+        ok = _save_calibration_snapshots(snapshots)
+        if ok:
+            logger.info(
+                f"📸 Калибровка сохранена: {new_snap['saved_at']} | "
+                f"ставок={new_snap['total']} | снапшотов={len(snapshots)}"
+            )
+        return ok
+    except Exception as e:
+        logger.exception(f"save_calibration_snapshot: {e}")
+        return False
+
+
+def _cleanup_and_save_snapshots():
+    """Периодически чистит снапшоты (удаляет >24ч, кроме свежего)."""
+    try:
+        snapshots = _load_calibration_snapshots()
+        cleaned = _cleanup_calibration_snapshots(snapshots)
+        if len(cleaned) != len(snapshots):
+            _save_calibration_snapshots(cleaned)
+            logger.info(f"🧹 Калибровка: очищено {len(snapshots) - len(cleaned)} снапшотов")
+        return len(cleaned)
+    except Exception as e:
+        logger.error(f"_cleanup_and_save_snapshots: {e}")
+        return 0
+
+
+@app.route('/api/calibration/snapshots', methods=['GET'])
+def api_calibration_snapshots():
+    """Возвращает все сохранённые снапшоты."""
+    try:
+        snapshots = _load_calibration_snapshots()
+        snapshots = _cleanup_calibration_snapshots(snapshots)
+        snapshots.sort(key=lambda x: x.get('saved_at_ts', 0), reverse=True)
+        return jsonify({
+            'status': 'ok',
+            'count': len(snapshots),
+            'snapshots': snapshots,
+        })
+    except Exception as e:
+        logger.exception(f"api_calibration_snapshots: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/calibration/save', methods=['POST'])
+def api_calibration_save():
+    """Сохраняет текущий снапшот калибровки вручную."""
+    try:
+        ok = save_calibration_snapshot()
+        return jsonify({'status': 'ok' if ok else 'error'})
+    except Exception as e:
+        logger.exception(f"api_calibration_save: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/calibration/snapshots/<int:idx>', methods=['DELETE'])
+def api_calibration_snapshot_delete(idx):
+    """Удаляет снапшот по индексу."""
+    try:
+        snapshots = _load_calibration_snapshots()
+        # Сортируем как отдаём во фронт, чтобы индекс совпал
+        snapshots.sort(key=lambda x: x.get('saved_at_ts', 0), reverse=True)
+        if idx < 0 or idx >= len(snapshots):
+            return jsonify({'status': 'error', 'error': 'Index out of range'}), 404
+        snapshots.pop(idx)
+        _save_calibration_snapshots(snapshots)
+        return jsonify({'status': 'ok', 'count': len(snapshots)})
+    except Exception as e:
+        logger.exception(f"api_calibration_snapshot_delete: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 # ============================================================
@@ -5998,7 +6200,7 @@ def api_snapshots_list():
 
 
 # ============================================================
-# ★ API: СНИМКИ — детали (с bet_info для модалки)
+# ★ API: СНИМКИ — детали
 # ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
@@ -6006,10 +6208,8 @@ def api_snapshots_detail(fixture_id):
         rows = storage.get_snapshots_by_fixture(fixture_id)
         if not rows:
             return jsonify({
-                'status': 'ok',
-                'fixture_id': fixture_id,
-                'bet': None,
-                'history': [],
+                'status': 'ok', 'fixture_id': fixture_id,
+                'bet': None, 'history': [],
             })
 
         m_info = storage.get_snapshot_match_info(fixture_id) or {}
@@ -6174,7 +6374,6 @@ def api_snapshot_anomalies():
 # ============================================================
 @app.route('/api/snapshot_anomalies/stats', methods=['GET'])
 def api_snapshot_anomalies_stats():
-    """Статистика аномалий: сколько сбылось / не сбылось."""
     try:
         days = int(request.args.get('days', 7))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
@@ -6549,6 +6748,7 @@ def register_bot_commands():
             {"command": "debug_pending", "description": "🔍 Диагностика pending"},
             {"command": "analyze", "description": "📊 Анализ матча"},
             {"command": "calibration", "description": "📊 Анализ калибровки"},
+            {"command": "calibration_save", "description": "💾 Сохранить снапшот калибровки"},
             {"command": "status", "description": "🤖 Статус бота"},
             {"command": "stop", "description": "🛑 Остановить поиск"},
             {"command": "reset_search", "description": "🔄 Сбросить поиск"},
@@ -6638,7 +6838,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.2 — Calibration API)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v22.1 — Calibration Snapshots)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
