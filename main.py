@@ -4098,16 +4098,16 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # === КОНЕЦ ЧАСТИ 2/3 (v5.1 — X2 home advantage) ===
-
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v5.0 — Line Movement + LLM)
+# main.py — ЧАСТЬ 3/3 (v5.2 — Бэкап раз в 2 недели + автоочистка)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
 # ★ v4.6: CLV по стратегиям
 # ★ v4.9: показ llm_reason в /update
 # ★ v5.0: показ line_movement в /update + StrategyTester
-# ★ v5.1: bet_info в /api/snapshots/<fid> (для модалки)
+# ★ v5.1: bet_info в /api/snapshots/<fid>
+# ★ v5.2: бэкап 1/15 числа, автоочистка, защита диска
 # ============================================================
 
 def safe_job(func, name):
@@ -4288,25 +4288,62 @@ def schedule_autobet():
     scheduler.start()
 
 
-MAX_BACKUPS = 7
+MAX_BACKUPS = 2                     # ★ держим только 2 последних архива
+DISK_USAGE_LIMIT_PCT = 70           # ★ если диск занят >70% — бэкап не создаём
+
+
+def _disk_usage_pct(path):
+    """Возвращает % занятого места на диске, где лежит path."""
+    try:
+        st = os.statvfs(path)
+        total = st.f_blocks
+        avail = st.f_bavail
+        if total == 0:
+            return 0
+        used = total - avail
+        return round((used / total) * 100, 1)
+    except Exception:
+        return 0
 
 
 def cleanup_old_backups():
+    """Удаляет все .zip из BACKUP_DIR кроме MAX_BACKUPS последних.
+    Работает вне зависимости от имени файла — берёт всё с расширением .zip."""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
-        files = sorted([f for f in os.listdir(BACKUP_DIR)
-                        if f.startswith('backup_') and f.endswith('.zip')], reverse=True)
-        for old in files[MAX_BACKUPS:]:
+        files = []
+        for f in os.listdir(BACKUP_DIR):
+            full = os.path.join(BACKUP_DIR, f)
+            if os.path.isfile(full) and f.lower().endswith('.zip'):
+                files.append((full, os.path.getmtime(full)))
+        files.sort(key=lambda x: x[1], reverse=True)
+        removed = 0
+        for path, _ in files[MAX_BACKUPS:]:
             try:
-                os.remove(os.path.join(BACKUP_DIR, old))
+                os.remove(path)
+                removed += 1
             except Exception as e:
-                logger.error(f"Ошибка удаления {old}: {e}")
+                logger.error(f"Ошибка удаления {path}: {e}")
+        if removed > 0:
+            logger.info(f"🧹 Удалено бэкапов: {removed} (осталось {len(files) - removed})")
+        return removed
     except Exception as e:
-        logger.error(f"❌ cleanup: {e}")
+        logger.error(f"❌ cleanup_old_backups: {e}")
+        return 0
 
 
-def send_auto_backup():
+def send_auto_backup(force=False):
+    """Создаёт zip-архив с данными и отправляет в Telegram.
+    Если диск занят более DISK_USAGE_LIMIT_PCT% — пропускает (кроме force=True)."""
     try:
+        # ★ Защита от переполнения диска
+        usage = _disk_usage_pct(DATA_DIR)
+        if usage >= DISK_USAGE_LIMIT_PCT and not force:
+            logger.warning(
+                f"⚠️ Бэкап пропущен: диск занят {usage}% ≥ {DISK_USAGE_LIMIT_PCT}%"
+            )
+            return None
+
         os.makedirs(BACKUP_DIR, exist_ok=True)
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
@@ -4346,7 +4383,8 @@ def send_auto_backup():
                 data={
                     'chat_id': Config.ADMIN_CHAT_ID,
                     'caption': (f"💾 <b>АВТОБЭКАП</b>\n📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-                                f"📦 {size_kb:.1f} КБ\n📊 Ставок: {len(history)}\n💰 ${bank:.2f}"),
+                                f"📦 {size_kb:.1f} КБ\n📊 Ставок: {len(history)}\n💰 ${bank:.2f}\n"
+                                f"💽 Диск: {usage}%"),
                     'parse_mode': 'HTML'
                 },
                 timeout=60
@@ -4361,20 +4399,51 @@ def send_auto_backup():
 
 
 def schedule_auto_backup():
+    """Новое расписание (v5.2):
+    • Бэкап — 1-го и 15-го числа каждого месяца в 00:00
+    • Автоочистка старых бэкапов — каждый день в 03:00
+    • Обрезка matches_log — каждый день в 02:00
+    • Очистка снимков >14 дней — каждый понедельник в 04:00
+    """
     scheduler = BackgroundScheduler()
+
+    # Бэкап раз в 2 недели
     scheduler.add_job(
         func=safe_job(send_auto_backup, "auto_backup"),
-        trigger='cron', hour=0, minute=0, id='auto_backup',
+        trigger='cron', day='1,15', hour=0, minute=0, id='auto_backup',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
+
+    # Обрезка matches_log ежедневно
     scheduler.add_job(
         func=safe_job(trim_matches_log, "trim_matches_log"),
         trigger='cron', hour=2, minute=0, id='trim_log',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
+
+    # ★ Автоочистка старых бэкапов ежедневно в 3:00
+    scheduler.add_job(
+        func=safe_job(cleanup_old_backups, "cleanup_backups"),
+        trigger='cron', hour=3, minute=0, id='cleanup_backups',
+        replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+
+    # ★ Очистка старых снимков раз в неделю (понедельник 4:00)
+    scheduler.add_job(
+        func=safe_job(
+            lambda: storage.cleanup_old_odds_history(days=14),
+            "cleanup_odds"
+        ),
+        trigger='cron', day_of_week='mon', hour=4, minute=0, id='cleanup_odds',
+        replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+
     scheduler.start()
+    logger.info("⏰ Расписание: бэкап 1/15 числа, автоочистка ежедневно 03:00")
 
 
 class NotificationSystem:
@@ -4946,11 +5015,13 @@ def webhook():
                 try:
                     stats = storage.get_odds_history_size()
                     x2_count = storage.x2_count()
+                    disk_pct = _disk_usage_pct(DATA_DIR)
                     send_telegram(f"📸 <b>СНИМКИ</b>\n\n"
                                   f"🎯 Матчей: <b>{stats['matches']}</b>\n"
                                   f"📊 Снимков: <b>{stats['snapshots']}</b>\n"
                                   f"💾 Размер: <b>{stats['size_kb']} КБ</b>\n"
-                                  f"🎯 X2-кандидатов: <b>{x2_count}</b>")
+                                  f"🎯 X2-кандидатов: <b>{x2_count}</b>\n"
+                                  f"💽 Диск занят: <b>{disk_pct}%</b>")
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
@@ -4977,9 +5048,12 @@ def webhook():
                         logger.error(f"Ошибка отправки: {e}")
 
             elif text == '/backup':
-                send_telegram("💾 Создаю бэкап...")
-                result = send_auto_backup()
-                send_telegram("✅ Отправлен!" if result else "❌ Ошибка")
+                send_telegram("💾 Создаю бэкап (принудительно)...")
+                result = send_auto_backup(force=True)
+                if result:
+                    send_telegram("✅ Отправлен!")
+                else:
+                    send_telegram("❌ Ошибка (проверь логи)")
 
             elif text == '/autobet':
                 autobet_manager.enabled = not autobet_manager.enabled
@@ -5027,9 +5101,11 @@ def webhook():
                 try:
                     oh_size = storage.get_odds_history_size()
                     x2_count = storage.x2_count()
+                    disk_pct = _disk_usage_pct(DATA_DIR)
                     report += (f"\n📊 Снимки: {oh_size['matches']} матчей, "
                                f"{oh_size['snapshots']} снимков, {oh_size['size_kb']} КБ")
                     report += f"\n🎯 X2-кандидатов: {x2_count}"
+                    report += f"\n💽 Диск занят: {disk_pct}%"
                     report += f"\n🌍 Geocoding: {len(_geo_cache)} городов"
                     report += f"\n📁 DATA: {DATA_DIR}"
                 except Exception:
@@ -6279,6 +6355,7 @@ def health():
             x2_count = storage.x2_count()
         except Exception:
             x2_count = 0
+        disk_pct = _disk_usage_pct(DATA_DIR)
         return {
             'status': 'ok', 'time': datetime.now().isoformat(),
             'uptime_hours': uptime_hours, 'uptime_sec': int(uptime_sec),
@@ -6286,6 +6363,7 @@ def health():
             'search_running': state.get('search_running', False),
             'geocoding_cache_size': len(_geo_cache),
             'data_dir': DATA_DIR,
+            'disk_usage_pct': disk_pct,
             'x2_candidates': x2_count,
             'autobets': {
                 'count': autobets_state.get('total_bets', 0),
@@ -6363,6 +6441,10 @@ if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
         os.makedirs('/data/storage', exist_ok=True)
+    # ★ Render Persistent Disk
+    render_disk = '/opt/render/project/src/data'
+    if os.path.exists(render_disk):
+        os.makedirs(os.path.join(render_disk, 'storage'), exist_ok=True)
 
     setup_logging()
     load_bot_settings()
@@ -6370,6 +6452,7 @@ if __name__ == "__main__":
     _load_geo_cache()
     logger.info(f"🌍 Geocoding cache: {len(_geo_cache)} городов")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
+    logger.info(f"💽 Диск занят: {_disk_usage_pct(DATA_DIR)}%")
 
     start_scheduler()
     schedule_updates()
@@ -6418,7 +6501,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.1 — bet_info в модалке)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.2 — бэкап раз в 2 недели)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
@@ -6432,6 +6515,9 @@ if __name__ == "__main__":
                 f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
                 f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
+    logger.info(f"💽 Диск занят: {_disk_usage_pct(DATA_DIR)}%")
+    logger.info(f"💾 Бэкап: 1-го и 15-го числа в 00:00 | Хранить: {MAX_BACKUPS}")
+    logger.info(f"🧹 Автоочистка: ежедневно 03:00 | Защита: при >{DISK_USAGE_LIMIT_PCT}% бэкап пропускается")
     logger.info("=" * 60)
 
     if Config.FOOTBALL_API_KEY:
