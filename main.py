@@ -4098,8 +4098,9 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # === КОНЕЦ ЧАСТИ 2/3 (v5.1 — X2 home advantage) ===
+
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v5.2 — Бэкап раз в 2 недели + автоочистка)
+# main.py — ЧАСТЬ 3/3 (v5.2 — Calibration API)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
@@ -4107,7 +4108,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v4.9: показ llm_reason в /update
 # ★ v5.0: показ line_movement в /update + StrategyTester
 # ★ v5.1: bet_info в /api/snapshots/<fid>
-# ★ v5.2: бэкап 1/15 числа, автоочистка, защита диска
+# ★ v5.2: /api/calibration для анализа калибровки
 # ============================================================
 
 def safe_job(func, name):
@@ -4288,33 +4289,17 @@ def schedule_autobet():
     scheduler.start()
 
 
-MAX_BACKUPS = 2                     # ★ держим только 2 последних архива
-DISK_USAGE_LIMIT_PCT = 70           # ★ если диск занят >70% — бэкап не создаём
-
-
-def _disk_usage_pct(path):
-    """Возвращает % занятого места на диске, где лежит path."""
-    try:
-        st = os.statvfs(path)
-        total = st.f_blocks
-        avail = st.f_bavail
-        if total == 0:
-            return 0
-        used = total - avail
-        return round((used / total) * 100, 1)
-    except Exception:
-        return 0
+MAX_BACKUPS = 2
 
 
 def cleanup_old_backups():
-    """Удаляет все .zip из BACKUP_DIR кроме MAX_BACKUPS последних.
-    Работает вне зависимости от имени файла — берёт всё с расширением .zip."""
+    """Удаляет все бэкапы кроме MAX_BACKUPS последних."""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         files = []
         for f in os.listdir(BACKUP_DIR):
             full = os.path.join(BACKUP_DIR, f)
-            if os.path.isfile(full) and f.lower().endswith('.zip'):
+            if os.path.isfile(full) and f.endswith('.zip'):
                 files.append((full, os.path.getmtime(full)))
         files.sort(key=lambda x: x[1], reverse=True)
         removed = 0
@@ -4326,24 +4311,12 @@ def cleanup_old_backups():
                 logger.error(f"Ошибка удаления {path}: {e}")
         if removed > 0:
             logger.info(f"🧹 Удалено бэкапов: {removed} (осталось {len(files) - removed})")
-        return removed
     except Exception as e:
-        logger.error(f"❌ cleanup_old_backups: {e}")
-        return 0
+        logger.error(f"❌ cleanup: {e}")
 
 
-def send_auto_backup(force=False):
-    """Создаёт zip-архив с данными и отправляет в Telegram.
-    Если диск занят более DISK_USAGE_LIMIT_PCT% — пропускает (кроме force=True)."""
+def send_auto_backup():
     try:
-        # ★ Защита от переполнения диска
-        usage = _disk_usage_pct(DATA_DIR)
-        if usage >= DISK_USAGE_LIMIT_PCT and not force:
-            logger.warning(
-                f"⚠️ Бэкап пропущен: диск занят {usage}% ≥ {DISK_USAGE_LIMIT_PCT}%"
-            )
-            return None
-
         os.makedirs(BACKUP_DIR, exist_ok=True)
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         zip_path = os.path.join(BACKUP_DIR, f'backup_{ts}.zip')
@@ -4383,8 +4356,7 @@ def send_auto_backup(force=False):
                 data={
                     'chat_id': Config.ADMIN_CHAT_ID,
                     'caption': (f"💾 <b>АВТОБЭКАП</b>\n📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-                                f"📦 {size_kb:.1f} КБ\n📊 Ставок: {len(history)}\n💰 ${bank:.2f}\n"
-                                f"💽 Диск: {usage}%"),
+                                f"📦 {size_kb:.1f} КБ\n📊 Ставок: {len(history)}\n💰 ${bank:.2f}"),
                     'parse_mode': 'HTML'
                 },
                 timeout=60
@@ -4399,51 +4371,36 @@ def send_auto_backup(force=False):
 
 
 def schedule_auto_backup():
-    """Новое расписание (v5.2):
-    • Бэкап — 1-го и 15-го числа каждого месяца в 00:00
-    • Автоочистка старых бэкапов — каждый день в 03:00
-    • Обрезка matches_log — каждый день в 02:00
-    • Очистка снимков >14 дней — каждый понедельник в 04:00
-    """
     scheduler = BackgroundScheduler()
-
-    # Бэкап раз в 2 недели
+    # Бэкап раз в 14 дней (1-го и 15-го числа в 00:00)
     scheduler.add_job(
         func=safe_job(send_auto_backup, "auto_backup"),
         trigger='cron', day='1,15', hour=0, minute=0, id='auto_backup',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-
-    # Обрезка matches_log ежедневно
+    # Обрезка логов каждый день в 02:00
     scheduler.add_job(
         func=safe_job(trim_matches_log, "trim_matches_log"),
         trigger='cron', hour=2, minute=0, id='trim_log',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-
-    # ★ Автоочистка старых бэкапов ежедневно в 3:00
+    # Автоочистка старых бэкапов каждый день в 03:00
     scheduler.add_job(
         func=safe_job(cleanup_old_backups, "cleanup_backups"),
         trigger='cron', hour=3, minute=0, id='cleanup_backups',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-
-    # ★ Очистка старых снимков раз в неделю (понедельник 4:00)
+    # Автоочистка старых снимков каждую неделю
     scheduler.add_job(
-        func=safe_job(
-            lambda: storage.cleanup_old_odds_history(days=14),
-            "cleanup_odds"
-        ),
+        func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', day_of_week='mon', hour=4, minute=0, id='cleanup_odds',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-
     scheduler.start()
-    logger.info("⏰ Расписание: бэкап 1/15 числа, автоочистка ежедневно 03:00")
 
 
 class NotificationSystem:
@@ -5015,13 +4972,11 @@ def webhook():
                 try:
                     stats = storage.get_odds_history_size()
                     x2_count = storage.x2_count()
-                    disk_pct = _disk_usage_pct(DATA_DIR)
                     send_telegram(f"📸 <b>СНИМКИ</b>\n\n"
                                   f"🎯 Матчей: <b>{stats['matches']}</b>\n"
                                   f"📊 Снимков: <b>{stats['snapshots']}</b>\n"
                                   f"💾 Размер: <b>{stats['size_kb']} КБ</b>\n"
-                                  f"🎯 X2-кандидатов: <b>{x2_count}</b>\n"
-                                  f"💽 Диск занят: <b>{disk_pct}%</b>")
+                                  f"🎯 X2-кандидатов: <b>{x2_count}</b>")
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
@@ -5048,12 +5003,9 @@ def webhook():
                         logger.error(f"Ошибка отправки: {e}")
 
             elif text == '/backup':
-                send_telegram("💾 Создаю бэкап (принудительно)...")
-                result = send_auto_backup(force=True)
-                if result:
-                    send_telegram("✅ Отправлен!")
-                else:
-                    send_telegram("❌ Ошибка (проверь логи)")
+                send_telegram("💾 Создаю бэкап...")
+                result = send_auto_backup()
+                send_telegram("✅ Отправлен!" if result else "❌ Ошибка")
 
             elif text == '/autobet':
                 autobet_manager.enabled = not autobet_manager.enabled
@@ -5096,16 +5048,21 @@ def webhook():
 
                 Thread(target=run_grid, daemon=True).start()
 
+            elif text == '/calibration':
+                try:
+                    msg = _build_calibration_message()
+                    send_telegram(msg)
+                except Exception as e:
+                    send_telegram(f"❌ Ошибка калибровки: {e}")
+
             elif text == '/status':
                 report = bot_state.get_status_report()
                 try:
                     oh_size = storage.get_odds_history_size()
                     x2_count = storage.x2_count()
-                    disk_pct = _disk_usage_pct(DATA_DIR)
                     report += (f"\n📊 Снимки: {oh_size['matches']} матчей, "
                                f"{oh_size['snapshots']} снимков, {oh_size['size_kb']} КБ")
                     report += f"\n🎯 X2-кандидатов: {x2_count}"
-                    report += f"\n💽 Диск занят: {disk_pct}%"
                     report += f"\n🌍 Geocoding: {len(_geo_cache)} городов"
                     report += f"\n📁 DATA: {DATA_DIR}"
                 except Exception:
@@ -5268,8 +5225,19 @@ def api_live():
                 if ht.get('home') is not None and ht.get('away') is not None:
                     live_halftime = f"{ht['home']}-{ht['away']}"
 
-                if status_short in FINAL_STATUSES:
+                # ★ FIX: force-final при minute >= 95
+                force_final_by_minute = (
+                    live_minute >= 95
+                    and status_short not in ('HT', 'ET', 'BT', 'P', 'SUSP')
+                )
+
+                if status_short in FINAL_STATUSES or force_final_by_minute:
                     is_final = True
+                    is_live = False
+                    if force_final_by_minute and status_short not in FINAL_STATUSES:
+                        logger.warning(
+                            f"⚠️ Force-final: fid={fid} | status={status_short} | min={live_minute}"
+                        )
                     hg = goals.get('home')
                     ag = goals.get('away')
                     if hg is not None and ag is not None:
@@ -5671,6 +5639,184 @@ def api_simulator_grid_search():
 
 
 # ============================================================
+# ★ API: КАЛИБРОВКА
+# ============================================================
+@app.route('/api/calibration', methods=['GET'])
+def api_calibration():
+    """Разбивает prob на бакеты, считает фактический winrate.
+    Показывает, завышает ли модель вероятности."""
+    try:
+        history = storage.load_history()
+
+        finished = [
+            b for b in history
+            if b.get('result') in ('win', 'loss')
+            and b.get('prob', 0) > 0
+        ]
+
+        if not finished:
+            return jsonify({
+                'status': 'ok',
+                'total': 0,
+                'message': 'Нет завершённых ставок с prob',
+                'buckets': [],
+                'overall': {},
+            })
+
+        buckets_map = defaultdict(list)
+        for b in finished:
+            prob = b.get('prob', 0)
+            bucket = int(prob // 5) * 5
+            if bucket < 30:
+                continue
+            if bucket > 95:
+                bucket = 95
+            result = 1 if b['result'] == 'win' else 0
+            buckets_map[bucket].append(result)
+
+        buckets = []
+        for bucket in sorted(buckets_map.keys()):
+            results = buckets_map[bucket]
+            n = len(results)
+            if n < 3:
+                continue
+            actual = sum(results) / n * 100
+            predicted = bucket + 2.5
+            diff = actual - predicted
+            buckets.append({
+                'range': f'{bucket}-{bucket+5}%',
+                'bucket_mid': predicted,
+                'count': n,
+                'predicted': round(predicted, 1),
+                'actual': round(actual, 1),
+                'diff': round(diff, 1),
+                'wins': sum(results),
+            })
+
+        total_n = sum(b['count'] for b in buckets)
+        if total_n > 0:
+            overall_predicted = sum(b['predicted'] * b['count'] for b in buckets) / total_n
+            overall_actual = sum(b['actual'] * b['count'] for b in buckets) / total_n
+            overall_diff = overall_actual - overall_predicted
+        else:
+            overall_predicted = overall_actual = overall_diff = 0
+
+        by_source = defaultdict(list)
+        for b in finished:
+            prob = b.get('prob', 0)
+            if prob <= 0:
+                continue
+            src = b.get('source', '70_percent') or '70_percent'
+            by_source[src].append((prob, 1 if b['result'] == 'win' else 0))
+
+        sources = []
+        for src, data in by_source.items():
+            if len(data) < 5:
+                continue
+            avg_prob = sum(p for p, _ in data) / len(data)
+            avg_actual = sum(a for _, a in data) / len(data) * 100
+            sources.append({
+                'source': src,
+                'count': len(data),
+                'avg_prob': round(avg_prob, 1),
+                'avg_actual': round(avg_actual, 1),
+                'diff': round(avg_actual - avg_prob, 1),
+            })
+
+        return jsonify({
+            'status': 'ok',
+            'total': len(finished),
+            'buckets': buckets,
+            'overall': {
+                'count': total_n,
+                'predicted': round(overall_predicted, 1),
+                'actual': round(overall_actual, 1),
+                'diff': round(overall_diff, 1),
+                'calibration_factor': round(overall_actual / overall_predicted, 3) if overall_predicted > 0 else 1.0,
+            },
+            'sources': sources,
+        })
+    except Exception as e:
+        logger.exception(f"api_calibration error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+def _build_calibration_message():
+    """Строит текстовое сообщение о калибровке для /calibration."""
+    history = storage.load_history()
+    finished = [b for b in history if b.get('result') in ('win', 'loss') and b.get('prob', 0) > 0]
+
+    if not finished:
+        return "📭 Нет завершённых ставок с prob"
+
+    buckets_map = defaultdict(list)
+    for b in finished:
+        prob = b.get('prob', 0)
+        bucket = int(prob // 5) * 5
+        if bucket < 30:
+            continue
+        if bucket > 95:
+            bucket = 95
+        buckets_map[bucket].append(1 if b['result'] == 'win' else 0)
+
+    total_n = sum(len(v) for v in buckets_map.values())
+    if total_n == 0:
+        return "📭 Нет данных для бакетов"
+
+    sum_pred = 0
+    sum_act = 0
+    for bucket, results in buckets_map.items():
+        n = len(results)
+        pred = bucket + 2.5
+        act = sum(results) / n * 100
+        sum_pred += pred * n
+        sum_act += act * n
+
+    overall_pred = sum_pred / total_n
+    overall_act = sum_act / total_n
+    diff = overall_act - overall_pred
+
+    if abs(diff) < 3:
+        emoji = "✅"
+        verdict = "КАЛИБРОВКА ХОРОШАЯ"
+    elif diff < -10:
+        emoji = "🔴"
+        verdict = "СИЛЬНО ЗАВЫШАЕТ"
+    elif diff < -3:
+        emoji = "🟡"
+        verdict = "ЗАВЫШАЕТ"
+    elif diff > 10:
+        emoji = "🔵"
+        verdict = "СИЛЬНО ЗАНИЖАЕТ"
+    else:
+        emoji = "🔵"
+        verdict = "ЗАНИЖАЕТ"
+
+    msg = (f"📊 <b>КАЛИБРОВКА</b>\n"
+           f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+           f"{emoji} <b>{verdict}</b>\n\n"
+           f"📊 Модель: <b>{overall_pred:.1f}%</b>\n"
+           f"🎯 Реально: <b>{overall_act:.1f}%</b>\n"
+           f"📈 Разница: <b>{diff:+.1f}%</b>\n"
+           f"🎲 Ставок: {total_n}\n"
+           f"⚙️ Коэффициент: <b>{overall_act/overall_pred:.3f}</b>\n\n"
+           f"<b>По бакетам:</b>\n")
+
+    for bucket in sorted(buckets_map.keys()):
+        results = buckets_map[bucket]
+        n = len(results)
+        if n < 3:
+            continue
+        actual = sum(results) / n * 100
+        predicted = bucket + 2.5
+        d = actual - predicted
+        icon = "🟢" if abs(d) < 5 else "🟡" if abs(d) < 10 else "🔴"
+        msg += f"{icon} {bucket}-{bucket+5}%: {predicted:.0f}% → {actual:.0f}% ({d:+.1f}%)\n"
+
+    return msg
+
+
+# ============================================================
 # API: ОСНОВНЫЕ
 # ============================================================
 @app.route('/api/stats', methods=['GET'])
@@ -5877,7 +6023,6 @@ def api_snapshots_detail(fixture_id):
                     continue
                 match_time = m.get('match_time', '?')
 
-                # ★ Ищем best_bet
                 bb = m.get('best_bet') or {}
                 if bb.get('label') and bb.get('odds', 0) > 1.01:
                     minutes_to_match = None
@@ -5889,8 +6034,6 @@ def api_snapshots_detail(fixture_id):
                         except Exception:
                             pass
 
-                    # Показываем ставку, если ≤30 мин до матча
-                    # или матч идёт (до 120 мин после старта)
                     if minutes_to_match is not None and -120 <= minutes_to_match <= 30:
                         bet_info = {
                             'label': bb.get('label'),
@@ -6355,7 +6498,6 @@ def health():
             x2_count = storage.x2_count()
         except Exception:
             x2_count = 0
-        disk_pct = _disk_usage_pct(DATA_DIR)
         return {
             'status': 'ok', 'time': datetime.now().isoformat(),
             'uptime_hours': uptime_hours, 'uptime_sec': int(uptime_sec),
@@ -6363,7 +6505,6 @@ def health():
             'search_running': state.get('search_running', False),
             'geocoding_cache_size': len(_geo_cache),
             'data_dir': DATA_DIR,
-            'disk_usage_pct': disk_pct,
             'x2_candidates': x2_count,
             'autobets': {
                 'count': autobets_state.get('total_bets', 0),
@@ -6407,6 +6548,7 @@ def register_bot_commands():
             {"command": "force_settle", "description": "🔧 Принудительное обновление"},
             {"command": "debug_pending", "description": "🔍 Диагностика pending"},
             {"command": "analyze", "description": "📊 Анализ матча"},
+            {"command": "calibration", "description": "📊 Анализ калибровки"},
             {"command": "status", "description": "🤖 Статус бота"},
             {"command": "stop", "description": "🛑 Остановить поиск"},
             {"command": "reset_search", "description": "🔄 Сбросить поиск"},
@@ -6441,10 +6583,6 @@ if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
         os.makedirs('/data/storage', exist_ok=True)
-    # ★ Render Persistent Disk
-    render_disk = '/opt/render/project/src/data'
-    if os.path.exists(render_disk):
-        os.makedirs(os.path.join(render_disk, 'storage'), exist_ok=True)
 
     setup_logging()
     load_bot_settings()
@@ -6452,7 +6590,6 @@ if __name__ == "__main__":
     _load_geo_cache()
     logger.info(f"🌍 Geocoding cache: {len(_geo_cache)} городов")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
-    logger.info(f"💽 Диск занят: {_disk_usage_pct(DATA_DIR)}%")
 
     start_scheduler()
     schedule_updates()
@@ -6488,7 +6625,7 @@ if __name__ == "__main__":
         misfire_grace_time=60, coalesce=True
     )
     odds_scheduler.add_job(
-        func=safe_job(lambda: storage.cleanup_old_odds_history(days=30), "cleanup_odds"),
+        func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', hour=4, minute=0, id='odds_cleanup',
         replace_existing=True, misfire_grace_time=1800, coalesce=True
     )
@@ -6501,7 +6638,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.2 — бэкап раз в 2 недели)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v5.2 — Calibration API)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
@@ -6515,9 +6652,6 @@ if __name__ == "__main__":
                 f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
                 f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
-    logger.info(f"💽 Диск занят: {_disk_usage_pct(DATA_DIR)}%")
-    logger.info(f"💾 Бэкап: 1-го и 15-го числа в 00:00 | Хранить: {MAX_BACKUPS}")
-    logger.info(f"🧹 Автоочистка: ежедневно 03:00 | Защита: при >{DISK_USAGE_LIMIT_PCT}% бэкап пропускается")
     logger.info("=" * 60)
 
     if Config.FOOTBALL_API_KEY:
