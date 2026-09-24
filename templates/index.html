@@ -93,6 +93,8 @@
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            /* ★ v22.2: для pull-to-refresh — не мешать с iOS bounce */
+            overscroll-behavior-y: contain;
         }
 
         body { padding-bottom: 100px; }
@@ -2031,7 +2033,7 @@
 <!-- ============================================================ -->
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.1 — Calibration Snapshots)       -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.2 — Pull-to-Refresh)             -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2384,7 +2386,7 @@ function openFromMore(page) {
 }
 
 // ============================================================
-// СВАЙПЫ
+// СВАЙПЫ между страницами
 // ============================================================
 (function initSwipe() {
     let touchStartX = 0;
@@ -2404,6 +2406,214 @@ function openFromMore(page) {
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
     }, { passive: true });
+})();
+
+// ============================================================
+// ★ PULL-TO-REFRESH (v22.2)
+// ============================================================
+(async function initPullToRefresh() {
+    const PULL_THRESHOLD = 80;
+    const PULL_RESISTANCE = 0.5;
+    const INDICATOR_HEIGHT = 60;
+
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    let isRefreshing = false;
+    let scrollableParent = null;
+
+    // Создаём индикатор
+    const indicator = document.createElement('div');
+    indicator.id = 'pullToRefreshIndicator';
+    indicator.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%) translateY(-100%);
+        width: 60px;
+        height: 60px;
+        background: var(--bg-card);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        z-index: 9998;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+        opacity: 0;
+        pointer-events: none;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        color: var(--emerald-400);
+    `;
+    indicator.innerHTML = '<span style="transform: rotate(0deg); display: block;">↓</span>';
+    document.body.appendChild(indicator);
+
+    const indicatorIcon = indicator.querySelector('span');
+
+    function isScrollableElement(el) {
+        if (!el || el === document.body) return false;
+        const style = window.getComputedStyle(el);
+        const overflowY = style.overflowY;
+        return (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+    }
+
+    function findScrollableParent(el) {
+        while (el && el !== document.body) {
+            if (isScrollableElement(el)) return el;
+            el = el.parentElement;
+        }
+        return null;
+    }
+
+    function canPull() {
+        if (document.querySelector('.modal-overlay.active')) return false;
+        if (isRefreshing) return false;
+        const windowScroll = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+        if (windowScroll > 0) return false;
+        if (scrollableParent && scrollableParent.scrollTop > 0) return false;
+        return true;
+    }
+
+    function onTouchStart(e) {
+        if (e.touches.length !== 1) return;
+        if (e.target.closest('.modal-overlay.active, .bottom-sheet, input, textarea, button, .bet-card, .live-card, .snapshot-card')) return;
+        scrollableParent = findScrollableParent(e.target);
+        if (!canPull()) return;
+        startY = e.touches[0].clientY;
+        currentY = startY;
+        isPulling = false;
+    }
+
+    function onTouchMove(e) {
+        if (!startY || isRefreshing) return;
+        if (e.touches.length !== 1) return;
+        currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+
+        if (deltaY <= 0 || !canPull()) {
+            if (!isPulling) return;
+            isPulling = false;
+            indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+            indicator.style.opacity = '0';
+            return;
+        }
+
+        isPulling = true;
+        const distance = Math.min(deltaY * PULL_RESISTANCE, PULL_THRESHOLD * 1.5);
+        const offsetY = -INDICATOR_HEIGHT + distance;
+        indicator.style.transform = `translateX(-50%) translateY(${offsetY}px)`;
+        indicator.style.opacity = Math.min(distance / PULL_THRESHOLD, 1);
+
+        const progress = Math.min(distance / PULL_THRESHOLD, 1);
+        const rotation = progress * 180;
+        indicatorIcon.style.transform = `rotate(${rotation}deg)`;
+        indicatorIcon.textContent = progress >= 1 ? '↻' : '↓';
+
+        if (progress >= 1 && !indicator._thresholdHit) {
+            indicator._thresholdHit = true;
+            haptic(15);
+        } else if (progress < 1) {
+            indicator._thresholdHit = false;
+        }
+    }
+
+    async function onTouchEnd() {
+        if (!isPulling) {
+            startY = 0;
+            return;
+        }
+        const deltaY = currentY - startY;
+        const distance = Math.min(deltaY * PULL_RESISTANCE, PULL_THRESHOLD * 1.5);
+
+        if (distance >= PULL_THRESHOLD && !isRefreshing) {
+            isRefreshing = true;
+            indicator.style.transform = 'translateX(-50%) translateY(-10px)';
+            indicator.style.opacity = '1';
+            indicatorIcon.style.transform = 'none';
+            indicatorIcon.textContent = '↻';
+            indicatorIcon.style.animation = 'spin 0.8s linear infinite';
+            haptic(30);
+
+            try {
+                await refreshCurrentPage();
+                showNotification('✅ Обновлено', 'success');
+            } catch (err) {
+                console.error('Pull-to-refresh error:', err);
+                showNotification('❌ Ошибка обновления', 'error');
+            }
+
+            setTimeout(() => {
+                indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+                indicator.style.opacity = '0';
+                indicatorIcon.style.animation = '';
+                indicatorIcon.textContent = '↓';
+                indicatorIcon.style.transform = 'rotate(0deg)';
+                isRefreshing = false;
+            }, 400);
+        } else {
+            indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+            indicator.style.opacity = '0';
+        }
+
+        startY = 0;
+        currentY = 0;
+        isPulling = false;
+        indicator._thresholdHit = false;
+    }
+
+    async function refreshCurrentPage() {
+        switch (currentPage) {
+            case 'dashboard':
+                cachedData = null;
+                await loadPageData('dashboard');
+                await loadAnomalies();
+                await loadDashboardAutobets();
+                break;
+            case 'matches':
+                cachedData = null;
+                await loadPageData('matches');
+                break;
+            case 'snapshots':
+                await loadSnapshots();
+                break;
+            case 'live':
+                await loadLive(true);
+                break;
+            case 'x2':
+                await renderX2Page();
+                break;
+            case 'analytics':
+                cachedData = null;
+                await loadPageData('analytics');
+                break;
+            case 'calibration':
+                await loadCalibrationFull();
+                break;
+            case 'autobets':
+                await loadAutobets();
+                break;
+            case 'simulator':
+                await loadSimPresets();
+                break;
+            case 'settings':
+                renderSettings();
+                break;
+            default:
+                cachedData = null;
+                await loadPageData(currentPage);
+        }
+    }
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    document.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    // Экспортируем функцию для ручного вызова
+    window.__pullToRefreshCurrentPage = refreshCurrentPage;
 })();
 
 // ============================================================
@@ -3572,7 +3782,6 @@ async function loadSnapshots() {
         snapshotsData = data.matches || [];
         renderSnapshots();
 
-        // Авто-обновление каждые 30 сек, если есть матчи ≤30 мин
         if (window._snapFastRefresh) clearTimeout(window._snapFastRefresh);
         const hasSoon = snapshotsData.some(s => {
             if (!s.match_time || s.match_time === '?') return false;
@@ -5244,7 +5453,7 @@ function renderGridTop5(top) {
 }
 
 // ============================================================
-// ★ КАЛИБРОВКА
+// КАЛИБРОВКА
 // ============================================================
 async function loadCalibration() {
     const container = document.getElementById('calibrationContent');
@@ -5453,7 +5662,7 @@ function renderCalibration(data) {
 }
 
 // ============================================================
-// ★ v22.1: СНАПШОТЫ КАЛИБРОВКИ
+// СНАПШОТЫ КАЛИБРОВКИ
 // ============================================================
 async function loadCalibrationSnapshots() {
     const container = document.getElementById('calibrationSnapshotsList');
@@ -5717,7 +5926,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.1',
+        version: '22.2',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -6076,7 +6285,7 @@ Object.assign(window, {
     loadClvByStrategy, renderClvByStrategy,
     renderLMDashboardStats,
     renderSnapshotBetBlock,
-    // ★ v22.1: калибровка + снапшоты
+    // Калибровка + снапшоты
     loadCalibration, renderCalibration,
     loadCalibrationSnapshots, renderCalibrationSnapshots,
     saveCalibrationSnapshot, deleteCalibrationSnapshot,
