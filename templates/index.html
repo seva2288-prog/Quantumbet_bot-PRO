@@ -807,7 +807,7 @@
 
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v22.1 + Calibration Snapshots)     -->
+<!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v22.3 + Статистика по дням)       -->
 <!-- ============================================================ -->
 
     <!-- ============================================================
@@ -1249,6 +1249,64 @@
     </div>
 
     <!-- ============================================================
+         PAGE: DAILY STATS (★ НОВАЯ)
+         ============================================================ -->
+    <div id="page-daily" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">📅 Статистика по дням</h2>
+                <button class="btn btn-outline" onclick="loadDailyStats()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Обновить
+                </button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Прибыль, WIN/LOSS и ROI за каждый день. Кликни на день — покажутся ставки.
+            </div>
+        </div>
+
+        <!-- Фильтры -->
+        <div class="card">
+            <div class="filter-group">
+                <button class="filter-btn active" data-dailyfilter="7" onclick="setDailyFilter(7)">7 дней</button>
+                <button class="filter-btn" data-dailyfilter="14" onclick="setDailyFilter(14)">14 дней</button>
+                <button class="filter-btn" data-dailyfilter="30" onclick="setDailyFilter(30)">30 дней</button>
+                <button class="filter-btn" data-dailyfilter="60" onclick="setDailyFilter(60)">60 дней</button>
+                <button class="filter-btn" data-dailyfilter="all" onclick="setDailyFilter('all')">Все</button>
+            </div>
+
+            <div class="filter-group" style="margin-top:8px;">
+                <span style="font-size:10px;color:var(--text-tertiary);padding:5px 0;display:flex;align-items:center;">
+                    Сортировка:
+                </span>
+                <button class="filter-btn active" data-dailysort="date" onclick="setDailySort('date')">📅 По дате</button>
+                <button class="filter-btn" data-dailysort="profit" onclick="setDailySort('profit')">💰 По прибыли</button>
+                <button class="filter-btn" data-dailysort="bets" onclick="setDailySort('bets')">🎲 По ставкам</button>
+            </div>
+        </div>
+
+        <!-- Итоговая сводка -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📊 Сводка за период</h2>
+            </div>
+            <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);" id="dailySummary">
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+            </div>
+        </div>
+
+        <!-- Список дней -->
+        <div id="dailyList">
+            <div class="skeleton" style="height:80px;"></div>
+            <div class="skeleton" style="height:80px;"></div>
+            <div class="skeleton" style="height:80px;"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================
          PAGE: X2
          ============================================================ -->
     <div id="page-x2" class="page">
@@ -1520,7 +1578,7 @@
     </div>
 
     <!-- ============================================================
-         PAGE: CALIBRATION (v22.1 — со снапшотами)
+         PAGE: CALIBRATION
          ============================================================ -->
     <div id="page-calibration" class="page">
 
@@ -1537,7 +1595,6 @@
             </div>
         </div>
 
-        <!-- ★ v22.1: Блок сохранённых результатов -->
         <div class="card" id="calibrationSnapshotsCard">
             <div class="card-header">
                 <h2 class="emerald-title">📸 Сохранённые результаты</h2>
@@ -1745,15 +1802,15 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v22.1 Emerald • Live + X2 + CLV + Calibration</div>
+                    <div class="desc">v22.3 Emerald • Live + X2 + CLV + Calibration + Daily</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.1</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.3</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v22.1 Emerald © 2026
+        💎 Quantum Tracker v22.3 Emerald © 2026
     </div>
 </div>
 
@@ -1804,6 +1861,15 @@
             </div>
         </button>
 
+        <!-- ★ НОВОЕ: Статистика по дням -->
+        <button class="sheet-item" onclick="openFromMore('daily')">
+            <span class="sheet-icon">📅</span>
+            <div>
+                <div class="sheet-label">Статистика по дням</div>
+                <div class="sheet-desc">Прибыль, WIN/LOSS по каждому дню</div>
+            </div>
+        </button>
+
         <button class="sheet-item" onclick="openFromMore('autobets')">
             <span class="sheet-icon">💸</span>
             <div>
@@ -1820,7 +1886,6 @@
             </div>
         </button>
 
-        <!-- ★ Анализ калибровки -->
         <button class="sheet-item" onclick="openFromMore('calibration')">
             <span class="sheet-icon">📊</span>
             <div>
@@ -2029,11 +2094,11 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 (v22.1 — Calibration Snapshots)              -->
+<!-- КОНЕЦ ЧАСТИ 2/3 (v22.3 — со статистикой по дням)             -->
 <!-- ============================================================ -->
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.2 — Pull-to-Refresh)             -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.3 — Daily Stats)                 -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2083,6 +2148,10 @@ let snapshotFilter = 'all';
 let snapshotSort = 'recent';
 let snapshotsSearchQuery = '';
 let currentSnapshotFixture = null;
+
+// ★ v22.3: Daily stats
+let dailyFilter = 30;
+let dailySort = 'date';
 
 // ============================================================
 // ХАПТИК
@@ -2296,7 +2365,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration') {
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -2335,6 +2404,7 @@ function switchPage(page) {
     else if (page === 'autobets') loadAutobets();
     else if (page === 'simulator') loadSimPresets();
     else if (page === 'calibration') loadCalibrationFull();
+    else if (page === 'daily') loadDailyStats();
 }
 
 function openSettings() {
@@ -2401,7 +2471,7 @@ function openFromMore(page) {
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
         if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration') return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -2409,7 +2479,7 @@ function openFromMore(page) {
 })();
 
 // ============================================================
-// ★ PULL-TO-REFRESH (v22.2)
+// ★ PULL-TO-REFRESH
 // ============================================================
 (async function initPullToRefresh() {
     const PULL_THRESHOLD = 80;
@@ -2422,7 +2492,6 @@ function openFromMore(page) {
     let isRefreshing = false;
     let scrollableParent = null;
 
-    // Создаём индикатор
     const indicator = document.createElement('div');
     indicator.id = 'pullToRefreshIndicator';
     indicator.style.cssText = `
@@ -2592,6 +2661,9 @@ function openFromMore(page) {
             case 'calibration':
                 await loadCalibrationFull();
                 break;
+            case 'daily':
+                await loadDailyStats();
+                break;
             case 'autobets':
                 await loadAutobets();
                 break;
@@ -2612,7 +2684,6 @@ function openFromMore(page) {
     document.addEventListener('touchend', onTouchEnd, { passive: true });
     document.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-    // Экспортируем функцию для ручного вызова
     window.__pullToRefreshCurrentPage = refreshCurrentPage;
 })();
 
@@ -2666,6 +2737,7 @@ function refreshData() {
         if (currentPage === 'x2') renderX2Page();
         if (currentPage === 'live') loadLive();
         if (currentPage === 'calibration') loadCalibrationFull();
+        if (currentPage === 'daily') loadDailyStats();
         showNotification('🔄 Обновление...', '');
     }, 250);
 }
@@ -4397,6 +4469,318 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
+// ★ v22.3: СТАТИСТИКА ПО ДНЯМ
+// ============================================================
+async function loadDailyStats() {
+    const listEl = document.getElementById('dailyList');
+    const summaryEl = document.getElementById('dailySummary');
+    if (!listEl) return;
+
+    listEl.innerHTML = `
+        <div class="skeleton" style="height:80px;"></div>
+        <div class="skeleton" style="height:80px;"></div>
+        <div class="skeleton" style="height:80px;"></div>
+    `;
+
+    try {
+        const resp = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const history = data.history || [];
+
+        const days = aggregateByDay(history, dailyFilter);
+        renderDailySummary(days, summaryEl);
+        renderDailyList(days, listEl);
+    } catch (e) {
+        console.error('loadDailyStats:', e);
+        listEl.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Ошибка загрузки</div>
+                <div class="desc">${e.message}</div>
+                <button class="btn btn-primary" onclick="loadDailyStats()" style="margin-top:12px;">🔄 Повторить</button>
+            </div>
+        `;
+    }
+}
+
+function aggregateByDay(history, period) {
+    const byDay = {};
+
+    for (const bet of history) {
+        const dateStr = (bet.date || '').split(' ')[0];
+        if (!dateStr) continue;
+
+        if (period !== 'all') {
+            const betDate = new Date(dateStr);
+            const now = new Date();
+            const diffDays = Math.floor((now - betDate) / (1000 * 60 * 60 * 24));
+            if (diffDays > period) continue;
+        }
+
+        if (!byDay[dateStr]) {
+            byDay[dateStr] = {
+                date: dateStr,
+                bets: 0,
+                wins: 0,
+                losses: 0,
+                pushes: 0,
+                pending: 0,
+                profit: 0,
+                stake: 0,
+                items: [],
+            };
+        }
+
+        const d = byDay[dateStr];
+        d.bets += 1;
+        d.items.push(bet);
+
+        const result = bet.result || 'pending';
+        const stake = bet.stake || 0;
+        let profit = 0;
+
+        if (result === 'win') {
+            d.wins += 1;
+            profit = (bet.profit && bet.profit !== 0) ? bet.profit : (stake * (bet.odds - 1));
+        } else if (result === 'loss') {
+            d.losses += 1;
+            profit = -stake;
+        } else if (result === 'push') {
+            d.pushes += 1;
+            profit = 0;
+        } else {
+            d.pending += 1;
+            profit = 0;
+        }
+
+        d.profit += profit;
+        d.stake += stake;
+    }
+
+    let days = Object.values(byDay);
+
+    if (dailySort === 'date') {
+        days.sort((a, b) => b.date.localeCompare(a.date));
+    } else if (dailySort === 'profit') {
+        days.sort((a, b) => b.profit - a.profit);
+    } else if (dailySort === 'bets') {
+        days.sort((a, b) => b.bets - a.bets);
+    }
+
+    return days;
+}
+
+function renderDailySummary(days, el) {
+    if (!el) return;
+
+    const totalBets = days.reduce((s, d) => s + d.bets, 0);
+    const totalWins = days.reduce((s, d) => s + d.wins, 0);
+    const totalLosses = days.reduce((s, d) => s + d.losses, 0);
+    const totalProfit = days.reduce((s, d) => s + d.profit, 0);
+    const totalStake = days.reduce((s, d) => s + d.stake, 0);
+
+    const roi = totalStake > 0 ? (totalProfit / totalStake * 100).toFixed(1) : '0.0';
+    const profitClass = totalProfit >= 0 ? 'green' : 'red';
+
+    el.innerHTML = `
+        <div class="stat-card">
+            <div class="value">${totalBets}</div>
+            <div class="label">🎲 Ставок</div>
+        </div>
+        <div class="stat-card">
+            <div class="value green">${totalWins}</div>
+            <div class="label">✅ WIN</div>
+        </div>
+        <div class="stat-card">
+            <div class="value red">${totalLosses}</div>
+            <div class="label">❌ LOSS</div>
+        </div>
+        <div class="stat-card">
+            <div class="value ${profitClass}">
+                ${totalProfit >= 0 ? '+' : ''}$${totalProfit.toFixed(2)}
+            </div>
+            <div class="label">💰 Прибыль (${roi}% ROI)</div>
+        </div>
+    `;
+}
+
+function renderDailyList(days, el) {
+    if (!el) return;
+
+    if (!days.length) {
+        el.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">📭</div>
+                <div class="title">Нет данных</div>
+                <div class="desc">Пока нет ставок за выбранный период</div>
+            </div>
+        `;
+        return;
+    }
+
+    el.innerHTML = days.map(d => {
+        const profitClass = d.profit > 0 ? 'var(--emerald-400)'
+                          : d.profit < 0 ? 'var(--red-400)'
+                          : 'var(--text-tertiary)';
+        const profitStr = d.profit === 0 ? '$0'
+                        : (d.profit > 0 ? `+$${d.profit.toFixed(2)}` : `-$${Math.abs(d.profit).toFixed(2)}`);
+
+        const roi = d.stake > 0 ? (d.profit / d.stake * 100).toFixed(1) : '0.0';
+        const winrate = (d.wins + d.losses) > 0
+            ? (d.wins / (d.wins + d.losses) * 100).toFixed(0)
+            : '0';
+
+        let dateStr = d.date;
+        try {
+            const dt = new Date(d.date);
+            const options = { day: '2-digit', month: 'short', year: 'numeric' };
+            dateStr = dt.toLocaleDateString('ru-RU', options);
+            const weekday = dt.toLocaleDateString('ru-RU', { weekday: 'short' });
+            dateStr += ` (${weekday})`;
+        } catch (e) {}
+
+        const pendingStr = d.pending > 0 ? ` · ⏳ ${d.pending}` : '';
+
+        return `
+            <div class="card" style="padding:12px;margin-bottom:8px;cursor:pointer;"
+                 onclick="showDayDetail('${d.date}')">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text-primary);">
+                            📅 ${dateStr}
+                        </div>
+                        <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
+                            🎲 ${d.bets} ставок${pendingStr}
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:18px;font-weight:800;color:${profitClass};">
+                            ${profitStr}
+                        </div>
+                        <div style="font-size:9px;color:var(--text-tertiary);">
+                            ROI ${roi}%
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding-top:8px;border-top:1px solid var(--border-color);">
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">WIN</div>
+                        <div style="font-size:13px;font-weight:700;color:var(--emerald-400);">
+                            ${d.wins}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">LOSS</div>
+                        <div style="font-size:13px;font-weight:700;color:var(--red-400);">
+                            ${d.losses}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;">WR</div>
+                        <div style="font-size:13px;font-weight:700;color:var(--gold-400);">
+                            ${winrate}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function setDailyFilter(period) {
+    dailyFilter = period === 'all' ? 'all' : parseInt(period);
+    document.querySelectorAll('[data-dailyfilter]').forEach(b => {
+        b.classList.toggle('active', b.dataset.dailyfilter === String(period));
+    });
+    haptic(6);
+    loadDailyStats();
+}
+
+function setDailySort(sort) {
+    dailySort = sort;
+    document.querySelectorAll('[data-dailysort]').forEach(b => {
+        b.classList.toggle('active', b.dataset.dailysort === sort);
+    });
+    haptic(6);
+    loadDailyStats();
+}
+
+async function showDayDetail(dateStr) {
+    try {
+        const resp = await fetch(API_BASE + '/api/all_data?t=' + Date.now());
+        const data = await resp.json();
+        const history = data.history || [];
+        const dayBets = history.filter(b => (b.date || '').split(' ')[0] === dateStr);
+
+        if (!dayBets.length) {
+            showNotification('📭 Нет ставок в этот день', '');
+            return;
+        }
+
+        let displayDate = dateStr;
+        try {
+            const dt = new Date(dateStr);
+            displayDate = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+        } catch (e) {}
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal modal-large">
+                <div class="modal-header">
+                    <h3>📅 ${displayDate}</h3>
+                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">
+                    ${dayBets.length} ставок
+                </div>
+                <div style="max-height:60vh;overflow-y:auto;">
+                    ${dayBets.map(b => {
+                        const emoji = b.result === 'win' ? '✅' :
+                                     b.result === 'loss' ? '❌' :
+                                     b.result === 'push' ? '🔄' : '⏳';
+                        const profit = b.profit || 0;
+                        const profitColor = profit > 0 ? 'var(--emerald-400)' :
+                                           profit < 0 ? 'var(--red-400)' : 'var(--text-tertiary)';
+                        const score = (b.home_goals != null && b.away_goals != null)
+                            ? ` ${b.home_goals}-${b.away_goals}` : '';
+                        return `
+                            <div style="padding:10px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;gap:8px;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:12px;font-weight:700;">
+                                        ${emoji} ${b.home} vs ${b.away}${score}
+                                    </div>
+                                    <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
+                                        ${b.bet || '—'} @ ${(b.odds || 0).toFixed(2)}
+                                        ${b.league ? ` · ${b.league}` : ''}
+                                    </div>
+                                </div>
+                                <div style="text-align:right;flex-shrink:0;">
+                                    <div style="font-size:13px;font-weight:700;color:${profitColor};">
+                                        ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}
+                                    </div>
+                                    <div style="font-size:10px;color:var(--text-tertiary);">
+                                        $${(b.stake || 0).toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (e) {
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
 // CLV ПО СТРАТЕГИЯМ
 // ============================================================
 async function loadClvByStrategy() {
@@ -5661,9 +6045,6 @@ function renderCalibration(data) {
     container.innerHTML = html;
 }
 
-// ============================================================
-// СНАПШОТЫ КАЛИБРОВКИ
-// ============================================================
 async function loadCalibrationSnapshots() {
     const container = document.getElementById('calibrationSnapshotsList');
     if (!container) return;
@@ -5926,7 +6307,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.2',
+        version: '22.3',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -6118,6 +6499,8 @@ function startAutoRefresh() {
                 renderX2Page();
             } else if (currentPage === 'calibration') {
                 loadCalibrationFull();
+            } else if (currentPage === 'daily') {
+                loadDailyStats();
             }
         }
     }, AUTO_REFRESH_MS);
@@ -6290,6 +6673,9 @@ Object.assign(window, {
     loadCalibrationSnapshots, renderCalibrationSnapshots,
     saveCalibrationSnapshot, deleteCalibrationSnapshot,
     loadCalibrationFull,
+    // ★ v22.3: Статистика по дням
+    loadDailyStats, aggregateByDay, renderDailySummary,
+    renderDailyList, setDailyFilter, setDailySort, showDayDetail,
 });
 </script>
 </body>
