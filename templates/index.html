@@ -810,7 +810,7 @@
 <!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v22.3 + Статистика по дням)       -->
 <!-- ============================================================ -->
 
-    <!-- ============================================================
+    х<!-- ============================================================
          PAGE: DASHBOARD
          ============================================================ -->
     <div id="page-dashboard" class="page active">
@@ -885,7 +885,7 @@
             </div>
         </div>
 
-       <div class="card" id="lmDashboardCard" style="display:none;">
+        <div class="card" id="lmDashboardCard" style="display:none;">
             <div class="card-header">
                 <h2 class="emerald-title">📈 LINE MOVEMENT</h2>
                 <button class="btn btn-outline" onclick="switchPage('matches')" style="padding:4px 10px;font-size:10px;">
@@ -911,7 +911,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="card emerald">
             <div class="card-header">
                 <h2 class="emerald-title">🎯 Свежие ставки</h2>
@@ -1230,7 +1230,6 @@
             </div>
         </div>
 
-        <!-- ★ v4.6: CLV по стратегиям -->
         <div class="card">
             <div class="card-header">
                 <h2 class="emerald-title">📊 CLV по стратегиям</h2>
@@ -1249,7 +1248,7 @@
     </div>
 
     <!-- ============================================================
-         PAGE: DAILY STATS (★ НОВАЯ)
+         PAGE: DAILY STATS
          ============================================================ -->
     <div id="page-daily" class="page">
 
@@ -1265,7 +1264,6 @@
             </div>
         </div>
 
-        <!-- Фильтры -->
         <div class="card">
             <div class="filter-group">
                 <button class="filter-btn active" data-dailyfilter="7" onclick="setDailyFilter(7)">7 дней</button>
@@ -1285,7 +1283,6 @@
             </div>
         </div>
 
-        <!-- Итоговая сводка -->
         <div class="card">
             <div class="card-header">
                 <h2>📊 Сводка за период</h2>
@@ -1298,7 +1295,6 @@
             </div>
         </div>
 
-        <!-- Список дней -->
         <div id="dailyList">
             <div class="skeleton" style="height:80px;"></div>
             <div class="skeleton" style="height:80px;"></div>
@@ -1419,7 +1415,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="value green" id="clv-positive">0%</div>
-                    <div class="label">✅ > 0</div>
+                    <div class="label">✅ &gt; 0</div>
                 </div>
                 <div class="stat-card">
                     <div class="value" id="clv-count">0</div>
@@ -1427,7 +1423,7 @@
                 </div>
             </div>
             <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 8px;">
-                💡 CLV > 0 = вы ставите лучше закрытия линии → прибыль на длинной дистанции
+                💡 CLV &gt; 0 = вы ставите лучше закрытия линии → прибыль на длинной дистанции
             </div>
         </div>
 
@@ -1573,6 +1569,123 @@
                 <button class="btn btn-secondary" onclick="saveSimulation()" style="width:100%; margin-top:12px;">
                     💾 Сохранить стратегию
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ★ PAGE: TRAIN/TEST (НОВАЯ ВКЛАДКА)
+         ============================================================ -->
+    <div id="page-traintest" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🎓 Train/Test Split</h2>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Проверка стратегии на <b>честных данных</b>. Модель обучается на Train, 
+                проверяется на Test. Если ROI на Train >> ROI на Test — это <b>overfitting</b>.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>⚙️ Параметры</h2>
+            </div>
+
+            <div class="param-row">
+                <label>Доля Test: <span id="tt-test-size-val">30</span>%</label>
+                <input type="range" id="tt-test-size" min="10" max="50" value="30"
+                       oninput="document.getElementById('tt-test-size-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. EV: <span id="tt-min-ev-val">10</span>%</label>
+                <input type="range" id="tt-min-ev" min="-20" max="50" value="10"
+                       oninput="document.getElementById('tt-min-ev-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. Prob: <span id="tt-min-prob-val">52</span>%</label>
+                <input type="range" id="tt-min-prob" min="30" max="90" value="52"
+                       oninput="document.getElementById('tt-min-prob-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. кэф: <span id="tt-min-odds-val">1.4</span></label>
+                <input type="range" id="tt-min-odds" min="1.0" max="3.0" step="0.1" value="1.4"
+                       oninput="document.getElementById('tt-min-odds-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Макс. кэф: <span id="tt-max-odds-val">5.0</span></label>
+                <input type="range" id="tt-max-odds" min="2.0" max="10.0" step="0.5" value="5.0"
+                       oninput="document.getElementById('tt-max-odds-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Ставка: <span id="tt-stake-val">2.0</span>% банка</label>
+                <input type="range" id="tt-stake" min="0.5" max="10" step="0.5" value="2.0"
+                       oninput="document.getElementById('tt-stake-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Стартовый банк: $<span id="tt-bank-val">1000</span></label>
+                <input type="range" id="tt-bank" min="100" max="10000" step="100" value="1000"
+                       oninput="document.getElementById('tt-bank-val').textContent=this.value">
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="runTrainTest()"
+                style="width:100%;margin: 10px 0;padding: 14px;">
+            🚀 Запустить Train/Test
+        </button>
+
+        <button class="btn btn-gold" onclick="runTrainTestGrid()"
+                style="width:100%;margin: 0 0 10px;padding: 14px;">
+            🎯 Grid Search + Train/Test
+        </button>
+
+        <div id="tt-results" style="display:none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Сравнение Train vs Test</h2>
+                </div>
+                <div class="stats-grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="stat-card">
+                        <div class="value" id="tt-train-roi">0%</div>
+                        <div class="label">🎓 TRAIN ROI</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="tt-test-roi">0%</div>
+                        <div class="label">🧪 TEST ROI</div>
+                    </div>
+                </div>
+                <div style="text-align:center;margin-top:12px;padding:12px;
+                            background:rgba(245,158,11,0.08);border-radius:10px;
+                            border:1px solid rgba(245,158,11,0.2);">
+                    <div style="font-size:11px;color:var(--text-tertiary);">Разрыв (Overfit Gap)</div>
+                    <div id="tt-gap" style="font-size:24px;font-weight:800;">0%</div>
+                    <div id="tt-verdict" style="font-size:11px;margin-top:4px;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>📋 Детали</h2>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Метрика</th>
+                                <th>🎓 Train</th>
+                                <th>🧪 Test</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tt-table-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -1802,20 +1915,20 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v22.3 Emerald • Live + X2 + CLV + Calibration + Daily</div>
+                    <div class="desc">v22.4 Emerald • Live + X2 + CLV + Calibration + Daily + Train/Test</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.3</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.4</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v22.3 Emerald © 2026
+        💎 Quantum Tracker v22.4 Emerald © 2026
     </div>
 </div>
 
 <!-- ============================================================ -->
-<!-- BOTTOM NAV (навигация)                                       -->
+<!-- BOTTOM NAV                                                   -->
 <!-- ============================================================ -->
 <nav class="bottom-nav" role="navigation">
     <button class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
@@ -1861,7 +1974,6 @@
             </div>
         </button>
 
-        <!-- ★ НОВОЕ: Статистика по дням -->
         <button class="sheet-item" onclick="openFromMore('daily')">
             <span class="sheet-icon">📅</span>
             <div>
@@ -1891,6 +2003,15 @@
             <div>
                 <div class="sheet-label">Анализ калибровки</div>
                 <div class="sheet-desc">Проверка: завышает ли модель prob</div>
+            </div>
+        </button>
+
+        <!-- ★ НОВАЯ КНОПКА TRAIN/TEST -->
+        <button class="sheet-item" onclick="openFromMore('traintest')">
+            <span class="sheet-icon">🎓</span>
+            <div>
+                <div class="sheet-label">Train/Test Split</div>
+                <div class="sheet-desc">Проверка стратегии на честных данных</div>
             </div>
         </button>
 
@@ -2153,6 +2274,9 @@ let currentSnapshotFixture = null;
 let dailyFilter = 30;
 let dailySort = 'date';
 
+// ★ v22.4: Train/Test
+let ttLastResult = null;
+
 // ============================================================
 // ХАПТИК
 // ============================================================
@@ -2365,7 +2489,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily') {
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -2405,6 +2529,9 @@ function switchPage(page) {
     else if (page === 'simulator') loadSimPresets();
     else if (page === 'calibration') loadCalibrationFull();
     else if (page === 'daily') loadDailyStats();
+    else if (page === 'traintest') {
+        // Форма статичная, ничего грузить не надо
+    }
 }
 
 function openSettings() {
@@ -2471,7 +2598,7 @@ function openFromMore(page) {
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
         if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily') return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily' || currentPage === 'traintest') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -5837,6 +5964,340 @@ function renderGridTop5(top) {
 }
 
 // ============================================================
+// ★ v22.4: TRAIN/TEST
+// ============================================================
+async function runTrainTest() {
+    const params = {
+        min_ev: parseFloat(document.getElementById('tt-min-ev')?.value || 10),
+        max_ev: 500,
+        min_prob: parseFloat(document.getElementById('tt-min-prob')?.value || 52),
+        max_prob: 100,
+        min_odds: parseFloat(document.getElementById('tt-min-odds')?.value || 1.4),
+        max_odds: parseFloat(document.getElementById('tt-max-odds')?.value || 5.0),
+        min_xg: 0,
+        max_xg: 99,
+        bet_types: [],
+        leagues: [],
+        stake_pct: parseFloat(document.getElementById('tt-stake')?.value || 2.0),
+        start_bank: parseFloat(document.getElementById('tt-bank')?.value || 1000),
+    };
+    const testSize = parseFloat(document.getElementById('tt-test-size')?.value || 30) / 100;
+
+    showNotification('🎓 Запускаю Train/Test...', '');
+
+    const btn = document.querySelector('button[onclick="runTrainTest()"]');
+    let oldText = '';
+    if (btn) {
+        oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Анализ...';
+    }
+
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/train_test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ params, test_size: testSize })
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        const res = r.result;
+        if (!res || res.error) {
+            showNotification('❌ ' + (res?.error || 'Неизвестная ошибка'), 'error');
+            return;
+        }
+
+        ttLastResult = res;
+        renderTrainTestResults(res);
+        showNotification(
+            `✅ Train: ${res.train.roi}% | Test: ${res.test.roi}% | Gap: ${res.gap}%`,
+            'success'
+        );
+    } catch (e) {
+        console.error('runTrainTest:', e);
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = oldText || '🚀 Запустить Train/Test';
+        }
+    }
+}
+
+function renderTrainTestResults(res) {
+    const container = document.getElementById('tt-results');
+    if (!container) return;
+    container.style.display = 'block';
+
+    const train = res.train || {};
+    const test = res.test || {};
+
+    const trainRoiEl = document.getElementById('tt-train-roi');
+    const testRoiEl = document.getElementById('tt-test-roi');
+
+    if (trainRoiEl) {
+        trainRoiEl.textContent = (train.roi || 0) + '%';
+        trainRoiEl.style.color = train.roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+    }
+    if (testRoiEl) {
+        testRoiEl.textContent = (test.roi || 0) + '%';
+        testRoiEl.style.color = test.roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+    }
+
+    const gap = res.gap || 0;
+    const gapEl = document.getElementById('tt-gap');
+    if (gapEl) {
+        gapEl.textContent = (gap >= 0 ? '+' : '') + gap + '%';
+        gapEl.style.color = gap > 20 ? 'var(--red-400)'
+                          : gap > 10 ? 'var(--gold-400)'
+                          : 'var(--emerald-400)';
+    }
+
+    const verdictEl = document.getElementById('tt-verdict');
+    if (verdictEl) {
+        verdictEl.textContent = res.verdict || '';
+        verdictEl.style.color = gap > 20 ? 'var(--red-400)'
+                              : gap > 10 ? 'var(--gold-400)'
+                              : 'var(--emerald-400)';
+    }
+
+    const tbody = document.getElementById('tt-table-body');
+    if (!tbody) return;
+
+    const rows = [
+        ['🎲 Ставок', train.total_bets || 0, test.total_bets || 0],
+        ['✅ WIN', train.wins || 0, test.wins || 0],
+        ['❌ LOSS', train.losses || 0, test.losses || 0],
+        ['🔄 PUSH', train.pushes || 0, test.pushes || 0],
+        ['🎯 Winrate', (train.winrate || 0) + '%', (test.winrate || 0) + '%'],
+        ['💎 ROI', (train.roi || 0) + '%', (test.roi || 0) + '%'],
+        [
+            '💰 Прибыль',
+            (train.profit >= 0 ? '+' : '') + '$' + (train.profit || 0).toFixed(2),
+            (test.profit >= 0 ? '+' : '') + '$' + (test.profit || 0).toFixed(2),
+        ],
+        [
+            '🏁 Конец банка',
+            '$' + (train.end_bank || 0).toFixed(2),
+            '$' + (test.end_bank || 0).toFixed(2),
+        ],
+        [
+            '📉 Просадка',
+            (train.max_drawdown || 0) + '%',
+            (test.max_drawdown || 0) + '%',
+        ],
+    ];
+
+    tbody.innerHTML = rows.map(([label, trainVal, testVal]) => `
+        <tr>
+            <td style="font-weight:700;font-size:11px;">${label}</td>
+            <td style="font-size:11px;">${trainVal}</td>
+            <td style="font-size:11px;">${testVal}</td>
+        </tr>
+    `).join('');
+
+    const oldInfo = container.querySelector('.tt-info-line');
+    if (oldInfo) oldInfo.remove();
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'tt-info-line';
+    infoDiv.innerHTML = `
+        <div style="font-size:10px;color:var(--text-tertiary);
+                    margin-top:12px;padding-top:10px;
+                    border-top:1px solid var(--border-color);">
+            📊 Всего отфильтровано: <b>${res.total_filtered || 0}</b> матчей •
+            🎓 Train: <b>${res.train_count || 0}</b> •
+            🧪 Test: <b>${res.test_count || 0}</b>
+        </div>
+    `;
+    container.appendChild(infoDiv);
+}
+
+async function runTrainTestGrid() {
+    if (!confirm('🎯 Запустить Grid Search + Train/Test?\n\nПереберёт ~100 комбинаций и проверит каждую на Train/Test. Займёт 30-90 сек.')) {
+        return;
+    }
+
+    showNotification('🎯 Grid Search + Train/Test запущен...', '');
+
+    const btn = document.querySelector('button[onclick="runTrainTestGrid()"]');
+    let oldText = '';
+    if (btn) {
+        oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Поиск (30-90 сек)...';
+    }
+
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/train_test_grid', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                max_combinations: 100,
+                min_bets: 20,
+                test_size: parseFloat(document.getElementById('tt-test-size')?.value || 30) / 100,
+            })
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        const top = (r.result && r.result.top) || [];
+        if (top.length === 0) {
+            showNotification('❌ Не найдено стратегий с ' + (r.result?.total_checked || 0) + ' проверок', 'error');
+            return;
+        }
+
+        renderTrainTestGridTop5(top, r.result);
+
+        const best = top[0];
+        showNotification(
+            `🏆 Лучшая: Train ${best.train_roi}% | Test ${best.test_roi}% | Gap ${best.gap}%`,
+            'success'
+        );
+    } catch (e) {
+        console.error('runTrainTestGrid:', e);
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = oldText || '🎯 Grid Search + Train/Test';
+        }
+    }
+}
+
+function renderTrainTestGridTop5(top, meta) {
+    const container = document.getElementById('tt-results');
+    if (!container) return;
+    container.style.display = 'block';
+
+    let gridDiv = document.getElementById('tt-grid-top5');
+    if (gridDiv) gridDiv.remove();
+
+    gridDiv = document.createElement('div');
+    gridDiv.id = 'tt-grid-top5';
+    gridDiv.className = 'card';
+    gridDiv.style.marginTop = '16px';
+
+    const rowsHtml = top.map((t, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        const rowStyle = i === 0 ? 'background: rgba(16,185,129,0.08); font-weight:700;' : '';
+        const gapColor = t.gap > 20 ? 'var(--red-400)'
+                       : t.gap > 10 ? 'var(--gold-400)'
+                       : 'var(--emerald-400)';
+        const trainRoiColor = t.train_roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        const testRoiColor = t.test_roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+
+        return `
+            <tr style="${rowStyle}">
+                <td>${medal}</td>
+                <td>${t.params?.min_ev || 0}%</td>
+                <td>${t.params?.min_prob || 0}%</td>
+                <td>${t.params?.min_odds || 0}-${t.params?.max_odds || 0}</td>
+                <td>${t.total_bets || 0}</td>
+                <td style="color:${trainRoiColor};font-weight:700;">
+                    ${t.train_roi >= 0 ? '+' : ''}${t.train_roi}%
+                </td>
+                <td style="color:${testRoiColor};font-weight:700;">
+                    ${t.test_roi >= 0 ? '+' : ''}${t.test_roi}%
+                </td>
+                <td style="color:${gapColor};font-weight:700;">
+                    ${t.gap >= 0 ? '+' : ''}${t.gap}%
+                </td>
+                <td>${t.train_wr || 0}%</td>
+                <td>${t.test_wr || 0}%</td>
+            </tr>
+        `;
+    }).join('');
+
+    const metaHtml = meta ? `
+        <div style="font-size:10px;color:var(--text-tertiary);
+                    margin-bottom:8px;">
+            Проверено: <b>${meta.total_checked || 0}</b> комбинаций •
+            Валидных: <b>${meta.total_valid || 0}</b> •
+            Показано: <b>${top.length}</b>
+        </div>
+    ` : '';
+
+    gridDiv.innerHTML = `
+        <div class="card-header">
+            <h2>🏆 ТОП-5 СТРАТЕГИЙ (Train/Test)</h2>
+        </div>
+        ${metaHtml}
+        <div style="overflow-x:auto;">
+            <table style="width:100%; font-size:11px; min-width:600px;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>EV</th>
+                        <th>Prob</th>
+                        <th>Кэф</th>
+                        <th>Ставок</th>
+                        <th>Train ROI</th>
+                        <th>Test ROI</th>
+                        <th>Gap</th>
+                        <th>Train WR</th>
+                        <th>Test WR</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>
+        <div style="font-size:10px;color:var(--text-tertiary);
+                    margin-top:12px;padding-top:10px;
+                    border-top:1px solid var(--border-color);">
+            💡 <b>Gap</b> = Train ROI - Test ROI.
+            <br>• Gap &lt; 5% → ✅ Стабильно
+            <br>• Gap 5-15% → 🟠 Небольшой overfit
+            <br>• Gap 15-30% → 🟡 Возможен overfit
+            <br>• Gap &gt; 30% → 🔴 Сильный overfit
+        </div>
+    `;
+
+    const resultsCard = container.querySelector('.card');
+    if (resultsCard && resultsCard.nextSibling) {
+        container.insertBefore(gridDiv, resultsCard.nextSibling);
+    } else {
+        container.appendChild(gridDiv);
+    }
+}
+
+function resetTrainTestForm() {
+    const defaults = {
+        'tt-test-size': 30,
+        'tt-min-ev': 10,
+        'tt-min-prob': 52,
+        'tt-min-odds': 1.4,
+        'tt-max-odds': 5.0,
+        'tt-stake': 2.0,
+        'tt-bank': 1000,
+    };
+    Object.entries(defaults).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = val;
+            el.dispatchEvent(new Event('input'));
+        }
+    });
+
+    const container = document.getElementById('tt-results');
+    if (container) container.style.display = 'none';
+
+    const grid = document.getElementById('tt-grid-top5');
+    if (grid) grid.remove();
+
+    ttLastResult = null;
+
+    showNotification('🔄 Форма сброшена', '');
+}
+
+// ============================================================
 // КАЛИБРОВКА
 // ============================================================
 async function loadCalibration() {
@@ -6307,7 +6768,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.3',
+        version: '22.4',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -6640,6 +7101,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ЭКСПОРТ В WINDOW
 // ============================================================
 Object.assign(window, {
+    // ============ ОСНОВНЫЕ (СТАРЫЕ) ============
     cycleTheme, setTheme, switchPage, refreshData,
     openSettings, closeSettings,
     toggleMoreMenu, closeMoreMenu, openFromMore,
@@ -6668,14 +7130,23 @@ Object.assign(window, {
     loadClvByStrategy, renderClvByStrategy,
     renderLMDashboardStats,
     renderSnapshotBetBlock,
-    // Калибровка + снапшоты
+
+    // ============ КАЛИБРОВКА (СТАРЫЕ) ============
     loadCalibration, renderCalibration,
     loadCalibrationSnapshots, renderCalibrationSnapshots,
     saveCalibrationSnapshot, deleteCalibrationSnapshot,
     loadCalibrationFull,
-    // ★ v22.3: Статистика по дням
+
+    // ============ СТАТИСТИКА ПО ДНЯМ (СТАРЫЕ) ============
     loadDailyStats, aggregateByDay, renderDailySummary,
     renderDailyList, setDailyFilter, setDailySort, showDayDetail,
+
+    // ============ ★ TRAIN/TEST (НОВЫЕ) ============
+    runTrainTest,
+    renderTrainTestResults,
+    runTrainTestGrid,
+    renderTrainTestGridTop5,
+    resetTrainTestForm,
 });
 </script>
 </body>
