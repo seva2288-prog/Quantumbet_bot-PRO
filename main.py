@@ -1,5 +1,5 @@
 # ============================================================
-# main.py — ЧАСТЬ 1/3
+# main.py — ЧАСТЬ 1/3 (v22.4 — Train/Test Split)
 # ============================================================
 import sys
 import os
@@ -916,9 +916,6 @@ class FootballAPI:
         except (ValueError, TypeError):
             return 0.0
 
-    # ============================================================
-    # ★★★ ИСПРАВЛЕННАЯ ВЕРСИЯ (с _to_float)
-    # ============================================================
     def _extract_best_odds(self, odds_data):
         result = {'best_odds': 0, 'bookmaker': '—', 'home_odds': 0,
                   'draw_odds': 0, 'away_odds': 0, 'under_odds': 0, 'over_odds': 0,
@@ -995,7 +992,6 @@ class FootballAPI:
             if any(bm_data.get(k, 0) > 0 for k in bm_data):
                 result['all_bookmakers'][bm_name] = bm_data
 
-        # DC из 1X2 если нет прямых
         if result['x2_odds'] == 0 and result['draw_odds'] > 0 and result['away_odds'] > 0:
             result['x2_odds'] = round(1 / (1/result['draw_odds'] + 1/result['away_odds']), 2)
             result['dc_computed'] = True
@@ -1386,27 +1382,15 @@ def determine_bet_result(bet_type, home_goals, away_goals):
     return 'pending'
 
 
-# === КОНЕЦ ЧАСТИ 1/3 ===
-
-
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v5.1 — X2 home advantage)
-# Стратегии, 5 потоков поиска, обновление результатов
-# ★ Snapshots c home/away/league
-# ★ Исключение для сборных в 70%+
-# ★ Quarter-Kelly
-# ★ CLV-фильтр
-# ★ Расширенный ТМ 2.5
-# ★ BTTS-поток
-# ★ v5.0: LINE MOVEMENT (аномалии кэфов)
-# ★ v4.9: LLM объяснения + DeepSeek pick
-# ★ v5.1: X2 home advantage bonus/penalty
-# ============================================================
-
-# ============================================================
-# СИМУЛЯТОР
+# СИМУЛЯТОР (v22.4 — с Train/Test Split)
 # ============================================================
 class StrategySimulator:
+    """Симулятор стратегий. v22.4: добавлен Train/Test Split."""
+
+    # --------------------------------------------------------
+    # СТАРЫЙ МЕТОД — simulate
+    # --------------------------------------------------------
     def simulate(self, params, use_history=True, use_cache=True):
         all_matches = []
         if use_cache:
@@ -1529,6 +1513,9 @@ class StrategySimulator:
             'max_drawdown': round(max_drawdown, 1), 'bets': bets_log[:100],
         }
 
+    # --------------------------------------------------------
+    # СТАРЫЙ МЕТОД — grid_search
+    # --------------------------------------------------------
     def grid_search(self, max_combinations=200, min_bets=5):
         try:
             logger.info(f"🔍 GRID SEARCH: до {max_combinations} комбинаций...")
@@ -1592,6 +1579,386 @@ class StrategySimulator:
         except Exception as e:
             logger.error(f"grid_search: {e}")
             return {'total_checked': 0, 'total_valid': 0, 'top': []}
+
+    # ========================================================
+    # ★ НОВЫЕ МЕТОДЫ — TRAIN/TEST SPLIT
+    # ========================================================
+
+    def split_data(self, all_matches, test_size=0.3):
+        """
+        Разделяет данные на train и test по времени.
+        test_size: доля тестовой выборки (0.3 = 30%).
+        """
+        def sort_key(m):
+            mt = m.get('match_time', '') or ''
+            try:
+                return datetime.strptime(mt, "%d.%m.%Y %H:%M")
+            except Exception:
+                try:
+                    return datetime.strptime(mt.split()[0], "%Y-%m-%d")
+                except Exception:
+                    return datetime(1970, 1, 1)
+
+        sorted_matches = sorted(all_matches, key=sort_key)
+        split_idx = int(len(sorted_matches) * (1 - test_size))
+
+        if split_idx < 3:
+            split_idx = max(3, len(sorted_matches) // 2)
+
+        train = sorted_matches[:split_idx]
+        test = sorted_matches[split_idx:]
+
+        logger.info(
+            f"🎓 Train/Test split: train={len(train)}, "
+            f"test={len(test)} (test_size={test_size})"
+        )
+        return train, test
+
+    def _simulate_subset(self, matches, params):
+        """
+        Симуляция на подмножестве БЕЗ подглядывания в историю.
+        """
+        start_bank = float(params.get('start_bank', 1000))
+        stake_pct = float(params.get('stake_pct', 2)) / 100
+        bank = start_bank
+        peak_bank = start_bank
+        max_drawdown = 0
+        wins = losses = pushes = 0
+        total_staked = 0
+        bets_log = []
+
+        for m in matches:
+            bb = m.get('best_bet', {})
+            odds = bb.get('odds', 0) or 0
+            if odds < 1.01 or bank <= 0:
+                continue
+            stake = round(bank * stake_pct, 2)
+            if stake < 1:
+                continue
+
+            result = m.get('result')
+            if result in (None, 'pending'):
+                continue
+
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2)
+                wins += 1
+            elif result == 'loss':
+                profit = -stake
+                losses += 1
+            elif result == 'push':
+                profit = 0
+                pushes += 1
+            else:
+                continue
+
+            bank += profit
+            total_staked += stake
+            peak_bank = max(peak_bank, bank)
+            drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
+            max_drawdown = max(max_drawdown, drawdown)
+
+            bets_log.append({
+                'home': m.get('home'), 'away': m.get('away'),
+                'league': m.get('league'),
+                'match_time': m.get('match_time'),
+                'bet': bb.get('label'), 'odds': odds, 'stake': stake,
+                'result': result, 'profit': profit,
+                'bank_after': round(bank, 2),
+            })
+
+        total_bets = wins + losses + pushes
+        profit_total = round(bank - start_bank, 2)
+        roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
+        winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+
+        return {
+            'total_bets': total_bets,
+            'wins': wins, 'losses': losses, 'pushes': pushes,
+            'total_staked': round(total_staked, 2),
+            'profit': profit_total,
+            'roi': round(roi, 1),
+            'winrate': round(winrate, 1),
+            'start_bank': start_bank,
+            'end_bank': round(bank, 2),
+            'max_drawdown': round(max_drawdown, 1),
+            'bets': bets_log[:50],
+        }
+
+    def _collect_all_matches_for_tt(self):
+        """Собирает и дедуплицирует все матчи (кэш + история)."""
+        all_matches = []
+
+        try:
+            cache = storage.load_cache()
+            all_matches.extend(cache.get('all_analyzed', []))
+            all_matches.extend(cache.get('top_matches', []))
+        except Exception as e:
+            logger.error(f"_collect_all_matches_for_tt cache: {e}")
+
+        try:
+            history = storage.load_history()
+            for h in history:
+                if h.get('result') not in ('win', 'loss', 'push'):
+                    continue
+                all_matches.append({
+                    'home': h.get('home'),
+                    'away': h.get('away'),
+                    'league': h.get('league'),
+                    'match_time': h.get('date', ''),
+                    'fixture_id': h.get('fixture_id'),
+                    'total_xg': 0,
+                    'best_bet': {
+                        'type': (h.get('bet') or '').lower(),
+                        'label': h.get('bet', ''),
+                        'odds': h.get('odds', 0),
+                        'ev': h.get('ev', 0),
+                        'prob': h.get('prob', 0),
+                    },
+                    'result': h.get('result'),
+                    'profit_real': h.get('profit', 0),
+                    'from_history': True,
+                })
+        except Exception as e:
+            logger.error(f"_collect_all_matches_for_tt history: {e}")
+
+        seen = set()
+        unique = []
+        for m in all_matches:
+            key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(m)
+
+        logger.info(f"📦 Собрано уникальных матчей: {len(unique)}")
+        return unique
+
+    def _apply_filters(self, matches, params):
+        """Применяет фильтры параметров к списку матчей."""
+        filtered = []
+        for m in matches:
+            bb = m.get('best_bet', {})
+            if not bb:
+                continue
+            ev = bb.get('ev', 0) or 0
+            prob = bb.get('prob', 0) or 0
+            odds = bb.get('odds', 0) or 0
+            bt = (bb.get('type') or '').lower()
+            total_xg = m.get('total_xg', 0) or 0
+            league = m.get('league', '') or ''
+
+            if ev < params.get('min_ev', -100): continue
+            if ev > params.get('max_ev', 999): continue
+            if prob < params.get('min_prob', 0): continue
+            if prob > params.get('max_prob', 100): continue
+            if odds < params.get('min_odds', 0): continue
+            if odds > params.get('max_odds', 999): continue
+            if total_xg > 0:
+                if total_xg < params.get('min_xg', 0): continue
+                if total_xg > params.get('max_xg', 99): continue
+
+            bet_types = params.get('bet_types') or []
+            if bet_types and bt not in [b.lower() for b in bet_types]: continue
+
+            leagues = params.get('leagues') or []
+            if leagues and league not in leagues: continue
+
+            filtered.append(m)
+        return filtered
+
+    def run_train_test(self, params, test_size=0.3):
+        """Главный метод Train/Test."""
+        all_matches = self._collect_all_matches_for_tt()
+        filtered = self._apply_filters(all_matches, params)
+
+        if len(filtered) < 10:
+            return {
+                'error': (f'Недостаточно данных: {len(filtered)} матчей. '
+                          f'Нужно минимум 10 для Train/Test.'),
+                'train': None,
+                'test': None,
+            }
+
+        train, test = self.split_data(filtered, test_size)
+
+        if len(train) < 3 or len(test) < 3:
+            return {
+                'error': (f'Недостаточно данных после split: '
+                          f'train={len(train)}, test={len(test)}.'),
+                'train': None,
+                'test': None,
+            }
+
+        train_result = self._simulate_subset(train, params)
+        test_result = self._simulate_subset(test, params)
+
+        gap = round(train_result['roi'] - test_result['roi'], 1)
+
+        if gap > 30:
+            verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
+        elif gap > 15:
+            verdict = '🟡 ВОЗМОЖЕН OVERFITTING'
+        elif gap > 5:
+            verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
+        elif gap >= -5:
+            verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+        else:
+            verdict = '🔵 TEST ЛУЧШЕ TRAIN (хорошо!)'
+
+        logger.info(
+            f"🎓 TRAIN/TEST: train_roi={train_result['roi']}%, "
+            f"test_roi={test_result['roi']}%, gap={gap}% | {verdict}"
+        )
+
+        return {
+            'train': train_result,
+            'test': test_result,
+            'gap': gap,
+            'verdict': verdict,
+            'total_filtered': len(filtered),
+            'train_count': len(train),
+            'test_count': len(test),
+        }
+
+    def grid_search_train_test(self, max_combinations=100, min_bets=20, test_size=0.3):
+        """Grid Search с проверкой каждой комбинации на Train/Test."""
+        try:
+            logger.info(
+                f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
+                f"min_bets={min_bets}, test_size={test_size}"
+            )
+
+            all_matches = self._collect_all_matches_for_tt()
+            if len(all_matches) < 20:
+                return {
+                    'error': f'Недостаточно данных: {len(all_matches)}',
+                    'total_checked': 0, 'total_valid': 0, 'top': [],
+                }
+
+            grid = {
+                'min_ev': [5, 8, 10, 12, 15],
+                'min_prob': [45, 50, 52, 55, 60],
+                'min_odds': [1.3, 1.4, 1.5, 1.6],
+                'max_odds': [2.5, 3.0, 4.0, 5.0, 6.0],
+                'stake_pct': [1.5, 2.0, 3.0],
+            }
+
+            results = []
+            count = 0
+            keys = list(grid.keys())
+            values = [grid[k] for k in keys]
+
+            for combo in itertools.product(*values):
+                if count >= max_combinations:
+                    break
+                params = dict(zip(keys, combo))
+                params.update({
+                    'max_ev': 500, 'max_prob': 100,
+                    'min_xg': 0, 'max_xg': 99,
+                    'bet_types': [], 'leagues': [],
+                    'start_bank': 1000,
+                })
+                if params['min_odds'] >= params['max_odds']:
+                    continue
+
+                try:
+                    filtered = self._apply_filters(all_matches, params)
+                    if len(filtered) < min_bets * 2:
+                        continue
+
+                    train, test = self.split_data(filtered, test_size)
+                    if len(train) < min_bets or len(test) < 5:
+                        continue
+
+                    train_res = self._simulate_subset(train, params)
+                    test_res = self._simulate_subset(test, params)
+
+                    if train_res['total_bets'] < min_bets:
+                        continue
+                    if test_res['total_bets'] < 5:
+                        continue
+
+                    gap = round(train_res['roi'] - test_res['roi'], 1)
+                    count += 1
+
+                    penalty = max(0, gap) * 0.5
+                    score = test_res['roi'] - penalty
+
+                    results.append({
+                        'params': params,
+                        'total_bets': train_res['total_bets'] + test_res['total_bets'],
+                        'train_bets': train_res['total_bets'],
+                        'test_bets': test_res['total_bets'],
+                        'train_roi': train_res['roi'],
+                        'test_roi': test_res['roi'],
+                        'gap': gap,
+                        'train_wr': train_res['winrate'],
+                        'test_wr': test_res['winrate'],
+                        'train_profit': train_res['profit'],
+                        'test_profit': test_res['profit'],
+                        'train_dd': train_res['max_drawdown'],
+                        'test_dd': test_res['max_drawdown'],
+                        'score': round(score, 1),
+                    })
+                except Exception as e:
+                    logger.debug(f"grid_tt combo error: {e}")
+                    continue
+
+            results.sort(key=lambda x: x['score'], reverse=True)
+
+            seen_sigs = set()
+            unique_results = []
+            for r in results:
+                sig = (
+                    r['params']['min_ev'],
+                    r['params']['min_prob'],
+                    r['params']['min_odds'],
+                    r['params']['max_odds'],
+                    r['params']['stake_pct'],
+                )
+                if sig not in seen_sigs:
+                    seen_sigs.add(sig)
+                    unique_results.append(r)
+
+            top = unique_results[:5]
+
+            logger.info(
+                f"🎯 GRID SEARCH + TT: проверено {count}, "
+                f"валидных {len(unique_results)}, показано {len(top)}"
+            )
+
+            if top:
+                best = top[0]
+                try:
+                    send_telegram(
+                        f"🎓 <b>GRID SEARCH + TRAIN/TEST</b>\n\n"
+                        f"Проверено: {count}\n"
+                        f"Валидных: {len(unique_results)}\n\n"
+                        f"🏆 <b>ЛУЧШАЯ:</b>\n"
+                        f"🎓 Train ROI: {best['train_roi']}% ({best['train_bets']} ставок)\n"
+                        f"🧪 Test ROI: {best['test_roi']}% ({best['test_bets']} ставок)\n"
+                        f"📊 Gap: {best['gap']}%\n"
+                        f"🎯 Test WR: {best['test_wr']}%\n\n"
+                        f"⚙️ Параметры:\n"
+                        f"• Min EV: {best['params']['min_ev']}%\n"
+                        f"• Min Prob: {best['params']['min_prob']}%\n"
+                        f"• Кэф: {best['params']['min_odds']}-{best['params']['max_odds']}\n"
+                        f"• Ставка: {best['params']['stake_pct']}%"
+                    )
+                except Exception as e:
+                    logger.error(f"Telegram grid_tt: {e}")
+
+            return {
+                'total_checked': count,
+                'total_valid': len(unique_results),
+                'top': top,
+            }
+        except Exception as e:
+            logger.exception(f"grid_search_train_test: {e}")
+            return {
+                'total_checked': 0, 'total_valid': 0, 'top': [],
+                'error': str(e),
+            }
 
 
 strategy_simulator = StrategySimulator()
@@ -1743,8 +2110,7 @@ def _guess_source_from_label(label):
 
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
-    """Применяет CLV-фильтр. Возвращает (final_stake, action_str).
-    Для line_movement не применяется (нет prob модели)."""
+    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
     if source == 'line_movement':
         return base_stake, 'no_model'
 
@@ -2415,7 +2781,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM reasons + X2 home advantage)
+# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 home advantage)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -2428,7 +2794,7 @@ def find_top_matches(matches):
     bet_type_count = {}
     league_count = {}
     x2_saved_count = 0
-    cheap_fav_skipped = 0  # ★ счётчик отсечённых дешёвых фаворитов
+    cheap_fav_skipped = 0
 
     X2_ENABLED = getattr(Config, 'X2_ENABLED', True)
     X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
@@ -2436,8 +2802,6 @@ def find_top_matches(matches):
     X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
     X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
     X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
-
-    # ★ ПУНКТ 2: минимальный кэф для П1/1X
     MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.50)
 
     for match_idx, match in enumerate(matches):
@@ -2554,7 +2918,6 @@ def find_top_matches(matches):
             bets.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = bets[0]
 
-            # ★ ПУНКТ 2: фильтр дешёвых фаворитов (1X/П1 с кэфом < 1.50)
             if best_bet['type'] in ('П1', '1X') and best_bet['odds'] < MIN_ODDS_1X:
                 cheap_fav_skipped += 1
                 logger.info(
@@ -2605,9 +2968,6 @@ def find_top_matches(matches):
             league_count[league_name] = league_count.get(league_name, 0) + 1
             if league_count[league_name] > LIMIT_LG: continue
 
-            # ============================================================
-            # ★ X2 СТРАТЕГИЯ + HOME ADVANTAGE (v5.1)
-            # ============================================================
             if X2_ENABLED and not is_international:
                 position_diff = abs(hp - ap)
                 x2_bet = None
@@ -2619,11 +2979,10 @@ def find_top_matches(matches):
                     elif X2_BOTH_SIDES and b_type == '1X' and ap < hp:
                         x2_bet = b; x2_side = '1X'; break
 
-                # ★ HOME ADVANTAGE: бонус если андердог играет дома
                 if x2_bet is not None:
                     X2_HOME_BONUS = getattr(Config, 'X2_HOME_BONUS', 3.0)
                     X2_AWAY_PENALTY = getattr(Config, 'X2_AWAY_PENALTY', 2.0)
-                    underdog_is_home = (x2_side == 'X2')  # X2 → андердог home
+                    underdog_is_home = (x2_side == 'X2')
                     original_prob = x2_bet.get('prob', 0)
 
                     if underdog_is_home:
@@ -2641,12 +3000,10 @@ def find_top_matches(matches):
                             f"prob {original_prob}% → {x2_bet['prob']}%"
                         )
 
-                    # Пересчёт EV
                     if x2_bet.get('odds', 0) > 1.01:
                         new_prob = x2_bet['prob'] / 100
                         x2_bet['ev'] = round((new_prob * x2_bet['odds'] - 1) * 100, 1)
 
-                    # Пересортировка ставок
                     bets.sort(key=lambda x: x['ev'], reverse=True)
                     best_bet = bets[0]
 
@@ -3023,7 +3380,7 @@ def find_value_matches(matches, max_bets=2):
             aga = afd.get('goals_avg', 1.0) if afd else 1.0
             hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
             aca = afd.get('conceded_avg', 1.2) if afd else 1.2
-            home_xg = (hga + aca) / 2
+            home_xg = (hga + hca) / 2
             away_xg = (aga + hca) / 2
             home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
             home_xg *= home_adv
@@ -3441,14 +3798,10 @@ def _calc_h2h_btts_pct(h2h_data):
 
 
 # ============================================================
-# ★ ПОТОК 5: LINE MOVEMENT (v5.0) — аномалии кэфов
+# ★ ПОТОК 5: LINE MOVEMENT
 # ============================================================
 @timing_decorator()
 def find_line_movement_matches(matches):
-    """
-    Ищет аномалии движения кэфов в таблице snapshots.
-    Работает НЕ с матчами из API, а с историей кэфов.
-    """
     LM_ENABLED = getattr(Config, 'LINE_MOVEMENT_ENABLED', True)
     if not LM_ENABLED:
         logger.info("⏭️ [LINE MOVEMENT] Отключено в конфиге")
@@ -3684,7 +4037,7 @@ def find_line_movement_matches(matches):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК (v5.1)
+# КОМБИНИРОВАННЫЙ ПОИСК
 # ============================================================
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
@@ -4098,7 +4451,3186 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v5.1 — X2 home advantage) ===
+# === КОНЕЦ ЧАСТИ 1/3 (v22.4 — Train/Test Split) ===
+
+
+# ============================================================
+# main.py — ЧАСТЬ 2/3 (v22.4 — Train/Test Split)
+# Стратегии, 5 потоков поиска, обновление результатов
+# ★ Snapshots c home/away/league
+# ★ Исключение для сборных в 70%+
+# ★ Quarter-Kelly
+# ★ CLV-фильтр
+# ★ Расширенный ТМ 2.5
+# ★ BTTS-поток
+# ★ v5.0: LINE MOVEMENT (аномалии кэфов)
+# ★ v4.9: LLM объяснения + DeepSeek pick
+# ★ v5.1: X2 home advantage bonus/penalty
+# ============================================================
+
+# ============================================================
+# СИМУЛЯТОР
+# ============================================================
+class StrategySimulator:
+    """Симулятор стратегий. v22.4: Train/Test Split."""
+
+    # --------------------------------------------------------
+    # СТАРЫЙ МЕТОД — simulate
+    # --------------------------------------------------------
+    def simulate(self, params, use_history=True, use_cache=True):
+        all_matches = []
+        if use_cache:
+            try:
+                cache = storage.load_cache()
+                all_matches.extend(cache.get('all_analyzed', []))
+                all_matches.extend(cache.get('top_matches', []))
+            except Exception as e:
+                logger.error(f"simulate: cache error {e}")
+        if use_history:
+            try:
+                history = storage.load_history()
+                for h in history:
+                    all_matches.append({
+                        'home': h.get('home'), 'away': h.get('away'),
+                        'league': h.get('league'), 'match_time': h.get('date', ''),
+                        'fixture_id': h.get('fixture_id'), 'total_xg': 0,
+                        'best_bet': {
+                            'type': (h.get('bet') or '').lower(),
+                            'label': h.get('bet', ''),
+                            'odds': h.get('odds', 0), 'ev': h.get('ev', 0),
+                            'prob': h.get('prob', 0),
+                        },
+                        'result': h.get('result'), 'profit_real': h.get('profit', 0),
+                        'from_history': True,
+                    })
+            except Exception as e:
+                logger.error(f"simulate: history error {e}")
+        seen = set()
+        unique = []
+        for m in all_matches:
+            key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(m)
+        all_matches = unique
+
+        filtered = []
+        for m in all_matches:
+            bb = m.get('best_bet', {})
+            if not bb: continue
+            ev = bb.get('ev', 0) or 0
+            prob = bb.get('prob', 0) or 0
+            odds = bb.get('odds', 0) or 0
+            bt = (bb.get('type') or '').lower()
+            total_xg = m.get('total_xg', 0) or 0
+            league = m.get('league', '') or ''
+            if ev < params.get('min_ev', -100): continue
+            if ev > params.get('max_ev', 999): continue
+            if prob < params.get('min_prob', 0): continue
+            if prob > params.get('max_prob', 100): continue
+            if odds < params.get('min_odds', 0): continue
+            if odds > params.get('max_odds', 999): continue
+            if total_xg > 0:
+                if total_xg < params.get('min_xg', 0): continue
+                if total_xg > params.get('max_xg', 99): continue
+            bet_types = params.get('bet_types') or []
+            if bet_types and bt not in [b.lower() for b in bet_types]: continue
+            leagues = params.get('leagues') or []
+            if leagues and league not in leagues: continue
+            filtered.append(m)
+
+        start_bank = float(params.get('start_bank', 1000))
+        stake_pct = float(params.get('stake_pct', 2)) / 100
+        bank = start_bank
+        peak_bank = start_bank
+        max_drawdown = 0
+        wins = losses = pushes = 0
+        total_staked = 0
+        bets_log = []
+
+        for m in filtered:
+            bb = m.get('best_bet', {})
+            odds = bb.get('odds', 0) or 0
+            if odds < 1.01 or bank <= 0: continue
+            stake = round(bank * stake_pct, 2)
+            if stake < 1: continue
+            result = m.get('result')
+            if result in (None, 'pending'):
+                try:
+                    history = storage.load_history()
+                    for h in history:
+                        if h.get('home') == m.get('home') and h.get('away') == m.get('away'):
+                            result = h.get('result')
+                            break
+                except Exception:
+                    pass
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2); wins += 1
+            elif result == 'loss':
+                profit = -stake; losses += 1
+            elif result == 'push':
+                profit = 0; pushes += 1
+            else:
+                continue
+            bank += profit
+            total_staked += stake
+            peak_bank = max(peak_bank, bank)
+            drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
+            max_drawdown = max(max_drawdown, drawdown)
+            bets_log.append({
+                'home': m.get('home'), 'away': m.get('away'), 'league': m.get('league'),
+                'match_time': m.get('match_time'), 'bet': bb.get('label'),
+                'odds': odds, 'stake': stake, 'ev': bb.get('ev'),
+                'prob': bb.get('prob'), 'result': result,
+                'profit': profit, 'bank_after': round(bank, 2),
+            })
+
+        total_bets = wins + losses + pushes
+        profit_total = round(bank - start_bank, 2)
+        roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
+        winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+        return {
+            'params': params, 'total_matches_analyzed': len(all_matches),
+            'total_matches_filtered': len(filtered),
+            'total_bets': total_bets, 'wins': wins, 'losses': losses, 'pushes': pushes,
+            'total_staked': round(total_staked, 2), 'profit': profit_total,
+            'roi': round(roi, 1), 'winrate': round(winrate, 1),
+            'start_bank': start_bank, 'end_bank': round(bank, 2),
+            'max_drawdown': round(max_drawdown, 1), 'bets': bets_log[:100],
+        }
+
+    # --------------------------------------------------------
+    # СТАРЫЙ МЕТОД — grid_search
+    # --------------------------------------------------------
+    def grid_search(self, max_combinations=200, min_bets=5):
+        try:
+            logger.info(f"🔍 GRID SEARCH: до {max_combinations} комбинаций...")
+            grid = {
+                'min_ev': [5, 8, 10, 12],
+                'min_prob': [45, 50, 52, 55, 60],
+                'min_odds': [1.4, 1.5, 1.6],
+                'max_odds': [2.5, 3.0, 4.0, 5.0],
+                'min_xg': [1.0, 1.2, 1.5],
+                'stake_pct': [1.5, 2.0, 3.0, 5.0],
+            }
+            results = []
+            count = 0
+            keys = list(grid.keys())
+            values = [grid[k] for k in keys]
+            for combo in itertools.product(*values):
+                if count >= max_combinations: break
+                params = dict(zip(keys, combo))
+                params.update({'max_ev': 500, 'max_prob': 100,
+                               'max_xg': 4.0,
+                               'bet_types': [], 'leagues': [], 'start_bank': 1000})
+                if params['min_odds'] >= params['max_odds']: continue
+                try:
+                    res = self.simulate(params, use_history=True, use_cache=True)
+                except Exception:
+                    continue
+                count += 1
+                if res['total_bets'] < min_bets: continue
+                results.append({
+                    'params': params, 'total_bets': res['total_bets'],
+                    'wins': res['wins'], 'losses': res['losses'],
+                    'profit': res['profit'], 'roi': res['roi'],
+                    'winrate': res['winrate'], 'max_drawdown': res['max_drawdown'],
+                    'end_bank': res['end_bank'],
+                })
+            results.sort(key=lambda x: x['roi'], reverse=True)
+            top = results[:5]
+            logger.info(f"🎯 GRID SEARCH: проверено {count}, найдено {len(results)}")
+            if top:
+                best = top[0]
+                try:
+                    p = best['params']
+                    send_telegram(
+                        f"🎯 <b>GRID SEARCH ЗАВЕРШЁН</b>\n\n"
+                        f"Проверено: {count}\nНайдено: {len(results)}\n\n"
+                        f"🏆 <b>ЛУЧШАЯ СТРАТЕГИЯ:</b>\n"
+                        f"📊 ROI: {best['roi']}%\n"
+                        f"📈 Прибыль: ${best['profit']:.2f}\n"
+                        f"🎲 Ставок: {best['total_bets']}\n"
+                        f"🎯 Winrate: {best['winrate']}%\n"
+                        f"📉 Просадка: {best['max_drawdown']}%\n\n"
+                        f"⚙️ Параметры:\n"
+                        f"• Min EV: {p['min_ev']}%\n"
+                        f"• Min Prob: {p['min_prob']}%\n"
+                        f"• Кэф: {p['min_odds']}-{p['max_odds']}\n"
+                        f"• Ставка: {p['stake_pct']}% банка"
+                    )
+                except Exception as e:
+                    logger.error(f"Telegram notify grid: {e}")
+            return {'total_checked': count, 'total_valid': len(results), 'top': top}
+        except Exception as e:
+            logger.error(f"grid_search: {e}")
+            return {'total_checked': 0, 'total_valid': 0, 'top': []}
+
+    # ========================================================
+    # ★ НОВЫЕ МЕТОДЫ — TRAIN/TEST SPLIT
+    # ========================================================
+
+    def split_data(self, all_matches, test_size=0.3):
+        """Разделяет данные на train и test по времени."""
+        def sort_key(m):
+            mt = m.get('match_time', '') or ''
+            try:
+                return datetime.strptime(mt, "%d.%m.%Y %H:%M")
+            except Exception:
+                try:
+                    return datetime.strptime(mt.split()[0], "%Y-%m-%d")
+                except Exception:
+                    return datetime(1970, 1, 1)
+
+        sorted_matches = sorted(all_matches, key=sort_key)
+        split_idx = int(len(sorted_matches) * (1 - test_size))
+
+        if split_idx < 3:
+            split_idx = max(3, len(sorted_matches) // 2)
+
+        train = sorted_matches[:split_idx]
+        test = sorted_matches[split_idx:]
+
+        logger.info(
+            f"🎓 Train/Test split: train={len(train)}, "
+            f"test={len(test)} (test_size={test_size})"
+        )
+        return train, test
+
+    def _simulate_subset(self, matches, params):
+        """Симуляция на подмножестве БЕЗ подглядывания в историю."""
+        start_bank = float(params.get('start_bank', 1000))
+        stake_pct = float(params.get('stake_pct', 2)) / 100
+        bank = start_bank
+        peak_bank = start_bank
+        max_drawdown = 0
+        wins = losses = pushes = 0
+        total_staked = 0
+        bets_log = []
+
+        for m in matches:
+            bb = m.get('best_bet', {})
+            odds = bb.get('odds', 0) or 0
+            if odds < 1.01 or bank <= 0:
+                continue
+            stake = round(bank * stake_pct, 2)
+            if stake < 1:
+                continue
+
+            result = m.get('result')
+            if result in (None, 'pending'):
+                continue
+
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2)
+                wins += 1
+            elif result == 'loss':
+                profit = -stake
+                losses += 1
+            elif result == 'push':
+                profit = 0
+                pushes += 1
+            else:
+                continue
+
+            bank += profit
+            total_staked += stake
+            peak_bank = max(peak_bank, bank)
+            drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
+            max_drawdown = max(max_drawdown, drawdown)
+
+            bets_log.append({
+                'home': m.get('home'), 'away': m.get('away'),
+                'league': m.get('league'),
+                'match_time': m.get('match_time'),
+                'bet': bb.get('label'), 'odds': odds, 'stake': stake,
+                'result': result, 'profit': profit,
+                'bank_after': round(bank, 2),
+            })
+
+        total_bets = wins + losses + pushes
+        profit_total = round(bank - start_bank, 2)
+        roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
+        winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+
+        return {
+            'total_bets': total_bets,
+            'wins': wins, 'losses': losses, 'pushes': pushes,
+            'total_staked': round(total_staked, 2),
+            'profit': profit_total,
+            'roi': round(roi, 1),
+            'winrate': round(winrate, 1),
+            'start_bank': start_bank,
+            'end_bank': round(bank, 2),
+            'max_drawdown': round(max_drawdown, 1),
+            'bets': bets_log[:50],
+        }
+
+    def _collect_all_matches_for_tt(self):
+        """Собирает и дедуплицирует все матчи (кэш + история)."""
+        all_matches = []
+
+        try:
+            cache = storage.load_cache()
+            all_matches.extend(cache.get('all_analyzed', []))
+            all_matches.extend(cache.get('top_matches', []))
+        except Exception as e:
+            logger.error(f"_collect_all_matches_for_tt cache: {e}")
+
+        try:
+            history = storage.load_history()
+            for h in history:
+                if h.get('result') not in ('win', 'loss', 'push'):
+                    continue
+                all_matches.append({
+                    'home': h.get('home'),
+                    'away': h.get('away'),
+                    'league': h.get('league'),
+                    'match_time': h.get('date', ''),
+                    'fixture_id': h.get('fixture_id'),
+                    'total_xg': 0,
+                    'best_bet': {
+                        'type': (h.get('bet') or '').lower(),
+                        'label': h.get('bet', ''),
+                        'odds': h.get('odds', 0),
+                        'ev': h.get('ev', 0),
+                        'prob': h.get('prob', 0),
+                    },
+                    'result': h.get('result'),
+                    'profit_real': h.get('profit', 0),
+                    'from_history': True,
+                })
+        except Exception as e:
+            logger.error(f"_collect_all_matches_for_tt history: {e}")
+
+        seen = set()
+        unique = []
+        for m in all_matches:
+            key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(m)
+
+        logger.info(f"📦 Собрано уникальных матчей: {len(unique)}")
+        return unique
+
+    def _apply_filters(self, matches, params):
+        """Применяет фильтры параметров к списку матчей."""
+        filtered = []
+        for m in matches:
+            bb = m.get('best_bet', {})
+            if not bb:
+                continue
+            ev = bb.get('ev', 0) or 0
+            prob = bb.get('prob', 0) or 0
+            odds = bb.get('odds', 0) or 0
+            bt = (bb.get('type') or '').lower()
+            total_xg = m.get('total_xg', 0) or 0
+            league = m.get('league', '') or ''
+
+            if ev < params.get('min_ev', -100): continue
+            if ev > params.get('max_ev', 999): continue
+            if prob < params.get('min_prob', 0): continue
+            if prob > params.get('max_prob', 100): continue
+            if odds < params.get('min_odds', 0): continue
+            if odds > params.get('max_odds', 999): continue
+            if total_xg > 0:
+                if total_xg < params.get('min_xg', 0): continue
+                if total_xg > params.get('max_xg', 99): continue
+
+            bet_types = params.get('bet_types') or []
+            if bet_types and bt not in [b.lower() for b in bet_types]: continue
+
+            leagues = params.get('leagues') or []
+            if leagues and league not in leagues: continue
+
+            filtered.append(m)
+        return filtered
+
+    def run_train_test(self, params, test_size=0.3):
+        """Главный метод Train/Test."""
+        all_matches = self._collect_all_matches_for_tt()
+        filtered = self._apply_filters(all_matches, params)
+
+        if len(filtered) < 10:
+            return {
+                'error': (f'Недостаточно данных: {len(filtered)} матчей. '
+                          f'Нужно минимум 10 для Train/Test.'),
+                'train': None,
+                'test': None,
+            }
+
+        train, test = self.split_data(filtered, test_size)
+
+        if len(train) < 3 or len(test) < 3:
+            return {
+                'error': (f'Недостаточно данных после split: '
+                          f'train={len(train)}, test={len(test)}.'),
+                'train': None,
+                'test': None,
+            }
+
+        train_result = self._simulate_subset(train, params)
+        test_result = self._simulate_subset(test, params)
+
+        gap = round(train_result['roi'] - test_result['roi'], 1)
+
+        if gap > 30:
+            verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
+        elif gap > 15:
+            verdict = '🟡 ВОЗМОЖЕН OVERFITTING'
+        elif gap > 5:
+            verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
+        elif gap >= -5:
+            verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+        else:
+            verdict = '🔵 TEST ЛУЧШЕ TRAIN (хорошо!)'
+
+        logger.info(
+            f"🎓 TRAIN/TEST: train_roi={train_result['roi']}%, "
+            f"test_roi={test_result['roi']}%, gap={gap}% | {verdict}"
+        )
+
+        return {
+            'train': train_result,
+            'test': test_result,
+            'gap': gap,
+            'verdict': verdict,
+            'total_filtered': len(filtered),
+            'train_count': len(train),
+            'test_count': len(test),
+        }
+
+    def grid_search_train_test(self, max_combinations=100, min_bets=20, test_size=0.3):
+        """Grid Search с проверкой каждой комбинации на Train/Test."""
+        try:
+            logger.info(
+                f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
+                f"min_bets={min_bets}, test_size={test_size}"
+            )
+
+            all_matches = self._collect_all_matches_for_tt()
+            if len(all_matches) < 20:
+                return {
+                    'error': f'Недостаточно данных: {len(all_matches)}',
+                    'total_checked': 0, 'total_valid': 0, 'top': [],
+                }
+
+            grid = {
+                'min_ev': [5, 8, 10, 12, 15],
+                'min_prob': [45, 50, 52, 55, 60],
+                'min_odds': [1.3, 1.4, 1.5, 1.6],
+                'max_odds': [2.5, 3.0, 4.0, 5.0, 6.0],
+                'stake_pct': [1.5, 2.0, 3.0],
+            }
+
+            results = []
+            count = 0
+            keys = list(grid.keys())
+            values = [grid[k] for k in keys]
+
+            for combo in itertools.product(*values):
+                if count >= max_combinations:
+                    break
+                params = dict(zip(keys, combo))
+                params.update({
+                    'max_ev': 500, 'max_prob': 100,
+                    'min_xg': 0, 'max_xg': 99,
+                    'bet_types': [], 'leagues': [],
+                    'start_bank': 1000,
+                })
+                if params['min_odds'] >= params['max_odds']:
+                    continue
+
+                try:
+                    filtered = self._apply_filters(all_matches, params)
+                    if len(filtered) < min_bets * 2:
+                        continue
+
+                    train, test = self.split_data(filtered, test_size)
+                    if len(train) < min_bets or len(test) < 5:
+                        continue
+
+                    train_res = self._simulate_subset(train, params)
+                    test_res = self._simulate_subset(test, params)
+
+                    if train_res['total_bets'] < min_bets:
+                        continue
+                    if test_res['total_bets'] < 5:
+                        continue
+
+                    gap = round(train_res['roi'] - test_res['roi'], 1)
+                    count += 1
+
+                    penalty = max(0, gap) * 0.5
+                    score = test_res['roi'] - penalty
+
+                    results.append({
+                        'params': params,
+                        'total_bets': train_res['total_bets'] + test_res['total_bets'],
+                        'train_bets': train_res['total_bets'],
+                        'test_bets': test_res['total_bets'],
+                        'train_roi': train_res['roi'],
+                        'test_roi': test_res['roi'],
+                        'gap': gap,
+                        'train_wr': train_res['winrate'],
+                        'test_wr': test_res['winrate'],
+                        'train_profit': train_res['profit'],
+                        'test_profit': test_res['profit'],
+                        'train_dd': train_res['max_drawdown'],
+                        'test_dd': test_res['max_drawdown'],
+                        'score': round(score, 1),
+                    })
+                except Exception as e:
+                    logger.debug(f"grid_tt combo error: {e}")
+                    continue
+
+            results.sort(key=lambda x: x['score'], reverse=True)
+
+            seen_sigs = set()
+            unique_results = []
+            for r in results:
+                sig = (
+                    r['params']['min_ev'],
+                    r['params']['min_prob'],
+                    r['params']['min_odds'],
+                    r['params']['max_odds'],
+                    r['params']['stake_pct'],
+                )
+                if sig not in seen_sigs:
+                    seen_sigs.add(sig)
+                    unique_results.append(r)
+
+            top = unique_results[:5]
+
+            logger.info(
+                f"🎯 GRID SEARCH + TT: проверено {count}, "
+                f"валидных {len(unique_results)}, показано {len(top)}"
+            )
+
+            if top:
+                best = top[0]
+                try:
+                    send_telegram(
+                        f"🎓 <b>GRID SEARCH + TRAIN/TEST</b>\n\n"
+                        f"Проверено: {count}\n"
+                        f"Валидных: {len(unique_results)}\n\n"
+                        f"🏆 <b>ЛУЧШАЯ:</b>\n"
+                        f"🎓 Train ROI: {best['train_roi']}% ({best['train_bets']} ставок)\n"
+                        f"🧪 Test ROI: {best['test_roi']}% ({best['test_bets']} ставок)\n"
+                        f"📊 Gap: {best['gap']}%\n"
+                        f"🎯 Test WR: {best['test_wr']}%\n\n"
+                        f"⚙️ Параметры:\n"
+                        f"• Min EV: {best['params']['min_ev']}%\n"
+                        f"• Min Prob: {best['params']['min_prob']}%\n"
+                        f"• Кэф: {best['params']['min_odds']}-{best['params']['max_odds']}\n"
+                        f"• Ставка: {best['params']['stake_pct']}%"
+                    )
+                except Exception as e:
+                    logger.error(f"Telegram grid_tt: {e}")
+
+            return {
+                'total_checked': count,
+                'total_valid': len(unique_results),
+                'top': top,
+            }
+        except Exception as e:
+            logger.exception(f"grid_search_train_test: {e}")
+            return {
+                'total_checked': 0, 'total_valid': 0, 'top': [],
+                'error': str(e),
+            }
+
+
+strategy_simulator = StrategySimulator()
+
+
+# ============================================================
+# ★ KELLY CRITERION (v4.5)
+# ============================================================
+def calculate_stake(bank, prob_pct, odds,
+                     base_pct=None, kelly_fraction=None,
+                     max_pct=None, min_stake=None):
+    """Quarter-Kelly с защитой."""
+    if base_pct is None:
+        base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
+    if kelly_fraction is None:
+        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
+    if max_pct is None:
+        max_pct = getattr(Config, 'KELLY_MAX_PCT', 0.05)
+    if min_stake is None:
+        min_stake = getattr(Config, 'KELLY_MIN_STAKE', 1.0)
+
+    if not getattr(Config, 'KELLY_ENABLED', True):
+        return max(round(bank * base_pct, 2), min_stake)
+
+    if bank <= 0 or odds <= 1.01 or prob_pct <= 0:
+        return min_stake
+
+    b = odds - 1
+    p = prob_pct / 100.0
+    q = 1 - p
+
+    kelly_full = (b * p - q) / b
+    if kelly_full <= 0:
+        return max(round(bank * base_pct, 2), min_stake)
+
+    kelly_stake_pct = kelly_full * kelly_fraction
+    final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
+    stake = round(bank * final_pct, 2)
+    return max(stake, min_stake)
+
+
+def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
+    """Возвращает инфу о Kelly — для логирования/UI."""
+    if kelly_fraction is None:
+        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
+
+    if odds <= 1.01 or prob_pct <= 0:
+        return {'kelly_full': 0, 'kelly_quarter': 0, 'edge': 0}
+    b = odds - 1
+    p = prob_pct / 100.0
+    q = 1 - p
+    kelly_full = (b * p - q) / b if b > 0 else 0
+    edge = (p * odds - 1) * 100
+    return {
+        'kelly_full': round(kelly_full * 100, 2),
+        'kelly_quarter': round(kelly_full * kelly_fraction * 100, 2),
+        'edge': round(edge, 2),
+    }
+
+
+# ============================================================
+# ★ CLV-ФИЛЬТР для стратегий (v4.6)
+# ============================================================
+_CLV_CACHE = {}
+_CLV_CACHE_TS = 0
+_CLV_CACHE_TTL = 600
+
+
+def get_strategy_clv(source, days=None, min_samples=None):
+    """Возвращает CLV-статистику по стратегии (кэш 10 минут)."""
+    global _CLV_CACHE, _CLV_CACHE_TS
+    if days is None:
+        days = getattr(Config, 'CLV_LOOKBACK_DAYS', 30)
+    if min_samples is None:
+        min_samples = getattr(Config, 'CLV_MIN_SAMPLES', 20)
+
+    now = time.time()
+    if (not _CLV_CACHE or now - _CLV_CACHE_TS > _CLV_CACHE_TTL):
+        _CLV_CACHE = _compute_all_strategy_clv(days=days, min_samples=min_samples)
+        _CLV_CACHE_TS = now
+    return _CLV_CACHE.get(source, {
+        'avg_clv': 0, 'count': 0, 'samples': 0,
+        'status': 'no_data', 'multiplier': 1.0, 'skip': False,
+    })
+
+
+def _compute_all_strategy_clv(days=30, min_samples=20):
+    """Считает CLV по каждой стратегии из автобетов."""
+    result = {}
+    try:
+        bets = storage.autobet_load_all()
+        cutoff = (datetime.now() - timedelta(days=days)).timestamp()
+        by_source = defaultdict(list)
+
+        for b in bets:
+            clv = b.get('clv')
+            if clv is None:
+                continue
+            created = b.get('created_at', '')
+            try:
+                ct = datetime.fromisoformat(created).timestamp()
+                if ct < cutoff:
+                    continue
+            except Exception:
+                pass
+
+            src = b.get('source', '') or _guess_source_from_label(b.get('bet_label', ''))
+            by_source[src].append(clv)
+
+        for src, clvs in by_source.items():
+            if not clvs:
+                continue
+            avg = sum(clvs) / len(clvs)
+            n = len(clvs)
+
+            multiplier, skip, status = Config.get_clv_multiplier(avg, n)
+
+            result[src] = {
+                'avg_clv': round(avg, 2),
+                'count': n,
+                'samples': n,
+                'status': status,
+                'multiplier': multiplier,
+                'skip': skip,
+            }
+    except Exception as e:
+        logger.error(f"_compute_all_strategy_clv: {e}")
+
+    logger.info(f"📊 CLV по стратегиям: {result}")
+    return result
+
+
+def _guess_source_from_label(label):
+    """Восстанавливает source по label, если не сохранён."""
+    l = (label or '').lower()
+    if '📈' in (label or '') or 'line movement' in l or 'движение' in l:
+        return 'line_movement'
+    if '💎' in (label or ''):
+        return 'value'
+    if '🔥' in (label or '') or 'premium' in l:
+        return 'tm25_premium'
+    if 'обз' in l or 'btts' in l:
+        return 'btts'
+    if 'тм 2.5' in l or 'under' in l:
+        return 'tm25_standard'
+    if 'x2' in l:
+        return 'x2'
+    return '70_percent'
+
+
+def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
+    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
+    if source == 'line_movement':
+        return base_stake, 'no_model'
+
+    if not getattr(Config, 'CLV_FILTER_ENABLED', True):
+        return base_stake, 'disabled'
+
+    clv_info = get_strategy_clv(source)
+
+    if clv_info['status'] in ('no_data', 'insufficient_data'):
+        return base_stake, 'no_data'
+
+    if clv_info['skip']:
+        logger.warning(f"⏭️ CLV SKIP {source}: avg={clv_info['avg_clv']}% n={clv_info['count']}")
+        return 0, 'skipped'
+
+    mult = clv_info['multiplier']
+    if mult == 1.0:
+        return base_stake, 'normal'
+
+    new_stake = round(base_stake * mult, 2)
+    max_stake = round(bank * getattr(Config, 'KELLY_MAX_PCT', 0.05), 2)
+    if new_stake > max_stake:
+        new_stake = max_stake
+
+    action = 'boosted' if mult > 1.0 else 'reduced'
+    logger.info(f"🎯 CLV {source}: {action} stake {base_stake} → {new_stake} (x{mult})")
+    return new_stake, action
+
+
+# ============================================================
+# УТИЛИТЫ
+# ============================================================
+def get_motivation(position):
+    if position <= 2: return 'title_race'
+    if position <= 4: return 'champions_league'
+    if position <= 6: return 'europa_league'
+    if position <= 14: return 'mid_table'
+    if position <= 17: return 'relegation_playoff'
+    return 'relegation'
+
+
+def analyze_form(form_string):
+    if not form_string: return 'average'
+    wins = form_string.count('W')
+    if wins >= 4: return 'excellent'
+    if wins >= 3: return 'good'
+    if wins >= 2: return 'average'
+    return 'poor'
+
+
+def _get_country_flag(league_id):
+    try:
+        lid = int(league_id) if league_id else None
+    except (ValueError, TypeError):
+        lid = None
+    if lid is None:
+        return ("", "")
+    return Config.LEAGUE_COUNTRY.get(lid, ("", ""))
+
+
+def _is_international_league(league_id, league_name):
+    try:
+        if league_id and int(league_id) in getattr(Config, 'INTERNATIONAL_LEAGUES', []):
+            return True
+    except (ValueError, TypeError):
+        pass
+    ln = (league_name or '').lower()
+    markers = (
+        'nations league', 'world cup', 'euro championship',
+        'friendlies', 'international', 'wc qualification',
+        'euro qualification',
+    )
+    return any(x in ln for x in markers)
+
+
+def export_to_excel():
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    import io
+
+    history = storage.load_history()
+    if not history:
+        return None, "📭 Нет данных для экспорта"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Ставки"
+    headers = ["Дата", "Матч", "Счёт", "1-й тайм", "Ставка", "Коэф", "EV%", "Prob%",
+               "Сумма", "Результат", "Прибыль", "Букмекер", "Источник"]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        c = ws.cell(row=1, column=col)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill(start_color="10b981", end_color="10b981", fill_type="solid")
+        c.alignment = Alignment(horizontal="center")
+
+    total_profit = 0
+    for bet in history:
+        score = f"{bet.get('home_goals', '-')}-{bet.get('away_goals', '-')}"
+        ht = f"{bet.get('halftime_home', '-')}-{bet.get('halftime_away', '-')}" \
+            if bet.get('halftime_home') is not None else '-'
+        result = bet.get('result', 'pending')
+        profit = bet.get('profit', 0)
+        if result == 'win' and profit == 0:
+            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
+        elif result == 'loss' and profit == 0:
+            profit = -bet.get('stake', 0)
+        if result in ('win', 'loss'):
+            total_profit += profit
+        ws.append([bet.get('date', ''), f"{bet.get('home', '')} vs {bet.get('away', '')}",
+                   score, ht, bet.get('bet', ''), bet.get('odds', 0), bet.get('ev', 0),
+                   bet.get('prob', 0), bet.get('stake', 0), result, profit,
+                   bet.get('bookmaker', '—'), bet.get('source', '70_percent')])
+    ws.append([])
+    ws.append(["ИТОГО", "", "", "", "", "", "", "", "", "", round(total_profit, 2), "", ""])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output, f"✅ Экспорт! Ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
+
+
+def get_profit_data(history, days=7):
+    profits = []
+    for i in range(days - 1, -1, -1):
+        day_profit = 0
+        day = datetime.now() - timedelta(days=i)
+        for bet in history:
+            try:
+                bd = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
+                if bd.date() == day.date():
+                    stake = float(bet.get('stake', 0))
+                    odds = float(bet.get('odds', 1))
+                    if bet.get('result') == 'win':
+                        day_profit += stake * (odds - 1)
+                    elif bet.get('result') == 'loss':
+                        day_profit -= stake
+            except Exception:
+                pass
+        profits.append(round(day_profit, 2))
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m')
+             for i in range(days - 1, -1, -1)]
+    return {'dates': dates, 'profits': profits}
+
+
+# ============================================================
+# POISSON / ENSEMBLE
+# ============================================================
+def calculate_poisson_probability(home_xg, away_xg):
+    def poisson(avg, g):
+        return (math.exp(-avg) * avg ** g) / math.factorial(g)
+    hgp = [poisson(home_xg, i) for i in range(6)]
+    agp = [poisson(away_xg, i) for i in range(6)]
+    prob = {'home_win': 0, 'away_win': 0, 'draw': 0,
+            '1X': 0, 'X2': 0, 'btts': 0,
+            'over25': 0, 'under25': 0, 'over_2_5': 0, 'under_2_5': 0}
+    for h in range(6):
+        for a in range(6):
+            p = hgp[h] * agp[a]
+            if h > a: prob['home_win'] += p
+            elif h < a: prob['away_win'] += p
+            else: prob['draw'] += p
+            if h >= a: prob['1X'] += p
+            if a >= h: prob['X2'] += p
+            if h > 0 and a > 0: prob['btts'] += p
+            if h + a > 2.5:
+                prob['over25'] += p; prob['over_2_5'] += p
+            else:
+                prob['under25'] += p; prob['under_2_5'] += p
+    return prob
+
+
+def calculate_form_probability(home_form, away_form):
+    hq = analyze_form(home_form)
+    aq = analyze_form(away_form)
+    prob = {'home_win': 0.35, 'away_win': 0.30, 'draw': 0.35,
+            '1X': 0.70, 'X2': 0.65, 'btts': 0.45,
+            'over25': 0.5, 'under25': 0.5, 'over_2_5': 0.45, 'under_2_5': 0.55}
+    if hq == 'excellent' and aq == 'poor':
+        prob['home_win'] += 0.15; prob['1X'] += 0.10
+        prob['away_win'] -= 0.10; prob['X2'] -= 0.10
+    elif hq == 'poor' and aq == 'excellent':
+        prob['away_win'] += 0.15; prob['X2'] += 0.10
+        prob['home_win'] -= 0.10; prob['1X'] -= 0.10
+    return prob
+
+
+def calculate_h2h_probability(h2h_data):
+    prob = {'home_win': 0.33, 'away_win': 0.33, 'draw': 0.34,
+            '1X': 0.67, 'X2': 0.67, 'btts': 0.50,
+            'over25': 0.5, 'under25': 0.5, 'over_2_5': 0.50, 'under_2_5': 0.50}
+    if h2h_data and h2h_data.get('total_matches', 0) > 0:
+        total = h2h_data['total_matches']
+        prob['home_win'] = (h2h_data.get('home_wins', 0) / total) * 0.5 + 0.25
+        prob['away_win'] = (h2h_data.get('away_wins', 0) / total) * 0.5 + 0.25
+        prob['draw'] = (h2h_data.get('draws', 0) / total) * 0.5 + 0.25
+        prob['1X'] = prob['home_win'] + prob['draw']
+        prob['X2'] = prob['away_win'] + prob['draw']
+        avg_goals = h2h_data.get('avg_goals', 2.5)
+        if avg_goals > 2.5:
+            prob['over_2_5'] = 0.55; prob['under_2_5'] = 0.45
+        else:
+            prob['over_2_5'] = 0.45; prob['under_2_5'] = 0.55
+    return prob
+
+
+def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
+                          match_data=None, api_predictions=None,
+                          is_international=False):
+    engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
+    poisson = calculate_poisson_probability(home_xg, away_xg)
+    form_prob = calculate_form_probability(home_form, away_form)
+    h2h_prob = calculate_h2h_probability(h2h_data)
+
+    if is_international:
+        w_p, w_f, w_h = 0.60, 0.15, 0.10
+    elif engine == 'hybrid':
+        w_p, w_f, w_h = 0.40, 0.30, 0.15
+    else:
+        w_p, w_f, w_h = 0.5, 0.3, 0.2
+
+    final = {}
+    all_keys = set(list(poisson.keys()) + list(form_prob.keys()) + list(h2h_prob.keys()))
+    for k in all_keys:
+        final[k] = (poisson.get(k, 0) * w_p +
+                    form_prob.get(k, 0) * w_f +
+                    h2h_prob.get(k, 0) * w_h)
+    if api_predictions:
+        w_api = 0.15
+        final['home_win'] = final.get('home_win', 0) * (1 - w_api) + api_predictions.get('home_win', 0) * w_api
+        final['draw'] = final.get('draw', 0) * (1 - w_api) + api_predictions.get('draw', 0) * w_api
+        final['away_win'] = final.get('away_win', 0) * (1 - w_api) + api_predictions.get('away_win', 0) * w_api
+    total = final.get('home_win', 0) + final.get('draw', 0) + final.get('away_win', 0)
+    if total > 0:
+        final['home_win'] /= total
+        final['away_win'] /= total
+        final['draw'] /= total
+        final['1X'] = final['home_win'] + final['draw']
+        final['X2'] = final['away_win'] + final['draw']
+    return final
+
+
+def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
+    if not llm:
+        return
+    key_map = {'draw': 'draw', 'underdog': None, 'btts': 'btts',
+               'П1': 'home_win', 'П2': 'away_win',
+               'over25': 'over_2_5', 'under25': None, '1X': None, 'X2': None}
+    for b in match.get('bets', []):
+        llm_key = key_map.get(b.get('type'))
+        if llm_key and llm_key in llm:
+            blended = b['prob'] * (1 - alpha) + llm[llm_key] * 100 * alpha
+            b['prob'] = round(blended, 1)
+            if b.get('odds', 0) > 1.01:
+                b['ev'] = round((b['prob'] / 100 * b['odds'] - 1) * 100, 1)
+    match['bets'].sort(key=lambda x: x['ev'], reverse=True)
+    if match['bets']:
+        match['best_bet'] = match['bets'][0]
+        try:
+            bank = storage.load_bank()
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=match['best_bet'].get('prob', 0),
+                odds=match['best_bet'].get('odds', 1.85),
+            )
+            src = match.get('source', '70_percent')
+            final_stake, clv_action = apply_clv_filter(
+                source=src,
+                base_stake=kelly_stake,
+                prob_pct=match['best_bet'].get('prob', 0),
+                odds=match['best_bet'].get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake > 0:
+                for b in match['bets']:
+                    b['stake'] = final_stake
+                    b['clv_action'] = clv_action
+                match['best_bet']['stake'] = final_stake
+                match['best_bet']['clv_action'] = clv_action
+        except Exception:
+            pass
+
+
+# ============================================================
+# РУЧНОЕ ОБНОВЛЕНИЕ
+# ============================================================
+def update_manual_result(match_name, score):
+    try:
+        hg = ag = None
+        if score and '-' in score:
+            parts = score.split('-')
+            hg = int(parts[0].strip()); ag = int(parts[1].strip())
+        history = storage.load_history()
+        found = False
+        result = 'pending'
+        for bet in history:
+            if bet.get('result') in ('pending', None):
+                full = f"{bet.get('home', '')} vs {bet.get('away', '')}"
+                if match_name.lower() in full.lower() or full.lower() in match_name.lower():
+                    bet['home_goals'] = hg
+                    bet['away_goals'] = ag
+                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
+                    bet['result'] = result
+                    if result == 'win':
+                        bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
+                    elif result == 'loss':
+                        bet['profit'] = -bet['stake']
+                    else:
+                        bet['profit'] = 0
+                    found = True
+                    break
+        if found:
+            storage.save_history(history)
+            recalc_stats()
+            return f"✅ {match_name} | {hg}-{ag} | {result}"
+        return f"❌ '{match_name}' не найден"
+    except Exception as e:
+        return f"❌ Ошибка: {e}"
+
+
+def analyze_match(match_name):
+    try:
+        cache = storage.load_cache()
+        matches = cache.get('top_matches', [])
+        for m in matches:
+            full = f"{m.get('home', '')} vs {m.get('away', '')}"
+            if match_name.lower() in full.lower() or full.lower() in match_name.lower():
+                src = m.get('source', '70_percent')
+                src_label = {
+                    'value': '💎 VALUE',
+                    'btts': '⚽ BTTS (Обе Забьют)',
+                    'tm25_premium': '🔥 PREMIUM ТМ 2.5',
+                    'tm25_standard': '⭐ STANDARD ТМ 2.5',
+                    'line_movement': '📈 LINE MOVEMENT',
+                    '70_percent': '🎯 70%+',
+                }.get(src, '🎯')
+                country_str = ''
+                if m.get('country'):
+                    country_str = f" • {m.get('country_flag', '')} {m.get('country')}"
+                r = (f"📊 <b>АНАЛИЗ</b>\n"
+                     f"🏟️ {full}\n"
+                     f"🏆 {m.get('league', '?')}{country_str}\n"
+                     f"📅 {m.get('match_time', '?')}\n"
+                     f"{src_label}\n\n")
+                best = m.get('best_bet', {})
+                r += f"🎯 <b>{best.get('label', '—')}</b>\n"
+                if src == 'line_movement':
+                    r += f"📉 Движение: {best.get('movement_pct', 0)}% за {best.get('movement_hours', 0)}ч\n"
+                    r += f"💰 Было: {best.get('old_odds', 0)} → Стало: {best.get('odds', 0)}\n"
+                    r += f"📸 Снимков: {best.get('snapshots_count', 0)}\n"
+                else:
+                    r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
+                    r += f"💰 Кэф: {best.get('odds', 0)}\n"
+                r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
+                for i, b in enumerate(m.get('bets', [])[:7], 1):
+                    emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
+                    r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
+                r += f"\n⚽ XG: {m.get('total_xg', 0):.2f}\n"
+                r += f"📈 Форма: {m.get('home_form')} vs {m.get('away_form')}"
+                if best.get('llm_reason'):
+                    r += f"\n💡 <i>{best['llm_reason']}</i>"
+                if m.get('weather_reason'):
+                    r += f"\n{m['weather_reason']}"
+                return r
+        return f"❌ '{match_name}' не найден"
+    except Exception as e:
+        return f"❌ {e}"
+
+
+# ============================================================
+# ОБНОВЛЕНИЕ КЭФОВ
+# ============================================================
+def update_odds_for_matches(matches):
+    if not matches:
+        return []
+
+    groups = defaultdict(list)
+    for md in matches:
+        fid = md.get('fixture_id')
+        if not fid:
+            continue
+        league_name = md.get('league', '')
+        league_id = None
+        for lid, lname in Config.LEAGUE_NAMES.items():
+            if lname == league_name:
+                league_id = lid
+                break
+        if not league_id:
+            groups[('single', fid)].append(md)
+            continue
+        match_time = md.get('match_time', '')
+        date_str = None
+        try:
+            dt = datetime.strptime(match_time, "%d.%m.%Y %H:%M")
+            date_str = dt.strftime('%Y-%m-%d')
+        except Exception:
+            date_str = None
+        if date_str:
+            groups[(league_id, date_str)].append(md)
+        else:
+            groups[('single', fid)].append(md)
+
+    batch_odds = {}
+    for key, group_matches in groups.items():
+        if isinstance(key, tuple) and key[0] == 'single':
+            continue
+        league_id, date_str = key
+        try:
+            batch = football_api.get_odds_batch_for_league(league_id, date_str)
+            if batch:
+                batch_odds.update(batch)
+                logger.info(f"📦 Batch odds: league={league_id} date={date_str} → {len(batch)} матчей")
+        except Exception as e:
+            logger.error(f"Batch odds error {key}: {e}")
+
+    updated = []
+    total = len(matches)
+    for idx, md in enumerate(matches, 1):
+        if idx % 10 == 0:
+            send_telegram(f"💓 <b>ОБНОВЛЕНИЕ КЭФОВ</b> | {idx}/{total}")
+        try:
+            home = md.get('home'); away = md.get('away')
+            fid = md.get('fixture_id')
+            best_bet = md.get('best_bet', {})
+            bt = best_bet.get('type', 'under')
+            new_odds = None
+            bookmaker = '—'
+            source = None
+            md_source = md.get('source', '')
+
+            logger.info(f"🔍 [{idx}] {home} vs {away} | fid={fid} | type={bt} | src={md_source}")
+
+            fo = batch_odds.get(fid) if fid else None
+            if not fo and fid:
+                fo = football_api.get_match_odds(fid)
+
+            if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
+                try:
+                    fresh = football_api.get_match_odds(fid)
+                    if fresh:
+                        for k in ['1x_odds', 'x2_odds', 'home_odds', 'away_odds']:
+                            old_v = fo.get(k, 0)
+                            new_v = fresh.get(k, 0)
+                            if old_v > 0 and new_v > 0 and abs(old_v - new_v) > 0.3:
+                                logger.warning(f"⚠️ Кэф устарел {k}: {old_v} → {new_v}")
+                                fo = fresh
+                                break
+                except Exception as e:
+                    logger.error(f"Двойная проверка: {e}")
+
+            if fo and fo.get('best_odds', 0) > 0:
+                bm_list = fo.get('all_bookmakers', {})
+                if bm_list:
+                    if bt == 'X2': target = 'x2'
+                    elif bt == '1X': target = '1x'
+                    elif bt in ('П1', '1'): target = 'home'
+                    elif bt in ('П2', '2'): target = 'away'
+                    elif bt == 'draw': target = 'draw'
+                    else: target = 'home'
+                    target_odds = {bm: data.get(target, 0)
+                                   for bm, data in bm_list.items()
+                                   if data.get(target, 0) > 0}
+                    if target_odds:
+                        best_bm = max(target_odds, key=target_odds.get)
+                        best_odds_val = target_odds[best_bm]
+                        avg_odds = sum(target_odds.values()) / len(target_odds)
+                        anomaly_pct = ((best_odds_val / avg_odds) - 1) * 100 if avg_odds > 0 else 0
+                        new_odds = best_odds_val
+                        bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
+                        source = 'Line Analysis'
+                        if anomaly_pct > 5:
+                            logger.info(f"🎯 АНОМАЛИЯ: {home} vs {away} | {best_bm} = {best_odds_val} (+{anomaly_pct:.1f}%)")
+                            prob = best_bet.get('prob', 0) / 100
+                            anomaly_bonus = min(anomaly_pct / 100, 0.10)
+                            boosted = min(prob + anomaly_bonus, 0.95)
+                            best_bet['prob'] = round(boosted * 100, 1)
+                            best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
+                if not new_odds:
+                    if bt == 'X2' and fo.get('x2_odds', 0) > 0:
+                        new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
+                    elif bt == '1X' and fo.get('1x_odds', 0) > 0:
+                        new_odds = fo['1x_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (1X)'
+                    elif bt in ('П1', '1') and fo.get('home_odds', 0) > 0:
+                        new_odds = fo['home_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    elif bt in ('П2', '2') and fo.get('away_odds', 0) > 0:
+                        new_odds = fo['away_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    elif bt == 'draw' and fo.get('draw_odds', 0) > 0:
+                        new_odds = fo['draw_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    elif bt == 'under' and fo.get('under_odds', 0) > 0:
+                        new_odds = fo['under_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    elif bt == 'over' and fo.get('over_odds', 0) > 0:
+                        new_odds = fo['over_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    elif bt == 'btts' and fo.get('btts_yes', 0) > 0:
+                        new_odds = fo['btts_yes']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
+                    else:
+                        new_odds = fo.get('best_odds', 0)
+                        if new_odds:
+                            bookmaker = fo.get('bookmaker', 'Football API')
+                            source = 'Football API'
+
+            if new_odds and new_odds > 0:
+                MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
+                MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
+                if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
+                    logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]")
+                    continue
+                prob = best_bet.get('prob', 0) / 100
+                best_bet['odds'] = round(new_odds, 2)
+                best_bet['ev'] = round((prob * new_odds - 1) * 100, 1)
+                best_bet['bookmaker'] = bookmaker
+                best_bet['odds_source'] = source
+                best_bet['odds_updated'] = True
+
+                try:
+                    bank = storage.load_bank()
+                    kelly_stake = calculate_stake(
+                        bank=bank,
+                        prob_pct=best_bet.get('prob', 0),
+                        odds=new_odds,
+                    )
+                    src_key = md.get('source', '70_percent')
+                    final_stake, clv_action = apply_clv_filter(
+                        source=src_key,
+                        base_stake=kelly_stake,
+                        prob_pct=best_bet.get('prob', 0),
+                        odds=new_odds,
+                        bank=bank,
+                    )
+                    best_bet['stake'] = final_stake if final_stake > 0 else kelly_stake
+                    best_bet['clv_action'] = clv_action
+                except Exception as e:
+                    logger.error(f"Kelly/CLV recalc: {e}")
+
+                md['best_bet'] = best_bet
+                md['odds_updated'] = True
+                try:
+                    market_map = {
+                        'draw': ('1X2', 'X'), 'btts': ('BTTS', 'BTTS'),
+                        'over25': ('O/U 2.5', 'Over'), 'under25': ('O/U 2.5', 'Under'),
+                        'over': ('O/U 2.5', 'Over'), 'under': ('O/U 2.5', 'Under'),
+                        'underdog': ('1X2', 'Underdog'),
+                        'П1': ('1X2', '1'), 'П2': ('1X2', '2'),
+                        '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
+                    }
+                    mkt, sel = market_map.get(bt, (bt, 'unknown'))
+                    storage.save_odds_snapshot(
+                        fixture_id=fid, market=mkt,
+                        selection=sel, odds=new_odds, bookmaker=bookmaker,
+                        home=home or '', away=away or '',
+                        league=md.get('league', '') or ''
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка записи снимка: {e}")
+                updated.append(md)
+            else:
+                logger.warning(f"⏭️ Кэф не найден: {home} vs {away}")
+                updated.append(md)
+                continue
+        except Exception as e:
+            logger.error(f"Ошибка кэфов: {e}")
+            continue
+    return updated
+
+
+# ============================================================
+# ПОИСК МАТЧЕЙ + ФАКТОРЫ
+# ============================================================
+def get_matches_with_factors():
+    all_matches = []
+    today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
+    all_leagues = list(set(Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])))
+    total_leagues = len(all_leagues)
+    logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
+    send_telegram(
+        f"🔎 <b>СТАРТ ПОИСКА</b>\n"
+        f"📅 {today}\n📊 Лиг: {total_leagues}\n⏱️ 5-10 минут"
+    )
+    start_time = time.time()
+    processed = 0
+    found_total = 0
+    progress_step = 25
+    seen_fixtures = set()
+
+    for league_id in all_leagues:
+        try:
+            matches = football_api.get_matches(league_id, today)
+            league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
+            processed += 1
+
+            batch_odds = {}
+            batch_preds = {}
+            if matches:
+                try:
+                    batch_odds = football_api.get_odds_batch_for_league(league_id, today)
+                except Exception as e:
+                    logger.debug(f"batch odds {league_id}: {e}")
+                try:
+                    batch_preds = football_api.get_predictions_batch_for_league(league_id, today)
+                except Exception as e:
+                    logger.debug(f"batch preds {league_id}: {e}")
+
+            if matches:
+                new_matches = 0
+                for m in matches:
+                    if not isinstance(m, dict): continue
+                    fixture = m.get('fixture')
+                    if not fixture or not isinstance(fixture, dict): continue
+                    if fixture.get('status', {}).get('short') != 'NS': continue
+                    mid = fixture.get('id')
+                    if not mid or mid in seen_fixtures: continue
+                    seen_fixtures.add(mid)
+                    teams = m.get('teams', {})
+                    hid = teams.get('home', {}).get('id')
+                    aid = teams.get('away', {}).get('id')
+                    if not hid or not aid: continue
+
+                    m['factors'] = {
+                        'home_form': football_api.get_form(hid),
+                        'away_form': football_api.get_form(aid),
+                        'home_injuries_list': football_api.get_injuries(hid),
+                        'away_injuries_list': football_api.get_injuries(aid),
+                        'home_id': hid, 'away_id': aid,
+                        'referee': fixture.get('referee'),
+                    }
+
+                    weather = None
+                    venue = fixture.get('venue', {})
+                    city = venue.get('city') if isinstance(venue, dict) else None
+                    if city and Config.WEATHER_ENABLED:
+                        weather = get_weather_for_city_enhanced(city)
+                    m['weather'] = weather
+                    if weather:
+                        m['weather_reason'] = (f"🌤️ {weather['desc']}, {weather['temp']}°C, "
+                                                f"ветер {weather['wind']} м/с, "
+                                                f"дождь {weather['rain']} мм")
+                    else:
+                        m['weather_reason'] = "🌤️ Нет данных"
+
+                    if mid in batch_odds:
+                        m['_preloaded_odds'] = batch_odds[mid]
+                    if mid in batch_preds:
+                        m['_preloaded_preds'] = batch_preds[mid]
+
+                    ld = m.get('league', {})
+                    if isinstance(ld, dict):
+                        ld['name'] = league_name
+                    all_matches.append(m)
+                    new_matches += 1
+                if new_matches > 0:
+                    found_total += new_matches
+
+            if processed % progress_step == 0:
+                elapsed = (time.time() - start_time) / 60
+                remaining = total_leagues - processed
+                eta = (elapsed / processed) * remaining if processed > 0 else 0
+                send_telegram(f"💓 <b>HEARTBEAT</b> | {processed}/{total_leagues}\n"
+                              f"🎯 Матчей: {found_total}\n⏱️ Осталось: ~{eta:.1f} мин")
+        except Exception as e:
+            logger.error(f"❌ {league_id}: {e}")
+        time.sleep(0.01)
+
+    elapsed_total = (time.time() - start_time) / 60
+    send_telegram(f"✅ <b>ПОИСК ЗАВЕРШЁН</b>\n"
+                  f"📊 Лиг: {processed}/{total_leagues}\n"
+                  f"🎯 Матчей: {found_total}\n"
+                  f"⏱️ {elapsed_total:.1f} мин")
+    logger.info(f"📊 Найдено матчей: {len(all_matches)}")
+    return all_matches
+
+
+# ============================================================
+# ★ ПОТОК 1: 70%+
+# ============================================================
+@timing_decorator()
+def find_top_matches(matches):
+    bank = storage.load_bank()
+    max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 30)
+    total_matches = len(matches)
+    logger.info(f"🔍 [70%+] Анализ {total_matches} матчей... (bank=${bank:.2f})")
+    blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
+    best_matches = []
+    bet_type_count = {}
+    league_count = {}
+    x2_saved_count = 0
+    cheap_fav_skipped = 0
+
+    X2_ENABLED = getattr(Config, 'X2_ENABLED', True)
+    X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
+    X2_MAX_POSITION = getattr(Config, 'X2_MAX_POSITION', 20)
+    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
+    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
+    X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
+    MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.50)
+
+    for match_idx, match in enumerate(matches):
+        if not match or not isinstance(match, dict): continue
+        if (match_idx + 1) % 30 == 0:
+            send_telegram(f"💓 <b>АНАЛИЗ 70%+</b> | {match_idx + 1}/{total_matches}\n"
+                          f"🎯 Кандидатов: {len(best_matches)} | X2: {x2_saved_count} | "
+                          f"Skip-1X: {cheap_fav_skipped}")
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams: continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            if any(bad in league_name.lower() for bad in blacklist): continue
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            is_international = _is_international_league(league_id, league_name)
+
+            factors = match.get('factors', {}) or {}
+            hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
+            afd = factors.get('away_form') or football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+            hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
+            aga = afd.get('goals_avg', 1.0) if afd else 1.0
+            hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
+            aca = afd.get('conceded_avg', 1.2) if afd else 1.2
+            home_xg = (hga + aca) / 2
+            away_xg = (aga + hca) / 2
+            h_inj = len(factors.get('home_injuries_list', []))
+            a_inj = len(factors.get('away_injuries_list', []))
+            if h_inj > 3: home_xg *= 0.8
+            if a_inj > 3: away_xg *= 0.8
+
+            if is_international:
+                home_adv = 1.03
+            else:
+                home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+            home_xg *= home_adv
+            away_xg /= home_adv
+            total_xg = home_xg + away_xg
+
+            w = match.get('weather')
+            if w:
+                rain = w.get('rain', 0) or 0
+                wind = w.get('wind', 0) or 0
+                if rain > 2:
+                    total_xg *= 0.92; home_xg *= 0.95; away_xg *= 0.95
+                elif rain > 0.5:
+                    total_xg *= 0.96
+                if wind > 10:
+                    total_xg *= 0.95
+                elif wind > 7:
+                    total_xg *= 0.98
+
+            XG_MIN = getattr(Config, 'XG_MIN_70', 1.2)
+            XG_MAX = getattr(Config, 'XG_MAX_70', 3.8)
+            POS_MAX = getattr(Config, 'POSITION_MAX_70', 18)
+            if total_xg < XG_MIN or total_xg > XG_MAX: continue
+
+            standings = football_api.get_standings(league_id) if league_id else None
+            hp = standings.get(home, {}).get('position', 99) if standings else 99
+            ap = standings.get(away, {}).get('position', 99) if standings else 99
+
+            if is_international:
+                hm = am = 'international'
+            else:
+                hm = get_motivation(hp); am = get_motivation(ap)
+                if getattr(Config, 'SKIP_MID_TABLE_70', False) and hm == 'mid_table' and am == 'mid_table':
+                    continue
+                if hp > POS_MAX or ap > POS_MAX: continue
+                if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6: continue
+
+            h2h = football_api.get_head_to_head(home, away)
+            api_predictions = match.get('_preloaded_preds')
+            if not api_predictions and fid:
+                api_predictions = football_api.get_predictions(fid)
+
+            probs = ensemble_probability(
+                home_xg, away_xg, home_form, away_form, h2h,
+                match_data=None, api_predictions=api_predictions,
+                is_international=is_international
+            )
+
+            if hm == 'relegation' and am == 'mid_table':
+                probs['home_win'] = probs.get('home_win', 0) + 0.05
+            elif am == 'relegation' and hm == 'mid_table':
+                probs['away_win'] = probs.get('away_win', 0) + 0.05
+
+            bets = []
+            odds_template = {'1X': 1.85, 'X2': 1.85, 'П1': 2.10, 'П2': 2.10,
+                             'ТМ 2.5': 1.95, 'ТБ 2.5': 1.95, 'ОБЗ': 1.90}
+            for bt, label, pk in [('1X', '1X', '1X'), ('X2', 'X2', 'X2'),
+                                    ('П1', 'П1', 'home_win'), ('П2', 'П2', 'away_win'),
+                                    ('under', 'ТМ 2.5', 'under25'),
+                                    ('over', 'ТБ 2.5', 'over25'),
+                                    ('btts', 'ОБЗ', 'btts')]:
+                p = probs.get(pk, probs.get(pk.replace('25', '_2_5'), 0))
+                if p <= 0: continue
+                key = 'ТМ 2.5' if bt == 'under' else ('ТБ 2.5' if bt == 'over' else ('ОБЗ' if bt == 'btts' else label))
+                bets.append({
+                    'type': bt, 'label': label,
+                    'prob': round(p * 100, 1),
+                    'ev': round((p * odds_template[key] - 1) * 100, 1),
+                    'odds': odds_template[key], 'stake': 0,
+                    'odds_updated': False,
+                })
+            if not bets: continue
+            bets.sort(key=lambda x: x['ev'], reverse=True)
+            best_bet = bets[0]
+
+            if best_bet['type'] in ('П1', '1X') and best_bet['odds'] < MIN_ODDS_1X:
+                cheap_fav_skipped += 1
+                logger.info(
+                    f"⏭️ 1X/П1 SKIP (кэф {best_bet['odds']} < {MIN_ODDS_1X}): "
+                    f"{home} vs {away}"
+                )
+                continue
+
+            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)
+            PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
+            if best_bet['ev'] < EV_MIN_70: continue
+            if best_bet['prob'] < PROB_MIN_70: continue
+
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            kelly_info = calculate_kelly_info(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            best_bet['kelly_full'] = kelly_info['kelly_full']
+            best_bet['kelly_quarter'] = kelly_info['kelly_quarter']
+
+            final_stake, clv_action = apply_clv_filter(
+                source='70_percent',
+                base_stake=kelly_stake,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (70_percent): {home} vs {away}")
+                continue
+            for b in bets:
+                b['stake'] = final_stake
+                b['clv_action'] = clv_action
+            best_bet['stake'] = final_stake
+            best_bet['clv_action'] = clv_action
+
+            bt = best_bet['type']
+            LIMIT_BT = getattr(Config, 'LIMIT_BET_TYPE_70', 15)
+            LIMIT_LG = getattr(Config, 'LIMIT_LEAGUE_70', 5)
+            bet_type_count[bt] = bet_type_count.get(bt, 0) + 1
+            if bet_type_count[bt] > LIMIT_BT: continue
+            league_count[league_name] = league_count.get(league_name, 0) + 1
+            if league_count[league_name] > LIMIT_LG: continue
+
+            if X2_ENABLED and not is_international:
+                position_diff = abs(hp - ap)
+                x2_bet = None
+                x2_side = None
+                for b in bets:
+                    b_type = b.get('type', '')
+                    if b_type == 'X2' and hp < ap:
+                        x2_bet = b; x2_side = 'X2'; break
+                    elif X2_BOTH_SIDES and b_type == '1X' and ap < hp:
+                        x2_bet = b; x2_side = '1X'; break
+
+                if x2_bet is not None:
+                    X2_HOME_BONUS = getattr(Config, 'X2_HOME_BONUS', 3.0)
+                    X2_AWAY_PENALTY = getattr(Config, 'X2_AWAY_PENALTY', 2.0)
+                    underdog_is_home = (x2_side == 'X2')
+                    original_prob = x2_bet.get('prob', 0)
+
+                    if underdog_is_home:
+                        x2_bet['prob'] = round(original_prob + X2_HOME_BONUS, 1)
+                        x2_bet['home_advantage'] = True
+                        logger.info(
+                            f"🏠 X2 HOME: {home} vs {away} | {x2_side} | "
+                            f"prob {original_prob}% → {x2_bet['prob']}%"
+                        )
+                    else:
+                        x2_bet['prob'] = round(original_prob - X2_AWAY_PENALTY, 1)
+                        x2_bet['home_advantage'] = False
+                        logger.info(
+                            f"✈️ X2 AWAY: {home} vs {away} | {x2_side} | "
+                            f"prob {original_prob}% → {x2_bet['prob']}%"
+                        )
+
+                    if x2_bet.get('odds', 0) > 1.01:
+                        new_prob = x2_bet['prob'] / 100
+                        x2_bet['ev'] = round((new_prob * x2_bet['odds'] - 1) * 100, 1)
+
+                    bets.sort(key=lambda x: x['ev'], reverse=True)
+                    best_bet = bets[0]
+
+                if (x2_bet is not None
+                    and position_diff >= X2_MIN_POSITION_DIFF
+                    and hp < X2_MAX_POSITION and ap < X2_MAX_POSITION
+                    and x2_bet.get('ev', 0) >= X2_MIN_EV
+                    and x2_bet.get('prob', 0) >= X2_MIN_PROB):
+                    try:
+                        favorite = home if hp < ap else away
+                        underdog = away if hp < ap else home
+                        log_no_motivation_match(home, away, hp, ap, total_xg, league_name,
+                                                favorite=favorite, underdog=underdog)
+
+                        pre_odds = match.get('_preloaded_odds') or {}
+                        entry_odds = 0
+                        entry_1x_odds = 0
+                        if x2_side == 'X2':
+                            entry_odds = pre_odds.get('x2_odds', 0) or 0
+                            entry_1x_odds = pre_odds.get('1x_odds', 0) or 0
+                        elif x2_side == '1X':
+                            entry_odds = pre_odds.get('1x_odds', 0) or 0
+                            entry_1x_odds = pre_odds.get('x2_odds', 0) or 0
+
+                        if not entry_odds and x2_bet.get('prob', 0) > 0:
+                            p = x2_bet.get('prob', 0) / 100
+                            entry_odds = round((1 / p) * 0.95, 2) if p > 0 else 0
+
+                        saved = save_x2_candidate(
+                            home=home, away=away, hp=hp, ap=ap,
+                            league_name=league_name, match_time=match_time,
+                            fixture_id=fid, home_form=home_form, away_form=away_form,
+                            total_xg=total_xg, x2_side=x2_side,
+                            x2_ev=x2_bet.get('ev', 0), x2_prob=x2_bet.get('prob', 0),
+                            entry_odds=entry_odds, entry_1x_odds=entry_1x_odds,
+                        )
+                        if saved:
+                            x2_saved_count += 1
+                            logger.info(f"💾 X2: {home} vs {away} | {x2_side} @ {entry_odds}")
+                    except Exception as e:
+                        logger.error(f"X2 candidate save error: {e}")
+
+            country_name, country_flag = _get_country_flag(league_id)
+
+            best_matches.append({
+                "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": match_time,
+                "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form, "away_form": away_form,
+                "standings": {"home_position": hp, "away_position": ap,
+                              "home_motivation": hm, "away_motivation": am},
+                "bets": bets, "best_bet": best_bet,
+                "weather_reason": match.get('weather_reason', ''),
+                "api_predictions": api_predictions,
+                "factors": {}, "source": "70_percent",
+                "is_international": is_international,
+                "_preloaded_odds": match.get('_preloaded_odds'),
+            })
+        except Exception as e:
+            logger.error(f"❌ [70%+] {e}")
+            continue
+
+    best_matches.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    top = best_matches[:max_bets]
+    logger.info(
+        f"📊 [70%+] Итого: {len(top)}, X2-сохранено: {x2_saved_count}, "
+        f"Skip 1X/П1 (кэф < {MIN_ODDS_1X}): {cheap_fav_skipped}"
+    )
+
+    if Config.LLM_ENABLED and top and Config.PREDICTION_ENGINE in ('llm', 'hybrid'):
+        try:
+            llm_payload = [{'home': m['home'], 'away': m['away'], 'league': m['league'],
+                            'home_xg': m['home_xg'], 'away_xg': m['away_xg'],
+                            'total_xg': m['total_xg'],
+                            'home_form': m['home_form'], 'away_form': m['away_form'],
+                            'standings': m['standings'],
+                            'weather_reason': m.get('weather_reason', ''),
+                            'home_injuries': [], 'away_injuries': []} for m in top[:20]]
+            llm_results = llm_analyze_batch(llm_payload)
+            for m, llm in zip(top[:20], llm_results):
+                if llm:
+                    _apply_llm_to_match(m, llm, alpha=0.7)
+
+            for m in top[:10]:
+                try:
+                    reason = llm_generate_reason(m)
+                    if reason:
+                        m['best_bet']['llm_reason'] = reason
+                        logger.info(f"💡 LLM reason: {m['home']} vs {m['away']} → {reason[:80]}")
+                except Exception as e:
+                    logger.debug(f"llm_generate_reason error: {e}")
+        except Exception as e:
+            logger.error(f"❌ LLM ошибка: {e}")
+    return top
+
+
+# ============================================================
+# ★ ПОТОК 2: ТМ 2.5
+# ============================================================
+@timing_decorator()
+def find_tm25_matches(matches):
+    bank = storage.load_bank()
+    tm25_candidates = []
+    MAX_TM25_BETS = getattr(Config, 'MAX_TM25_BETS', 5)
+    PREMIUM_MIN_EV = getattr(Config, 'PREMIUM_MIN_EV', 25) / 100
+    PREMIUM_MIN_PROB = getattr(Config, 'PREMIUM_MIN_PROB', 58) / 100
+    PREMIUM_XG_MIN = getattr(Config, 'PREMIUM_XG_MIN', 1.0)
+    PREMIUM_XG_MAX = getattr(Config, 'PREMIUM_XG_MAX', 2.8)
+    STANDARD_MIN_EV = getattr(Config, 'STANDARD_MIN_EV', 15) / 100
+    STANDARD_MIN_PROB = getattr(Config, 'STANDARD_MIN_PROB', 52) / 100
+    STANDARD_XG_MIN = getattr(Config, 'TM25_XG_MIN', 0.8)
+    STANDARD_XG_MAX = getattr(Config, 'TM25_XG_MAX', 3.0)
+
+    INCLUDE_INTERNATIONAL = getattr(Config, 'TM25_INCLUDE_INTERNATIONAL', False)
+    USE_KELLY = getattr(Config, 'TM25_USE_KELLY', True)
+    FORM_FILTER = getattr(Config, 'TM25_FORM_FILTER', True)
+    H2H_FILTER = getattr(Config, 'TM25_H2H_FILTER', True)
+    H2H_MIN_MATCHES = getattr(Config, 'TM25_MIN_H2H_MATCHES', 3)
+    H2H_AVG_MAX = getattr(Config, 'TM25_H2H_AVG_MAX', 2.8)
+    LEAGUE_BONUS = getattr(Config, 'TM25_LEAGUE_BONUS', 5)
+    MAX_LEAGUE_BETS = getattr(Config, 'TM25_MAX_LEAGUE_BETS', 2)
+
+    logger.info("🔍 [ТМ 2.5 v4.7] Расширенный поиск...")
+    stats = {
+        'premium_found': 0, 'standard_found': 0,
+        'clv_skipped': 0, 'intl_skipped': 0,
+        'league_bonus': 0, 'league_limit': 0,
+        'form_skipped': 0, 'h2h_skipped': 0,
+    }
+    seen_keys = set()
+    league_bet_count = {}
+
+    for match in matches:
+        if len(tm25_candidates) >= MAX_TM25_BETS: break
+        if not match or not isinstance(match, dict): continue
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams: continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            key = f"{home}_{away}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
+
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            if not INCLUDE_INTERNATIONAL:
+                is_intl = _is_international_league(league_id, league_name)
+                if is_intl:
+                    stats['intl_skipped'] += 1
+                    continue
+
+            cur_league_bets = league_bet_count.get(league_name, 0)
+            if cur_league_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            stats_dict = football_api.get_match_statistics(fid) if fid else None
+            home_xg = 1.2; away_xg = 1.0
+            if stats_dict:
+                for tn, ts in stats_dict.items():
+                    if home.lower() in tn.lower() or tn.lower() in home.lower():
+                        xg = ts.get('Expected Goals', ts.get('xG'))
+                        if xg and xg > 0: home_xg = float(xg)
+                    elif away.lower() in tn.lower() or tn.lower() in away.lower():
+                        xg = ts.get('Expected Goals', ts.get('xG'))
+                        if xg and xg > 0: away_xg = float(xg)
+
+            if home_xg == 1.2 and away_xg == 1.0:
+                if league_name in FALLBACK_XG:
+                    home_xg = FALLBACK_XG[league_name]['home']
+                    away_xg = FALLBACK_XG[league_name]['away']
+                else:
+                    home_xg = 1.3; away_xg = 1.0
+                rng = random.Random(fid)
+                home_xg *= (1 + rng.uniform(-0.1, 0.1))
+                away_xg *= (1 + rng.uniform(-0.1, 0.1))
+
+            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+            home_xg *= home_adv
+            away_xg /= home_adv
+            total_xg = home_xg + away_xg
+
+            factors = match.get('factors', {}) or {}
+            hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
+            afd = factors.get('away_form') or football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+
+            if FORM_FILTER:
+                home_under = _form_is_under(home_form)
+                away_under = _form_is_under(away_form)
+                if not (home_under or away_under):
+                    stats['form_skipped'] += 1
+                    continue
+
+            standings = football_api.get_standings(league_id) if league_id else None
+            hp = standings.get(home, {}).get('position', 99) if standings else 99
+            ap = standings.get(away, {}).get('position', 99) if standings else 99
+
+            h2h = football_api.get_head_to_head(home, away)
+
+            if H2H_FILTER and h2h:
+                h2h_total = h2h.get('total_matches', 0)
+                h2h_avg = h2h.get('avg_goals', 0)
+                if h2h_total >= H2H_MIN_MATCHES and h2h_avg > H2H_AVG_MAX:
+                    stats['h2h_skipped'] += 1
+                    continue
+
+            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
+            p_under = probs.get('under25', probs.get('under_2_5', 0))
+            odds_tm25 = 1.95
+            ev_under = (p_under * odds_tm25) - 1
+
+            is_whitelisted = Config.is_tm25_league_whitelisted(league_name)
+            if is_whitelisted:
+                ev_under += LEAGUE_BONUS / 100
+
+            country_name, country_flag = _get_country_flag(league_id)
+
+            if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
+                and ev_under >= PREMIUM_MIN_EV and p_under >= PREMIUM_MIN_PROB):
+                if league_name in TOP_LEAGUES and ev_under < 0.35: continue
+                stake = _calculate_tm25_stake(USE_KELLY, bank, p_under * 100, odds_tm25)
+                final_stake, clv_action = apply_clv_filter(
+                    source='tm25_premium',
+                    base_stake=stake,
+                    prob_pct=p_under * 100,
+                    odds=odds_tm25,
+                    bank=bank,
+                )
+                if final_stake <= 0:
+                    logger.info(f"⏭️ CLV SKIP (tm25_premium): {home} vs {away}")
+                    stats['clv_skipped'] += 1
+                    continue
+                if is_whitelisted:
+                    stats['league_bonus'] += 1
+                best_bet = {'type': 'under', 'label': 'ТМ 2.5 🔥',
+                            'prob': round(p_under * 100, 1),
+                            'ev': round(ev_under * 100, 1),
+                            'odds': odds_tm25, 'stake': final_stake,
+                            'clv_action': clv_action,
+                            'level': 'PREMIUM',
+                            'league_bonus': is_whitelisted,
+                            'odds_updated': False}
+                tm25_candidates.append({
+                    "home": home, "away": away, "league": league_name,
+                    "country": country_name, "country_flag": country_flag,
+                    "fixture_id": fid, "match_time": match_time,
+                    "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                    "total_xg": round(total_xg, 2),
+                    "home_form": home_form, "away_form": away_form,
+                    "standings": {"home_position": hp, "away_position": ap},
+                    "bets": [best_bet], "best_bet": best_bet,
+                    "source": "tm25_premium", "weather_reason": "🌤️",
+                    "_preloaded_odds": match.get('_preloaded_odds'),
+                })
+                stats['premium_found'] += 1
+                league_bet_count[league_name] = cur_league_bets + 1
+                continue
+
+            if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
+                and ev_under >= STANDARD_MIN_EV and p_under >= STANDARD_MIN_PROB):
+                if league_name in TOP_LEAGUES and ev_under < 0.20: continue
+                stake = _calculate_tm25_stake(USE_KELLY, bank, p_under * 100, odds_tm25)
+                final_stake, clv_action = apply_clv_filter(
+                    source='tm25_standard',
+                    base_stake=stake,
+                    prob_pct=p_under * 100,
+                    odds=odds_tm25,
+                    bank=bank,
+                )
+                if final_stake <= 0:
+                    logger.info(f"⏭️ CLV SKIP (tm25_standard): {home} vs {away}")
+                    stats['clv_skipped'] += 1
+                    continue
+                if is_whitelisted:
+                    stats['league_bonus'] += 1
+                best_bet = {'type': 'under', 'label': 'ТМ 2.5',
+                            'prob': round(p_under * 100, 1),
+                            'ev': round(ev_under * 100, 1),
+                            'odds': odds_tm25, 'stake': final_stake,
+                            'clv_action': clv_action,
+                            'level': 'STANDARD',
+                            'league_bonus': is_whitelisted,
+                            'odds_updated': False}
+                tm25_candidates.append({
+                    "home": home, "away": away, "league": league_name,
+                    "country": country_name, "country_flag": country_flag,
+                    "fixture_id": fid, "match_time": match_time,
+                    "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                    "total_xg": round(total_xg, 2),
+                    "home_form": home_form, "away_form": away_form,
+                    "standings": {"home_position": hp, "away_position": ap},
+                    "bets": [best_bet], "best_bet": best_bet,
+                    "source": "tm25_standard", "weather_reason": "🌤️",
+                    "_preloaded_odds": match.get('_preloaded_odds'),
+                })
+                stats['standard_found'] += 1
+                league_bet_count[league_name] = cur_league_bets + 1
+        except Exception as e:
+            logger.error(f"❌ [ТМ2.5] {e}")
+            continue
+
+    logger.info(
+        f"📊 [ТМ2.5] PREMIUM: {stats['premium_found']}, STANDARD: {stats['standard_found']} | "
+        f"CLV-skip: {stats['clv_skipped']}, Intl-skip: {stats['intl_skipped']}, "
+        f"League-bonus: {stats['league_bonus']}, League-limit: {stats['league_limit']}, "
+        f"Form-skip: {stats['form_skipped']}, H2H-skip: {stats['h2h_skipped']}"
+    )
+    tm25_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    return tm25_candidates
+
+
+def _form_is_under(form_string):
+    if not form_string:
+        return False
+    wins = form_string.count('W')
+    return wins <= 2
+
+
+def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
+    if use_kelly:
+        return calculate_stake(bank=bank, prob_pct=prob_pct, odds=odds)
+    return 42.87
+
+
+# ============================================================
+# ★ ПОТОК 3: VALUE
+# ============================================================
+@timing_decorator()
+def find_value_matches(matches, max_bets=2):
+    bank = storage.load_bank()
+    VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
+    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
+    VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
+    VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
+    VALUE_MAX_RESULTS = max_bets
+
+    logger.info(f"💎 [VALUE] Поиск: кэф>={VALUE_MIN_ODDS}, EV>={VALUE_MIN_EV}%, Prob>={VALUE_MIN_PROB}%")
+
+    value_candidates = []
+    blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
+    clv_skipped = 0
+
+    for match in matches:
+        if not match or not isinstance(match, dict): continue
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams: continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            if any(bad in league_name.lower() for bad in blacklist): continue
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            factors = match.get('factors', {}) or {}
+            hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
+            afd = factors.get('away_form') or football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+            hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
+            aga = afd.get('goals_avg', 1.0) if afd else 1.0
+            hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
+            aca = afd.get('conceded_avg', 1.2) if afd else 1.2
+            home_xg = (hga + hca) / 2
+            away_xg = (aga + hca) / 2
+            home_adv = HOME_ADVANTAGE.get(league_name, 1.10)
+            home_xg *= home_adv
+            away_xg /= home_adv
+            total_xg = home_xg + away_xg
+            xg_diff = abs(home_xg - away_xg)
+
+            if xg_diff < VALUE_MIN_XG_DIFF:
+                continue
+
+            standings = football_api.get_standings(league_id) if league_id else None
+            hp = standings.get(home, {}).get('position', 99) if standings else 99
+            ap = standings.get(away, {}).get('position', 99) if standings else 99
+
+            h2h = football_api.get_head_to_head(home, away)
+            api_predictions = match.get('_preloaded_preds')
+            if not api_predictions and fid:
+                api_predictions = football_api.get_predictions(fid)
+            probs = ensemble_probability(home_xg, away_xg, home_form, away_form,
+                                          h2h, api_predictions=api_predictions)
+
+            fo = match.get('_preloaded_odds')
+            if not fo and fid:
+                fo = football_api.get_match_odds(fid)
+            if not fo:
+                continue
+
+            def _compute_value(model_prob, odds):
+                if model_prob <= 0 or odds <= 1.01:
+                    return None
+                if model_prob * 100 > getattr(Config, 'VALUE_MAX_PROB', 80):
+                    return None
+                market_prob = 1.0 / odds
+                ratio = model_prob / market_prob if market_prob > 0 else 0
+                if ratio > getattr(Config, 'VALUE_MAX_RATIO', 2.2):
+                    return None
+                blended = model_prob * 0.35 + market_prob * 0.65
+                ev = (blended * odds - 1) * 100
+                return (ev, blended)
+
+            candidates_bc = []
+
+            p_1x = probs.get('1X', 0)
+            odds_1x = fo.get('1x_odds', 0) or 0
+            if odds_1x >= VALUE_MIN_ODDS:
+                res = _compute_value(p_1x, odds_1x)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': '1X', 'label': '1X 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_1x * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_1x,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
+
+            p_x2 = probs.get('X2', 0)
+            odds_x2 = fo.get('x2_odds', 0) or 0
+            if odds_x2 >= VALUE_MIN_ODDS:
+                res = _compute_value(p_x2, odds_x2)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'X2', 'label': 'X2 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_x2 * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_x2,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
+
+            p_home = probs.get('home_win', 0)
+            odds_home = fo.get('home_odds', 0) or 0
+            if odds_home >= VALUE_MIN_ODDS:
+                res = _compute_value(p_home, odds_home)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'П1', 'label': 'П1 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_home * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_home,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
+
+            p_away = probs.get('away_win', 0)
+            odds_away = fo.get('away_odds', 0) or 0
+            if odds_away >= VALUE_MIN_ODDS:
+                res = _compute_value(p_away, odds_away)
+                if res:
+                    ev, bp = res
+                    if ev >= VALUE_MIN_EV:
+                        candidates_bc.append({
+                            'type': 'П2', 'label': 'П2 💎',
+                            'prob': round(bp * 100, 1),
+                            'model_prob': round(p_away * 100, 1),
+                            'ev': round(ev, 1), 'odds': odds_away,
+                            'bookmaker': fo.get('bookmaker', '—'),
+                        })
+
+            if not candidates_bc:
+                continue
+
+            candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
+            best_bet = candidates_bc[0]
+
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+            )
+            final_stake, clv_action = apply_clv_filter(
+                source='value',
+                base_stake=kelly_stake,
+                prob_pct=best_bet.get('prob', 0),
+                odds=best_bet.get('odds', 1.85),
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (value): {home} vs {away}")
+                clv_skipped += 1
+                continue
+            for b in candidates_bc:
+                b['stake'] = final_stake
+                b['clv_action'] = clv_action
+            best_bet['stake'] = final_stake
+            best_bet['clv_action'] = clv_action
+
+            country_name, country_flag = _get_country_flag(league_id)
+
+            value_candidates.append({
+                "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": match_time,
+                "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form, "away_form": away_form,
+                "standings": {"home_position": hp, "away_position": ap},
+                "bets": candidates_bc,
+                "best_bet": best_bet,
+                "source": "value",
+                "weather_reason": match.get('weather_reason', ''),
+                "_preloaded_odds": fo,
+            })
+
+            logger.info(
+                f"💎 VALUE: {home} vs {away} | {best_bet['label']} @ "
+                f"{best_bet['odds']} | EV: {best_bet['ev']}% | "
+                f"Prob: {best_bet['prob']}% | Stake: ${best_bet['stake']} ({clv_action})"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [VALUE] {e}")
+            continue
+
+    value_candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    top = value_candidates[:VALUE_MAX_RESULTS]
+    logger.info(f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}, CLV-skip: {clv_skipped}")
+    return top
+
+
+# ============================================================
+# ★ ПОТОК 4: BTTS
+# ============================================================
+@timing_decorator()
+def find_btts_matches(matches):
+    bank = storage.load_bank()
+    BTTS_ENABLED = getattr(Config, 'BTTS_ENABLED', True)
+    if not BTTS_ENABLED:
+        logger.info("⏭️ [BTTS] Отключено в конфиге")
+        return []
+
+    MAX_BETS = getattr(Config, 'BTTS_MAX_BETS', 3)
+    MIN_ODDS = getattr(Config, 'BTTS_MIN_ODDS', 1.60)
+    MAX_ODDS = getattr(Config, 'BTTS_MAX_ODDS', 2.20)
+    MIN_EV = getattr(Config, 'BTTS_MIN_EV', 8)
+    MIN_PROB = getattr(Config, 'BTTS_MIN_PROB', 50)
+    MIN_XG_EACH = getattr(Config, 'BTTS_MIN_XG_EACH', 0.9)
+    MIN_TOTAL_XG = getattr(Config, 'BTTS_MIN_TOTAL_XG', 2.0)
+
+    LEAGUE_WHITELIST = getattr(Config, 'BTTS_LEAGUE_WHITELIST', [])
+    LEAGUE_BLACKLIST = getattr(Config, 'BTTS_LEAGUE_BLACKLIST', [])
+    LEAGUE_BONUS = getattr(Config, 'BTTS_LEAGUE_BONUS', 5)
+    MAX_LEAGUE_BETS = getattr(Config, 'BTTS_MAX_LEAGUE_BETS', 1)
+
+    FORM_FILTER = getattr(Config, 'BTTS_FORM_FILTER', True)
+    FORM_MIN_SCORING = getattr(Config, 'BTTS_FORM_MIN_SCORING', 3)
+
+    H2H_FILTER = getattr(Config, 'BTTS_H2H_FILTER', False)
+    H2H_MIN_MATCHES = getattr(Config, 'BTTS_H2H_MIN_MATCHES', 4)
+    H2H_MIN_PCT = getattr(Config, 'BTTS_H2H_MIN_PCT', 60)
+
+    INCLUDE_INTERNATIONAL = getattr(Config, 'BTTS_INCLUDE_INTERNATIONAL', False)
+
+    logger.info("🔍 [BTTS v4.8] Поиск 'Обе Забьют'...")
+    stats = {
+        'found': 0,
+        'intl_skipped': 0,
+        'league_blacklist': 0,
+        'league_limit': 0,
+        'form_skipped': 0,
+        'h2h_skipped': 0,
+        'xg_skipped': 0,
+        'clv_skipped': 0,
+        'league_bonus': 0,
+        'no_odds': 0,
+    }
+
+    candidates = []
+    league_bet_count = {}
+    seen_keys = set()
+
+    for match in matches:
+        if len(candidates) >= MAX_BETS: break
+        if not match or not isinstance(match, dict): continue
+        try:
+            fixture = match.get('fixture')
+            teams = match.get('teams')
+            if not fixture or not teams: continue
+            fid = fixture.get('id')
+            ht = teams.get('home', {}); at = teams.get('away', {})
+            home = ht.get('name', 'Unknown'); away = at.get('name', 'Unknown')
+            key = f"{home}_{away}"
+            if key in seen_keys: continue
+            seen_keys.add(key)
+
+            ld = match.get('league', {})
+            league_name = ld.get('name', 'Unknown')
+            league_id = ld.get('id')
+            match_time = parse_match_time_to_msk(fixture.get('date', ''))
+
+            if not INCLUDE_INTERNATIONAL:
+                if _is_international_league(league_id, league_name):
+                    stats['intl_skipped'] += 1
+                    continue
+
+            if any(b.lower() in league_name.lower() for b in LEAGUE_BLACKLIST):
+                stats['league_blacklist'] += 1
+                continue
+
+            cur_bets = league_bet_count.get(league_name, 0)
+            if cur_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            factors = match.get('factors', {}) or {}
+            hfd = factors.get('home_form') or football_api.get_form(ht.get('id'))
+            afd = factors.get('away_form') or football_api.get_form(at.get('id'))
+            home_form = hfd.get('form', '') if hfd else ''
+            away_form = afd.get('form', '') if afd else ''
+
+            hga = hfd.get('goals_avg', 1.2) if hfd else 1.2
+            aga = afd.get('goals_avg', 1.0) if afd else 1.0
+            hca = hfd.get('conceded_avg', 1.0) if hfd else 1.0
+            aca = afd.get('conceded_avg', 1.2) if afd else 1.2
+
+            home_xg = (hga + aca) / 2
+            away_xg = (aga + hca) / 2
+
+            if _is_international_league(league_id, league_name):
+                home_adv = 1.03
+            else:
+                home_adv = HOME_ADVANTAGE.get(league_name, 1.08)
+            home_xg *= home_adv
+            away_xg /= home_adv
+
+            total_xg = home_xg + away_xg
+
+            if home_xg < MIN_XG_EACH or away_xg < MIN_XG_EACH:
+                stats['xg_skipped'] += 1
+                continue
+            if total_xg < MIN_TOTAL_XG:
+                stats['xg_skipped'] += 1
+                continue
+
+            if FORM_FILTER:
+                home_scoring = _count_scoring_matches(home_form)
+                away_scoring = _count_scoring_matches(away_form)
+                if home_scoring < FORM_MIN_SCORING or away_scoring < FORM_MIN_SCORING:
+                    stats['form_skipped'] += 1
+                    continue
+
+            h2h = None
+            if H2H_FILTER:
+                h2h = football_api.get_head_to_head(home, away)
+                if h2h and h2h.get('total_matches', 0) >= H2H_MIN_MATCHES:
+                    h2h_btts_pct = _calc_h2h_btts_pct(h2h)
+                    if h2h_btts_pct < H2H_MIN_PCT:
+                        stats['h2h_skipped'] += 1
+                        continue
+
+            probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
+            p_btts = probs.get('btts', 0)
+            if p_btts * 100 < MIN_PROB:
+                continue
+
+            fo = match.get('_preloaded_odds') or {}
+            btts_odds = fo.get('btts_yes', 0) or 0
+            if btts_odds <= 1.01 and fid:
+                fo_fresh = football_api.get_match_odds(fid)
+                if fo_fresh:
+                    btts_odds = fo_fresh.get('btts_yes', 0) or 0
+
+            if btts_odds <= 1.01:
+                stats['no_odds'] += 1
+                continue
+
+            if btts_odds < MIN_ODDS or btts_odds > MAX_ODDS:
+                continue
+
+            ev_btts = (p_btts * btts_odds - 1) * 100
+
+            is_whitelisted = any(w.lower() in league_name.lower() for w in LEAGUE_WHITELIST)
+            if is_whitelisted:
+                ev_btts += LEAGUE_BONUS
+
+            if ev_btts < MIN_EV:
+                continue
+
+            kelly_stake = calculate_stake(
+                bank=bank,
+                prob_pct=p_btts * 100,
+                odds=btts_odds,
+            )
+            final_stake, clv_action = apply_clv_filter(
+                source='btts',
+                base_stake=kelly_stake,
+                prob_pct=p_btts * 100,
+                odds=btts_odds,
+                bank=bank,
+            )
+            if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (btts): {home} vs {away}")
+                stats['clv_skipped'] += 1
+                continue
+            if is_whitelisted:
+                stats['league_bonus'] += 1
+
+            country_name, country_flag = _get_country_flag(league_id)
+
+            best_bet = {
+                'type': 'btts',
+                'label': 'ОБЗ 🔥' if is_whitelisted else 'ОБЗ',
+                'prob': round(p_btts * 100, 1),
+                'ev': round(ev_btts, 1),
+                'odds': btts_odds,
+                'stake': final_stake,
+                'clv_action': clv_action,
+                'bookmaker': fo.get('bookmaker', '—'),
+                'league_bonus': is_whitelisted,
+                'odds_updated': True,
+            }
+
+            candidates.append({
+                "home": home, "away": away, "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": match_time,
+                "home_xg": round(home_xg, 2), "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg, 2),
+                "home_form": home_form, "away_form": away_form,
+                "standings": {},
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "btts",
+                "weather_reason": match.get('weather_reason', ''),
+                "_preloaded_odds": fo,
+            })
+            stats['found'] += 1
+            league_bet_count[league_name] = cur_bets + 1
+
+            logger.info(
+                f"⚽ BTTS: {home} vs {away} | ОБЗ @ {btts_odds} | "
+                f"EV: {ev_btts:.1f}% | Prob: {p_btts*100:.1f}% | "
+                f"Stake: ${final_stake} ({clv_action})"
+                + (" [+bonus]" if is_whitelisted else "")
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [BTTS] {e}")
+            continue
+
+    candidates.sort(key=lambda x: x['best_bet']['ev'], reverse=True)
+    top = candidates[:MAX_BETS]
+
+    logger.info(
+        f"📊 [BTTS] Найдено: {len(candidates)}, взято: {len(top)} | "
+        f"intl-skip: {stats['intl_skipped']}, blacklist: {stats['league_blacklist']}, "
+        f"limit: {stats['league_limit']}, xg-skip: {stats['xg_skipped']}, "
+        f"form-skip: {stats['form_skipped']}, h2h-skip: {stats['h2h_skipped']}, "
+        f"clv-skip: {stats['clv_skipped']}, bonus: {stats['league_bonus']}, "
+        f"no-odds: {stats['no_odds']}"
+    )
+    return top
+
+
+def _count_scoring_matches(form_string):
+    if not form_string:
+        return 0
+    return form_string.count('W') + form_string.count('D')
+
+
+def _calc_h2h_btts_pct(h2h_data):
+    if not h2h_data or not h2h_data.get('matches'):
+        return 0
+    matches = h2h_data['matches']
+    if not matches:
+        return 0
+    btts_count = 0
+    for m in matches:
+        if m.get('home_score', 0) > 0 and m.get('away_score', 0) > 0:
+            btts_count += 1
+    return round(btts_count / len(matches) * 100, 1)
+
+
+# ============================================================
+# ★ ПОТОК 5: LINE MOVEMENT
+# ============================================================
+@timing_decorator()
+def find_line_movement_matches(matches):
+    LM_ENABLED = getattr(Config, 'LINE_MOVEMENT_ENABLED', True)
+    if not LM_ENABLED:
+        logger.info("⏭️ [LINE MOVEMENT] Отключено в конфиге")
+        return []
+
+    bank = storage.load_bank()
+    MAX_BETS = getattr(Config, 'LINE_MOVEMENT_MAX_BETS', 2)
+    MIN_DROP = getattr(Config, 'LINE_MOVEMENT_MIN_DROP_PCT', -6.0)
+    MAX_DROP = getattr(Config, 'LINE_MOVEMENT_MAX_DROP_PCT', -15.0)
+    MIN_RISE = getattr(Config, 'LINE_MOVEMENT_MIN_RISE_PCT', 8.0)
+    MAX_RISE = getattr(Config, 'LINE_MOVEMENT_MAX_RISE_PCT', 20.0)
+    HOURS_BEFORE = getattr(Config, 'LINE_MOVEMENT_HOURS_BEFORE', 6)
+    MIN_SNAPS = getattr(Config, 'LINE_MOVEMENT_MIN_SNAPSHOTS', 3)
+    MAX_SNAPS = getattr(Config, 'LINE_MOVEMENT_MAX_SNAPSHOTS', 20)
+    TRADE_DROPS = getattr(Config, 'LINE_MOVEMENT_TRADE_DROPS', True)
+    TRADE_RISES = getattr(Config, 'LINE_MOVEMENT_TRADE_RISES', False)
+    BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
+    MAX_LEAGUE_BETS = getattr(Config, 'LINE_MOVEMENT_MAX_LEAGUE_BETS', 1)
+    MIN_ODDS = getattr(Config, 'LINE_MOVEMENT_MIN_ODDS', 1.40)
+    MAX_ODDS = getattr(Config, 'LINE_MOVEMENT_MAX_ODDS', 3.50)
+    STAKE_PCT = getattr(Config, 'LINE_MOVEMENT_STAKE_PCT', 0.015)
+
+    logger.info("🔍 [LINE MOVEMENT v5.0] Поиск аномалий кэфов...")
+    stats = {
+        'found': 0,
+        'blacklist': 0,
+        'whitelist_miss': 0,
+        'no_snaps': 0,
+        'no_drop': 0,
+        'no_bet': 0,
+        'league_limit': 0,
+        'odds_filter': 0,
+    }
+
+    match_lookup = {}
+    for m in matches:
+        if not isinstance(m, dict): continue
+        fixture = m.get('fixture')
+        if not fixture or not isinstance(fixture, dict): continue
+        fid = fixture.get('id')
+        if not fid: continue
+        teams = m.get('teams', {})
+        ht = teams.get('home', {}); at = teams.get('away', {})
+        ld = m.get('league', {})
+        match_lookup[fid] = {
+            'home': ht.get('name', 'Unknown'),
+            'away': at.get('name', 'Unknown'),
+            'league': ld.get('name', 'Unknown') if isinstance(ld, dict) else 'Unknown',
+            'match_time': parse_match_time_to_msk(fixture.get('date', '')),
+            'fixture_date': fixture.get('date', ''),
+        }
+
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    cutoff_time = now_msk + timedelta(hours=HOURS_BEFORE)
+
+    snapshots_cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        all_snaps = storage.get_snapshots_since(snapshots_cutoff)
+    except Exception as e:
+        logger.error(f"[LM] Ошибка получения снимков: {e}")
+        return []
+
+    if not all_snaps:
+        logger.info("[LM] Нет снимков в БД")
+        return []
+
+    groups = defaultdict(list)
+    for s in all_snaps:
+        fid = s.get('fixture_id')
+        if not fid: continue
+        market = s.get('market', '1X2')
+        sel = s.get('selection', '')
+        if market != '1X2' or sel not in ['1', 'X', '2']:
+            continue
+        groups[(fid, market, sel)].append(s)
+
+    logger.info(f"[LM] Групп: {len(groups)}, снимков: {len(all_snaps)}")
+
+    candidates = []
+    league_bet_count = {}
+
+    for (fid, market, sel), snaps in groups.items():
+        if len(candidates) >= MAX_BETS * 3:
+            break
+        try:
+            if fid not in match_lookup:
+                continue
+            meta = match_lookup[fid]
+            league_name = meta['league']
+
+            if Config.is_lm_league_blacklisted(league_name):
+                stats['blacklist'] += 1
+                continue
+            if not Config.is_lm_league_whitelisted(league_name):
+                stats['whitelist_miss'] += 1
+                continue
+
+            try:
+                match_dt = datetime.strptime(meta['match_time'], "%d.%m.%Y %H:%M")
+                if match_dt < now_msk:
+                    continue
+                if match_dt > cutoff_time:
+                    continue
+            except Exception:
+                continue
+
+            cur_league_bets = league_bet_count.get(league_name, 0)
+            if cur_league_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            snaps_sorted = sorted(snaps, key=lambda x: x.get('created_at', ''))
+            if len(snaps_sorted) < MIN_SNAPS:
+                stats['no_snaps'] += 1
+                continue
+            if len(snaps_sorted) > MAX_SNAPS:
+                snaps_sorted = snaps_sorted[-MAX_SNAPS:]
+
+            first = snaps_sorted[0]
+            last = snaps_sorted[-1]
+
+            old_odds = float(first.get('odds', 0))
+            new_odds = float(last.get('odds', 0))
+            if old_odds <= 1.01 or new_odds <= 1.01:
+                continue
+
+            change_pct = ((new_odds / old_odds) - 1) * 100
+
+            try:
+                t1 = datetime.fromisoformat(str(first.get('created_at', '')))
+                t2 = datetime.fromisoformat(str(last.get('created_at', '')))
+                hours_diff = (t2 - t1).total_seconds() / 3600
+                if hours_diff < 0.5:
+                    continue
+            except Exception:
+                hours_diff = 0
+
+            is_drop = change_pct <= MIN_DROP and change_pct >= MAX_DROP
+            is_rise = change_pct >= MIN_RISE and change_pct <= MAX_RISE
+
+            if is_drop and not TRADE_DROPS:
+                stats['no_drop'] += 1
+                continue
+            if is_rise and not TRADE_RISES:
+                stats['no_drop'] += 1
+                continue
+            if not (is_drop or is_rise):
+                stats['no_drop'] += 1
+                continue
+
+            if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
+                stats['odds_filter'] += 1
+                continue
+
+            if sel == '1':
+                label = 'П1'
+            elif sel == '2':
+                label = 'П2'
+            else:
+                label = 'X'
+
+            final_odds = new_odds
+
+            final_stake = round(bank * STAKE_PCT, 2)
+            if final_stake < 1:
+                final_stake = 1.0
+
+            direction = "📉" if is_drop else "📈"
+            label_full = f'{label} {direction}'
+
+            best_bet = {
+                'type': 'lm_' + sel.lower(),
+                'label': label_full,
+                'prob': 0,
+                'ev': 0,
+                'odds': final_odds,
+                'stake': final_stake,
+                'clv_action': 'no_model',
+                'bookmaker': last.get('bookmaker', '—'),
+                'movement_pct': round(change_pct, 1),
+                'movement_hours': round(hours_diff, 1),
+                'old_odds': round(old_odds, 2),
+                'snapshots_count': len(snaps_sorted),
+                'direction': 'drop' if is_drop else 'rise',
+                'odds_updated': True,
+            }
+
+            country_name, country_flag = "", ""
+            for lid, lname in Config.LEAGUE_NAMES.items():
+                if lname == league_name:
+                    country_name, country_flag = Config.LEAGUE_COUNTRY.get(lid, ("", ""))
+                    break
+
+            candidates.append({
+                "home": meta['home'], "away": meta['away'],
+                "league": league_name,
+                "country": country_name, "country_flag": country_flag,
+                "fixture_id": fid, "match_time": meta['match_time'],
+                "home_xg": 0, "away_xg": 0, "total_xg": 0,
+                "home_form": '', "away_form": '',
+                "standings": {},
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "line_movement",
+                "weather_reason": "",
+                "_preloaded_odds": {},
+            })
+            stats['found'] += 1
+            league_bet_count[league_name] = cur_league_bets + 1
+
+            logger.info(
+                f"📈 LM: {meta['home']} vs {meta['away']} | {label} @ {final_odds} | "
+                f"Δ {change_pct:+.1f}% за {hours_diff:.1f}ч | "
+                f"снимков: {len(snaps_sorted)} | stake ${final_stake}"
+            )
+        except Exception as e:
+            logger.error(f"❌ [LM] {fid}: {e}")
+            continue
+
+    candidates.sort(
+        key=lambda x: abs(x['best_bet'].get('movement_pct', 0)),
+        reverse=True
+    )
+    top = candidates[:MAX_BETS]
+
+    logger.info(
+        f"📈 [LINE MOVEMENT] Найдено: {len(candidates)}, взято: {len(top)} | "
+        f"blacklist: {stats['blacklist']}, whitelist_miss: {stats['whitelist_miss']}, "
+        f"no_snaps: {stats['no_snaps']}, no_drop: {stats['no_drop']}, "
+        f"league_limit: {stats['league_limit']}, odds_filter: {stats['odds_filter']}"
+    )
+    return top
+
+
+# ============================================================
+# КОМБИНИРОВАННЫЙ ПОИСК
+# ============================================================
+@timing_decorator()
+def find_top_matches_with_tm25(matches):
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 home)")
+    logger.info("=" * 60)
+    top_matches_70 = find_top_matches(matches)
+
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 2: ТМ 2.5")
+    logger.info("=" * 60)
+    tm25_matches = find_tm25_matches(matches)
+
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 3: VALUE 💎")
+    logger.info("=" * 60)
+    value_matches = find_value_matches(matches, max_bets=2)
+
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 4: BTTS (Обе Забьют)")
+    logger.info("=" * 60)
+    btts_matches = find_btts_matches(matches)
+
+    logger.info("=" * 60)
+    logger.info("📊 ПОТОК 5: LINE MOVEMENT (Аномалии)")
+    logger.info("=" * 60)
+    try:
+        lm_matches = find_line_movement_matches(matches)
+    except Exception as e:
+        logger.error(f"❌ LINE MOVEMENT упал: {e}")
+        lm_matches = []
+
+    combined = []
+    keys = set()
+
+    for m in value_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in btts_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in lm_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in top_matches_70:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    for m in tm25_matches:
+        key = f"{m['home']}_{m['away']}"
+        if key not in keys:
+            combined.append(m); keys.add(key)
+
+    def _sort_key(m):
+        src = m.get('source', '')
+        if src == 'line_movement':
+            return (1, abs(m['best_bet'].get('movement_pct', 0)))
+        return (0, m['best_bet'].get('ev', 0))
+
+    combined.sort(key=_sort_key, reverse=True)
+    all_before_odds_filter = copy.deepcopy(combined)
+
+    if combined:
+        logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
+        combined = update_odds_for_matches(combined)
+
+    if not combined:
+        with cache_lock:
+            cache = storage.load_cache()
+            cache['top_matches'] = []
+            cache['all_analyzed'] = all_before_odds_filter
+            storage.save_cache(cache)
+        return []
+
+    for m in combined:
+        bets = [b for b in m.get('bets', []) if b.get('odds', 0) > 1.01]
+        if not bets: continue
+        bets.sort(key=lambda x: x.get('ev', 0), reverse=True)
+        m['bets'] = bets
+        m['best_bet'] = bets[0]
+        if not m.get('fixture_id'):
+            logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
+
+    EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
+    EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
+    PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
+    filtered = []
+    for m in combined:
+        bb = m.get('best_bet', {})
+        ev = bb.get('ev', 0)
+        prob = bb.get('prob', 0)
+        src = m.get('source', '')
+        if src in ('value', 'btts', 'line_movement'):
+            if ev < EV_MIN: continue
+            if src != 'line_movement' and prob < PROB_MIN: continue
+        else:
+            if ev < EV_MIN or ev > EV_MAX: continue
+            if prob < PROB_MIN: continue
+        if not bb.get('odds_updated'):
+            bb['odds_source'] = 'template'
+            bb['odds_note'] = '⚠️ кэф не найден'
+        m.pop('_preloaded_odds', None)
+        m.pop('_preloaded_preds', None)
+        filtered.append(m)
+
+    logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}")
+
+    with cache_lock:
+        cache = storage.load_cache()
+        cache['top_matches'] = filtered
+        cache['all_analyzed'] = all_before_odds_filter
+        storage.save_cache(cache)
+
+    history = storage.load_history()
+    today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
+    existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0])
+                for h in history}
+    added = 0
+    for md in filtered:
+        bb = md.get('best_bet', {})
+        key = (md.get('home'), md.get('away'), today_str)
+        if key in existing: continue
+        existing.add(key)
+        if not md.get('fixture_id'): continue
+        history.append({
+            'home': md.get('home'), 'away': md.get('away'),
+            'league': md.get('league'),
+            'bet': bb.get('label', '—'),
+            'odds': bb.get('odds', 0),
+            'stake': bb.get('stake', 0),
+            'ev': bb.get('ev', 0), 'prob': bb.get('prob', 0),
+            'result': 'pending', 'profit': 0,
+            'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
+            'fixture_id': md.get('fixture_id'),
+            'bookmaker': bb.get('bookmaker', '—'),
+            'engine': Config.PREDICTION_ENGINE,
+            'weather_reason': md.get('weather_reason', ''),
+            'source': md.get('source', '70_percent'),
+            'llm_reason': bb.get('llm_reason', ''),
+        })
+        added += 1
+    storage.save_history(history)
+    logger.info(f"📝 Добавлено ставок: {added}")
+
+    if Config.LLM_ENABLED and filtered:
+        try:
+            pick = llm_pick_best(filtered)
+            if pick:
+                best_match = pick['match']
+                best = best_match.get('best_bet', {})
+                reason = pick.get('reason', '')
+                pick_msg = (
+                    f"🧠 <b>DeepSeek: МОЙ ВЫБОР ДНЯ</b>\n\n"
+                    f"🏟️ <b>{best_match.get('home')} vs {best_match.get('away')}</b>\n"
+                    f"🏆 {best_match.get('league', '?')}\n"
+                    f"📅 {best_match.get('match_time', '?')}\n\n"
+                    f"🎯 <b>{best.get('label', '—')}</b>\n"
+                    f"💰 Кэф: <b>{best.get('odds', 0)}</b>\n"
+                    f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
+                    f"💵 Stake: ${best.get('stake', 0)}\n\n"
+                    f"💡 <i>{reason}</i>"
+                )
+                send_telegram(pick_msg)
+                logger.info(f"🧠 DeepSeek pick: {best_match.get('home')} vs {best_match.get('away')} | {reason[:80]}")
+        except Exception as e:
+            logger.error(f"llm_pick_best error: {e}")
+
+    try:
+        placed = autobet_manager.place_bets_from_cache()
+        if placed > 0:
+            logger.info(f"💸 Автоставок размещено: {placed}")
+    except Exception as e:
+        logger.error(f"Ошибка автоставок: {e}")
+
+    logger.info("=" * 60)
+    return filtered
+
+
+# ============================================================
+# ОБНОВЛЕНИЕ PENDING
+# ============================================================
+@timing_decorator()
+def update_pending_bets():
+    history = storage.load_history()
+    updated = 0
+    live_updated = 0
+    for bet in history:
+        if bet.get('result') in ('pending', None):
+            fid = bet.get('fixture_id')
+            if not fid:
+                fid = football_api.find_fixture_by_teams(bet.get('home', ''), bet.get('away', ''))
+                if fid:
+                    bet['fixture_id'] = fid
+            if fid:
+                md = football_api.get_match_result(fid)
+                if md:
+                    hg = md['goals']['home']; ag = md['goals']['away']
+                    if hg is None or ag is None:
+                        continue
+                    status = md.get('status', 'NS')
+                    date_str = bet.get('date', '')
+                    match_time_str = ''
+                    if date_str and ' ' in date_str:
+                        parts = date_str.split()
+                        if len(parts) >= 2:
+                            try:
+                                d = datetime.strptime(parts[0], '%Y-%m-%d')
+                                match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
+                            except Exception:
+                                pass
+                    force_final = is_force_final(match_time_str, status)
+                    if not md.get('is_final', False) and not force_final:
+                        if md.get('is_live', False):
+                            bet['live_score'] = f"{hg}-{ag}"
+                            bet['live_status'] = status
+                            bet['live_minute'] = md.get('minute', 0)
+                            ht = md.get('halftime', {}) or {}
+                            if ht.get('home') is not None:
+                                bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
+                            live_updated += 1
+                        continue
+                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
+                    if result != 'pending':
+                        bet['result'] = result
+                        bet['home_goals'] = hg
+                        bet['away_goals'] = ag
+                        if md.get('halftime'):
+                            bet['halftime_home'] = md['halftime'].get('home')
+                            bet['halftime_away'] = md['halftime'].get('away')
+                        if result == 'win':
+                            bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
+                        elif result == 'loss':
+                            bet['profit'] = -bet['stake']
+                        else:
+                            bet['profit'] = 0
+                        bet.pop('live_score', None)
+                        bet.pop('live_status', None)
+                        bet.pop('live_minute', None)
+                        bet.pop('live_halftime', None)
+                        updated += 1
+    if updated > 0 or live_updated > 0:
+        storage.save_history(history)
+        if updated > 0:
+            recalc_stats()
+    logger.info(f"🔄 update_pending_bets: FT={updated}, LIVE={live_updated}")
+    return {'ft': updated, 'live': live_updated}
+
+
+def recalc_stats():
+    history = storage.load_history()
+    stats = storage.load_stats()
+    total = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    pushes = sum(1 for b in history if b.get('result') == 'push')
+    profit = sum(b.get('profit', 0) for b in history)
+    stake_sum = sum(b.get('stake', 0) for b in history)
+    stats.update({
+        'total': total, 'wins': wins, 'losses': losses, 'pushes': pushes,
+        'total_profit': round(profit, 2),
+        'winrate': round(wins / (wins + losses) * 100, 1) if (wins + losses) else 0,
+        'roi': round(profit / stake_sum * 100, 1) if stake_sum else 0,
+    })
+    storage.save_stats(stats)
+
+
+# ============================================================
+# СНИМКИ КЭФОВ
+# ============================================================
+def snapshot_odds_for_upcoming():
+    logger.info("🔍 snapshot: НАЧАЛО")
+    try:
+        with cache_lock:
+            cache = storage.load_cache()
+            matches = cache.get('all_analyzed') or cache.get('top_matches', [])
+        if not matches:
+            return 0
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+
+        groups = defaultdict(list)
+        single = []
+        for md in matches:
+            match_time_str = md.get('match_time', '')
+            if not match_time_str or match_time_str == '?':
+                continue
+            try:
+                match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+            except ValueError:
+                continue
+            hours_to_match = (match_dt - now_msk).total_seconds() / 3600
+            if hours_to_match < -24:
+                continue
+            if not (0 < hours_to_match <= 3):
+                continue
+            fid = md.get('fixture_id')
+            if not fid: continue
+            league_name = md.get('league', '')
+            league_id = None
+            for lid, lname in Config.LEAGUE_NAMES.items():
+                if lname == league_name:
+                    league_id = lid
+                    break
+            if league_id:
+                date_str = match_dt.strftime('%Y-%m-%d')
+                groups[(league_id, date_str)].append(md)
+            else:
+                single.append(md)
+
+        total_snapshots = 0
+        for (league_id, date_str), group in groups.items():
+            try:
+                batch = football_api.get_odds_batch_for_league(league_id, date_str)
+                for md in group:
+                    fid = md.get('fixture_id')
+                    fo = batch.get(fid)
+                    if not fo: continue
+                    saved = _save_snapshot_from_odds(
+                        fo, fid,
+                        home=md.get('home', ''),
+                        away=md.get('away', ''),
+                        league=md.get('league', ''),
+                    )
+                    total_snapshots += saved
+            except Exception as e:
+                logger.error(f"snapshot batch {league_id}: {e}")
+
+        for md in single:
+            try:
+                fid = md.get('fixture_id')
+                if not fid: continue
+                fo = football_api.get_match_odds(fid)
+                if not fo: continue
+                saved = _save_snapshot_from_odds(
+                    fo, fid,
+                    home=md.get('home', ''),
+                    away=md.get('away', ''),
+                    league=md.get('league', ''),
+                )
+                total_snapshots += saved
+            except Exception as e:
+                logger.error(f"snapshot single: {e}")
+
+        logger.info(f"📸 Снимков: {total_snapshots}")
+        return total_snapshots
+    except Exception as e:
+        logger.exception(f"❌ snapshot: {e}")
+        return 0
+
+
+def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
+    try:
+        if not fo:
+            return 0
+        bookmaker = fo.get('bookmaker', 'Football API')
+        saved = 0
+
+        has_1x2 = (fo.get('home_odds', 0) > 1.01 or
+                   fo.get('away_odds', 0) > 1.01 or
+                   fo.get('draw_odds', 0) > 1.01)
+        if has_1x2:
+            odds_map = {
+                '1': fo.get('home_odds', 0),
+                'X': fo.get('draw_odds', 0),
+                '2': fo.get('away_odds', 0),
+            }
+            for sel, odd in odds_map.items():
+                if odd and odd > 1.01:
+                    if storage.save_odds_snapshot(
+                        fixture_id=fid, market='1X2',
+                        selection=sel, odds=odd, bookmaker=bookmaker,
+                        home=home, away=away, league=league
+                    ):
+                        saved += 1
+
+        x2_odd = fo.get('x2_odds', 0) or 0
+        x1_odd = fo.get('1x_odds', 0) or 0
+        if x2_odd > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='DC',
+                selection='X2', odds=x2_odd, bookmaker=bookmaker,
+                home=home, away=away, league=league
+            ):
+                saved += 1
+        if x1_odd > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='DC',
+                selection='1X', odds=x1_odd, bookmaker=bookmaker,
+                home=home, away=away, league=league
+            ):
+                saved += 1
+
+        btts_yes = fo.get('btts_yes', 0) or 0
+        if btts_yes > 1.01:
+            if storage.save_odds_snapshot(
+                fixture_id=fid, market='BTTS',
+                selection='BTTS', odds=btts_yes, bookmaker=bookmaker,
+                home=home, away=away, league=league
+            ):
+                saved += 1
+
+        return saved
+    except Exception as e:
+        logger.error(f"_save_snapshot_from_odds: {e}")
+        return 0
+
+
+# ============================================================
+# ★ ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ (сохранены из старой версии)
+# ============================================================
+def auto_update_results():
+    """Обновление результатов + X2 + автобетов."""
+    res = update_pending_bets()
+    x2 = update_x2_results()
+    ft = res.get('ft', 0)
+    live = res.get('live', 0)
+    if ft > 0:
+        send_telegram(f"🔄 Авто-обновление: {ft} результатов")
+    if x2 > 0:
+        send_telegram(f"🎯 X2-результатов обновлено: {x2}")
+    return ft + live + x2
+
+
+def update_x2_results():
+    """Обновляет X2-кандидатов после завершения матчей."""
+    try:
+        candidates = storage.get_x2_candidates(limit=200)
+        updated = 0
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+
+        for c in candidates:
+            if c.get('result') in ('win', 'loss', 'push'):
+                continue
+
+            fid = c.get('fixture_id')
+            if not fid:
+                continue
+
+            md = football_api.get_match_result(fid)
+            if not md:
+                continue
+
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                continue
+
+            status = md.get('status', 'NS')
+            is_final = md.get('is_final', False)
+
+            force_final = False
+            hours_ago = 0
+            if not is_final:
+                match_time_str = c.get('match_time', '')
+                if match_time_str and match_time_str != '?':
+                    try:
+                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+                        hours_ago = (now_msk - mt).total_seconds() / 3600
+                        if hours_ago > 2.5:
+                            force_final = True
+                    except Exception:
+                        pass
+                if not force_final:
+                    continue
+                logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
+                            f"(был {status}, {hours_ago:.1f}ч назад)")
+
+            side = c.get('x2_side', 'X2')
+            if side == 'X2':
+                result = 'win' if ag >= hg else 'loss'
+            else:
+                result = 'win' if hg >= ag else 'loss'
+
+            odds = float(c.get('entry_odds', 0) or 0)
+            if odds < 1.01:
+                odds = 1.85
+
+            stake = 20.0
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2)
+            elif result == 'loss':
+                profit = -stake
+            else:
+                profit = 0
+
+            ok = storage.update_x2_result(
+                candidate_id=c['id'],
+                result=result,
+                profit=profit,
+                home_goals=hg,
+                away_goals=ag,
+            )
+            if ok:
+                updated += 1
+                logger.info(f"🎯 X2: {c.get('home')} vs {c.get('away')} "
+                            f"→ {result.upper()} ({hg}:{ag}) | ${profit:+.2f}")
+
+        if updated > 0:
+            logger.info(f"✅ X2-результатов обновлено: {updated}")
+        return updated
+    except Exception as e:
+        logger.exception(f"update_x2_results: {e}")
+        return 0
+
+
+# === КОНЕЦ ЧАСТИ 2/3 (v22.4 — Train/Test Split) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v22.1 — Calibration Snapshots)
