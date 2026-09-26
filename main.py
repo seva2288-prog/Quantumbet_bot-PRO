@@ -9021,6 +9021,37 @@ def api_simulator_grid_search():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+@app.route('/api/simulator/train_test', methods=['POST'])
+def api_simulator_train_test():
+    try:
+        data = request.json or {}
+        params = data.get('params', {})
+        test_size = float(data.get('test_size', 0.3))
+        result = strategy_simulator.run_train_test(params, test_size)
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        logger.exception(f"api_simulator_train_test error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/simulator/train_test_grid', methods=['POST'])
+def api_simulator_train_test_grid():
+    try:
+        data = request.json or {}
+        max_combinations = int(data.get('max_combinations', 100))
+        min_bets = int(data.get('min_bets', 20))
+        test_size = float(data.get('test_size', 0.3))
+        result = strategy_simulator.grid_search_train_test(
+            max_combinations=max_combinations,
+            min_bets=min_bets,
+            test_size=test_size,
+        )
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        logger.exception(f"api_simulator_train_test_grid error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 # ============================================================
 # ★ API: КАЛИБРОВКА
 # ============================================================
