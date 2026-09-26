@@ -4455,7 +4455,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v22.4 — Train/Test Split)
+# main.py — ЧАСТЬ 2/3 (v22.5 — Train/Test + 3-Way Split)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
@@ -4466,15 +4466,15 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v5.0: LINE MOVEMENT (аномалии кэфов)
 # ★ v4.9: LLM объяснения + DeepSeek pick
 # ★ v5.1: X2 home advantage bonus/penalty
-# ★ v22.4: Train/Test Split (только методы, класс уже определён в Части 1)
+# ★ v22.4: Train/Test Split
+# ★ v22.5: 3-Way Split (Train/Validate/Test) + дедупликация Grid Search
 # ============================================================
 
 # ============================================================
 # ★ TRAIN/TEST МЕТОДЫ (добавляются в существующий StrategySimulator)
 # ============================================================
 # ВАЖНО: Класс StrategySimulator уже определён в конце Части 1.
-# Здесь мы НЕ переопределяем его — только добавляем методы через setattr,
-# чтобы избежать дубликатов.
+# Здесь мы НЕ переопределяем его — только добавляем методы через setattr.
 
 def _tt_split_data(self, all_matches, test_size=0.3):
     """Разделяет данные на train и test по времени."""
@@ -4657,6 +4657,9 @@ def _tt_apply_filters(self, matches, params):
     return filtered
 
 
+# ============================================================
+# ★ ПУНКТ 1+2: GRID SEARCH + TRAIN/TEST с дедупликацией и min_bets=30
+# ============================================================
 def _tt_run_train_test(self, params, test_size=0.3):
     """Главный метод Train/Test."""
     all_matches = self._tt_collect_all_matches()
@@ -4712,8 +4715,11 @@ def _tt_run_train_test(self, params, test_size=0.3):
     }
 
 
-def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_size=0.3):
-    """Grid Search с проверкой каждой комбинации на Train/Test."""
+def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_size=0.3):
+    """
+    Grid Search + Train/Test.
+    ★ v22.5: min_bets=30 (было 20) + дедупликация по набору train-ставок.
+    """
     try:
         logger.info(
             f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
@@ -4721,7 +4727,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
         )
 
         all_matches = self._tt_collect_all_matches()
-        if len(all_matches) < 20:
+        if len(all_matches) < 30:
             return {
                 'error': f'Недостаточно данных: {len(all_matches)}',
                 'total_checked': 0, 'total_valid': 0, 'top': [],
@@ -4737,6 +4743,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
 
         results = []
         count = 0
+        seen_signatures = set()   # ★ дедупликация
         keys = list(grid.keys())
         values = [grid[k] for k in keys]
 
@@ -4761,6 +4768,15 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
                 train, test = self._tt_split_data(filtered, test_size)
                 if len(train) < min_bets or len(test) < 5:
                     continue
+
+                # ★ ДЕДУПЛИКАЦИЯ: проверяем уникальность набора train-ставок
+                train_sig = tuple(sorted(
+                    (m.get('home'), m.get('away'), m.get('match_time', ''))
+                    for m in train
+                ))
+                if train_sig in seen_signatures:
+                    continue
+                seen_signatures.add(train_sig)
 
                 train_res = self._tt_simulate_subset(train, params)
                 test_res = self._tt_simulate_subset(test, params)
@@ -4797,26 +4813,11 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
                 continue
 
         results.sort(key=lambda x: x['score'], reverse=True)
-
-        seen_sigs = set()
-        unique_results = []
-        for r in results:
-            sig = (
-                r['params']['min_ev'],
-                r['params']['min_prob'],
-                r['params']['min_odds'],
-                r['params']['max_odds'],
-                r['params']['stake_pct'],
-            )
-            if sig not in seen_sigs:
-                seen_sigs.add(sig)
-                unique_results.append(r)
-
-        top = unique_results[:5]
+        top = results[:5]
 
         logger.info(
             f"🎯 GRID SEARCH + TT: проверено {count}, "
-            f"валидных {len(unique_results)}, показано {len(top)}"
+            f"уникальных {len(results)}, показано {len(top)}"
         )
 
         if top:
@@ -4824,8 +4825,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
             try:
                 send_telegram(
                     f"🎓 <b>GRID SEARCH + TRAIN/TEST</b>\n\n"
-                    f"Проверено: {count}\n"
-                    f"Валидных: {len(unique_results)}\n\n"
+                    f"Проверено уникальных: {count}\n\n"
                     f"🏆 <b>ЛУЧШАЯ:</b>\n"
                     f"🎓 Train ROI: {best['train_roi']}% ({best['train_bets']} ставок)\n"
                     f"🧪 Test ROI: {best['test_roi']}% ({best['test_bets']} ставок)\n"
@@ -4842,7 +4842,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
 
         return {
             'total_checked': count,
-            'total_valid': len(unique_results),
+            'total_valid': len(results),
             'top': top,
         }
     except Exception as e:
@@ -4853,8 +4853,286 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_siz
         }
 
 
+# ============================================================
+# ★ ПУНКТ 3: 3-WAY SPLIT (Train/Validate/Test)
+# ============================================================
+def _tt_split_data_3way(self, all_matches, test_size=0.2, valid_size=0.2):
+    """
+    Разделяет данные на 3 части по времени:
+    Train (60%) → Validate (20%) → Test (20%)
+    """
+    def sort_key(m):
+        mt = m.get('match_time', '') or ''
+        try:
+            return datetime.strptime(mt, "%d.%m.%Y %H:%M")
+        except Exception:
+            try:
+                return datetime.strptime(mt.split()[0], "%Y-%m-%d")
+            except Exception:
+                return datetime(1970, 1, 1)
+
+    sorted_matches = sorted(all_matches, key=sort_key)
+    n = len(sorted_matches)
+
+    test_count = int(n * test_size)
+    valid_count = int(n * valid_size)
+    train_count = n - test_count - valid_count
+
+    if train_count < 3:
+        train_count = max(3, n - 6)
+    if valid_count < 2:
+        valid_count = max(2, (n - train_count - 2) // 2)
+    if test_count < 2:
+        test_count = max(2, n - train_count - valid_count)
+
+    train = sorted_matches[:train_count]
+    valid = sorted_matches[train_count:train_count + valid_count]
+    test = sorted_matches[train_count + valid_count:]
+
+    logger.info(
+        f"🎓 3-way split: train={len(train)}, "
+        f"valid={len(valid)}, test={len(test)} "
+        f"(test_size={test_size}, valid_size={valid_size})"
+    )
+    return train, valid, test
+
+
+def _tt_run_3way_split(self, params, test_size=0.2, valid_size=0.2):
+    """Запускает Train/Validate/Test (3-way split)."""
+    all_matches = self._tt_collect_all_matches()
+    filtered = self._tt_apply_filters(all_matches, params)
+
+    if len(filtered) < 15:
+        return {
+            'error': (f'Недостаточно данных: {len(filtered)} матчей. '
+                      f'Нужно минимум 15 для 3-way Split.'),
+            'train': None, 'valid': None, 'test': None,
+        }
+
+    train, valid, test = self._tt_split_data_3way(
+        filtered, test_size=test_size, valid_size=valid_size
+    )
+
+    if len(train) < 3 or len(valid) < 2 or len(test) < 2:
+        return {
+            'error': (f'Недостаточно данных после split: '
+                      f'train={len(train)}, valid={len(valid)}, test={len(test)}.'),
+            'train': None, 'valid': None, 'test': None,
+        }
+
+    train_result = self._tt_simulate_subset(train, params)
+    valid_result = self._tt_simulate_subset(valid, params)
+    test_result = self._tt_simulate_subset(test, params)
+
+    train_roi = train_result['roi']
+    valid_roi = valid_result['roi']
+    test_roi = test_result['roi']
+
+    max_roi = max(train_roi, valid_roi, test_roi)
+    min_roi = min(train_roi, valid_roi, test_roi)
+    spread = round(max_roi - min_roi, 1)
+
+    oos_roi = round((valid_roi + test_roi) / 2, 1)
+    gap_train_oos = round(train_roi - oos_roi, 1)
+
+    if spread < 10 and oos_roi > 0:
+        verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+        verdict_color = 'green'
+    elif gap_train_oos > 25:
+        verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
+        verdict_color = 'red'
+    elif gap_train_oos > 15:
+        verdict = '🟡 ВОЗМОЖЕН OVERFITTING'
+        verdict_color = 'gold'
+    elif gap_train_oos > 5:
+        verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
+        verdict_color = 'orange'
+    elif oos_roi > train_roi:
+        verdict = '🔵 OOS ЛУЧШЕ TRAIN (хорошо!)'
+        verdict_color = 'blue'
+    else:
+        verdict = '⚪ НЕСТАБИЛЬНО'
+        verdict_color = 'gray'
+
+    logger.info(
+        f"🎓 3-WAY: train={train_roi}%, valid={valid_roi}%, "
+        f"test={test_roi}%, spread={spread}%, oos={oos_roi}% | {verdict}"
+    )
+
+    return {
+        'train': train_result,
+        'valid': valid_result,
+        'test': test_result,
+        'gap': gap_train_oos,
+        'gap_valid': round(train_roi - valid_roi, 1),
+        'gap_test': round(train_roi - test_roi, 1),
+        'spread': spread,
+        'oos_roi': oos_roi,
+        'verdict': verdict,
+        'verdict_color': verdict_color,
+        'total_filtered': len(filtered),
+        'train_count': len(train),
+        'valid_count': len(valid),
+        'test_count': len(test),
+    }
+
+
+def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
+                          test_size=0.2, valid_size=0.2):
+    """
+    Grid Search с 3-way split.
+    ★ v22.5: min_bets=30 + дедупликация по train-ставкам.
+    """
+    try:
+        logger.info(
+            f"🔍 GRID SEARCH + 3-WAY: до {max_combinations} комбинаций, "
+            f"min_bets={min_bets}, test_size={test_size}, valid_size={valid_size}"
+        )
+
+        all_matches = self._tt_collect_all_matches()
+        if len(all_matches) < 45:
+            return {
+                'error': f'Недостаточно данных: {len(all_matches)}. Нужно ≥45 для 3-way.',
+                'total_checked': 0, 'total_valid': 0, 'top': [],
+            }
+
+        grid = {
+            'min_ev': [5, 8, 10, 12, 15],
+            'min_prob': [45, 50, 52, 55, 60],
+            'min_odds': [1.3, 1.4, 1.5, 1.6],
+            'max_odds': [2.5, 3.0, 4.0, 5.0, 6.0],
+            'stake_pct': [1.5, 2.0, 3.0],
+        }
+
+        results = []
+        count = 0
+        seen_signatures = set()
+        keys = list(grid.keys())
+        values = [grid[k] for k in keys]
+
+        for combo in itertools.product(*values):
+            if count >= max_combinations:
+                break
+            params = dict(zip(keys, combo))
+            params.update({
+                'max_ev': 500, 'max_prob': 100,
+                'min_xg': 0, 'max_xg': 99,
+                'bet_types': [], 'leagues': [],
+                'start_bank': 1000,
+            })
+            if params['min_odds'] >= params['max_odds']:
+                continue
+
+            try:
+                filtered = self._tt_apply_filters(all_matches, params)
+                if len(filtered) < min_bets * 3:
+                    continue
+
+                train, valid, test = self._tt_split_data_3way(
+                    filtered, test_size=test_size, valid_size=valid_size
+                )
+                if len(train) < min_bets or len(valid) < 5 or len(test) < 5:
+                    continue
+
+                # ★ ДЕДУПЛИКАЦИЯ: набор train-ставок должен быть уникален
+                train_sig = tuple(sorted(
+                    (m.get('home'), m.get('away'), m.get('match_time', ''))
+                    for m in train
+                ))
+                if train_sig in seen_signatures:
+                    continue
+                seen_signatures.add(train_sig)
+
+                train_res = self._tt_simulate_subset(train, params)
+                valid_res = self._tt_simulate_subset(valid, params)
+                test_res = self._tt_simulate_subset(test, params)
+
+                if train_res['total_bets'] < min_bets:
+                    continue
+                if valid_res['total_bets'] < 5:
+                    continue
+                if test_res['total_bets'] < 5:
+                    continue
+
+                train_roi = train_res['roi']
+                valid_roi = valid_res['roi']
+                test_roi = test_res['roi']
+                oos_roi = (valid_roi + test_roi) / 2
+                gap_train_oos = train_roi - oos_roi
+                spread = max(train_roi, valid_roi, test_roi) - min(train_roi, valid_roi, test_roi)
+
+                penalty = max(0, gap_train_oos) * 0.5 + spread * 0.2
+                score = test_roi - penalty
+                count += 1
+
+                results.append({
+                    'params': params,
+                    'total_bets': train_res['total_bets'] + valid_res['total_bets'] + test_res['total_bets'],
+                    'train_bets': train_res['total_bets'],
+                    'valid_bets': valid_res['total_bets'],
+                    'test_bets': test_res['total_bets'],
+                    'train_roi': train_roi,
+                    'valid_roi': valid_roi,
+                    'test_roi': test_roi,
+                    'oos_roi': round(oos_roi, 1),
+                    'gap_train_oos': round(gap_train_oos, 1),
+                    'spread': round(spread, 1),
+                    'train_wr': train_res['winrate'],
+                    'valid_wr': valid_res['winrate'],
+                    'test_wr': test_res['winrate'],
+                    'train_profit': train_res['profit'],
+                    'valid_profit': valid_res['profit'],
+                    'test_profit': test_res['profit'],
+                    'score': round(score, 1),
+                })
+            except Exception as e:
+                logger.debug(f"grid_3way combo error: {e}")
+                continue
+
+        results.sort(key=lambda x: x['score'], reverse=True)
+        top = results[:5]
+
+        logger.info(
+            f"🎯 GRID SEARCH + 3-WAY: проверено {count}, "
+            f"уникальных {len(results)}, показано {len(top)}"
+        )
+
+        if top:
+            best = top[0]
+            try:
+                send_telegram(
+                    f"🎓 <b>GRID SEARCH + 3-WAY SPLIT</b>\n\n"
+                    f"Проверено: {count}\n\n"
+                    f"🏆 <b>ЛУЧШАЯ:</b>\n"
+                    f"🎓 Train: {best['train_roi']}% ({best['train_bets']} ст.)\n"
+                    f"📊 Valid: {best['valid_roi']}% ({best['valid_bets']} ст.)\n"
+                    f"🧪 Test: {best['test_roi']}% ({best['test_bets']} ст.)\n"
+                    f"📈 OOS: {best['oos_roi']}% • Spread: {best['spread']}%\n\n"
+                    f"⚙️ Параметры:\n"
+                    f"• Min EV: {best['params']['min_ev']}%\n"
+                    f"• Min Prob: {best['params']['min_prob']}%\n"
+                    f"• Кэф: {best['params']['min_odds']}-{best['params']['max_odds']}\n"
+                    f"• Ставка: {best['params']['stake_pct']}%"
+                )
+            except Exception as e:
+                logger.error(f"Telegram 3way: {e}")
+
+        return {
+            'total_checked': count,
+            'total_valid': len(results),
+            'top': top,
+        }
+    except Exception as e:
+        logger.exception(f"grid_search_3way: {e}")
+        return {
+            'total_checked': 0, 'total_valid': 0, 'top': [],
+            'error': str(e),
+        }
+
+
 # Привязываем методы к существующему классу StrategySimulator (без переопределения)
 if not hasattr(strategy_simulator, '_tt_split_data'):
+    # Train/Test
     StrategySimulator._tt_split_data = _tt_split_data
     StrategySimulator._tt_simulate_subset = _tt_simulate_subset
     StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
@@ -4869,6 +5147,11 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
     StrategySimulator._simulate_subset = _tt_simulate_subset
     StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
     StrategySimulator._apply_filters = _tt_apply_filters
+
+    # ★ v22.5: 3-way split
+    StrategySimulator.split_data_3way = _tt_split_data_3way
+    StrategySimulator.run_3way_split = _tt_run_3way_split
+    StrategySimulator.grid_search_3way = _tt_grid_search_3way
 
 
 # ============================================================
@@ -7362,7 +7645,6 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ (сохранены из старой версии)
 # ============================================================
 def auto_update_results():
-    """Обновление результатов + X2 + автобетов."""
     res = update_pending_bets()
     x2 = update_x2_results()
     ft = res.get('ft', 0)
@@ -7375,7 +7657,6 @@ def auto_update_results():
 
 
 def update_x2_results():
-    """Обновляет X2-кандидатов после завершения матчей."""
     try:
         candidates = storage.get_x2_candidates(limit=200)
         updated = 0
@@ -7384,23 +7665,18 @@ def update_x2_results():
         for c in candidates:
             if c.get('result') in ('win', 'loss', 'push'):
                 continue
-
             fid = c.get('fixture_id')
             if not fid:
                 continue
-
             md = football_api.get_match_result(fid)
             if not md:
                 continue
-
             hg = md['goals']['home']
             ag = md['goals']['away']
             if hg is None or ag is None:
                 continue
-
             status = md.get('status', 'NS')
             is_final = md.get('is_final', False)
-
             force_final = False
             hours_ago = 0
             if not is_final:
@@ -7417,17 +7693,14 @@ def update_x2_results():
                     continue
                 logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
                             f"(был {status}, {hours_ago:.1f}ч назад)")
-
             side = c.get('x2_side', 'X2')
             if side == 'X2':
                 result = 'win' if ag >= hg else 'loss'
             else:
                 result = 'win' if hg >= ag else 'loss'
-
             odds = float(c.get('entry_odds', 0) or 0)
             if odds < 1.01:
                 odds = 1.85
-
             stake = 20.0
             if result == 'win':
                 profit = round(stake * (odds - 1), 2)
@@ -7435,19 +7708,14 @@ def update_x2_results():
                 profit = -stake
             else:
                 profit = 0
-
             ok = storage.update_x2_result(
-                candidate_id=c['id'],
-                result=result,
-                profit=profit,
-                home_goals=hg,
-                away_goals=ag,
+                candidate_id=c['id'], result=result, profit=profit,
+                home_goals=hg, away_goals=ag,
             )
             if ok:
                 updated += 1
                 logger.info(f"🎯 X2: {c.get('home')} vs {c.get('away')} "
                             f"→ {result.upper()} ({hg}:{ag}) | ${profit:+.2f}")
-
         if updated > 0:
             logger.info(f"✅ X2-результатов обновлено: {updated}")
         return updated
@@ -7456,7 +7724,7 @@ def update_x2_results():
         return 0
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v22.4 — Train/Test Split) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v22.5 — Train/Test + 3-Way Split) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v22.1 — Calibration Snapshots)
@@ -9049,6 +9317,41 @@ def api_simulator_train_test_grid():
         return jsonify({'status': 'ok', 'result': result})
     except Exception as e:
         logger.exception(f"api_simulator_train_test_grid error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+
+@app.route('/api/simulator/3way_split', methods=['POST'])
+def api_simulator_3way_split():
+    try:
+        data = request.json or {}
+        params = data.get('params', {})
+        test_size = float(data.get('test_size', 0.2))
+        valid_size = float(data.get('valid_size', 0.2))
+        result = strategy_simulator.run_3way_split(params, test_size, valid_size)
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        logger.exception(f"api_simulator_3way_split error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+@app.route('/api/simulator/3way_split_grid', methods=['POST'])
+def api_simulator_3way_split_grid():
+    try:
+        data = request.json or {}
+        max_combinations = int(data.get('max_combinations', 100))
+        min_bets = int(data.get('min_bets', 30))
+        test_size = float(data.get('test_size', 0.2))
+        valid_size = float(data.get('valid_size', 0.2))
+        result = strategy_simulator.grid_search_3way(
+            max_combinations=max_combinations,
+            min_bets=min_bets,
+            test_size=test_size,
+            valid_size=valid_size,
+        )
+        return jsonify({'status': 'ok', 'result': result})
+    except Exception as e:
+        logger.exception(f"api_simulator_3way_split_grid error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
