@@ -4466,583 +4466,409 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v5.0: LINE MOVEMENT (аномалии кэфов)
 # ★ v4.9: LLM объяснения + DeepSeek pick
 # ★ v5.1: X2 home advantage bonus/penalty
+# ★ v22.4: Train/Test Split (только методы, класс уже определён в Части 1)
 # ============================================================
 
 # ============================================================
-# СИМУЛЯТОР
+# ★ TRAIN/TEST МЕТОДЫ (добавляются в существующий StrategySimulator)
 # ============================================================
-class StrategySimulator:
-    """Симулятор стратегий. v22.4: Train/Test Split."""
+# ВАЖНО: Класс StrategySimulator уже определён в конце Части 1.
+# Здесь мы НЕ переопределяем его — только добавляем методы через setattr,
+# чтобы избежать дубликатов.
 
-    # --------------------------------------------------------
-    # СТАРЫЙ МЕТОД — simulate
-    # --------------------------------------------------------
-    def simulate(self, params, use_history=True, use_cache=True):
-        all_matches = []
-        if use_cache:
-            try:
-                cache = storage.load_cache()
-                all_matches.extend(cache.get('all_analyzed', []))
-                all_matches.extend(cache.get('top_matches', []))
-            except Exception as e:
-                logger.error(f"simulate: cache error {e}")
-        if use_history:
-            try:
-                history = storage.load_history()
-                for h in history:
-                    all_matches.append({
-                        'home': h.get('home'), 'away': h.get('away'),
-                        'league': h.get('league'), 'match_time': h.get('date', ''),
-                        'fixture_id': h.get('fixture_id'), 'total_xg': 0,
-                        'best_bet': {
-                            'type': (h.get('bet') or '').lower(),
-                            'label': h.get('bet', ''),
-                            'odds': h.get('odds', 0), 'ev': h.get('ev', 0),
-                            'prob': h.get('prob', 0),
-                        },
-                        'result': h.get('result'), 'profit_real': h.get('profit', 0),
-                        'from_history': True,
-                    })
-            except Exception as e:
-                logger.error(f"simulate: history error {e}")
-        seen = set()
-        unique = []
-        for m in all_matches:
-            key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
-            if key not in seen:
-                seen.add(key)
-                unique.append(m)
-        all_matches = unique
-
-        filtered = []
-        for m in all_matches:
-            bb = m.get('best_bet', {})
-            if not bb: continue
-            ev = bb.get('ev', 0) or 0
-            prob = bb.get('prob', 0) or 0
-            odds = bb.get('odds', 0) or 0
-            bt = (bb.get('type') or '').lower()
-            total_xg = m.get('total_xg', 0) or 0
-            league = m.get('league', '') or ''
-            if ev < params.get('min_ev', -100): continue
-            if ev > params.get('max_ev', 999): continue
-            if prob < params.get('min_prob', 0): continue
-            if prob > params.get('max_prob', 100): continue
-            if odds < params.get('min_odds', 0): continue
-            if odds > params.get('max_odds', 999): continue
-            if total_xg > 0:
-                if total_xg < params.get('min_xg', 0): continue
-                if total_xg > params.get('max_xg', 99): continue
-            bet_types = params.get('bet_types') or []
-            if bet_types and bt not in [b.lower() for b in bet_types]: continue
-            leagues = params.get('leagues') or []
-            if leagues and league not in leagues: continue
-            filtered.append(m)
-
-        start_bank = float(params.get('start_bank', 1000))
-        stake_pct = float(params.get('stake_pct', 2)) / 100
-        bank = start_bank
-        peak_bank = start_bank
-        max_drawdown = 0
-        wins = losses = pushes = 0
-        total_staked = 0
-        bets_log = []
-
-        for m in filtered:
-            bb = m.get('best_bet', {})
-            odds = bb.get('odds', 0) or 0
-            if odds < 1.01 or bank <= 0: continue
-            stake = round(bank * stake_pct, 2)
-            if stake < 1: continue
-            result = m.get('result')
-            if result in (None, 'pending'):
-                try:
-                    history = storage.load_history()
-                    for h in history:
-                        if h.get('home') == m.get('home') and h.get('away') == m.get('away'):
-                            result = h.get('result')
-                            break
-                except Exception:
-                    pass
-            if result == 'win':
-                profit = round(stake * (odds - 1), 2); wins += 1
-            elif result == 'loss':
-                profit = -stake; losses += 1
-            elif result == 'push':
-                profit = 0; pushes += 1
-            else:
-                continue
-            bank += profit
-            total_staked += stake
-            peak_bank = max(peak_bank, bank)
-            drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
-            max_drawdown = max(max_drawdown, drawdown)
-            bets_log.append({
-                'home': m.get('home'), 'away': m.get('away'), 'league': m.get('league'),
-                'match_time': m.get('match_time'), 'bet': bb.get('label'),
-                'odds': odds, 'stake': stake, 'ev': bb.get('ev'),
-                'prob': bb.get('prob'), 'result': result,
-                'profit': profit, 'bank_after': round(bank, 2),
-            })
-
-        total_bets = wins + losses + pushes
-        profit_total = round(bank - start_bank, 2)
-        roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
-        winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
-        return {
-            'params': params, 'total_matches_analyzed': len(all_matches),
-            'total_matches_filtered': len(filtered),
-            'total_bets': total_bets, 'wins': wins, 'losses': losses, 'pushes': pushes,
-            'total_staked': round(total_staked, 2), 'profit': profit_total,
-            'roi': round(roi, 1), 'winrate': round(winrate, 1),
-            'start_bank': start_bank, 'end_bank': round(bank, 2),
-            'max_drawdown': round(max_drawdown, 1), 'bets': bets_log[:100],
-        }
-
-    # --------------------------------------------------------
-    # СТАРЫЙ МЕТОД — grid_search
-    # --------------------------------------------------------
-    def grid_search(self, max_combinations=200, min_bets=5):
+def _tt_split_data(self, all_matches, test_size=0.3):
+    """Разделяет данные на train и test по времени."""
+    def sort_key(m):
+        mt = m.get('match_time', '') or ''
         try:
-            logger.info(f"🔍 GRID SEARCH: до {max_combinations} комбинаций...")
-            grid = {
-                'min_ev': [5, 8, 10, 12],
-                'min_prob': [45, 50, 52, 55, 60],
-                'min_odds': [1.4, 1.5, 1.6],
-                'max_odds': [2.5, 3.0, 4.0, 5.0],
-                'min_xg': [1.0, 1.2, 1.5],
-                'stake_pct': [1.5, 2.0, 3.0, 5.0],
-            }
-            results = []
-            count = 0
-            keys = list(grid.keys())
-            values = [grid[k] for k in keys]
-            for combo in itertools.product(*values):
-                if count >= max_combinations: break
-                params = dict(zip(keys, combo))
-                params.update({'max_ev': 500, 'max_prob': 100,
-                               'max_xg': 4.0,
-                               'bet_types': [], 'leagues': [], 'start_bank': 1000})
-                if params['min_odds'] >= params['max_odds']: continue
-                try:
-                    res = self.simulate(params, use_history=True, use_cache=True)
-                except Exception:
-                    continue
-                count += 1
-                if res['total_bets'] < min_bets: continue
-                results.append({
-                    'params': params, 'total_bets': res['total_bets'],
-                    'wins': res['wins'], 'losses': res['losses'],
-                    'profit': res['profit'], 'roi': res['roi'],
-                    'winrate': res['winrate'], 'max_drawdown': res['max_drawdown'],
-                    'end_bank': res['end_bank'],
-                })
-            results.sort(key=lambda x: x['roi'], reverse=True)
-            top = results[:5]
-            logger.info(f"🎯 GRID SEARCH: проверено {count}, найдено {len(results)}")
-            if top:
-                best = top[0]
-                try:
-                    p = best['params']
-                    send_telegram(
-                        f"🎯 <b>GRID SEARCH ЗАВЕРШЁН</b>\n\n"
-                        f"Проверено: {count}\nНайдено: {len(results)}\n\n"
-                        f"🏆 <b>ЛУЧШАЯ СТРАТЕГИЯ:</b>\n"
-                        f"📊 ROI: {best['roi']}%\n"
-                        f"📈 Прибыль: ${best['profit']:.2f}\n"
-                        f"🎲 Ставок: {best['total_bets']}\n"
-                        f"🎯 Winrate: {best['winrate']}%\n"
-                        f"📉 Просадка: {best['max_drawdown']}%\n\n"
-                        f"⚙️ Параметры:\n"
-                        f"• Min EV: {p['min_ev']}%\n"
-                        f"• Min Prob: {p['min_prob']}%\n"
-                        f"• Кэф: {p['min_odds']}-{p['max_odds']}\n"
-                        f"• Ставка: {p['stake_pct']}% банка"
-                    )
-                except Exception as e:
-                    logger.error(f"Telegram notify grid: {e}")
-            return {'total_checked': count, 'total_valid': len(results), 'top': top}
-        except Exception as e:
-            logger.error(f"grid_search: {e}")
-            return {'total_checked': 0, 'total_valid': 0, 'top': []}
-
-    # ========================================================
-    # ★ НОВЫЕ МЕТОДЫ — TRAIN/TEST SPLIT
-    # ========================================================
-
-    def split_data(self, all_matches, test_size=0.3):
-        """Разделяет данные на train и test по времени."""
-        def sort_key(m):
-            mt = m.get('match_time', '') or ''
+            return datetime.strptime(mt, "%d.%m.%Y %H:%M")
+        except Exception:
             try:
-                return datetime.strptime(mt, "%d.%m.%Y %H:%M")
+                return datetime.strptime(mt.split()[0], "%Y-%m-%d")
             except Exception:
-                try:
-                    return datetime.strptime(mt.split()[0], "%Y-%m-%d")
-                except Exception:
-                    return datetime(1970, 1, 1)
+                return datetime(1970, 1, 1)
 
-        sorted_matches = sorted(all_matches, key=sort_key)
-        split_idx = int(len(sorted_matches) * (1 - test_size))
+    sorted_matches = sorted(all_matches, key=sort_key)
+    split_idx = int(len(sorted_matches) * (1 - test_size))
 
-        if split_idx < 3:
-            split_idx = max(3, len(sorted_matches) // 2)
+    if split_idx < 3:
+        split_idx = max(3, len(sorted_matches) // 2)
 
-        train = sorted_matches[:split_idx]
-        test = sorted_matches[split_idx:]
+    train = sorted_matches[:split_idx]
+    test = sorted_matches[split_idx:]
 
-        logger.info(
-            f"🎓 Train/Test split: train={len(train)}, "
-            f"test={len(test)} (test_size={test_size})"
-        )
-        return train, test
+    logger.info(
+        f"🎓 Train/Test split: train={len(train)}, "
+        f"test={len(test)} (test_size={test_size})"
+    )
+    return train, test
 
-    def _simulate_subset(self, matches, params):
-        """Симуляция на подмножестве БЕЗ подглядывания в историю."""
-        start_bank = float(params.get('start_bank', 1000))
-        stake_pct = float(params.get('stake_pct', 2)) / 100
-        bank = start_bank
-        peak_bank = start_bank
-        max_drawdown = 0
-        wins = losses = pushes = 0
-        total_staked = 0
-        bets_log = []
 
-        for m in matches:
-            bb = m.get('best_bet', {})
-            odds = bb.get('odds', 0) or 0
-            if odds < 1.01 or bank <= 0:
-                continue
-            stake = round(bank * stake_pct, 2)
-            if stake < 1:
-                continue
+def _tt_simulate_subset(self, matches, params):
+    """Симуляция на подмножестве БЕЗ подглядывания в историю."""
+    start_bank = float(params.get('start_bank', 1000))
+    stake_pct = float(params.get('stake_pct', 2)) / 100
+    bank = start_bank
+    peak_bank = start_bank
+    max_drawdown = 0
+    wins = losses = pushes = 0
+    total_staked = 0
+    bets_log = []
 
-            result = m.get('result')
-            if result in (None, 'pending'):
-                continue
+    for m in matches:
+        bb = m.get('best_bet', {})
+        odds = bb.get('odds', 0) or 0
+        if odds < 1.01 or bank <= 0:
+            continue
+        stake = round(bank * stake_pct, 2)
+        if stake < 1:
+            continue
 
-            if result == 'win':
-                profit = round(stake * (odds - 1), 2)
-                wins += 1
-            elif result == 'loss':
-                profit = -stake
-                losses += 1
-            elif result == 'push':
-                profit = 0
-                pushes += 1
-            else:
-                continue
+        result = m.get('result')
+        if result in (None, 'pending'):
+            continue
 
-            bank += profit
-            total_staked += stake
-            peak_bank = max(peak_bank, bank)
-            drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
-            max_drawdown = max(max_drawdown, drawdown)
-
-            bets_log.append({
-                'home': m.get('home'), 'away': m.get('away'),
-                'league': m.get('league'),
-                'match_time': m.get('match_time'),
-                'bet': bb.get('label'), 'odds': odds, 'stake': stake,
-                'result': result, 'profit': profit,
-                'bank_after': round(bank, 2),
-            })
-
-        total_bets = wins + losses + pushes
-        profit_total = round(bank - start_bank, 2)
-        roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
-        winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
-
-        return {
-            'total_bets': total_bets,
-            'wins': wins, 'losses': losses, 'pushes': pushes,
-            'total_staked': round(total_staked, 2),
-            'profit': profit_total,
-            'roi': round(roi, 1),
-            'winrate': round(winrate, 1),
-            'start_bank': start_bank,
-            'end_bank': round(bank, 2),
-            'max_drawdown': round(max_drawdown, 1),
-            'bets': bets_log[:50],
-        }
-
-    def _collect_all_matches_for_tt(self):
-        """Собирает и дедуплицирует все матчи (кэш + история)."""
-        all_matches = []
-
-        try:
-            cache = storage.load_cache()
-            all_matches.extend(cache.get('all_analyzed', []))
-            all_matches.extend(cache.get('top_matches', []))
-        except Exception as e:
-            logger.error(f"_collect_all_matches_for_tt cache: {e}")
-
-        try:
-            history = storage.load_history()
-            for h in history:
-                if h.get('result') not in ('win', 'loss', 'push'):
-                    continue
-                all_matches.append({
-                    'home': h.get('home'),
-                    'away': h.get('away'),
-                    'league': h.get('league'),
-                    'match_time': h.get('date', ''),
-                    'fixture_id': h.get('fixture_id'),
-                    'total_xg': 0,
-                    'best_bet': {
-                        'type': (h.get('bet') or '').lower(),
-                        'label': h.get('bet', ''),
-                        'odds': h.get('odds', 0),
-                        'ev': h.get('ev', 0),
-                        'prob': h.get('prob', 0),
-                    },
-                    'result': h.get('result'),
-                    'profit_real': h.get('profit', 0),
-                    'from_history': True,
-                })
-        except Exception as e:
-            logger.error(f"_collect_all_matches_for_tt history: {e}")
-
-        seen = set()
-        unique = []
-        for m in all_matches:
-            key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
-            if key not in seen:
-                seen.add(key)
-                unique.append(m)
-
-        logger.info(f"📦 Собрано уникальных матчей: {len(unique)}")
-        return unique
-
-    def _apply_filters(self, matches, params):
-        """Применяет фильтры параметров к списку матчей."""
-        filtered = []
-        for m in matches:
-            bb = m.get('best_bet', {})
-            if not bb:
-                continue
-            ev = bb.get('ev', 0) or 0
-            prob = bb.get('prob', 0) or 0
-            odds = bb.get('odds', 0) or 0
-            bt = (bb.get('type') or '').lower()
-            total_xg = m.get('total_xg', 0) or 0
-            league = m.get('league', '') or ''
-
-            if ev < params.get('min_ev', -100): continue
-            if ev > params.get('max_ev', 999): continue
-            if prob < params.get('min_prob', 0): continue
-            if prob > params.get('max_prob', 100): continue
-            if odds < params.get('min_odds', 0): continue
-            if odds > params.get('max_odds', 999): continue
-            if total_xg > 0:
-                if total_xg < params.get('min_xg', 0): continue
-                if total_xg > params.get('max_xg', 99): continue
-
-            bet_types = params.get('bet_types') or []
-            if bet_types and bt not in [b.lower() for b in bet_types]: continue
-
-            leagues = params.get('leagues') or []
-            if leagues and league not in leagues: continue
-
-            filtered.append(m)
-        return filtered
-
-    def run_train_test(self, params, test_size=0.3):
-        """Главный метод Train/Test."""
-        all_matches = self._collect_all_matches_for_tt()
-        filtered = self._apply_filters(all_matches, params)
-
-        if len(filtered) < 10:
-            return {
-                'error': (f'Недостаточно данных: {len(filtered)} матчей. '
-                          f'Нужно минимум 10 для Train/Test.'),
-                'train': None,
-                'test': None,
-            }
-
-        train, test = self.split_data(filtered, test_size)
-
-        if len(train) < 3 or len(test) < 3:
-            return {
-                'error': (f'Недостаточно данных после split: '
-                          f'train={len(train)}, test={len(test)}.'),
-                'train': None,
-                'test': None,
-            }
-
-        train_result = self._simulate_subset(train, params)
-        test_result = self._simulate_subset(test, params)
-
-        gap = round(train_result['roi'] - test_result['roi'], 1)
-
-        if gap > 30:
-            verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
-        elif gap > 15:
-            verdict = '🟡 ВОЗМОЖЕН OVERFITTING'
-        elif gap > 5:
-            verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
-        elif gap >= -5:
-            verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+        if result == 'win':
+            profit = round(stake * (odds - 1), 2)
+            wins += 1
+        elif result == 'loss':
+            profit = -stake
+            losses += 1
+        elif result == 'push':
+            profit = 0
+            pushes += 1
         else:
-            verdict = '🔵 TEST ЛУЧШЕ TRAIN (хорошо!)'
+            continue
 
-        logger.info(
-            f"🎓 TRAIN/TEST: train_roi={train_result['roi']}%, "
-            f"test_roi={test_result['roi']}%, gap={gap}% | {verdict}"
-        )
+        bank += profit
+        total_staked += stake
+        peak_bank = max(peak_bank, bank)
+        drawdown = ((peak_bank - bank) / peak_bank * 100) if peak_bank > 0 else 0
+        max_drawdown = max(max_drawdown, drawdown)
 
+        bets_log.append({
+            'home': m.get('home'), 'away': m.get('away'),
+            'league': m.get('league'),
+            'match_time': m.get('match_time'),
+            'bet': bb.get('label'), 'odds': odds, 'stake': stake,
+            'result': result, 'profit': profit,
+            'bank_after': round(bank, 2),
+        })
+
+    total_bets = wins + losses + pushes
+    profit_total = round(bank - start_bank, 2)
+    roi = (profit_total / total_staked * 100) if total_staked > 0 else 0
+    winrate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+
+    return {
+        'total_bets': total_bets,
+        'wins': wins, 'losses': losses, 'pushes': pushes,
+        'total_staked': round(total_staked, 2),
+        'profit': profit_total,
+        'roi': round(roi, 1),
+        'winrate': round(winrate, 1),
+        'start_bank': start_bank,
+        'end_bank': round(bank, 2),
+        'max_drawdown': round(max_drawdown, 1),
+        'bets': bets_log[:50],
+    }
+
+
+def _tt_collect_all_matches(self):
+    """Собирает и дедуплицирует все матчи (кэш + история)."""
+    all_matches = []
+
+    try:
+        cache = storage.load_cache()
+        all_matches.extend(cache.get('all_analyzed', []))
+        all_matches.extend(cache.get('top_matches', []))
+    except Exception as e:
+        logger.error(f"_collect_all_matches_for_tt cache: {e}")
+
+    try:
+        history = storage.load_history()
+        for h in history:
+            if h.get('result') not in ('win', 'loss', 'push'):
+                continue
+            all_matches.append({
+                'home': h.get('home'),
+                'away': h.get('away'),
+                'league': h.get('league'),
+                'match_time': h.get('date', ''),
+                'fixture_id': h.get('fixture_id'),
+                'total_xg': 0,
+                'best_bet': {
+                    'type': (h.get('bet') or '').lower(),
+                    'label': h.get('bet', ''),
+                    'odds': h.get('odds', 0),
+                    'ev': h.get('ev', 0),
+                    'prob': h.get('prob', 0),
+                },
+                'result': h.get('result'),
+                'profit_real': h.get('profit', 0),
+                'from_history': True,
+            })
+    except Exception as e:
+        logger.error(f"_collect_all_matches_for_tt history: {e}")
+
+    seen = set()
+    unique = []
+    for m in all_matches:
+        key = f"{m.get('home')}_{m.get('away')}_{m.get('match_time', '')}"
+        if key not in seen:
+            seen.add(key)
+            unique.append(m)
+
+    logger.info(f"📦 Собрано уникальных матчей: {len(unique)}")
+    return unique
+
+
+def _tt_apply_filters(self, matches, params):
+    """Применяет фильтры параметров к списку матчей."""
+    filtered = []
+    for m in matches:
+        bb = m.get('best_bet', {})
+        if not bb:
+            continue
+        ev = bb.get('ev', 0) or 0
+        prob = bb.get('prob', 0) or 0
+        odds = bb.get('odds', 0) or 0
+        bt = (bb.get('type') or '').lower()
+        total_xg = m.get('total_xg', 0) or 0
+        league = m.get('league', '') or ''
+
+        if ev < params.get('min_ev', -100): continue
+        if ev > params.get('max_ev', 999): continue
+        if prob < params.get('min_prob', 0): continue
+        if prob > params.get('max_prob', 100): continue
+        if odds < params.get('min_odds', 0): continue
+        if odds > params.get('max_odds', 999): continue
+        if total_xg > 0:
+            if total_xg < params.get('min_xg', 0): continue
+            if total_xg > params.get('max_xg', 99): continue
+
+        bet_types = params.get('bet_types') or []
+        if bet_types and bt not in [b.lower() for b in bet_types]: continue
+
+        leagues = params.get('leagues') or []
+        if leagues and league not in leagues: continue
+
+        filtered.append(m)
+    return filtered
+
+
+def _tt_run_train_test(self, params, test_size=0.3):
+    """Главный метод Train/Test."""
+    all_matches = self._tt_collect_all_matches()
+    filtered = self._tt_apply_filters(all_matches, params)
+
+    if len(filtered) < 10:
         return {
-            'train': train_result,
-            'test': test_result,
-            'gap': gap,
-            'verdict': verdict,
-            'total_filtered': len(filtered),
-            'train_count': len(train),
-            'test_count': len(test),
+            'error': (f'Недостаточно данных: {len(filtered)} матчей. '
+                      f'Нужно минимум 10 для Train/Test.'),
+            'train': None,
+            'test': None,
         }
 
-    def grid_search_train_test(self, max_combinations=100, min_bets=20, test_size=0.3):
-        """Grid Search с проверкой каждой комбинации на Train/Test."""
-        try:
-            logger.info(
-                f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
-                f"min_bets={min_bets}, test_size={test_size}"
-            )
+    train, test = self._tt_split_data(filtered, test_size)
 
-            all_matches = self._collect_all_matches_for_tt()
-            if len(all_matches) < 20:
-                return {
-                    'error': f'Недостаточно данных: {len(all_matches)}',
-                    'total_checked': 0, 'total_valid': 0, 'top': [],
-                }
+    if len(train) < 3 or len(test) < 3:
+        return {
+            'error': (f'Недостаточно данных после split: '
+                      f'train={len(train)}, test={len(test)}.'),
+            'train': None,
+            'test': None,
+        }
 
-            grid = {
-                'min_ev': [5, 8, 10, 12, 15],
-                'min_prob': [45, 50, 52, 55, 60],
-                'min_odds': [1.3, 1.4, 1.5, 1.6],
-                'max_odds': [2.5, 3.0, 4.0, 5.0, 6.0],
-                'stake_pct': [1.5, 2.0, 3.0],
-            }
+    train_result = self._tt_simulate_subset(train, params)
+    test_result = self._tt_simulate_subset(test, params)
 
-            results = []
-            count = 0
-            keys = list(grid.keys())
-            values = [grid[k] for k in keys]
+    gap = round(train_result['roi'] - test_result['roi'], 1)
 
-            for combo in itertools.product(*values):
-                if count >= max_combinations:
-                    break
-                params = dict(zip(keys, combo))
-                params.update({
-                    'max_ev': 500, 'max_prob': 100,
-                    'min_xg': 0, 'max_xg': 99,
-                    'bet_types': [], 'leagues': [],
-                    'start_bank': 1000,
-                })
-                if params['min_odds'] >= params['max_odds']:
-                    continue
+    if gap > 30:
+        verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
+    elif gap > 15:
+        verdict = '🟡 ВОЗМОЖЕН OVERFITTING'
+    elif gap > 5:
+        verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
+    elif gap >= -5:
+        verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+    else:
+        verdict = '🔵 TEST ЛУЧШЕ TRAIN (хорошо!)'
 
-                try:
-                    filtered = self._apply_filters(all_matches, params)
-                    if len(filtered) < min_bets * 2:
-                        continue
+    logger.info(
+        f"🎓 TRAIN/TEST: train_roi={train_result['roi']}%, "
+        f"test_roi={test_result['roi']}%, gap={gap}% | {verdict}"
+    )
 
-                    train, test = self.split_data(filtered, test_size)
-                    if len(train) < min_bets or len(test) < 5:
-                        continue
+    return {
+        'train': train_result,
+        'test': test_result,
+        'gap': gap,
+        'verdict': verdict,
+        'total_filtered': len(filtered),
+        'train_count': len(train),
+        'test_count': len(test),
+    }
 
-                    train_res = self._simulate_subset(train, params)
-                    test_res = self._simulate_subset(test, params)
 
-                    if train_res['total_bets'] < min_bets:
-                        continue
-                    if test_res['total_bets'] < 5:
-                        continue
+def _tt_grid_search_train_test(self, max_combinations=100, min_bets=20, test_size=0.3):
+    """Grid Search с проверкой каждой комбинации на Train/Test."""
+    try:
+        logger.info(
+            f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
+            f"min_bets={min_bets}, test_size={test_size}"
+        )
 
-                    gap = round(train_res['roi'] - test_res['roi'], 1)
-                    count += 1
-
-                    penalty = max(0, gap) * 0.5
-                    score = test_res['roi'] - penalty
-
-                    results.append({
-                        'params': params,
-                        'total_bets': train_res['total_bets'] + test_res['total_bets'],
-                        'train_bets': train_res['total_bets'],
-                        'test_bets': test_res['total_bets'],
-                        'train_roi': train_res['roi'],
-                        'test_roi': test_res['roi'],
-                        'gap': gap,
-                        'train_wr': train_res['winrate'],
-                        'test_wr': test_res['winrate'],
-                        'train_profit': train_res['profit'],
-                        'test_profit': test_res['profit'],
-                        'train_dd': train_res['max_drawdown'],
-                        'test_dd': test_res['max_drawdown'],
-                        'score': round(score, 1),
-                    })
-                except Exception as e:
-                    logger.debug(f"grid_tt combo error: {e}")
-                    continue
-
-            results.sort(key=lambda x: x['score'], reverse=True)
-
-            seen_sigs = set()
-            unique_results = []
-            for r in results:
-                sig = (
-                    r['params']['min_ev'],
-                    r['params']['min_prob'],
-                    r['params']['min_odds'],
-                    r['params']['max_odds'],
-                    r['params']['stake_pct'],
-                )
-                if sig not in seen_sigs:
-                    seen_sigs.add(sig)
-                    unique_results.append(r)
-
-            top = unique_results[:5]
-
-            logger.info(
-                f"🎯 GRID SEARCH + TT: проверено {count}, "
-                f"валидных {len(unique_results)}, показано {len(top)}"
-            )
-
-            if top:
-                best = top[0]
-                try:
-                    send_telegram(
-                        f"🎓 <b>GRID SEARCH + TRAIN/TEST</b>\n\n"
-                        f"Проверено: {count}\n"
-                        f"Валидных: {len(unique_results)}\n\n"
-                        f"🏆 <b>ЛУЧШАЯ:</b>\n"
-                        f"🎓 Train ROI: {best['train_roi']}% ({best['train_bets']} ставок)\n"
-                        f"🧪 Test ROI: {best['test_roi']}% ({best['test_bets']} ставок)\n"
-                        f"📊 Gap: {best['gap']}%\n"
-                        f"🎯 Test WR: {best['test_wr']}%\n\n"
-                        f"⚙️ Параметры:\n"
-                        f"• Min EV: {best['params']['min_ev']}%\n"
-                        f"• Min Prob: {best['params']['min_prob']}%\n"
-                        f"• Кэф: {best['params']['min_odds']}-{best['params']['max_odds']}\n"
-                        f"• Ставка: {best['params']['stake_pct']}%"
-                    )
-                except Exception as e:
-                    logger.error(f"Telegram grid_tt: {e}")
-
+        all_matches = self._tt_collect_all_matches()
+        if len(all_matches) < 20:
             return {
-                'total_checked': count,
-                'total_valid': len(unique_results),
-                'top': top,
-            }
-        except Exception as e:
-            logger.exception(f"grid_search_train_test: {e}")
-            return {
+                'error': f'Недостаточно данных: {len(all_matches)}',
                 'total_checked': 0, 'total_valid': 0, 'top': [],
-                'error': str(e),
             }
 
+        grid = {
+            'min_ev': [5, 8, 10, 12, 15],
+            'min_prob': [45, 50, 52, 55, 60],
+            'min_odds': [1.3, 1.4, 1.5, 1.6],
+            'max_odds': [2.5, 3.0, 4.0, 5.0, 6.0],
+            'stake_pct': [1.5, 2.0, 3.0],
+        }
 
-strategy_simulator = StrategySimulator()
+        results = []
+        count = 0
+        keys = list(grid.keys())
+        values = [grid[k] for k in keys]
+
+        for combo in itertools.product(*values):
+            if count >= max_combinations:
+                break
+            params = dict(zip(keys, combo))
+            params.update({
+                'max_ev': 500, 'max_prob': 100,
+                'min_xg': 0, 'max_xg': 99,
+                'bet_types': [], 'leagues': [],
+                'start_bank': 1000,
+            })
+            if params['min_odds'] >= params['max_odds']:
+                continue
+
+            try:
+                filtered = self._tt_apply_filters(all_matches, params)
+                if len(filtered) < min_bets * 2:
+                    continue
+
+                train, test = self._tt_split_data(filtered, test_size)
+                if len(train) < min_bets or len(test) < 5:
+                    continue
+
+                train_res = self._tt_simulate_subset(train, params)
+                test_res = self._tt_simulate_subset(test, params)
+
+                if train_res['total_bets'] < min_bets:
+                    continue
+                if test_res['total_bets'] < 5:
+                    continue
+
+                gap = round(train_res['roi'] - test_res['roi'], 1)
+                count += 1
+
+                penalty = max(0, gap) * 0.5
+                score = test_res['roi'] - penalty
+
+                results.append({
+                    'params': params,
+                    'total_bets': train_res['total_bets'] + test_res['total_bets'],
+                    'train_bets': train_res['total_bets'],
+                    'test_bets': test_res['total_bets'],
+                    'train_roi': train_res['roi'],
+                    'test_roi': test_res['roi'],
+                    'gap': gap,
+                    'train_wr': train_res['winrate'],
+                    'test_wr': test_res['winrate'],
+                    'train_profit': train_res['profit'],
+                    'test_profit': test_res['profit'],
+                    'train_dd': train_res['max_drawdown'],
+                    'test_dd': test_res['max_drawdown'],
+                    'score': round(score, 1),
+                })
+            except Exception as e:
+                logger.debug(f"grid_tt combo error: {e}")
+                continue
+
+        results.sort(key=lambda x: x['score'], reverse=True)
+
+        seen_sigs = set()
+        unique_results = []
+        for r in results:
+            sig = (
+                r['params']['min_ev'],
+                r['params']['min_prob'],
+                r['params']['min_odds'],
+                r['params']['max_odds'],
+                r['params']['stake_pct'],
+            )
+            if sig not in seen_sigs:
+                seen_sigs.add(sig)
+                unique_results.append(r)
+
+        top = unique_results[:5]
+
+        logger.info(
+            f"🎯 GRID SEARCH + TT: проверено {count}, "
+            f"валидных {len(unique_results)}, показано {len(top)}"
+        )
+
+        if top:
+            best = top[0]
+            try:
+                send_telegram(
+                    f"🎓 <b>GRID SEARCH + TRAIN/TEST</b>\n\n"
+                    f"Проверено: {count}\n"
+                    f"Валидных: {len(unique_results)}\n\n"
+                    f"🏆 <b>ЛУЧШАЯ:</b>\n"
+                    f"🎓 Train ROI: {best['train_roi']}% ({best['train_bets']} ставок)\n"
+                    f"🧪 Test ROI: {best['test_roi']}% ({best['test_bets']} ставок)\n"
+                    f"📊 Gap: {best['gap']}%\n"
+                    f"🎯 Test WR: {best['test_wr']}%\n\n"
+                    f"⚙️ Параметры:\n"
+                    f"• Min EV: {best['params']['min_ev']}%\n"
+                    f"• Min Prob: {best['params']['min_prob']}%\n"
+                    f"• Кэф: {best['params']['min_odds']}-{best['params']['max_odds']}\n"
+                    f"• Ставка: {best['params']['stake_pct']}%"
+                )
+            except Exception as e:
+                logger.error(f"Telegram grid_tt: {e}")
+
+        return {
+            'total_checked': count,
+            'total_valid': len(unique_results),
+            'top': top,
+        }
+    except Exception as e:
+        logger.exception(f"grid_search_train_test: {e}")
+        return {
+            'total_checked': 0, 'total_valid': 0, 'top': [],
+            'error': str(e),
+        }
+
+
+# Привязываем методы к существующему классу StrategySimulator (без переопределения)
+if not hasattr(strategy_simulator, '_tt_split_data'):
+    StrategySimulator._tt_split_data = _tt_split_data
+    StrategySimulator._tt_simulate_subset = _tt_simulate_subset
+    StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
+    StrategySimulator._tt_apply_filters = _tt_apply_filters
+    StrategySimulator._tt_run_train_test = _tt_run_train_test
+    StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
+
+    # Публичные алиасы
+    StrategySimulator.run_train_test = _tt_run_train_test
+    StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
+    StrategySimulator.split_data = _tt_split_data
+    StrategySimulator._simulate_subset = _tt_simulate_subset
+    StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
+    StrategySimulator._apply_filters = _tt_apply_filters
 
 
 # ============================================================
