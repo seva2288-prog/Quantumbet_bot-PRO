@@ -5130,28 +5130,29 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
         }
 
 
-# Привязываем методы к существующему классу StrategySimulator (без переопределения)
-if not hasattr(strategy_simulator, '_tt_split_data'):
-    # Train/Test
-    StrategySimulator._tt_split_data = _tt_split_data
-    StrategySimulator._tt_simulate_subset = _tt_simulate_subset
-    StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
-    StrategySimulator._tt_apply_filters = _tt_apply_filters
-    StrategySimulator._tt_run_train_test = _tt_run_train_test
-    StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
+# ============================================================
+# ПРИВЯЗКА МЕТОДОВ к StrategySimulator (v22.5 — всегда)
+# ============================================================
+# Train/Test
+StrategySimulator._tt_split_data = _tt_split_data
+StrategySimulator._tt_simulate_subset = _tt_simulate_subset
+StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
+StrategySimulator._tt_apply_filters = _tt_apply_filters
+StrategySimulator._tt_run_train_test = _tt_run_train_test
+StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
 
-    # Публичные алиасы
-    StrategySimulator.run_train_test = _tt_run_train_test
-    StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
-    StrategySimulator.split_data = _tt_split_data
-    StrategySimulator._simulate_subset = _tt_simulate_subset
-    StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
-    StrategySimulator._apply_filters = _tt_apply_filters
+# Публичные алиасы
+StrategySimulator.run_train_test = _tt_run_train_test
+StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
+StrategySimulator.split_data = _tt_split_data
+StrategySimulator._simulate_subset = _tt_simulate_subset
+StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
+StrategySimulator._apply_filters = _tt_apply_filters
 
-    # ★ v22.5: 3-way split
-    StrategySimulator.split_data_3way = _tt_split_data_3way
-    StrategySimulator.run_3way_split = _tt_run_3way_split
-    StrategySimulator.grid_search_3way = _tt_grid_search_3way
+# ★ v22.5: 3-way split
+StrategySimulator.split_data_3way = _tt_split_data_3way
+StrategySimulator.run_3way_split = _tt_run_3way_split
+StrategySimulator.grid_search_3way = _tt_grid_search_3way
 
 
 # ============================================================
