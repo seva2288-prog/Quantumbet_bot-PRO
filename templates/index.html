@@ -810,7 +810,7 @@
 <!-- ЧАСТЬ 2/3 — HTML РАЗМЕТКА (v22.3 + Статистика по дням)       -->
 <!-- ============================================================ -->
 
-    х<!-- ============================================================
+    <!-- ============================================================
          PAGE: DASHBOARD
          ============================================================ -->
     <div id="page-dashboard" class="page active">
@@ -1063,7 +1063,6 @@
             </div>
         </div>
 
-        <!-- ★ СТАТИСТИКА АНОМАЛИЙ -->
         <div class="card" id="anomalyStatsCard">
             <div class="card-header">
                 <h2 class="emerald-title">📊 Статистика аномалий</h2>
@@ -1574,7 +1573,7 @@
     </div>
 
     <!-- ============================================================
-         ★ PAGE: TRAIN/TEST (НОВАЯ ВКЛАДКА)
+         PAGE: TRAIN/TEST
          ============================================================ -->
     <div id="page-traintest" class="page">
 
@@ -1684,6 +1683,144 @@
                             </tr>
                         </thead>
                         <tbody id="tt-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         ★ PAGE: 3-WAY SPLIT (НОВАЯ)
+         ============================================================ -->
+    <div id="page-split3way" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🔬 3-Way Split</h2>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Train + Validate + Test. Если все три ROI близки — стратегия <b>реально стабильна</b>.
+                Если Train &gt;&gt; Validate/Test — это <b>overfitting</b>.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>⚙️ Параметры</h2>
+            </div>
+
+            <div class="param-row">
+                <label>Доля Test: <span id="s3-test-size-val">20</span>%</label>
+                <input type="range" id="s3-test-size" min="10" max="40" value="20"
+                       oninput="document.getElementById('s3-test-size-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Доля Validate: <span id="s3-valid-size-val">20</span>%</label>
+                <input type="range" id="s3-valid-size" min="10" max="40" value="20"
+                       oninput="document.getElementById('s3-valid-size-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. EV: <span id="s3-min-ev-val">10</span>%</label>
+                <input type="range" id="s3-min-ev" min="-20" max="50" value="10"
+                       oninput="document.getElementById('s3-min-ev-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. Prob: <span id="s3-min-prob-val">52</span>%</label>
+                <input type="range" id="s3-min-prob" min="30" max="90" value="52"
+                       oninput="document.getElementById('s3-min-prob-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Мин. кэф: <span id="s3-min-odds-val">1.4</span></label>
+                <input type="range" id="s3-min-odds" min="1.0" max="3.0" step="0.1" value="1.4"
+                       oninput="document.getElementById('s3-min-odds-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Макс. кэф: <span id="s3-max-odds-val">5.0</span></label>
+                <input type="range" id="s3-max-odds" min="2.0" max="10.0" step="0.5" value="5.0"
+                       oninput="document.getElementById('s3-max-odds-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Ставка: <span id="s3-stake-val">2.0</span>% банка</label>
+                <input type="range" id="s3-stake" min="0.5" max="10" step="0.5" value="2.0"
+                       oninput="document.getElementById('s3-stake-val').textContent=this.value">
+            </div>
+
+            <div class="param-row">
+                <label>Стартовый банк: $<span id="s3-bank-val">1000</span></label>
+                <input type="range" id="s3-bank" min="100" max="10000" step="100" value="1000"
+                       oninput="document.getElementById('s3-bank-val').textContent=this.value">
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="run3WaySplit()"
+                style="width:100%;margin: 10px 0;padding: 14px;">
+            🔬 Запустить 3-Way Split
+        </button>
+
+        <button class="btn btn-gold" onclick="run3WaySplitGrid()"
+                style="width:100%;margin: 0 0 10px;padding: 14px;">
+            🎯 Grid Search + 3-Way Split
+        </button>
+
+        <div id="s3-results" style="display:none;">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Сравнение Train / Validate / Test</h2>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns:1fr 1fr 1fr;">
+                    <div class="stat-card">
+                        <div class="value" id="s3-train-roi">0%</div>
+                        <div class="label">🎓 TRAIN</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="s3-valid-roi">0%</div>
+                        <div class="label">📊 VALIDATE</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="s3-test-roi">0%</div>
+                        <div class="label">🧪 TEST</div>
+                    </div>
+                </div>
+
+                <div style="margin-top:12px;padding:12px;
+                            background:rgba(245,158,11,0.08);border-radius:10px;
+                            border:1px solid rgba(245,158,11,0.2);">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center;">
+                        <div>
+                            <div style="font-size:11px;color:var(--text-tertiary);">Train vs OOS</div>
+                            <div id="s3-gap" style="font-size:20px;font-weight:800;">0%</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--text-tertiary);">Spread</div>
+                            <div id="s3-spread" style="font-size:20px;font-weight:800;">0%</div>
+                        </div>
+                    </div>
+                    <div id="s3-verdict" style="font-size:12px;margin-top:10px;text-align:center;font-weight:700;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>📋 Детали</h2>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Метрика</th>
+                                <th>🎓 Train</th>
+                                <th>📊 Valid</th>
+                                <th>🧪 Test</th>
+                            </tr>
+                        </thead>
+                        <tbody id="s3-table-body"></tbody>
                     </table>
                 </div>
             </div>
@@ -1915,15 +2052,15 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v22.4 Emerald • Live + X2 + CLV + Calibration + Daily + Train/Test</div>
+                    <div class="desc">v22.5 Emerald • Live + X2 + CLV + Calibration + Daily + Train/Test + 3-Way</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.4</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.5</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v22.4 Emerald © 2026
+        💎 Quantum Tracker v22.5 Emerald © 2026
     </div>
 </div>
 
@@ -2006,12 +2143,20 @@
             </div>
         </button>
 
-        <!-- ★ НОВАЯ КНОПКА TRAIN/TEST -->
         <button class="sheet-item" onclick="openFromMore('traintest')">
             <span class="sheet-icon">🎓</span>
             <div>
                 <div class="sheet-label">Train/Test Split</div>
                 <div class="sheet-desc">Проверка стратегии на честных данных</div>
+            </div>
+        </button>
+
+        <!-- ★ НОВАЯ КНОПКА 3-WAY SPLIT -->
+        <button class="sheet-item" onclick="openFromMore('split3way')">
+            <span class="sheet-icon">🔬</span>
+            <div>
+                <div class="sheet-label">3-Way Split</div>
+                <div class="sheet-desc">Train + Validate + Test — максимальная надёжность</div>
             </div>
         </button>
 
@@ -2201,7 +2346,6 @@
         </div>
         <div id="snapshotChartInfo" style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;"></div>
 
-        <!-- ★ Блок рекомендации -->
         <div id="snapshotBetBlock"></div>
 
         <div class="chart-modal-container">
@@ -2213,10 +2357,6 @@
 
 <!-- TOAST -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
-
-<!-- ============================================================ -->
-<!-- КОНЕЦ ЧАСТИ 2/3 (v22.3 — со статистикой по дням)             -->
-<!-- ============================================================ -->
 
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.3 — Daily Stats)                 -->
@@ -2276,6 +2416,9 @@ let dailySort = 'date';
 
 // ★ v22.4: Train/Test
 let ttLastResult = null;
+
+// ★ v22.5: 3-Way Split
+let s3LastResult = null;
 
 // ============================================================
 // ХАПТИК
@@ -2489,7 +2632,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest') {
+    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest' || page === 'split3way') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -2530,7 +2673,10 @@ function switchPage(page) {
     else if (page === 'calibration') loadCalibrationFull();
     else if (page === 'daily') loadDailyStats();
     else if (page === 'traintest') {
-        // Форма статичная, ничего грузить не надо
+        // Форма статичная
+    }
+    else if (page === 'split3way') {
+        // Форма статичная
     }
 }
 
@@ -2598,7 +2744,7 @@ function openFromMore(page) {
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
         if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily' || currentPage === 'traintest') return;
+        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily' || currentPage === 'traintest' || currentPage === 'split3way') return;
         const idx = pages.indexOf(currentPage);
         if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
         else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
@@ -5974,10 +6120,8 @@ async function runTrainTest() {
         max_prob: 100,
         min_odds: parseFloat(document.getElementById('tt-min-odds')?.value || 1.4),
         max_odds: parseFloat(document.getElementById('tt-max-odds')?.value || 5.0),
-        min_xg: 0,
-        max_xg: 99,
-        bet_types: [],
-        leagues: [],
+        min_xg: 0, max_xg: 99,
+        bet_types: [], leagues: [],
         stake_pct: parseFloat(document.getElementById('tt-stake')?.value || 2.0),
         start_bank: parseFloat(document.getElementById('tt-bank')?.value || 1000),
     };
@@ -6138,7 +6282,7 @@ async function runTrainTestGrid() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 max_combinations: 100,
-                min_bets: 20,
+                min_bets: 30,
                 test_size: parseFloat(document.getElementById('tt-test-size')?.value || 30) / 100,
             })
         }).then(r => r.json());
@@ -6294,6 +6438,313 @@ function resetTrainTestForm() {
 
     ttLastResult = null;
 
+    showNotification('🔄 Форма сброшена', '');
+}
+
+// ============================================================
+// ★ v22.5: 3-WAY SPLIT
+// ============================================================
+async function run3WaySplit() {
+    const params = {
+        min_ev: parseFloat(document.getElementById('s3-min-ev')?.value || 10),
+        max_ev: 500,
+        min_prob: parseFloat(document.getElementById('s3-min-prob')?.value || 52),
+        max_prob: 100,
+        min_odds: parseFloat(document.getElementById('s3-min-odds')?.value || 1.4),
+        max_odds: parseFloat(document.getElementById('s3-max-odds')?.value || 5.0),
+        min_xg: 0, max_xg: 99,
+        bet_types: [], leagues: [],
+        stake_pct: parseFloat(document.getElementById('s3-stake')?.value || 2.0),
+        start_bank: parseFloat(document.getElementById('s3-bank')?.value || 1000),
+    };
+    const testSize = parseFloat(document.getElementById('s3-test-size')?.value || 20) / 100;
+    const validSize = parseFloat(document.getElementById('s3-valid-size')?.value || 20) / 100;
+
+    showNotification('🔬 Запускаю 3-Way Split...', '');
+
+    const btn = document.querySelector('button[onclick="run3WaySplit()"]');
+    let oldText = '';
+    if (btn) {
+        oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Анализ...';
+    }
+
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/3way_split', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ params, test_size: testSize, valid_size: validSize })
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        const res = r.result;
+        if (!res || res.error) {
+            showNotification('❌ ' + (res?.error || 'Неизвестная ошибка'), 'error');
+            return;
+        }
+
+        s3LastResult = res;
+        render3WayResults(res);
+        showNotification(
+            `✅ T:${res.train.roi}% V:${res.valid.roi}% Test:${res.test.roi}% | Spread:${res.spread}%`,
+            'success'
+        );
+    } catch (e) {
+        console.error('run3WaySplit:', e);
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = oldText || '🔬 Запустить 3-Way Split';
+        }
+    }
+}
+
+function render3WayResults(res) {
+    const container = document.getElementById('s3-results');
+    if (!container) return;
+    container.style.display = 'block';
+
+    const t = res.train || {}, v = res.valid || {}, ts = res.test || {};
+
+    const setVal = (id, val, color) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = (val >= 0 ? '+' : '') + val + '%';
+            el.style.color = color || (val >= 0 ? 'var(--emerald-400)' : 'var(--red-400)');
+        }
+    };
+
+    setVal('s3-train-roi', t.roi || 0);
+    setVal('s3-valid-roi', v.roi || 0);
+    setVal('s3-test-roi', ts.roi || 0);
+
+    const gapEl = document.getElementById('s3-gap');
+    const gap = res.gap || 0;
+    if (gapEl) {
+        gapEl.textContent = (gap >= 0 ? '+' : '') + gap + '%';
+        gapEl.style.color = gap > 20 ? 'var(--red-400)' : gap > 10 ? 'var(--gold-400)' : 'var(--emerald-400)';
+    }
+
+    const spreadEl = document.getElementById('s3-spread');
+    const spread = res.spread || 0;
+    if (spreadEl) {
+        spreadEl.textContent = spread + '%';
+        spreadEl.style.color = spread > 25 ? 'var(--red-400)' : spread > 15 ? 'var(--gold-400)' : 'var(--emerald-400)';
+    }
+
+    const verdictEl = document.getElementById('s3-verdict');
+    if (verdictEl) {
+        verdictEl.textContent = res.verdict || '';
+        const colors = {
+            'green': 'var(--emerald-400)', 'red': 'var(--red-400)',
+            'gold': 'var(--gold-400)', 'orange': '#fb923c',
+            'blue': 'var(--blue-400)', 'gray': 'var(--text-tertiary)'
+        };
+        verdictEl.style.color = colors[res.verdict_color] || 'var(--text-primary)';
+    }
+
+    const tbody = document.getElementById('s3-table-body');
+    if (tbody) {
+        const rows = [
+            ['🎲 Ставок', t.total_bets||0, v.total_bets||0, ts.total_bets||0],
+            ['✅ WIN', t.wins||0, v.wins||0, ts.wins||0],
+            ['❌ LOSS', t.losses||0, v.losses||0, ts.losses||0],
+            ['🎯 Winrate', (t.winrate||0)+'%', (v.winrate||0)+'%', (ts.winrate||0)+'%'],
+            ['💎 ROI', (t.roi||0)+'%', (v.roi||0)+'%', (ts.roi||0)+'%'],
+            ['💰 Прибыль',
+                (t.profit>=0?'+':'')+'$'+(t.profit||0).toFixed(2),
+                (v.profit>=0?'+':'')+'$'+(v.profit||0).toFixed(2),
+                (ts.profit>=0?'+':'')+'$'+(ts.profit||0).toFixed(2)],
+            ['🏁 Банк',
+                '$'+(t.end_bank||0).toFixed(2),
+                '$'+(v.end_bank||0).toFixed(2),
+                '$'+(ts.end_bank||0).toFixed(2)],
+            ['📉 Просадка', (t.max_drawdown||0)+'%', (v.max_drawdown||0)+'%', (ts.max_drawdown||0)+'%'],
+        ];
+        tbody.innerHTML = rows.map(([label, a, b, c]) => `
+            <tr>
+                <td style="font-weight:700;font-size:11px;">${label}</td>
+                <td style="font-size:11px;">${a}</td>
+                <td style="font-size:11px;">${b}</td>
+                <td style="font-size:11px;">${c}</td>
+            </tr>
+        `).join('');
+    }
+
+    const oldInfo = container.querySelector('.s3-info-line');
+    if (oldInfo) oldInfo.remove();
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 's3-info-line';
+    infoDiv.innerHTML = `
+        <div style="font-size:10px;color:var(--text-tertiary);
+                    margin-top:12px;padding-top:10px;
+                    border-top:1px solid var(--border-color);">
+            📊 Всего отфильтровано: <b>${res.total_filtered||0}</b> •
+            🎓 Train: <b>${res.train_count||0}</b> •
+            📊 Valid: <b>${res.valid_count||0}</b> •
+            🧪 Test: <b>${res.test_count||0}</b> •
+            📈 OOS: <b>${res.oos_roi||0}%</b>
+        </div>
+    `;
+    container.appendChild(infoDiv);
+}
+
+async function run3WaySplitGrid() {
+    if (!confirm('🎯 Запустить Grid Search + 3-Way Split?\n\nПереберёт ~100 комбинаций по Train/Validate/Test. Займёт 60-120 сек.')) return;
+
+    showNotification('🎯 Grid Search + 3-Way Split запущен...', '');
+
+    const btn = document.querySelector('button[onclick="run3WaySplitGrid()"]');
+    let oldText = '';
+    if (btn) {
+        oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Поиск (60-120 сек)...';
+    }
+
+    try {
+        const r = await fetch(API_BASE + '/api/simulator/3way_split_grid', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                max_combinations: 100,
+                min_bets: 30,
+                test_size: parseFloat(document.getElementById('s3-test-size')?.value || 20) / 100,
+                valid_size: parseFloat(document.getElementById('s3-valid-size')?.value || 20) / 100,
+            })
+        }).then(r => r.json());
+
+        if (r.status !== 'ok') {
+            showNotification('❌ ' + (r.error || 'Ошибка'), 'error');
+            return;
+        }
+
+        const top = (r.result && r.result.top) || [];
+        if (top.length === 0) {
+            showNotification('❌ Не найдено стратегий', 'error');
+            return;
+        }
+
+        render3WayGridTop5(top, r.result);
+
+        const best = top[0];
+        showNotification(
+            `🏆 Train ${best.train_roi}% | Valid ${best.valid_roi}% | Test ${best.test_roi}%`,
+            'success'
+        );
+    } catch (e) {
+        console.error('run3WaySplitGrid:', e);
+        showNotification('❌ Ошибка: ' + e.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = oldText || '🎯 Grid Search + 3-Way Split';
+        }
+    }
+}
+
+function render3WayGridTop5(top, meta) {
+    const container = document.getElementById('s3-results');
+    if (!container) return;
+    container.style.display = 'block';
+
+    let gridDiv = document.getElementById('s3-grid-top5');
+    if (gridDiv) gridDiv.remove();
+
+    gridDiv = document.createElement('div');
+    gridDiv.id = 's3-grid-top5';
+    gridDiv.className = 'card';
+    gridDiv.style.marginTop = '16px';
+
+    const rowsHtml = top.map((t, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        const rowStyle = i === 0 ? 'background: rgba(16,185,129,0.08); font-weight:700;' : '';
+        const spreadColor = t.spread > 25 ? 'var(--red-400)' : t.spread > 15 ? 'var(--gold-400)' : 'var(--emerald-400)';
+        return `
+            <tr style="${rowStyle}">
+                <td>${medal}</td>
+                <td>${t.params?.min_ev || 0}%</td>
+                <td>${t.params?.min_prob || 0}%</td>
+                <td>${t.params?.min_odds || 0}-${t.params?.max_odds || 0}</td>
+                <td>${t.train_bets || 0}/${t.valid_bets || 0}/${t.test_bets || 0}</td>
+                <td style="color:${t.train_roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                    ${t.train_roi >= 0 ? '+' : ''}${t.train_roi}%
+                </td>
+                <td style="color:${t.valid_roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                    ${t.valid_roi >= 0 ? '+' : ''}${t.valid_roi}%
+                </td>
+                <td style="color:${t.test_roi >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">
+                    ${t.test_roi >= 0 ? '+' : ''}${t.test_roi}%
+                </td>
+                <td style="color:${spreadColor};font-weight:700;">${t.spread}%</td>
+            </tr>
+        `;
+    }).join('');
+
+    const metaHtml = meta ? `
+        <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px;">
+            Проверено: <b>${meta.total_checked || 0}</b> •
+            Валидных: <b>${meta.total_valid || 0}</b> •
+            Показано: <b>${top.length}</b>
+        </div>
+    ` : '';
+
+    gridDiv.innerHTML = `
+        <div class="card-header"><h2>🏆 ТОП-5 СТРАТЕГИЙ (3-Way)</h2></div>
+        ${metaHtml}
+        <div style="overflow-x:auto;">
+            <table style="width:100%; font-size:11px; min-width:700px;">
+                <thead>
+                    <tr>
+                        <th>#</th><th>EV</th><th>Prob</th><th>Кэф</th>
+                        <th>Tr/Va/Te</th>
+                        <th>🎓 Train</th><th>📊 Valid</th><th>🧪 Test</th>
+                        <th>Spread</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>
+        <div style="font-size:10px;color:var(--text-tertiary);
+                    margin-top:12px;padding-top:10px;
+                    border-top:1px solid var(--border-color);">
+            💡 <b>Spread</b> = разброс между тремя ROI.
+            <br>• Spread &lt; 10% → ✅ Стабильно
+            <br>• Spread 10-25% → 🟡 Умеренно
+            <br>• Spread &gt; 25% → 🔴 Нестабильно
+        </div>
+    `;
+
+    const resultsCard = container.querySelector('.card');
+    if (resultsCard && resultsCard.nextSibling) {
+        container.insertBefore(gridDiv, resultsCard.nextSibling);
+    } else {
+        container.appendChild(gridDiv);
+    }
+}
+
+function reset3WayForm() {
+    const defaults = {
+        's3-test-size': 20, 's3-valid-size': 20,
+        's3-min-ev': 10, 's3-min-prob': 52,
+        's3-min-odds': 1.4, 's3-max-odds': 5.0,
+        's3-stake': 2.0, 's3-bank': 1000,
+    };
+    Object.entries(defaults).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el) { el.value = val; el.dispatchEvent(new Event('input')); }
+    });
+    const container = document.getElementById('s3-results');
+    if (container) container.style.display = 'none';
+    const grid = document.getElementById('s3-grid-top5');
+    if (grid) grid.remove();
+    s3LastResult = null;
     showNotification('🔄 Форма сброшена', '');
 }
 
@@ -6768,7 +7219,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.4',
+        version: '22.5',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -7141,13 +7592,18 @@ Object.assign(window, {
     loadDailyStats, aggregateByDay, renderDailySummary,
     renderDailyList, setDailyFilter, setDailySort, showDayDetail,
 
-    // ============ ★ TRAIN/TEST (НОВЫЕ) ============
+    // ============ ★ TRAIN/TEST (v22.4) ============
     runTrainTest,
     renderTrainTestResults,
     runTrainTestGrid,
     renderTrainTestGridTop5,
     resetTrainTestForm,
+
+    // ============ ★ 3-WAY SPLIT (v22.5) ============
+    run3WaySplit,
+    render3WayResults,
+    run3WaySplitGrid,
+    render3WayGridTop5,
+    reset3WayForm,
 });
-</script>
-</body>
-</html>   
+</script>   
