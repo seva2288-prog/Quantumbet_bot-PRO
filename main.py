@@ -4455,7 +4455,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v22.5.1 — Train/Test + 3-Way Split + fix)
+# main.py — ЧАСТЬ 2/3 (v22.5 — Train/Test + 3-Way Split)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
@@ -4468,12 +4468,14 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 # ★ v5.1: X2 home advantage bonus/penalty
 # ★ v22.4: Train/Test Split
 # ★ v22.5: 3-Way Split (Train/Validate/Test) + дедупликация Grid Search
-# ★ v22.5.1: fix — методы привязываются безусловно (без hasattr)
 # ============================================================
 
 # ============================================================
-# ★ TRAIN/TEST МЕТОДЫ (v22.4)
+# ★ TRAIN/TEST МЕТОДЫ (добавляются в существующий StrategySimulator)
 # ============================================================
+# ВАЖНО: Класс StrategySimulator уже определён в конце Части 1.
+# Здесь мы НЕ переопределяем его — только добавляем методы через setattr.
+
 def _tt_split_data(self, all_matches, test_size=0.3):
     """Разделяет данные на train и test по времени."""
     def sort_key(m):
@@ -4655,6 +4657,9 @@ def _tt_apply_filters(self, matches, params):
     return filtered
 
 
+# ============================================================
+# ★ ПУНКТ 1+2: GRID SEARCH + TRAIN/TEST с дедупликацией и min_bets=30
+# ============================================================
 def _tt_run_train_test(self, params, test_size=0.3):
     """Главный метод Train/Test."""
     all_matches = self._tt_collect_all_matches()
@@ -4710,13 +4715,10 @@ def _tt_run_train_test(self, params, test_size=0.3):
     }
 
 
-# ============================================================
-# ★ GRID SEARCH + TRAIN/TEST (v22.5 — дедупликация + min_bets=30)
-# ============================================================
 def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_size=0.3):
     """
     Grid Search + Train/Test.
-    ★ v22.5: min_bets=30 + дедупликация по набору train-ставок.
+    ★ v22.5: min_bets=30 (было 20) + дедупликация по набору train-ставок.
     """
     try:
         logger.info(
@@ -4741,7 +4743,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
 
         results = []
         count = 0
-        seen_signatures = set()
+        seen_signatures = set()   # ★ дедупликация
         keys = list(grid.keys())
         values = [grid[k] for k in keys]
 
@@ -4767,7 +4769,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
                 if len(train) < min_bets or len(test) < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ
+                # ★ ДЕДУПЛИКАЦИЯ: проверяем уникальность набора train-ставок
                 train_sig = tuple(sorted(
                     (m.get('home'), m.get('away'), m.get('match_time', ''))
                     for m in train
@@ -4852,7 +4854,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
 
 
 # ============================================================
-# ★ 3-WAY SPLIT (v22.5)
+# ★ ПУНКТ 3: 3-WAY SPLIT (Train/Validate/Test)
 # ============================================================
 def _tt_split_data_3way(self, all_matches, test_size=0.2, valid_size=0.2):
     """
@@ -4979,7 +4981,7 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
                           test_size=0.2, valid_size=0.2):
     """
     Grid Search с 3-way split.
-    ★ v22.5: min_bets=30 + дедупликация.
+    ★ v22.5: min_bets=30 + дедупликация по train-ставкам.
     """
     try:
         logger.info(
@@ -5032,7 +5034,7 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
                 if len(train) < min_bets or len(valid) < 5 or len(test) < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ
+                # ★ ДЕДУПЛИКАЦИЯ: набор train-ставок должен быть уникален
                 train_sig = tuple(sorted(
                     (m.get('home'), m.get('away'), m.get('match_time', ''))
                     for m in train
@@ -5128,32 +5130,28 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
         }
 
 
-# ============================================================
-# ПРИВЯЗКА МЕТОДОВ к StrategySimulator (v22.5.1 — БЕЗ hasattr)
-# ============================================================
-# ★ ВАЖНО: привязываем безусловно, чтобы методы Train/Test и 3-Way
-# всегда были доступны, независимо от порядка импортов.
+# Привязываем методы к существующему классу StrategySimulator (без переопределения)
+if not hasattr(strategy_simulator, '_tt_split_data'):
+    # Train/Test
+    StrategySimulator._tt_split_data = _tt_split_data
+    StrategySimulator._tt_simulate_subset = _tt_simulate_subset
+    StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
+    StrategySimulator._tt_apply_filters = _tt_apply_filters
+    StrategySimulator._tt_run_train_test = _tt_run_train_test
+    StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
 
-# Train/Test
-StrategySimulator._tt_split_data = _tt_split_data
-StrategySimulator._tt_simulate_subset = _tt_simulate_subset
-StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
-StrategySimulator._tt_apply_filters = _tt_apply_filters
-StrategySimulator._tt_run_train_test = _tt_run_train_test
-StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
+    # Публичные алиасы
+    StrategySimulator.run_train_test = _tt_run_train_test
+    StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
+    StrategySimulator.split_data = _tt_split_data
+    StrategySimulator._simulate_subset = _tt_simulate_subset
+    StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
+    StrategySimulator._apply_filters = _tt_apply_filters
 
-# Публичные алиасы Train/Test
-StrategySimulator.run_train_test = _tt_run_train_test
-StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
-StrategySimulator.split_data = _tt_split_data
-StrategySimulator._simulate_subset = _tt_simulate_subset
-StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
-StrategySimulator._apply_filters = _tt_apply_filters
-
-# ★ 3-way split
-StrategySimulator.split_data_3way = _tt_split_data_3way
-StrategySimulator.run_3way_split = _tt_run_3way_split
-StrategySimulator.grid_search_3way = _tt_grid_search_3way
+    # ★ v22.5: 3-way split
+    StrategySimulator.split_data_3way = _tt_split_data_3way
+    StrategySimulator.run_3way_split = _tt_run_3way_split
+    StrategySimulator.grid_search_3way = _tt_grid_search_3way
 
 
 # ============================================================
@@ -7644,7 +7642,7 @@ def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
 
 
 # ============================================================
-# ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ
+# ★ ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ (сохранены из старой версии)
 # ============================================================
 def auto_update_results():
     res = update_pending_bets()
@@ -7726,77 +7724,7 @@ def update_x2_results():
         return 0
 
 
-# ============================================================
-# ★ v22.5.1: API-роуты для 3-Way Split
-# (ДОБАВЛЯЮТСЯ В КОНЕЦ ЧАСТИ 2, чтобы не искать их отдельно)
-# ============================================================
-
-@app.route('/api/simulator/train_test', methods=['POST'])
-def api_simulator_train_test():
-    try:
-        data = request.json or {}
-        params = data.get('params', {})
-        test_size = float(data.get('test_size', 0.3))
-        result = strategy_simulator.run_train_test(params, test_size)
-        return jsonify({'status': 'ok', 'result': result})
-    except Exception as e:
-        logger.exception(f"api_simulator_train_test error: {e}")
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-
-@app.route('/api/simulator/train_test_grid', methods=['POST'])
-def api_simulator_train_test_grid():
-    try:
-        data = request.json or {}
-        max_combinations = int(data.get('max_combinations', 100))
-        min_bets = int(data.get('min_bets', 30))
-        test_size = float(data.get('test_size', 0.3))
-        result = strategy_simulator.grid_search_train_test(
-            max_combinations=max_combinations,
-            min_bets=min_bets,
-            test_size=test_size,
-        )
-        return jsonify({'status': 'ok', 'result': result})
-    except Exception as e:
-        logger.exception(f"api_simulator_train_test_grid error: {e}")
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-
-@app.route('/api/simulator/3way_split', methods=['POST'])
-def api_simulator_3way_split():
-    try:
-        data = request.json or {}
-        params = data.get('params', {})
-        test_size = float(data.get('test_size', 0.2))
-        valid_size = float(data.get('valid_size', 0.2))
-        result = strategy_simulator.run_3way_split(params, test_size, valid_size)
-        return jsonify({'status': 'ok', 'result': result})
-    except Exception as e:
-        logger.exception(f"api_simulator_3way_split error: {e}")
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-
-@app.route('/api/simulator/3way_split_grid', methods=['POST'])
-def api_simulator_3way_split_grid():
-    try:
-        data = request.json or {}
-        max_combinations = int(data.get('max_combinations', 100))
-        min_bets = int(data.get('min_bets', 30))
-        test_size = float(data.get('test_size', 0.2))
-        valid_size = float(data.get('valid_size', 0.2))
-        result = strategy_simulator.grid_search_3way(
-            max_combinations=max_combinations,
-            min_bets=min_bets,
-            test_size=test_size,
-            valid_size=valid_size,
-        )
-        return jsonify({'status': 'ok', 'result': result})
-    except Exception as e:
-        logger.exception(f"api_simulator_3way_split_grid error: {e}")
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-
-# === КОНЕЦ ЧАСТИ 2/3 (v22.5.1) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v22.5 — Train/Test + 3-Way Split) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v22.1 — Calibration Snapshots)
