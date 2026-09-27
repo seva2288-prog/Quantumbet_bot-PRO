@@ -5152,6 +5152,7 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
     StrategySimulator.split_data_3way = _tt_split_data_3way
     StrategySimulator.run_3way_split = _tt_run_3way_split
     StrategySimulator.grid_search_3way = _tt_grid_search_3way
+    StrategySimulator._tt_split_data_3way = _tt_split_data_3way
 
 
 # ============================================================
