@@ -4310,7 +4310,7 @@ def update_x2_results():
 # === КОНЕЦ ЧАСТИ 1/3 (v22.6 — Calibration + Prob Filter) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v22.6 — Calibration + Prob Filter + 3-Way Split)
+# main.py — ЧАСТЬ 2/3 (v22.7 — snapshot lock + лимит)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
@@ -4324,10 +4324,11 @@ def update_x2_results():
 # ★ v22.4: Train/Test Split
 # ★ v22.5: 3-Way Split + дедупликация Grid Search
 # ★ v22.6: Calibration + Prob Filter
+# ★ v22.7: snapshot lock + лимит 30 матчей (не зависает)
 # ============================================================
 
 # ============================================================
-# ★ TRAIN/TEST МЕТОДЫ (добавляются в существующий StrategySimulator)
+# ★ TRAIN/TEST МЕТОДЫ
 # ============================================================
 
 def _tt_split_data(self, all_matches, test_size=0.3):
@@ -4570,10 +4571,7 @@ def _tt_run_train_test(self, params, test_size=0.3):
 
 
 def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_size=0.3):
-    """
-    Grid Search + Train/Test.
-    ★ v22.6: min_bets=30 + дедупликация по train-ставкам + по результатам.
-    """
+    """Grid Search + Train/Test."""
     try:
         logger.info(
             f"🔍 GRID SEARCH + TRAIN/TEST: до {max_combinations} комбинаций, "
@@ -4597,8 +4595,8 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
 
         results = []
         count = 0
-        seen_signatures = set()      # ★ по train-ставкам
-        seen_results = set()          # ★ по результатам (метрики)
+        seen_signatures = set()
+        seen_results = set()
         keys = list(grid.keys())
         values = [grid[k] for k in keys]
 
@@ -4624,7 +4622,6 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
                 if len(train) < min_bets or len(test) < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ 1: проверяем уникальность набора train-ставок
                 train_sig = tuple(sorted(
                     (m.get('home'), m.get('away'), m.get('match_time', ''))
                     for m in train
@@ -4641,7 +4638,6 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
                 if test_res['total_bets'] < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ 2: проверяем уникальность результатов
                 result_sig = (
                     train_res['total_bets'],
                     train_res['wins'],
@@ -4720,13 +4716,10 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
 
 
 # ============================================================
-# ★ ПУНКТ 3: 3-WAY SPLIT (Train/Validate/Test)
+# ★ ПУНКТ 3: 3-WAY SPLIT
 # ============================================================
 def _tt_split_data_3way(self, all_matches, test_size=0.2, valid_size=0.2):
-    """
-    Разделяет данные на 3 части по времени:
-    Train (60%) → Validate (20%) → Test (20%)
-    """
+    """Train/Validate/Test по времени."""
     def sort_key(m):
         mt = m.get('match_time', '') or ''
         try:
@@ -4845,10 +4838,7 @@ def _tt_run_3way_split(self, params, test_size=0.2, valid_size=0.2):
 
 def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
                           test_size=0.2, valid_size=0.2):
-    """
-    Grid Search с 3-way split.
-    ★ v22.6: min_bets=30 + дедупликация по train-ставкам + по результатам.
-    """
+    """Grid Search с 3-way split."""
     try:
         logger.info(
             f"🔍 GRID SEARCH + 3-WAY: до {max_combinations} комбинаций, "
@@ -4872,8 +4862,8 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
 
         results = []
         count = 0
-        seen_signatures = set()      # ★ по train-ставкам
-        seen_results = set()          # ★ по результатам
+        seen_signatures = set()
+        seen_results = set()
         keys = list(grid.keys())
         values = [grid[k] for k in keys]
 
@@ -4901,7 +4891,6 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
                 if len(train) < min_bets or len(valid) < 5 or len(test) < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ 1: набор train-ставок
                 train_sig = tuple(sorted(
                     (m.get('home'), m.get('away'), m.get('match_time', ''))
                     for m in train
@@ -4921,7 +4910,6 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
                 if test_res['total_bets'] < 5:
                     continue
 
-                # ★ ДЕДУПЛИКАЦИЯ 2: результаты
                 result_sig = (
                     train_res['total_bets'],
                     train_res['wins'],
@@ -5010,7 +4998,7 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
 
 
 # ============================================================
-# ★ ПРИВЯЗКА МЕТОДОВ К StrategySimulator (v22.6 — ИСПРАВЛЕНО)
+# ★ ПРИВЯЗКА МЕТОДОВ К StrategySimulator
 # ============================================================
 if not hasattr(strategy_simulator, '_tt_split_data'):
     # Train/Test
@@ -5029,23 +5017,20 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
     StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
     StrategySimulator._apply_filters = _tt_apply_filters
 
-    # ★ v22.5: 3-way split
-    StrategySimulator._tt_split_data_3way = _tt_split_data_3way     # ← ИСПРАВЛЕНИЕ
+    # 3-way split
+    StrategySimulator._tt_split_data_3way = _tt_split_data_3way
     StrategySimulator.split_data_3way = _tt_split_data_3way
     StrategySimulator.run_3way_split = _tt_run_3way_split
     StrategySimulator.grid_search_3way = _tt_grid_search_3way
 
 
 # ============================================================
-# ★ KELLY CRITERION (v4.5) — с поддержкой калибровки
+# ★ KELLY CRITERION
 # ============================================================
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=None, kelly_fraction=None,
                      max_pct=None, min_stake=None):
-    """
-    Quarter-Kelly с защитой.
-    ★ v22.6: если prob_pct уже калиброван — просто передаём его.
-    """
+    """Quarter-Kelly с защитой."""
     if base_pct is None:
         base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
     if kelly_fraction is None:
@@ -5095,7 +5080,7 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
 
 
 # ============================================================
-# ★ CLV-ФИЛЬТР для стратегий (v4.6)
+# ★ CLV-ФИЛЬТР
 # ============================================================
 _CLV_CACHE = {}
 _CLV_CACHE_TS = 0
@@ -5395,10 +5380,7 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
                           match_data=None, api_predictions=None,
                           is_international=False,
                           apply_calibration=False):
-    """
-    Ансамбль вероятностей.
-    ★ v22.6: параметр apply_calibration — если True, применяет calibrate_prob()
-    """
+    """Ансамбль вероятностей."""
     engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
     poisson = calculate_poisson_probability(home_xg, away_xg)
     form_prob = calculate_form_probability(home_form, away_form)
@@ -5452,7 +5434,6 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
             blended = b['prob'] * (1 - alpha) + llm[llm_key] * 100 * alpha
             b['prob'] = round(blended, 1)
             if b.get('odds', 0) > 1.01:
-                # ★ КАЛИБРОВКА
                 calibrated_pct = calibrate_prob(b['prob'], use_bucket=True)
                 b['prob_calibrated'] = calibrated_pct
                 b['ev'] = round((calibrated_pct / 100 * b['odds'] - 1) * 100, 1)
@@ -5712,7 +5693,6 @@ def update_odds_for_matches(matches):
                     logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]")
                     continue
                 prob_pct = best_bet.get('prob', 0)
-                # ★ КАЛИБРОВКА
                 calibrated_pct = calibrate_prob(prob_pct, use_bucket=True)
                 best_bet['prob_calibrated'] = calibrated_pct
                 calibrated_prob = calibrated_pct / 100
@@ -5726,7 +5706,7 @@ def update_odds_for_matches(matches):
                     bank = storage.load_bank()
                     kelly_stake = calculate_stake(
                         bank=bank,
-                        prob_pct=calibrated_pct,  # ★ Kelly по калибровке
+                        prob_pct=calibrated_pct,
                         odds=new_odds,
                     )
                     src_key = md.get('source', '70_percent')
@@ -5880,7 +5860,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (с Prob Filter + Calibration)
+# ★ ПОТОК 1: 70%+
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -6201,7 +6181,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (с калибровкой)
+# ★ ПОТОК 2: ТМ 2.5
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -6226,7 +6206,7 @@ def find_tm25_matches(matches):
     LEAGUE_BONUS = getattr(Config, 'TM25_LEAGUE_BONUS', 5)
     MAX_LEAGUE_BETS = getattr(Config, 'TM25_MAX_LEAGUE_BETS', 2)
 
-    logger.info("🔍 [ТМ 2.5 v22.6] Расширенный поиск + калибровка...")
+    logger.info("🔍 [ТМ 2.5 v22.7] Расширенный поиск + калибровка...")
     stats = {
         'premium_found': 0, 'standard_found': 0,
         'clv_skipped': 0, 'intl_skipped': 0,
@@ -6325,12 +6305,10 @@ def find_tm25_matches(matches):
 
             is_whitelisted = Config.is_tm25_league_whitelisted(league_name)
 
-            # ★ ФИЛЬТР PROB
             if p_under_pct > PROB_MAX_70:
                 stats['prob_filtered'] += 1
                 continue
 
-            # ★ КАЛИБРОВКА
             calibrated_p = calibrate_prob(p_under_pct, use_bucket=True)
             ev_under = (calibrated_p / 100 * odds_tm25) - 1
             if is_whitelisted:
@@ -6444,14 +6422,14 @@ def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE (усиленный)
+# ★ ПОТОК 3: VALUE
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=5):
-    """VALUE-поток. v22.6: max_bets=5, VALUE_MIN_EV=20, калибровка."""
+    """VALUE-поток."""
     bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
-    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 20)   # ★ было 25
+    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 20)
     VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
     VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
     VALUE_MAX_RESULTS = max_bets
@@ -6665,7 +6643,7 @@ def find_value_matches(matches, max_bets=5):
 
 
 # ============================================================
-# ★ ПОТОК 4: BTTS (с калибровкой)
+# ★ ПОТОК 4: BTTS
 # ============================================================
 @timing_decorator()
 def find_btts_matches(matches):
@@ -6697,7 +6675,7 @@ def find_btts_matches(matches):
 
     INCLUDE_INTERNATIONAL = getattr(Config, 'BTTS_INCLUDE_INTERNATIONAL', False)
 
-    logger.info("🔍 [BTTS v22.6] Поиск 'Обе Забьют' + калибровка...")
+    logger.info("🔍 [BTTS v22.7] Поиск 'Обе Забьют' + калибровка...")
     stats = {
         'found': 0,
         'intl_skipped': 0,
@@ -7166,7 +7144,7 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 3: VALUE 💎 (усиленный)")
     logger.info("=" * 60)
-    value_matches = find_value_matches(matches, max_bets=5)   # ★ было 2
+    value_matches = find_value_matches(matches, max_bets=5)
 
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 4: BTTS")
@@ -7255,7 +7233,6 @@ def find_top_matches_with_tm25(matches):
         else:
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
-        # ★ ФИНАЛЬНЫЙ ФИЛЬТР PROB
         if src != 'line_movement' and prob > PROB_MAX_70:
             logger.info(f"⏭️ FINAL PROB SKIP: {m.get('home')} vs {m.get('away')}")
             continue
@@ -7428,16 +7405,26 @@ def recalc_stats():
 
 
 # ============================================================
-# СНИМКИ КЭФОВ
+# ★ СНИМКИ КЭФОВ (v22.7: LOCK + ЛИМИТ 30)
 # ============================================================
+_snapshot_lock = Lock()
+
+
 def snapshot_odds_for_upcoming():
-    logger.info("🔍 snapshot: НАЧАЛО")
+    """
+    ★ v22.7: не более 30 матчей за раз + lock (не запускается параллельно).
+    """
+    if not _snapshot_lock.acquire(blocking=False):
+        logger.warning("⏭️ snapshot уже выполняется — пропуск")
+        return 0
     try:
+        logger.info("🔍 snapshot: НАЧАЛО")
         with cache_lock:
             cache = storage.load_cache()
             matches = cache.get('all_analyzed') or cache.get('top_matches', [])
         if not matches:
             return 0
+
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
 
         groups = defaultdict(list)
@@ -7456,7 +7443,8 @@ def snapshot_odds_for_upcoming():
             if not (0 < hours_to_match <= 3):
                 continue
             fid = md.get('fixture_id')
-            if not fid: continue
+            if not fid:
+                continue
             league_name = md.get('league', '')
             league_id = None
             for lid, lname in Config.LEAGUE_NAMES.items():
@@ -7469,45 +7457,58 @@ def snapshot_odds_for_upcoming():
             else:
                 single.append(md)
 
-        total_snapshots = 0
-        for (league_id, date_str), group in groups.items():
+        # ★ ОГРАНИЧЕНИЕ: не более 30 матчей за раз
+        MAX_PER_RUN = 30
+        total = 0
+
+        for (league_id, date_str), group in list(groups.items()):
+            if total >= MAX_PER_RUN:
+                break
+            remaining = MAX_PER_RUN - total
+            group = group[:remaining]
             try:
                 batch = football_api.get_odds_batch_for_league(league_id, date_str)
                 for md in group:
                     fid = md.get('fixture_id')
                     fo = batch.get(fid)
-                    if not fo: continue
+                    if not fo:
+                        continue
                     saved = _save_snapshot_from_odds(
                         fo, fid,
                         home=md.get('home', ''),
                         away=md.get('away', ''),
                         league=md.get('league', ''),
                     )
-                    total_snapshots += saved
+                    total += saved
             except Exception as e:
                 logger.error(f"snapshot batch {league_id}: {e}")
 
-        for md in single:
+        remaining_single = max(0, MAX_PER_RUN - total)
+        for md in single[:remaining_single]:
             try:
                 fid = md.get('fixture_id')
-                if not fid: continue
+                if not fid:
+                    continue
                 fo = football_api.get_match_odds(fid)
-                if not fo: continue
+                if not fo:
+                    continue
                 saved = _save_snapshot_from_odds(
                     fo, fid,
                     home=md.get('home', ''),
                     away=md.get('away', ''),
                     league=md.get('league', ''),
                 )
-                total_snapshots += saved
+                total += saved
             except Exception as e:
                 logger.error(f"snapshot single: {e}")
 
-        logger.info(f"📸 Снимков: {total_snapshots}")
-        return total_snapshots
+        logger.info(f"📸 Снимков: {total} (лимит {MAX_PER_RUN})")
+        return total
     except Exception as e:
         logger.exception(f"❌ snapshot: {e}")
         return 0
+    finally:
+        _snapshot_lock.release()
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
@@ -7582,72 +7583,10 @@ def auto_update_results():
     return ft + live + x2
 
 
-def update_x2_results():
-    try:
-        candidates = storage.get_x2_candidates(limit=200)
-        updated = 0
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-
-        for c in candidates:
-            if c.get('result') in ('win', 'loss', 'push'):
-                continue
-            fid = c.get('fixture_id')
-            if not fid:
-                continue
-            md = football_api.get_match_result(fid)
-            if not md:
-                continue
-            hg = md['goals']['home']
-            ag = md['goals']['away']
-            if hg is None or ag is None:
-                continue
-            status = md.get('status', 'NS')
-            is_final = md.get('is_final', False)
-            force_final = False
-            hours_ago = 0
-            if not is_final:
-                match_time_str = c.get('match_time', '')
-                if match_time_str and match_time_str != '?':
-                    try:
-                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        hours_ago = (now_msk - mt).total_seconds() / 3600
-                        if hours_ago > 2.5:
-                            force_final = True
-                    except Exception:
-                        pass
-                if not force_final:
-                    continue
-            side = c.get('x2_side', 'X2')
-            if side == 'X2':
-                result = 'win' if ag >= hg else 'loss'
-            else:
-                result = 'win' if hg >= ag else 'loss'
-            odds = float(c.get('entry_odds', 0) or 0)
-            if odds < 1.01:
-                odds = 1.85
-            stake = 20.0
-            if result == 'win':
-                profit = round(stake * (odds - 1), 2)
-            elif result == 'loss':
-                profit = -stake
-            else:
-                profit = 0
-            ok = storage.update_x2_result(
-                candidate_id=c['id'], result=result, profit=profit,
-                home_goals=hg, away_goals=ag,
-            )
-            if ok:
-                updated += 1
-        return updated
-    except Exception as e:
-        logger.exception(f"update_x2_results: {e}")
-        return 0
-
-
-# === КОНЕЦ ЧАСТИ 2/3 (v22.6 — Calibration + Prob Filter + 3-Way Split) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v22.7 — snapshot lock + лимит 30) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v22.1 — Calibration Snapshots)
+# main.py — ЧАСТЬ 3/3 (v22.7 — Thread для webhook)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
 # ★ v4.4: single-fetch live status
@@ -7657,6 +7596,7 @@ def update_x2_results():
 # ★ v5.1: bet_info в /api/snapshots/<fid>
 # ★ v5.2: /api/calibration для анализа калибровки
 # ★ v22.1: снапшоты калибровки раз в 14 дней (2 слота)
+# ★ v22.7: /force_settle и /update_results в Thread
 # ============================================================
 
 def safe_job(func, name):
@@ -7686,101 +7626,6 @@ def schedule_updates():
     )
     scheduler.start()
     logger.info("⏰ Авто-обновление: 6ч")
-
-
-def update_x2_results():
-    """Обновляет X2-кандидатов после завершения матчей.
-    Fallback: если API залип на NS, но матч был >2.5ч назад — закрываем по времени."""
-    try:
-        candidates = storage.get_x2_candidates(limit=200)
-        updated = 0
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-
-        for c in candidates:
-            if c.get('result') in ('win', 'loss', 'push'):
-                continue
-
-            fid = c.get('fixture_id')
-            if not fid:
-                continue
-
-            md = football_api.get_match_result(fid)
-            if not md:
-                continue
-
-            hg = md['goals']['home']
-            ag = md['goals']['away']
-            if hg is None or ag is None:
-                continue
-
-            status = md.get('status', 'NS')
-            is_final = md.get('is_final', False)
-
-            force_final = False
-            hours_ago = 0
-            if not is_final:
-                match_time_str = c.get('match_time', '')
-                if match_time_str and match_time_str != '?':
-                    try:
-                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        hours_ago = (now_msk - mt).total_seconds() / 3600
-                        if hours_ago > 2.5:
-                            force_final = True
-                    except Exception:
-                        pass
-                if not force_final:
-                    continue
-                logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
-                            f"(был {status}, {hours_ago:.1f}ч назад)")
-
-            side = c.get('x2_side', 'X2')
-            if side == 'X2':
-                result = 'win' if ag >= hg else 'loss'
-            else:
-                result = 'win' if hg >= ag else 'loss'
-
-            odds = float(c.get('entry_odds', 0) or 0)
-            if odds < 1.01:
-                odds = 1.85
-
-            stake = 20.0
-            if result == 'win':
-                profit = round(stake * (odds - 1), 2)
-            elif result == 'loss':
-                profit = -stake
-            else:
-                profit = 0
-
-            ok = storage.update_x2_result(
-                candidate_id=c['id'],
-                result=result,
-                profit=profit,
-                home_goals=hg,
-                away_goals=ag,
-            )
-            if ok:
-                updated += 1
-                logger.info(f"🎯 X2: {c.get('home')} vs {c.get('away')} "
-                            f"→ {result.upper()} ({hg}:{ag}) | ${profit:+.2f}")
-
-        if updated > 0:
-            logger.info(f"✅ X2-результатов обновлено: {updated}")
-        return updated
-    except Exception as e:
-        logger.exception(f"update_x2_results: {e}")
-        return 0
-
-
-def auto_update_results():
-    res = update_pending_bets()
-    x2 = update_x2_results()
-    ft = res.get('ft', 0)
-    live = res.get('live', 0)
-    if ft > 0:
-        send_telegram(f"🔄 Авто-обновление: {ft} результатов")
-    if x2 > 0:
-        send_telegram(f"🎯 X2-результатов обновлено: {x2}")
-    return ft + live + x2
 
 
 def schedule_notifications():
@@ -7920,42 +7765,36 @@ def send_auto_backup():
 
 def schedule_auto_backup():
     scheduler = BackgroundScheduler()
-    # Бэкап раз в 14 дней (1-го и 15-го числа в 00:00)
     scheduler.add_job(
         func=safe_job(send_auto_backup, "auto_backup"),
         trigger='cron', day='1,15', hour=0, minute=0, id='auto_backup',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-    # Обрезка логов каждый день в 02:00
     scheduler.add_job(
         func=safe_job(trim_matches_log, "trim_matches_log"),
         trigger='cron', hour=2, minute=0, id='trim_log',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-    # Автоочистка старых бэкапов каждый день в 03:00
     scheduler.add_job(
         func=safe_job(cleanup_old_backups, "cleanup_backups"),
         trigger='cron', hour=3, minute=0, id='cleanup_backups',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-    # Автоочистка старых снимков каждую неделю
     scheduler.add_job(
         func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', day_of_week='mon', hour=4, minute=0, id='cleanup_odds',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-    # ★ v22.1: автосохранение калибровки раз в 14 дней (1 и 15 числа в 05:00)
     scheduler.add_job(
         func=safe_job(save_calibration_snapshot, "save_calibration"),
         trigger='cron', day='1,15', hour=5, minute=0, id='save_calibration',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
-    # ★ v22.1: ежедневная очистка старых снапшотов (>24ч, кроме свежего)
     scheduler.add_job(
         func=safe_job(_cleanup_and_save_snapshots, "cleanup_calibration_snaps"),
         trigger='cron', hour=6, minute=0, id='cleanup_calibration_snaps',
@@ -8186,7 +8025,7 @@ def _check_webhook_rate_limit(chat_id):
 
 
 # ============================================================
-# WEBHOOK
+# WEBHOOK (v22.7 — force_settle и update_results в Thread)
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -8454,18 +8293,32 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
+            # ★ v22.7: /update_results в фоне
             elif text == '/update_results':
-                res = update_pending_bets()
-                x2 = update_x2_results()
-                ft = res.get('ft', 0); live = res.get('live', 0)
-                if ft == 0 and live == 0 and x2 == 0:
-                    send_telegram("📭 <b>Нет обновлений</b>")
-                else:
-                    msg = "🔄 <b>ОБНОВЛЕНО</b>\n\n"
-                    if ft > 0: msg += f"✅ Завершено матчей: <b>{ft}</b>\n"
-                    if live > 0: msg += f"⚽ Live-счёт: <b>{live}</b>\n"
-                    if x2 > 0: msg += f"🎯 X2-результатов: <b>{x2}</b>\n"
-                    send_telegram(msg)
+                send_telegram("🔄 Обновление запущено в фоне...")
+
+                def _run_update_results():
+                    try:
+                        res = update_pending_bets()
+                        x2 = update_x2_results()
+                        ft = res.get('ft', 0)
+                        live = res.get('live', 0)
+                        if ft == 0 and live == 0 and x2 == 0:
+                            send_telegram("📭 <b>Нет обновлений</b>")
+                        else:
+                            msg = "🔄 <b>ОБНОВЛЕНО</b>\n\n"
+                            if ft > 0:
+                                msg += f"✅ Завершено матчей: <b>{ft}</b>\n"
+                            if live > 0:
+                                msg += f"⚽ Live-счёт: <b>{live}</b>\n"
+                            if x2 > 0:
+                                msg += f"🎯 X2-результатов: <b>{x2}</b>\n"
+                            send_telegram(msg)
+                    except Exception as e:
+                        logger.exception(f"update_results: {e}")
+                        send_telegram(f"❌ Ошибка: {e}")
+
+                Thread(target=_run_update_results, daemon=True).start()
 
             elif text == '/live':
                 try:
@@ -8494,20 +8347,28 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
+            # ★ v22.7: /force_settle в фоне
             elif text == '/force_settle':
-                send_telegram("🔧 Принудительное обновление...")
-                try:
-                    res = update_pending_bets()
-                    x2 = update_x2_results()
-                    settled = autobet_manager.settle_pending()
-                    clv = autobet_manager.compute_clv_for_settled()
-                    send_telegram(f"✅ <b>ГОТОВО</b>\n\n"
-                                  f"📜 История: FT={res.get('ft', 0)}, LIVE={res.get('live', 0)}\n"
-                                  f"🎯 X2 закрыто: <b>{x2}</b>\n"
-                                  f"💸 Автоставки: <b>{settled}</b>\n"
-                                  f"📊 CLV: <b>{clv}</b>")
-                except Exception as e:
-                    send_telegram(f"❌ Ошибка: {e}")
+                send_telegram("🔧 Запущено в фоне...")
+
+                def _run_force_settle():
+                    try:
+                        res = update_pending_bets()
+                        x2 = update_x2_results()
+                        settled = autobet_manager.settle_pending()
+                        clv = autobet_manager.compute_clv_for_settled()
+                        send_telegram(
+                            f"✅ <b>FORCE SETTLE ГОТОВО</b>\n\n"
+                            f"📜 История: FT={res.get('ft', 0)}, LIVE={res.get('live', 0)}\n"
+                            f"🎯 X2 закрыто: <b>{x2}</b>\n"
+                            f"💸 Автоставки: <b>{settled}</b>\n"
+                            f"📊 CLV: <b>{clv}</b>"
+                        )
+                    except Exception as e:
+                        logger.exception(f"force_settle: {e}")
+                        send_telegram(f"❌ Ошибка force_settle: {e}")
+
+                Thread(target=_run_force_settle, daemon=True).start()
 
             elif text == '/debug_pending':
                 try:
@@ -8672,7 +8533,7 @@ def serve_manifest():
 
 
 # ============================================================
-# ★ API: LIVE — активные матчи + sparkline
+# ★ API: LIVE
 # ============================================================
 @app.route('/api/live', methods=['GET'])
 def api_live():
@@ -8888,7 +8749,7 @@ def api_live():
 
 
 # ============================================================
-# API: X2 — АВТОМАТИЧЕСКИЕ КАНДИДАТЫ
+# API: X2
 # ============================================================
 @app.route('/api/x2_auto', methods=['GET'])
 def api_x2_auto():
@@ -8992,9 +8853,6 @@ def api_x2_auto():
         return jsonify({'status': 'error', 'error': str(e), 'candidates': []}), 500
 
 
-# ============================================================
-# API: X2 — старые endpoints
-# ============================================================
 @app.route('/api/x2_candidates', methods=['GET'])
 def api_x2_candidates():
     try:
@@ -9240,7 +9098,6 @@ def api_simulator_train_test_grid():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-
 @app.route('/api/simulator/3way_split', methods=['POST'])
 def api_simulator_3way_split():
     try:
@@ -9444,7 +9301,7 @@ def _build_calibration_message():
 
 
 # ============================================================
-# ★ v22.1: CALIBRATION SNAPSHOTS
+# ★ CALIBRATION SNAPSHOTS
 # ============================================================
 def _load_calibration_snapshots():
     try:
@@ -9472,11 +9329,6 @@ def _save_calibration_snapshots(snapshots):
 
 
 def _cleanup_calibration_snapshots(snapshots):
-    """
-    Оставляет максимум 2 снапшота:
-    - свежий — всегда
-    - предыдущий — если ему <24ч
-    """
     now = time.time()
     cleaned = []
     for s in snapshots:
@@ -9496,7 +9348,6 @@ def _cleanup_calibration_snapshots(snapshots):
 
 
 def _build_calibration_data():
-    """Строит полный dict для снапшота."""
     history = storage.load_history()
     finished = [
         b for b in history
@@ -9553,7 +9404,6 @@ def _build_calibration_data():
 
 
 def save_calibration_snapshot():
-    """Сохраняет текущий снапшот. Оставляет максимум 2."""
     try:
         snapshots = _load_calibration_snapshots()
         new_snap = _build_calibration_data()
@@ -9572,7 +9422,6 @@ def save_calibration_snapshot():
 
 
 def _cleanup_and_save_snapshots():
-    """Периодически чистит снапшоты (удаляет >24ч, кроме свежего)."""
     try:
         snapshots = _load_calibration_snapshots()
         cleaned = _cleanup_calibration_snapshots(snapshots)
@@ -9587,7 +9436,6 @@ def _cleanup_and_save_snapshots():
 
 @app.route('/api/calibration/snapshots', methods=['GET'])
 def api_calibration_snapshots():
-    """Возвращает все сохранённые снапшоты."""
     try:
         snapshots = _load_calibration_snapshots()
         snapshots = _cleanup_calibration_snapshots(snapshots)
@@ -9604,7 +9452,6 @@ def api_calibration_snapshots():
 
 @app.route('/api/calibration/save', methods=['POST'])
 def api_calibration_save():
-    """Сохраняет текущий снапшот калибровки вручную."""
     try:
         ok = save_calibration_snapshot()
         return jsonify({'status': 'ok' if ok else 'error'})
@@ -9615,10 +9462,8 @@ def api_calibration_save():
 
 @app.route('/api/calibration/snapshots/<int:idx>', methods=['DELETE'])
 def api_calibration_snapshot_delete(idx):
-    """Удаляет снапшот по индексу."""
     try:
         snapshots = _load_calibration_snapshots()
-        # Сортируем как отдаём во фронт, чтобы индекс совпал
         snapshots.sort(key=lambda x: x.get('saved_at_ts', 0), reverse=True)
         if idx < 0 or idx >= len(snapshots):
             return jsonify({'status': 'error', 'error': 'Index out of range'}), 404
@@ -9981,9 +9826,6 @@ def api_snapshot_anomalies():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-# ============================================================
-# ★ API: СТАТИСТИКА АНОМАЛИЙ
-# ============================================================
 @app.route('/api/snapshot_anomalies/stats', methods=['GET'])
 def api_snapshot_anomalies_stats():
     try:
@@ -10450,19 +10292,16 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v22.1 — Calibration Snapshots)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v22.7 — Thread webhook + snapshot lock)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
     logger.info(f"💎 VALUE: кэф>={getattr(Config, 'VALUE_MIN_ODDS', 2.5)} | "
-                f"EV>={getattr(Config, 'VALUE_MIN_EV', 50)}% | "
-                f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 60)}%")
-    logger.info(f"📈 LINE MOVEMENT: {'вкл' if getattr(Config, 'LINE_MOVEMENT_ENABLED', True) else 'выкл'} | "
-                f"drop {getattr(Config, 'LINE_MOVEMENT_MIN_DROP_PCT', -6)}% .. "
-                f"{getattr(Config, 'LINE_MOVEMENT_MAX_DROP_PCT', -15)}%")
+                f"EV>={getattr(Config, 'VALUE_MIN_EV', 20)}% | "
+                f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 50)}%")
+    logger.info(f"📈 LINE MOVEMENT: {'вкл' if getattr(Config, 'LINE_MOVEMENT_ENABLED', True) else 'выкл'}")
     logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 120)}м .. "
-                f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч | "
-                f"sparkline={getattr(Config, 'LIVE_SPARKLINE_ENABLED', True)}")
+                f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
     logger.info("=" * 60)
 
