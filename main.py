@@ -5172,25 +5172,43 @@ def _guess_source_from_label(label):
 
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
-    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
+    """
+    ★ v22.8: CLV теперь влияет на prob, а не только на stake.
+    Возвращает: (final_stake, action_str, adjusted_prob)
+    """
     if source == 'line_movement':
-        return base_stake, 'no_model'
+        return base_stake, 'no_model', prob_pct
 
     if not getattr(Config, 'CLV_FILTER_ENABLED', True):
-        return base_stake, 'disabled'
+        return base_stake, 'disabled', prob_pct
 
     clv_info = get_strategy_clv(source)
 
     if clv_info['status'] in ('no_data', 'insufficient_data'):
-        return base_stake, 'no_data'
+        return base_stake, 'no_data', prob_pct
 
     if clv_info['skip']:
         logger.warning(f"⏭️ CLV SKIP {source}: avg={clv_info['avg_clv']}% n={clv_info['count']}")
-        return 0, 'skipped'
+        return 0, 'skipped', prob_pct
 
+    avg_clv = clv_info['avg_clv']
     mult = clv_info['multiplier']
+
+    # ★ НОВОЕ: корректируем prob на основе CLV
+    adjusted_prob = prob_pct
+    if avg_clv > 2.0:
+        adjusted_prob = prob_pct * 1.05   # boost 5%
+    elif avg_clv < -1.0:
+        adjusted_prob = prob_pct * 0.90   # reduce 10%
+
+    # ★ CRITICAL SKIP: если CLV < -3%
+    if avg_clv < -3.0:
+        logger.warning(f"🛑 CLV CRITICAL SKIP {source}: avg={avg_clv}%")
+        return 0, 'critical_skip', prob_pct
+
+    # Пересчёт stake
     if mult == 1.0:
-        return base_stake, 'normal'
+        return base_stake, 'normal', adjusted_prob
 
     new_stake = round(base_stake * mult, 2)
     max_stake = round(bank * getattr(Config, 'KELLY_MAX_PCT', 0.05), 2)
@@ -5198,8 +5216,11 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
         new_stake = max_stake
 
     action = 'boosted' if mult > 1.0 else 'reduced'
-    logger.info(f"🎯 CLV {source}: {action} stake {base_stake} → {new_stake} (x{mult})")
-    return new_stake, action
+    logger.info(
+        f"🎯 CLV {source}: {action} stake {base_stake} → {new_stake} "
+        f"(x{mult}) | prob {prob_pct:.1f}% → {adjusted_prob:.1f}%"
+    )
+    return new_stake, action, adjusted_prob
 
 
 # ============================================================
