@@ -4312,21 +4312,21 @@ def update_x2_results():
 # === КОНЕЦ ЧАСТИ 1/3 (v22.6 — Calibration + Prob Filter) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v22.7 — snapshot lock + лимит)
+# main.py — ЧАСТЬ 2/3 (v22.8 — CLV prob-фильтр + Steam Move)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
 # ★ Quarter-Kelly + Calibration
-# ★ CLV-фильтр
+# ★ CLV-фильтр (теперь влияет на prob!)
 # ★ Расширенный ТМ 2.5
 # ★ BTTS-поток
-# ★ v5.0: LINE MOVEMENT (аномалии кэфов)
-# ★ v4.9: LLM объяснения + DeepSeek pick
-# ★ v5.1: X2 home advantage bonus/penalty
-# ★ v22.4: Train/Test Split
-# ★ v22.5: 3-Way Split + дедупликация Grid Search
-# ★ v22.6: Calibration + Prob Filter
-# ★ v22.7: snapshot lock + лимит 30 матчей (не зависает)
+# ★ LINE MOVEMENT (аномалии кэфов)
+# ★ LLM объяснения + DeepSeek pick
+# ★ X2 home advantage bonus/penalty
+# ★ Train/Test Split
+# ★ 3-Way Split + дедупликация Grid Search
+# ★ Calibration + Prob Filter
+# ★ v22.8: CLV prob-boost + STEAM MOVE detection
 # ============================================================
 
 # ============================================================
@@ -4515,7 +4515,7 @@ def _tt_apply_filters(self, matches, params):
 
 
 # ============================================================
-# ★ ПУНКТ 1+2: GRID SEARCH + TRAIN/TEST
+# ★ GRID SEARCH + TRAIN/TEST
 # ============================================================
 def _tt_run_train_test(self, params, test_size=0.3):
     """Главный метод Train/Test."""
@@ -4718,7 +4718,7 @@ def _tt_grid_search_train_test(self, max_combinations=100, min_bets=30, test_siz
 
 
 # ============================================================
-# ★ ПУНКТ 3: 3-WAY SPLIT
+# ★ 3-WAY SPLIT
 # ============================================================
 def _tt_split_data_3way(self, all_matches, test_size=0.2, valid_size=0.2):
     """Train/Validate/Test по времени."""
@@ -5003,7 +5003,6 @@ def _tt_grid_search_3way(self, max_combinations=100, min_bets=30,
 # ★ ПРИВЯЗКА МЕТОДОВ К StrategySimulator
 # ============================================================
 if not hasattr(strategy_simulator, '_tt_split_data'):
-    # Train/Test
     StrategySimulator._tt_split_data = _tt_split_data
     StrategySimulator._tt_simulate_subset = _tt_simulate_subset
     StrategySimulator._tt_collect_all_matches = _tt_collect_all_matches
@@ -5011,7 +5010,6 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
     StrategySimulator._tt_run_train_test = _tt_run_train_test
     StrategySimulator._tt_grid_search_train_test = _tt_grid_search_train_test
 
-    # Публичные алиасы
     StrategySimulator.run_train_test = _tt_run_train_test
     StrategySimulator.grid_search_train_test = _tt_grid_search_train_test
     StrategySimulator.split_data = _tt_split_data
@@ -5019,7 +5017,6 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
     StrategySimulator._collect_all_matches_for_tt = _tt_collect_all_matches
     StrategySimulator._apply_filters = _tt_apply_filters
 
-    # 3-way split
     StrategySimulator._tt_split_data_3way = _tt_split_data_3way
     StrategySimulator.split_data_3way = _tt_split_data_3way
     StrategySimulator.run_3way_split = _tt_run_3way_split
@@ -5082,7 +5079,7 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
 
 
 # ============================================================
-# ★ CLV-ФИЛЬТР
+# ★ CLV-ФИЛЬТР (v22.8: возвращает 3 значения + корректирует prob)
 # ============================================================
 _CLV_CACHE = {}
 _CLV_CACHE_TS = 0
@@ -5173,8 +5170,14 @@ def _guess_source_from_label(label):
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
     """
-    ★ v22.8: CLV теперь влияет на prob, а не только на stake.
-    Возвращает: (final_stake, action_str, adjusted_prob)
+    ★ v22.8: CLV влияет на prob, а не только на stake.
+
+    Returns:
+        (final_stake, action_str, adjusted_prob)
+        - final_stake: 0 если skip
+        - action_str: 'no_model' | 'disabled' | 'no_data' | 'skipped' |
+                      'critical_skip' | 'normal' | 'boosted' | 'reduced'
+        - adjusted_prob: скорректированная вероятность (%)
     """
     if source == 'line_movement':
         return base_stake, 'no_model', prob_pct
@@ -5194,17 +5197,17 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
     avg_clv = clv_info['avg_clv']
     mult = clv_info['multiplier']
 
-    # ★ НОВОЕ: корректируем prob на основе CLV
-    adjusted_prob = prob_pct
-    if avg_clv > 2.0:
-        adjusted_prob = prob_pct * 1.05   # boost 5%
-    elif avg_clv < -1.0:
-        adjusted_prob = prob_pct * 0.90   # reduce 10%
-
-    # ★ CRITICAL SKIP: если CLV < -3%
+    # ★ КРИТИЧЕСКИЙ SKIP: если CLV < -3%
     if avg_clv < -3.0:
         logger.warning(f"🛑 CLV CRITICAL SKIP {source}: avg={avg_clv}%")
         return 0, 'critical_skip', prob_pct
+
+    # ★ prob-коррекция на основе CLV
+    adjusted_prob = prob_pct
+    if avg_clv > 2.0:
+        adjusted_prob = prob_pct * 1.05
+    elif avg_clv < -1.0:
+        adjusted_prob = prob_pct * 0.90
 
     # Пересчёт stake
     if mult == 1.0:
@@ -5221,6 +5224,60 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
         f"(x{mult}) | prob {prob_pct:.1f}% → {adjusted_prob:.1f}%"
     )
     return new_stake, action, adjusted_prob
+
+
+# ============================================================
+# ★ STEAM MOVE DETECTION (v22.8)
+# ============================================================
+def detect_steam_move(fixture_id, market, selection, hours_back=3):
+    """
+    Ищет Steam Move: 3+ БК упали на 5%+ за N часов.
+    """
+    try:
+        cutoff = (datetime.now() - timedelta(hours=hours_back)).isoformat()
+        snaps = storage.get_odds_history(fixture_id, market, selection)
+        if not snaps or len(snaps) < 6:
+            return None
+
+        recent = [s for s in snaps if (s.get('created_at', '') or '') >= cutoff]
+        if len(recent) < 6:
+            return None
+
+        by_bm = defaultdict(list)
+        for s in recent:
+            bm = s.get('bookmaker', '?')
+            by_bm[bm].append(s)
+
+        steam_moves = []
+        for bm, bm_snaps in by_bm.items():
+            if len(bm_snaps) < 2:
+                continue
+            bm_snaps.sort(key=lambda x: x.get('created_at', ''))
+            first_odd = float(bm_snaps[0].get('odds', 0))
+            last_odd = float(bm_snaps[-1].get('odds', 0))
+            if first_odd <= 1.01 or last_odd <= 1.01:
+                continue
+            change = ((last_odd / first_odd) - 1) * 100
+            if change <= -5.0:
+                steam_moves.append({
+                    'bookmaker': bm,
+                    'first': first_odd,
+                    'last': last_odd,
+                    'change': round(change, 1),
+                })
+
+        if len(steam_moves) >= 3:
+            avg_change = sum(m['change'] for m in steam_moves) / len(steam_moves)
+            return {
+                'detected': True,
+                'bm_count': len(steam_moves),
+                'avg_change': round(avg_change, 1),
+                'moves': steam_moves[:5],
+            }
+        return None
+    except Exception as e:
+        logger.error(f"detect_steam_move {fixture_id}: {e}")
+        return None
 
 
 # ============================================================
@@ -5445,7 +5502,7 @@ def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
 
 
 def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
-    """Применяет LLM-корректировку + калибровку."""
+    """Применяет LLM-корректировку + калибровку + CLV."""
     if not llm:
         return
     key_map = {'draw': 'draw', 'underdog': None, 'btts': 'btts',
@@ -5472,7 +5529,7 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
                 odds=match['best_bet'].get('odds', 1.85),
             )
             src = match.get('source', '70_percent')
-            final_stake, clv_action = apply_clv_filter(
+            final_stake, clv_action, adjusted_prob = apply_clv_filter(
                 source=src,
                 base_stake=kelly_stake,
                 prob_pct=prob_for_kelly,
@@ -5480,13 +5537,20 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
                 bank=bank,
             )
             if final_stake > 0:
+                match['best_bet']['prob_calibrated'] = round(adjusted_prob, 1)
+                match['best_bet']['clv_adjusted'] = True
+                if match['best_bet'].get('odds', 0) > 1.01:
+                    match['best_bet']['ev'] = round(
+                        (adjusted_prob / 100 * match['best_bet']['odds'] - 1) * 100, 1
+                    )
                 for b in match['bets']:
                     b['stake'] = final_stake
                     b['clv_action'] = clv_action
+                    b['prob_calibrated'] = round(adjusted_prob, 1)
                 match['best_bet']['stake'] = final_stake
                 match['best_bet']['clv_action'] = clv_action
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"_apply_llm_to_match CLV: {e}")
 
 
 # ============================================================
@@ -5560,6 +5624,8 @@ def analyze_match(match_name):
                     r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%"
                     if best.get('prob_calibrated') and best.get('prob_calibrated') != best.get('prob'):
                         r += f" (cal: {best.get('prob_calibrated')}%)"
+                    if best.get('clv_adjusted'):
+                        r += f" (CLV-adj)"
                     r += "\n"
                     r += f"💰 Кэф: {best.get('odds', 0)}\n"
                 r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
@@ -5579,7 +5645,7 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ КЭФОВ
+# ОБНОВЛЕНИЕ КЭФОВ (v22.8: + Steam Move)
 # ============================================================
 def update_odds_for_matches(matches):
     if not matches:
@@ -5733,13 +5799,17 @@ def update_odds_for_matches(matches):
                         odds=new_odds,
                     )
                     src_key = md.get('source', '70_percent')
-                    final_stake, clv_action = apply_clv_filter(
+                    final_stake, clv_action, adjusted_prob = apply_clv_filter(
                         source=src_key,
                         base_stake=kelly_stake,
                         prob_pct=calibrated_pct,
                         odds=new_odds,
                         bank=bank,
                     )
+                    if final_stake > 0:
+                        best_bet['prob_calibrated'] = round(adjusted_prob, 1)
+                        best_bet['clv_adjusted'] = True
+                        best_bet['ev'] = round((adjusted_prob / 100 * new_odds - 1) * 100, 1)
                     best_bet['stake'] = final_stake if final_stake > 0 else kelly_stake
                     best_bet['clv_action'] = clv_action
                 except Exception as e:
@@ -5747,16 +5817,31 @@ def update_odds_for_matches(matches):
 
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
+
+                # ★ STEAM MOVE: проверяем аномалию
                 try:
-                    market_map = {
-                        'draw': ('1X2', 'X'), 'btts': ('BTTS', 'BTTS'),
-                        'over25': ('O/U 2.5', 'Over'), 'under25': ('O/U 2.5', 'Under'),
-                        'over': ('O/U 2.5', 'Over'), 'under': ('O/U 2.5', 'Under'),
-                        'underdog': ('1X2', 'Underdog'),
-                        'П1': ('1X2', '1'), 'П2': ('1X2', '2'),
-                        '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
-                    }
-                    mkt, sel = market_map.get(bt, (bt, 'unknown'))
+                    mkt, sel = _map_bet_to_market(bt)
+                    steam = detect_steam_move(fid, mkt, sel, hours_back=3)
+                    if steam:
+                        steam_bonus = min(steam['bm_count'] * 1.5, 5.0)
+                        old_prob = best_bet.get('prob_calibrated', best_bet.get('prob', 0))
+                        boosted_prob = min(old_prob + steam_bonus, 95.0)
+                        best_bet['prob_calibrated'] = round(boosted_prob, 1)
+                        best_bet['steam_move'] = True
+                        best_bet['steam_bm_count'] = steam['bm_count']
+                        best_bet['steam_avg_change'] = steam['avg_change']
+                        if new_odds > 1.01:
+                            best_bet['ev'] = round((boosted_prob / 100 * new_odds - 1) * 100, 1)
+                        logger.info(
+                            f"🔥 STEAM MOVE {home} vs {away} | {sel} | "
+                            f"{steam['bm_count']} БК, avg {steam['avg_change']}% → "
+                            f"prob +{steam_bonus:.1f}%"
+                        )
+                except Exception as e:
+                    logger.error(f"Steam move check: {e}")
+
+                try:
+                    mkt, sel = _map_bet_to_market(bt)
                     storage.save_odds_snapshot(
                         fixture_id=fid, market=mkt,
                         selection=sel, odds=new_odds, bookmaker=bookmaker,
@@ -5774,6 +5859,19 @@ def update_odds_for_matches(matches):
             logger.error(f"Ошибка кэфов: {e}")
             continue
     return updated
+
+
+def _map_bet_to_market(bt):
+    """Маппинг типа ставки → (market, selection) для снимков."""
+    market_map = {
+        'draw': ('1X2', 'X'), 'btts': ('BTTS', 'BTTS'),
+        'over25': ('O/U 2.5', 'Over'), 'under25': ('O/U 2.5', 'Under'),
+        'over': ('O/U 2.5', 'Over'), 'under': ('O/U 2.5', 'Under'),
+        'underdog': ('1X2', 'Underdog'),
+        'П1': ('1X2', '1'), 'П2': ('1X2', '2'),
+        '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
+    }
+    return market_map.get(bt, (bt, 'unknown'))
 
 
 # ============================================================
@@ -5883,7 +5981,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+
+# ★ ПОТОК 1: 70%+ (с CLV prob-boost)
 # ============================================================
 @timing_decorator()
 def find_top_matches(matches):
@@ -6027,10 +6125,6 @@ def find_top_matches(matches):
 
             if best_bet['prob'] > PROB_MAX_70:
                 prob_filtered += 1
-                logger.info(
-                    f"⏭️ PROB SKIP ({best_bet['prob']}% > {PROB_MAX_70}%): "
-                    f"{home} vs {away}"
-                )
                 continue
 
             if best_bet['type'] in ('П1', '1X') and best_bet['odds'] < MIN_ODDS_1X:
@@ -6042,33 +6136,52 @@ def find_top_matches(matches):
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
 
+            # ★ v22.8: Kelly + CLV (3 значения)
+            prob_for_kelly = best_bet.get('prob_calibrated', best_bet.get('prob', 0))
             kelly_stake = calculate_stake(
                 bank=bank,
-                prob_pct=best_bet.get('prob_calibrated', best_bet.get('prob', 0)),
+                prob_pct=prob_for_kelly,
                 odds=best_bet.get('odds', 1.85),
             )
             kelly_info = calculate_kelly_info(
                 bank=bank,
-                prob_pct=best_bet.get('prob_calibrated', best_bet.get('prob', 0)),
+                prob_pct=prob_for_kelly,
                 odds=best_bet.get('odds', 1.85),
             )
             best_bet['kelly_full'] = kelly_info['kelly_full']
             best_bet['kelly_quarter'] = kelly_info['kelly_quarter']
 
-            final_stake, clv_action = apply_clv_filter(
+            final_stake, clv_action, adjusted_prob = apply_clv_filter(
                 source='70_percent',
                 base_stake=kelly_stake,
-                prob_pct=best_bet.get('prob_calibrated', best_bet.get('prob', 0)),
+                prob_pct=prob_for_kelly,
                 odds=best_bet.get('odds', 1.85),
                 bank=bank,
             )
             if final_stake <= 0:
+                logger.info(f"⏭️ CLV SKIP (70_percent): {home} vs {away}")
                 continue
+
+            best_bet['prob_calibrated'] = round(adjusted_prob, 1)
+            best_bet['clv_adjusted'] = True
+            if best_bet.get('odds', 0) > 1.01:
+                best_bet['ev'] = round(
+                    (adjusted_prob / 100 * best_bet['odds'] - 1) * 100, 1
+                )
+
             for b in bets:
                 b['stake'] = final_stake
                 b['clv_action'] = clv_action
+                b['prob_calibrated'] = round(adjusted_prob, 1)
             best_bet['stake'] = final_stake
             best_bet['clv_action'] = clv_action
+
+            if best_bet['ev'] < EV_MIN_70:
+                logger.info(
+                    f"⏭️ CLV EV SKIP ({best_bet['ev']}% < {EV_MIN_70}%): "
+                    f"{home} vs {away}"
+                )
+                continue
 
             bt = best_bet['type']
             LIMIT_BT = getattr(Config, 'LIMIT_BET_TYPE_70', 15)
@@ -6204,7 +6317,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5
+# ★ ПОТОК 2: ТМ 2.5 (с CLV prob-boost)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -6229,7 +6342,7 @@ def find_tm25_matches(matches):
     LEAGUE_BONUS = getattr(Config, 'TM25_LEAGUE_BONUS', 5)
     MAX_LEAGUE_BETS = getattr(Config, 'TM25_MAX_LEAGUE_BETS', 2)
 
-    logger.info("🔍 [ТМ 2.5 v22.7] Расширенный поиск + калибровка...")
+    logger.info("🔍 [ТМ 2.5 v22.8] Расширенный поиск + калибровка + CLV...")
     stats = {
         'premium_found': 0, 'standard_found': 0,
         'clv_skipped': 0, 'intl_skipped': 0,
@@ -6339,11 +6452,12 @@ def find_tm25_matches(matches):
 
             country_name, country_flag = _get_country_flag(league_id)
 
+            # === PREMIUM ===
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and calibrated_p / 100 >= PREMIUM_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.35: continue
                 stake = _calculate_tm25_stake(USE_KELLY, bank, calibrated_p, odds_tm25)
-                final_stake, clv_action = apply_clv_filter(
+                final_stake, clv_action, adjusted_prob = apply_clv_filter(
                     source='tm25_premium',
                     base_stake=stake,
                     prob_pct=calibrated_p,
@@ -6355,12 +6469,21 @@ def find_tm25_matches(matches):
                     continue
                 if is_whitelisted:
                     stats['league_bonus'] += 1
+
+                calibrated_p = round(adjusted_prob, 1)
+                ev_under = (calibrated_p / 100 * odds_tm25) - 1
+                if is_whitelisted:
+                    ev_under += LEAGUE_BONUS / 100
+                if ev_under < PREMIUM_MIN_EV:
+                    continue
+
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5 🔥',
                             'prob': round(p_under_pct, 1),
-                            'prob_calibrated': round(calibrated_p, 1),
+                            'prob_calibrated': calibrated_p,
                             'ev': round(ev_under * 100, 1),
                             'odds': odds_tm25, 'stake': final_stake,
                             'clv_action': clv_action,
+                            'clv_adjusted': True,
                             'level': 'PREMIUM',
                             'league_bonus': is_whitelisted,
                             'odds_updated': False}
@@ -6380,11 +6503,12 @@ def find_tm25_matches(matches):
                 league_bet_count[league_name] = cur_league_bets + 1
                 continue
 
+            # === STANDARD ===
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV and calibrated_p / 100 >= STANDARD_MIN_PROB):
                 if league_name in TOP_LEAGUES and ev_under < 0.20: continue
                 stake = _calculate_tm25_stake(USE_KELLY, bank, calibrated_p, odds_tm25)
-                final_stake, clv_action = apply_clv_filter(
+                final_stake, clv_action, adjusted_prob = apply_clv_filter(
                     source='tm25_standard',
                     base_stake=stake,
                     prob_pct=calibrated_p,
@@ -6396,12 +6520,21 @@ def find_tm25_matches(matches):
                     continue
                 if is_whitelisted:
                     stats['league_bonus'] += 1
+
+                calibrated_p = round(adjusted_prob, 1)
+                ev_under = (calibrated_p / 100 * odds_tm25) - 1
+                if is_whitelisted:
+                    ev_under += LEAGUE_BONUS / 100
+                if ev_under < STANDARD_MIN_EV:
+                    continue
+
                 best_bet = {'type': 'under', 'label': 'ТМ 2.5',
                             'prob': round(p_under_pct, 1),
-                            'prob_calibrated': round(calibrated_p, 1),
+                            'prob_calibrated': calibrated_p,
                             'ev': round(ev_under * 100, 1),
                             'odds': odds_tm25, 'stake': final_stake,
                             'clv_action': clv_action,
+                            'clv_adjusted': True,
                             'level': 'STANDARD',
                             'league_bonus': is_whitelisted,
                             'odds_updated': False}
@@ -6445,7 +6578,7 @@ def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE
+# ★ ПОТОК 3: VALUE (с CLV prob-boost)
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=5):
@@ -6607,24 +6740,37 @@ def find_value_matches(matches, max_bets=5):
                 prob_filtered += 1
                 continue
 
+            prob_for_kelly = best_bet.get('prob_calibrated', best_bet.get('prob', 0))
             kelly_stake = calculate_stake(
                 bank=bank,
-                prob_pct=best_bet.get('prob_calibrated', best_bet.get('prob', 0)),
+                prob_pct=prob_for_kelly,
                 odds=best_bet.get('odds', 1.85),
             )
-            final_stake, clv_action = apply_clv_filter(
+            final_stake, clv_action, adjusted_prob = apply_clv_filter(
                 source='value',
                 base_stake=kelly_stake,
-                prob_pct=best_bet.get('prob_calibrated', best_bet.get('prob', 0)),
+                prob_pct=prob_for_kelly,
                 odds=best_bet.get('odds', 1.85),
                 bank=bank,
             )
             if final_stake <= 0:
                 clv_skipped += 1
                 continue
+
+            best_bet['prob_calibrated'] = round(adjusted_prob, 1)
+            best_bet['clv_adjusted'] = True
+            if best_bet.get('odds', 0) > 1.01:
+                best_bet['ev'] = round(
+                    (adjusted_prob / 100 * best_bet['odds'] - 1) * 100, 1
+                )
+
+            if best_bet['ev'] < VALUE_MIN_EV:
+                continue
+
             for b in candidates_bc:
                 b['stake'] = final_stake
                 b['clv_action'] = clv_action
+                b['prob_calibrated'] = round(adjusted_prob, 1)
             best_bet['stake'] = final_stake
             best_bet['clv_action'] = clv_action
 
@@ -6666,7 +6812,7 @@ def find_value_matches(matches, max_bets=5):
 
 
 # ============================================================
-# ★ ПОТОК 4: BTTS
+# ★ ПОТОК 4: BTTS (с CLV prob-boost)
 # ============================================================
 @timing_decorator()
 def find_btts_matches(matches):
@@ -6698,7 +6844,7 @@ def find_btts_matches(matches):
 
     INCLUDE_INTERNATIONAL = getattr(Config, 'BTTS_INCLUDE_INTERNATIONAL', False)
 
-    logger.info("🔍 [BTTS v22.7] Поиск 'Обе Забьют' + калибровка...")
+    logger.info("🔍 [BTTS v22.8] Поиск 'Обе Забьют' + калибровка + CLV...")
     stats = {
         'found': 0,
         'intl_skipped': 0,
@@ -6835,7 +6981,7 @@ def find_btts_matches(matches):
                 prob_pct=calibrated_p,
                 odds=btts_odds,
             )
-            final_stake, clv_action = apply_clv_filter(
+            final_stake, clv_action, adjusted_prob = apply_clv_filter(
                 source='btts',
                 base_stake=kelly_stake,
                 prob_pct=calibrated_p,
@@ -6848,17 +6994,25 @@ def find_btts_matches(matches):
             if is_whitelisted:
                 stats['league_bonus'] += 1
 
+            calibrated_p = round(adjusted_prob, 1)
+            ev_btts = (calibrated_p / 100 * btts_odds - 1) * 100
+            if is_whitelisted:
+                ev_btts += LEAGUE_BONUS
+            if ev_btts < MIN_EV:
+                continue
+
             country_name, country_flag = _get_country_flag(league_id)
 
             best_bet = {
                 'type': 'btts',
                 'label': 'ОБЗ 🔥' if is_whitelisted else 'ОБЗ',
                 'prob': round(p_btts_pct, 1),
-                'prob_calibrated': round(calibrated_p, 1),
+                'prob_calibrated': calibrated_p,
                 'ev': round(ev_btts, 1),
                 'odds': btts_odds,
                 'stake': final_stake,
                 'clv_action': clv_action,
+                'clv_adjusted': True,
                 'bookmaker': fo.get('bookmaker', '—'),
                 'league_bonus': is_whitelisted,
                 'odds_updated': True,
@@ -6935,7 +7089,6 @@ def find_line_movement_matches(matches):
     MAX_SNAPS = getattr(Config, 'LINE_MOVEMENT_MAX_SNAPSHOTS', 20)
     TRADE_DROPS = getattr(Config, 'LINE_MOVEMENT_TRADE_DROPS', True)
     TRADE_RISES = getattr(Config, 'LINE_MOVEMENT_TRADE_RISES', False)
-    BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
     MAX_LEAGUE_BETS = getattr(Config, 'LINE_MOVEMENT_MAX_LEAGUE_BETS', 1)
     MIN_ODDS = getattr(Config, 'LINE_MOVEMENT_MIN_ODDS', 1.40)
     MAX_ODDS = getattr(Config, 'LINE_MOVEMENT_MAX_ODDS', 3.50)
@@ -7165,7 +7318,7 @@ def find_top_matches_with_tm25(matches):
     tm25_matches = find_tm25_matches(matches)
 
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 3: VALUE 💎 (усиленный)")
+    logger.info("📊 ПОТОК 3: VALUE 💎")
     logger.info("=" * 60)
     value_matches = find_value_matches(matches, max_bets=5)
 
@@ -7301,6 +7454,8 @@ def find_top_matches_with_tm25(matches):
             'weather_reason': md.get('weather_reason', ''),
             'source': md.get('source', '70_percent'),
             'llm_reason': bb.get('llm_reason', ''),
+            'steam_move': bb.get('steam_move', False),
+            'clv_adjusted': bb.get('clv_adjusted', False),
         })
         added += 1
     storage.save_history(history)
@@ -7428,15 +7583,13 @@ def recalc_stats():
 
 
 # ============================================================
-# ★ СНИМКИ КЭФОВ (v22.7: LOCK + ЛИМИТ 30)
+# ★ СНИМКИ КЭФОВ (LOCK + ЛИМИТ 30)
 # ============================================================
 _snapshot_lock = Lock()
 
 
 def snapshot_odds_for_upcoming():
-    """
-    ★ v22.7: не более 30 матчей за раз + lock (не запускается параллельно).
-    """
+    """★ v22.7: не более 30 матчей за раз + lock."""
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
@@ -7480,7 +7633,6 @@ def snapshot_odds_for_upcoming():
             else:
                 single.append(md)
 
-        # ★ ОГРАНИЧЕНИЕ: не более 30 матчей за раз
         MAX_PER_RUN = 30
         total = 0
 
@@ -7606,7 +7758,7 @@ def auto_update_results():
     return ft + live + x2
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v22.7 — snapshot lock + лимит 30) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v22.8 — CLV prob-boost + Steam Move) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v22.7 — Thread для webhook)
