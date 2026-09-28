@@ -73,12 +73,13 @@ class Config:
     MAX_BETS_PER_RUN = 30
 
     # ============================================================
-    # === 70%+ ===
+    # === 70%+ (обновлено v23.0) ===
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
-    EV_MIN_70 = 8
+    EV_MIN_70 = 12                    # ★ v23.0: было 8
     PROB_MIN_70 = 52
+    PROB_MAX_70 = 72.0                # ★ v23.0: НОВОЕ, фильтр мёртвой зоны (было 78)
     POSITION_MAX_70 = 18
     FORM_REQUIRED_70 = ['excellent', 'good', 'average']
     SKIP_MID_TABLE_70 = False
@@ -226,7 +227,7 @@ class Config:
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
-    # ★ KELLY CRITERION (v4.5)
+    # ★ KELLY CRITERION (v23.0 — множитель по бакетам)
     # ============================================================
     KELLY_ENABLED = True
     KELLY_FRACTION = 0.25
@@ -234,19 +235,41 @@ class Config:
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
 
+    # ★ v23.0: множители Kelly по точности бакета
+    # Данные калибровки (141 ставка):
+    # < 75%: модель точна → 1.0
+    # 75-80%: завышает -5% → 0.85
+    # 80-85%: завышает -18% → 0.65
+    # 85%+: завышает -26..-37% → 0.45
+    KELLY_BUCKET_FACTORS = {
+        (0, 75):   1.0,
+        (75, 80):  0.85,
+        (80, 85):  0.65,
+        (85, 100): 0.45,
+    }
+
+    @classmethod
+    def get_kelly_bucket_factor(cls, prob_pct):
+        """Возвращает множитель Kelly по точности бакета."""
+        for (lo, hi), factor in cls.KELLY_BUCKET_FACTORS.items():
+            if lo <= prob_pct < hi:
+                return factor
+        return 1.0
+
     # ============================================================
-    # ★ CLV-ФИЛЬТР СТРАТЕГИЙ (v4.6)
+    # ★ CLV-ФИЛЬТР СТРАТЕГИЙ (v23.0 — ужесточён)
     # ============================================================
     CLV_FILTER_ENABLED = True
     CLV_LOOKBACK_DAYS = 30
     CLV_MIN_SAMPLES = 20
     CLV_CACHE_TTL = 600
 
-    CLV_EXCELLENT_THRESHOLD = 1.0
-    CLV_GOOD_THRESHOLD = -0.5
-    CLV_WEAK_THRESHOLD = -2.0
+    # ★ v23.0: новые пороги
+    CLV_EXCELLENT_THRESHOLD = 2.0     # было 1.0
+    CLV_GOOD_THRESHOLD = 0.0          # было -0.5
+    CLV_WEAK_THRESHOLD = -1.0         # было -2.0
 
-    CLV_MULT_EXCELLENT = 1.25
+    CLV_MULT_EXCELLENT = 1.5          # было 1.25
     CLV_MULT_NORMAL = 1.0
     CLV_MULT_WEAK = 0.5
     CLV_SKIP_CRITICAL = True
