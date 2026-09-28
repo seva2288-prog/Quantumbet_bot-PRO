@@ -6139,7 +6139,7 @@ def find_top_matches(matches):
                 cheap_fav_skipped += 1
                 continue
 
-            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)
+            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 12)   # ★ v23.0: было 8
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
