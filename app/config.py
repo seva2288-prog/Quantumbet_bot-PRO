@@ -394,10 +394,11 @@ class Config:
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
 
-    STANDARD_MIN_EV = 15
-    STANDARD_MIN_PROB = 52
-    STANDARD_XG_MIN = 0.8
-    STANDARD_XG_MAX = 3.0
+    # ★ v23.1: STANDARD ужесточён (был -30% ROI)
+    STANDARD_MIN_EV = 20       # было 15
+    STANDARD_MIN_PROB = 56     # было 52
+    STANDARD_XG_MIN = 1.2      # было 0.8
+    STANDARD_XG_MAX = 2.8      # было 3.0
 
     TM25_USE_KELLY = True
     TM25_INCLUDE_INTERNATIONAL = False
