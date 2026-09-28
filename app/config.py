@@ -77,9 +77,9 @@ class Config:
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
-    EV_MIN_70 = 14                    # ★ v23.0: было 8
+    EV_MIN_70 = 12                    # ★ v23.0: было 8
     PROB_MIN_70 = 52
-    PROB_MAX_70 = 70.0                # ★ v23.0: НОВОЕ, фильтр мёртвой зоны (было 78)
+    PROB_MAX_70 = 72.0                # ★ v23.0: НОВОЕ, фильтр мёртвой зоны (было 78)
     POSITION_MAX_70 = 18
     FORM_REQUIRED_70 = ['excellent', 'good', 'average']
     SKIP_MID_TABLE_70 = False
