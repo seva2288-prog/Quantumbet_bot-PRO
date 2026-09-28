@@ -4797,8 +4797,12 @@ def _tt_run_3way_split(self, params, test_size=0.2, valid_size=0.2):
     oos_roi = round((valid_roi + test_roi) / 2, 1)
     gap_train_oos = round(train_roi - oos_roi, 1)
 
-    if spread < 10 and oos_roi > 0:
+    # ★ v22.9: правильная логика вердикта (Train vs OOS — главный сигнал)
+    if gap_train_oos < 5 and abs(spread) < 10 and oos_roi > 0:
         verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
+        verdict_color = 'green'
+    elif gap_train_oos < 5 and oos_roi > 0:
+        verdict = '🟢 НЕБОЛЬШОЙ РАЗБРОС (но стабильно)'
         verdict_color = 'green'
     elif gap_train_oos > 25:
         verdict = '🔴 СИЛЬНЫЙ OVERFITTING'
@@ -4809,11 +4813,14 @@ def _tt_run_3way_split(self, params, test_size=0.2, valid_size=0.2):
     elif gap_train_oos > 5:
         verdict = '🟠 НЕБОЛЬШОЙ РАЗРЫВ'
         verdict_color = 'orange'
-    elif oos_roi > train_roi:
+    elif oos_roi > train_roi and spread < 25:
         verdict = '🔵 OOS ЛУЧШЕ TRAIN (хорошо!)'
         verdict_color = 'blue'
+    elif spread > 25:
+        verdict = '⚪ НЕСТАБИЛЬНО (большой разброс)'
+        verdict_color = 'gray'
     else:
-        verdict = '⚪ НЕСТАБИЛЬНО'
+        verdict = '⚪ СМЕШАННЫЕ СИГНАЛЫ'
         verdict_color = 'gray'
 
     logger.info(
