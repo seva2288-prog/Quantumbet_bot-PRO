@@ -1656,7 +1656,10 @@ strategy_simulator = StrategySimulator()
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=None, kelly_fraction=None,
                      max_pct=None, min_stake=None):
-    """Quarter-Kelly с защитой."""
+    """
+    Quarter-Kelly с защитой.
+    ★ v23.0: добавлен множитель по точности бакета (Config.get_kelly_bucket_factor).
+    """
     if base_pct is None:
         base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
     if kelly_fraction is None:
@@ -1681,6 +1684,14 @@ def calculate_stake(bank, prob_pct, odds,
         return max(round(bank * base_pct, 2), min_stake)
 
     kelly_stake_pct = kelly_full * kelly_fraction
+
+    # ★ v23.0: множитель Kelly по точности бакета
+    try:
+        bucket_factor = Config.get_kelly_bucket_factor(prob_pct)
+        kelly_stake_pct *= bucket_factor
+    except Exception:
+        pass
+
     final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
     stake = round(bank * final_pct, 2)
     return max(stake, min_stake)
