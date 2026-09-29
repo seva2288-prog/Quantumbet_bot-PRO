@@ -1830,6 +1830,56 @@
     <!-- ============================================================
          PAGE: CALIBRATION
          ============================================================ -->
+    <!-- ============================================================
+         PAGE: ANOMALIES (v23.3)
+         ============================================================ -->
+    <div id="page-anomalies" class="page">
+
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🚫 Аномалии (пропущенные)</h2>
+                <button class="btn btn-outline" onclick="loadAnomalies()" style="padding:4px 10px;font-size:10px;">
+                    🔄 Обновить
+                </button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">
+                Матчи, пропущенные фильтром (разброс букмекеров > 0.5).
+                Если большинство <b>проиграло</b> — фильтр работает.
+                Если <b>зашло</b> — убрать.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>📊 Статистика</h2>
+            </div>
+            <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);" id="anomalyStatsGrid">
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+                <div class="skeleton" style="height:60px;"></div>
+            </div>
+            <div id="anomalyHypothetical" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>📋 Список</h2>
+                <select id="anomalyFilter" onchange="loadAnomalies()"
+                        style="padding:4px 8px;font-size:11px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <option value="all" selected>Все</option>
+                    <option value="win">✅ WIN</option>
+                    <option value="loss">❌ LOSS</option>
+                    <option value="pending">⏳ Ожидание</option>
+                </select>
+            </div>
+            <div id="anomaliesList">
+                <div class="skeleton" style="height:80px;"></div>
+                <div class="skeleton" style="height:80px;"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="page-calibration" class="page">
 
         <div class="card emerald">
@@ -2152,6 +2202,14 @@
         </button>
 
         <!-- ★ НОВАЯ КНОПКА 3-WAY SPLIT -->
+        <button class="sheet-item" onclick="openFromMore('anomalies')">
+            <span class="sheet-icon">🚫</span>
+            <div>
+                <div class="sheet-label">Аномалии</div>
+                <div class="sheet-desc">Пропущенные матчи — проверка фильтра</div>
+            </div>
+        </button>
+        
         <button class="sheet-item" onclick="openFromMore('split3way')">
             <span class="sheet-icon">🔬</span>
             <div>
