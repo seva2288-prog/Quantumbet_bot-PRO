@@ -54,6 +54,7 @@ SETTINGS_PATH = os.path.join(DATA_DIR, 'bot_settings.json')
 BACKUP_DIR = os.path.join(DATA_DIR, 'backups')
 GEOCODING_CACHE_FILE = os.path.join(DATA_DIR, 'geocoding_cache.json')
 CALIBRATION_FILE = os.path.join(DATA_DIR, 'calibration_snapshots.json')
+ANOMALY_FILE = os.path.join(DATA_DIR, 'anomaly_skipped.jsonl')
 
 _x2_candidates_lock = Lock()
 
@@ -6723,7 +6724,7 @@ def find_value_matches(matches, max_bets=5):
                             'source': 'value',
                             'result': 'pending',
                         }
-                        with open('/data/anomaly_skipped.jsonl', 'a', encoding='utf-8') as f:
+                        with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
                             f.write(json.dumps(rec, ensure_ascii=False) + '\n')
                     except Exception as e:
                         logger.error(f"anomaly log: {e}")
@@ -9828,7 +9829,7 @@ def api_snapshot():
 def api_anomalies():
     """Возвращает пропущенные аномалии с результатами."""
     try:
-        path = '/data/anomaly_skipped.jsonl'
+        path = ANOMALY_FILE
         if not os.path.exists(path):
             return jsonify({
                 'status': 'ok', 'count': 0, 'items': [],
