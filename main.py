@@ -7437,9 +7437,14 @@ def find_top_matches_with_tm25(matches):
         if src != 'line_movement' and prob > PROB_MAX_70:
             logger.info(f"⏭️ FINAL PROB SKIP: {m.get('home')} vs {m.get('away')}")
             continue
+        # ★ v23.1: НЕ СТАВИМ с шаблонным кэфом
         if not bb.get('odds_updated'):
-            bb['odds_source'] = 'template'
-            bb['odds_note'] = '⚠️ кэф не найден'
+            template_skipped += 1
+            logger.info(
+                f"⏭️ TEMPLATE SKIP (кэф не найден): "
+                f"{m.get('home')} vs {m.get('away')} | {bb.get('label')} @ {bb.get('odds')}"
+            )
+            continue
         m.pop('_preloaded_odds', None)
         m.pop('_preloaded_preds', None)
         filtered.append(m)
