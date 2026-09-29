@@ -6685,6 +6685,25 @@ def find_value_matches(matches, max_bets=5):
             if not fo:
                 continue
 
+            # ★ v23.2: ANOMALY SKIP для VALUE (проверка разброса по букмекерам)
+            bm_list = fo.get('all_bookmakers', {})
+            if bm_list and len(bm_list) >= 2:
+                skip_value = False
+                for mkt_key in ['x2', '1x', 'home', 'away', 'draw']:
+                    vals = [b.get(mkt_key, 0) for b in bm_list.values() if b.get(mkt_key, 0) > 1.01]
+                    if len(vals) >= 2:
+                        v_max = max(vals)
+                        v_avg = sum(vals) / len(vals)
+                        if v_max - v_avg > 0.5:
+                            logger.warning(
+                                f"⏭️ VALUE ANOMALY SKIP: {home} vs {away} | "
+                                f"{mkt_key}: max={v_max} avg={v_avg:.2f} (diff={v_max - v_avg:.2f})"
+                            )
+                            skip_value = True
+                            break
+                if skip_value:
+                    continue
+
             def _compute_value(model_prob, odds):
                 if model_prob <= 0 or odds <= 1.01:
                     return None
