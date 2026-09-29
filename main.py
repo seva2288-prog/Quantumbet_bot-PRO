@@ -7416,13 +7416,12 @@ def find_top_matches_with_tm25(matches):
         bets.sort(key=lambda x: x.get('ev', 0), reverse=True)
         m['bets'] = bets
         m['best_bet'] = bets[0]
-if not m.get('fixture_id'):
+        if not m.get('fixture_id'):
             logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
 
-   EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
+    EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
-    template_skipped = 0
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
@@ -7438,14 +7437,9 @@ if not m.get('fixture_id'):
         if src != 'line_movement' and prob > PROB_MAX_70:
             logger.info(f"⏭️ FINAL PROB SKIP: {m.get('home')} vs {m.get('away')}")
             continue
-        # ★ v23.1: НЕ СТАВИМ с шаблонным кэфом
         if not bb.get('odds_updated'):
-            template_skipped += 1
-            logger.info(
-                f"⏭️ TEMPLATE SKIP (кэф не найден): "
-                f"{m.get('home')} vs {m.get('away')} | {bb.get('label')} @ {bb.get('odds')}"
-            )
-            continue
+            bb['odds_source'] = 'template'
+            bb['odds_note'] = '⚠️ кэф не найден'
         m.pop('_preloaded_odds', None)
         m.pop('_preloaded_preds', None)
         filtered.append(m)
