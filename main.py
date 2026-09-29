@@ -7416,7 +7416,7 @@ def find_top_matches_with_tm25(matches):
         bets.sort(key=lambda x: x.get('ev', 0), reverse=True)
         m['bets'] = bets
         m['best_bet'] = bets[0]
-        if not m.get('fixture_id'):
+if not m.get('fixture_id'):
             logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
 
    EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
