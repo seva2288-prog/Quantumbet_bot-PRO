@@ -7860,8 +7860,14 @@ def schedule_updates():
         replace_existing=True, misfire_grace_time=300,
         coalesce=True, max_instances=1
     )
+    scheduler.add_job(
+        func=safe_job(update_anomaly_results, "update_anomaly_results"),
+        trigger='interval', minutes=30, id='anomaly_update',
+        replace_existing=True, misfire_grace_time=300,
+        coalesce=True, max_instances=1
+    )
     scheduler.start()
-    logger.info("⏰ Авто-обновление: 6ч")
+    logger.info("⏰ Авто-обновление: 6ч + аномалии: 30м")
 
 
 def schedule_notifications():
@@ -9790,6 +9796,66 @@ def api_snapshot():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# ============================================================
+# ★ v23.3: API — АНОМАЛИИ (пропущенные матчи)
+# ============================================================
+@app.route('/api/anomalies', methods=['GET'])
+def api_anomalies():
+    """Возвращает пропущенные аномалии с результатами."""
+    try:
+        path = '/data/anomaly_skipped.jsonl'
+        if not os.path.exists(path):
+            return jsonify({
+                'status': 'ok', 'count': 0, 'items': [],
+                'stats': {'total': 0, 'wins': 0, 'losses': 0,
+                          'pending': 0, 'hit_rate': 0,
+                          'hypothetical_profit': 0, 'stake_per_bet': 50}
+            })
+
+        items = []
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    items.append(json.loads(line.strip()))
+                except Exception:
+                    continue
+
+        items.sort(key=lambda x: x.get('ts', ''), reverse=True)
+
+        wins = sum(1 for x in items if x.get('result') == 'win')
+        losses = sum(1 for x in items if x.get('result') == 'loss')
+        pending = sum(1 for x in items if x.get('result') in ('pending', None))
+        total_settled = wins + losses
+        hit_rate = round(wins / total_settled * 100, 1) if total_settled > 0 else 0
+
+        stake = 50
+        hypo_profit = 0
+        for x in items:
+            if x.get('result') == 'win':
+                odds = x.get('best_odds', 0) or 0
+                if odds > 1:
+                    hypo_profit += stake * (odds - 1)
+            elif x.get('result') == 'loss':
+                hypo_profit -= stake
+
+        return jsonify({
+            'status': 'ok',
+            'count': len(items),
+            'items': items[:200],
+            'stats': {
+                'total': len(items),
+                'wins': wins,
+                'losses': losses,
+                'pending': pending,
+                'hit_rate': hit_rate,
+                'hypothetical_profit': round(hypo_profit, 2),
+                'stake_per_bet': stake,
+            },
+        })
+    except Exception as e:
+        logger.exception(f"api_anomalies: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 
 # ============================================================
 # ★ API: СНИМКИ — список
@@ -10421,6 +10487,80 @@ def index():
         return render_template('index.html')
     except Exception:
         return f"🤖 Quantum Bet Bot PRO | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+# ============================================================
+# ★ v23.3: Обновление результатов пропущенных аномалий
+# ============================================================
+def update_anomaly_results():
+    """Проверяет и обновляет результаты пропущенных аномалий."""
+    try:
+        path = '/data/anomaly_skipped.jsonl'
+        if not os.path.exists(path):
+            return 0
+
+        with open(path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        updated = 0
+        new_lines = []
+        for line in lines:
+            try:
+                rec = json.loads(line.strip())
+            except Exception:
+                new_lines.append(line)
+                continue
+
+            if rec.get('result') and rec['result'] not in ('pending', None):
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            fid = rec.get('fixture_id')
+            if not fid:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            md = football_api.get_match_result(fid)
+            if not md or not md.get('is_final'):
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            bt = (rec.get('bet_type') or '').upper()
+            if 'X2' in bt:
+                res = 'win' if ag >= hg else 'loss'
+            elif '1X' in bt:
+                res = 'win' if hg >= ag else 'loss'
+            elif bt == 'X' or 'DRAW' in bt or 'НИЧЬЯ' in bt:
+                res = 'win' if hg == ag else 'loss'
+            elif 'П1' in bt or bt == '1' or 'HOME' in bt:
+                res = 'win' if hg > ag else 'loss'
+            elif 'П2' in bt or bt == '2' or 'AWAY' in bt:
+                res = 'win' if ag > hg else 'loss'
+            else:
+                res = 'unknown'
+
+            rec['result'] = res
+            rec['home_goals'] = hg
+            rec['away_goals'] = ag
+            rec['settled_at'] = datetime.now().isoformat()
+            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            updated += 1
+
+        with open(path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+
+        if updated > 0:
+            logger.info(f"📊 Anomaly results updated: {updated}")
+        return updated
+    except Exception as e:
+        logger.exception(f"update_anomaly_results: {e}")
+        return 0
 
 
 def register_bot_commands():
