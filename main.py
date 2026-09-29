@@ -6689,6 +6689,9 @@ def find_value_matches(matches, max_bets=5):
             bm_list = fo.get('all_bookmakers', {})
             if bm_list and len(bm_list) >= 2:
                 skip_value = False
+                skipped_mkt = None
+                skipped_max = 0
+                skipped_avg = 0
                 for mkt_key in ['x2', '1x', 'home', 'away', 'draw']:
                     vals = [b.get(mkt_key, 0) for b in bm_list.values() if b.get(mkt_key, 0) > 1.01]
                     if len(vals) >= 2:
@@ -6700,28 +6703,31 @@ def find_value_matches(matches, max_bets=5):
                                 f"{mkt_key}: max={v_max} avg={v_avg:.2f} (diff={v_max - v_avg:.2f})"
                             )
                             skip_value = True
+                            skipped_mkt = mkt_key
+                            skipped_max = v_max
+                            skipped_avg = v_avg
                             break
                 if skip_value:
-                # ★ v23.3: логируем VALUE-аномалию для статистики
-                try:
-                    rec = {
-                        'ts': datetime.now().isoformat(),
-                        'home': home, 'away': away,
-                        'fixture_id': fid,
-                        'league': league_name,
-                        'bet_type': 'VALUE',
-                        'best_odds': fo.get(f'{mkt_key}_odds', 0) if 'mkt_key' in dir() else 0,
-                        'avg_odds': 0,
-                        'diff': 0,
-                        'anomaly_pct': 0,
-                        'source': 'value',
-                        'result': 'pending',
-                    }
-                    with open('/data/anomaly_skipped.jsonl', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(rec, ensure_ascii=False) + '\n')
-                except Exception as e:
-                    logger.error(f"anomaly log: {e}")
-                continue
+                    # ★ v23.3: логируем VALUE-аномалию для статистики
+                    try:
+                        rec = {
+                            'ts': datetime.now().isoformat(),
+                            'home': home, 'away': away,
+                            'fixture_id': fid,
+                            'league': league_name,
+                            'bet_type': 'VALUE',
+                            'best_odds': skipped_max,
+                            'avg_odds': round(skipped_avg, 2),
+                            'diff': round(skipped_max - skipped_avg, 2),
+                            'anomaly_pct': round((skipped_max / skipped_avg - 1) * 100, 1) if skipped_avg > 0 else 0,
+                            'source': 'value',
+                            'result': 'pending',
+                        }
+                        with open('/data/anomaly_skipped.jsonl', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                    except Exception as e:
+                        logger.error(f"anomaly log: {e}")
+                    continue
 
             def _compute_value(model_prob, odds):
                 if model_prob <= 0 or odds <= 1.01:
