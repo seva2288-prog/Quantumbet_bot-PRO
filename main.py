@@ -7422,6 +7422,7 @@ def find_top_matches_with_tm25(matches):
     EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
+    template_skipped = 0
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
