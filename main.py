@@ -62,7 +62,7 @@ _x2_candidates_lock = Lock()
 # ★ НОВОЕ v22.8: КОНСТАНТЫ КАЛИБРОВКИ (по 141 ставке)
 # ★ Обновлено: 2026-09-27
 # ============================================================
-# Глобальный коэффициент (усреднённый по 126+ ставкам)
+# Глобальный hкоэффициент (усреднённый по 126+ ставкам)
 CALIBRATION_FACTOR = 0.91
 
 # Раздельная калибровка по бакетам (реальные данные)
@@ -2292,6 +2292,17 @@ def update_odds_for_matches(matches):
                         best_odds_val = target_odds[best_bm]
                         avg_odds = sum(target_odds.values()) / len(target_odds)
                         anomaly_pct = ((best_odds_val / avg_odds) - 1) * 100 if avg_odds > 0 else 0
+                        odds_diff = best_odds_val - avg_odds
+
+                        # ★ v23.2: ANOMALY SKIP (diff>0.5 OR anomaly>20%)
+                        if odds_diff > 0.5 or anomaly_pct > 20:
+                            logger.warning(
+                                f"⏭️ ANOMALY SKIP: {home} vs {away} | "
+                                f"{best_bm} = {best_odds_val} vs avg {avg_odds:.2f} | "
+                                f"diff={odds_diff:.2f}, anomaly={anomaly_pct:.1f}%"
+                            )
+                            continue
+
                         new_odds = best_odds_val
                         bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
                         source = 'Line Analysis'
