@@ -6702,7 +6702,26 @@ def find_value_matches(matches, max_bets=5):
                             skip_value = True
                             break
                 if skip_value:
-                    continue
+                # ★ v23.3: логируем VALUE-аномалию для статистики
+                try:
+                    rec = {
+                        'ts': datetime.now().isoformat(),
+                        'home': home, 'away': away,
+                        'fixture_id': fid,
+                        'league': league_name,
+                        'bet_type': 'VALUE',
+                        'best_odds': fo.get(f'{mkt_key}_odds', 0) if 'mkt_key' in dir() else 0,
+                        'avg_odds': 0,
+                        'diff': 0,
+                        'anomaly_pct': 0,
+                        'source': 'value',
+                        'result': 'pending',
+                    }
+                    with open('/data/anomaly_skipped.jsonl', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                except Exception as e:
+                    logger.error(f"anomaly log: {e}")
+                continue
 
             def _compute_value(model_prob, odds):
                 if model_prob <= 0 or odds <= 1.01:
