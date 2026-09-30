@@ -7614,47 +7614,39 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
-    const statsEl = document.getElementById('anomalyStatsGrid');
-    const listEl = document.getElementById('anomaliesList');
-    const hypEl = document.getElementById('anomalyHypothetical');
-    if (!statsEl || !listEl) return;
-
+    var statsEl = document.getElementById('anomalyStatsGrid');
+    var listEl = document.getElementById('anomaliesList');
+    var hypEl = document.getElementById('anomalyHypothetical');
+    if (!statsEl || !listEl) {
+        if (listEl) listEl.innerHTML = 'NO_ELEMENT: anomalyStatsGrid or anomaliesList not found';
+        return;
+    }
     try {
-        const resp = await fetch(API_BASE + '/api/anomalies?t=' + Date.now());
-        const data = await resp.json();
-        const s = data.stats || {};
-
-        statsEl.innerHTML = '<div class="stat-card"><div class="value">' + (s.total || 0) + '</div><div class="label">🚫 Всего</div></div>' +
-                            '<div class="stat-card"><div class="value green">' + (s.wins || 0) + '</div><div class="label">✅ WIN</div></div>' +
-                            '<div class="stat-card"><div class="value red">' + (s.losses || 0) + '</div><div class="label">❌ LOSS</div></div>' +
-                            '<div class="stat-card"><div class="value gold">' + (s.hit_rate || 0) + '%</div><div class="label">🎯 Hit Rate</div></div>';
-
-        if (hypEl) {
-            const profit = s.hypothetical_profit || 0;
-            hypEl.innerHTML = '<div style="text-align:center;padding:10px;font-size:12px;">Гипотетическая прибыль: $' + profit.toFixed(2) + '</div>';
-        }
-
-        const items = data.items || [];
+        var resp = await fetch(API_BASE + '/api/anomalies?t=' + Date.now());
+        var data = await resp.json();
+        var s = data.stats || {};
+        statsEl.innerHTML = '<div class="stat-card"><div class="value">' + (s.total || 0) + '</div><div class="label">Всего</div></div>' +
+                            '<div class="stat-card"><div class="value">' + (s.wins || 0) + '</div><div class="label">WIN</div></div>' +
+                            '<div class="stat-card"><div class="value">' + (s.losses || 0) + '</div><div class="label">LOSS</div></div>' +
+                            '<div class="stat-card"><div class="value">' + (s.hit_rate || 0) + '%</div><div class="label">Hit</div></div>';
+        if (hypEl) hypEl.innerHTML = 'Гипотетическая прибыль: $' + (s.hypothetical_profit || 0).toFixed(2);
+        var items = data.items || [];
+        var html = 'DEBUG: items.length=' + items.length + ' | ';
         if (items.length === 0) {
-            listEl.innerHTML = '<div class="no-data"><div class="emoji">📭</div><div class="desc">Нет данных</div></div>';
-            return;
-        }
-
-        let html = '';
-        for (let i = 0; i < items.length; i++) {
-            const it = items[i];
-            const r = it.result || 'pending';
-            const emoji = r === 'win' ? '✅' : (r === 'loss' ? '❌' : '⏳');
-            html += '<div style="padding:10px 0;border-bottom:1px solid var(--border-color);">';
-            html += '<div style="font-size:13px;font-weight:700;">🚫 ' + (it.home || '?') + ' vs ' + (it.away || '?') + '</div>';
-            html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">' + (it.league || '—') + ' • ' + (it.bet_type || '?') + ' • ' + emoji + ' ' + r + '</div>';
-            html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;">max=' + (it.best_odds || 0) + ' avg=' + (it.avg_odds || 0) + ' diff=' + (it.diff || 0) + ' anomaly=' + (it.anomaly_pct || 0) + '%</div>';
-            html += '</div>';
+            html += 'НЕТ ДАННЫХ';
+        } else {
+            for (var i = 0; i < items.length; i++) {
+                var it = items[i];
+                html += '<div style="padding:8px 0;border-bottom:1px solid #ccc;">';
+                html += 'MATCH: ' + (it.home || '?') + ' vs ' + (it.away || '?');
+                html += ' | LEAGUE: ' + (it.league || '?');
+                html += ' | RESULT: ' + (it.result || 'pending');
+                html += '</div>';
+            }
         }
         listEl.innerHTML = html;
     } catch (e) {
-        console.error('loadAnomalies error:', e);
-        if (listEl) listEl.innerHTML = '<div class="no-data"><div class="desc">Ошибка: ' + e.message + '</div></div>';
+        if (listEl) listEl.innerHTML = 'CATCH_ERROR: ' + e.message;
     }
 }
     
