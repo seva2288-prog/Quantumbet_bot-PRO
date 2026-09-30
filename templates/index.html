@@ -956,7 +956,7 @@
                     Все →
                 </button>
             </div>
-            <div id="anomaliesList">
+            <div id="dashboardAnomaliesList">
                 <div class="skeleton" style="width:80%"></div>
                 <div class="skeleton" style="width:60%"></div>
             </div>
@@ -3410,7 +3410,7 @@ async function loadDashboardAnomalies() {
         if (!resp.ok) return;
         const data = await resp.json();
         const container = document.getElementById('anomaliesList');
-        const card = document.getElementById('anomaliesCard');
+        const container = document.getElementById('dashboardAnomaliesList');
         if (!container || !card) return;
 
         if (!data.anomalies || data.anomalies.length === 0) {
