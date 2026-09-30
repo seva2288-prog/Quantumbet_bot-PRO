@@ -3109,10 +3109,11 @@ def find_value_matches(matches, max_bets=5):
     """
     VALUE-поток. v22.6: увеличено max_bets по умолчанию (было 2),
     добавлена калибровка.
+    ★ v23.3: восстановлен блок ANOMALY SKIP с полем 'selection'.
     """
     bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
-    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 20)   # ★ было 25
+    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 20)
     VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
     VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
     VALUE_MAX_RESULTS = max_bets
@@ -3123,6 +3124,7 @@ def find_value_matches(matches, max_bets=5):
     blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
     clv_skipped = 0
     prob_filtered = 0
+    anomaly_skipped = 0
 
     for match in matches:
         if not match or not isinstance(match, dict): continue
@@ -3176,10 +3178,62 @@ def find_value_matches(matches, max_bets=5):
             if not fo:
                 continue
 
+            # ★ v23.3: ВОССТАНОВЛЕННЫЙ БЛОК ANOMALY SKIP
+            bm_list = fo.get('all_bookmakers', {})
+            if bm_list and len(bm_list) >= 2:
+                skip_value = False
+                skipped_mkt = None
+                skipped_max = 0
+                skipped_avg = 0
+                for mkt_key in ['x2', '1x', 'home', 'away', 'draw']:
+                    vals = [b.get(mkt_key, 0) for b in bm_list.values()
+                            if b.get(mkt_key, 0) > 1.01]
+                    if len(vals) >= 2:
+                        v_max = max(vals)
+                        v_avg = sum(vals) / len(vals)
+                        if v_max - v_avg > 0.5:
+                            logger.warning(
+                                f"⏭️ VALUE ANOMALY SKIP: {home} vs {away} | "
+                                f"{mkt_key}: max={v_max} avg={v_avg:.2f} "
+                                f"(diff={v_max - v_avg:.2f})"
+                            )
+                            skip_value = True
+                            skipped_mkt = mkt_key
+                            skipped_max = v_max
+                            skipped_avg = v_avg
+                            break
+                if skip_value:
+                    try:
+                        sel_map = {
+                            'x2': 'X2', '1x': '1X',
+                            'home': 'П1', 'away': 'П2', 'draw': 'X'
+                        }
+                        rec = {
+                            'ts': datetime.now().isoformat(),
+                            'home': home, 'away': away,
+                            'fixture_id': fid,
+                            'league': league_name,
+                            'bet_type': 'VALUE',
+                            'selection': sel_map.get(skipped_mkt, ''),
+                            'best_odds': skipped_max,
+                            'avg_odds': round(skipped_avg, 2),
+                            'diff': round(skipped_max - skipped_avg, 2),
+                            'anomaly_pct': round(
+                                (skipped_max / skipped_avg - 1) * 100, 1
+                            ) if skipped_avg > 0 else 0,
+                            'source': 'value',
+                            'result': 'pending',
+                        }
+                        with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                        anomaly_skipped += 1
+                    except Exception as e:
+                        logger.error(f"anomaly log: {e}")
+                    continue
+
             def _compute_value(model_prob, odds):
                 if model_prob <= 0 or odds <= 1.01:
                     return None
-                # ★ КАЛИБРОВКА
                 model_prob_pct = model_prob * 100
                 calibrated_pct = calibrate_prob(model_prob_pct, use_bucket=True)
                 if calibrated_pct > getattr(Config, 'VALUE_MAX_PROB', 80):
@@ -3264,7 +3318,6 @@ def find_value_matches(matches, max_bets=5):
             candidates_bc.sort(key=lambda x: x['ev'], reverse=True)
             best_bet = candidates_bc[0]
 
-            # ★ ФИЛЬТР PROB (только для сырой prob, для VALUE он мягче)
             if best_bet.get('prob', 0) > PROB_MAX_70:
                 prob_filtered += 1
                 continue
@@ -3323,7 +3376,8 @@ def find_value_matches(matches, max_bets=5):
     top = value_candidates[:VALUE_MAX_RESULTS]
     logger.info(
         f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}, "
-        f"CLV-skip: {clv_skipped}, Prob-filter: {prob_filtered}"
+        f"CLV-skip: {clv_skipped}, Prob-filter: {prob_filtered}, "
+        f"Anomaly-skip: {anomaly_skipped}"
     )
     return top
 
@@ -10634,6 +10688,94 @@ def register_bot_commands():
         logger.error(f"❌ register_bot_commands: {e}")
         return False
 
+
+def update_anomaly_results():
+    """
+    Проверяет и обновляет результаты пропущенных аномалий.
+    ★ v23.3: использует поле 'selection' вместо 'bet_type'.
+    """
+    try:
+        path = ANOMALY_FILE
+        if not os.path.exists(path):
+            return 0
+
+        with open(path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        updated = 0
+        new_lines = []
+        for line in lines:
+            try:
+                rec = json.loads(line.strip())
+            except Exception:
+                new_lines.append(line)
+                continue
+
+            # Если результат уже определён — оставляем
+            if rec.get('result') and rec['result'] not in ('pending', None):
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            fid = rec.get('fixture_id')
+            if not fid:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            md = football_api.get_match_result(fid)
+            if not md or not md.get('is_final'):
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            # ★ Приоритет: selection → bet_type
+            sel = (rec.get('selection') or rec.get('bet_type') or '').upper()
+
+            if 'X2' in sel:
+                res = 'win' if ag >= hg else 'loss'
+            elif '1X' in sel:
+                res = 'win' if hg >= ag else 'loss'
+            elif sel == 'X' or 'DRAW' in sel or 'НИЧЬЯ' in sel:
+                res = 'win' if hg == ag else 'loss'
+            elif 'П1' in sel or sel == '1' or 'HOME' in sel:
+                res = 'win' if hg > ag else 'loss'
+            elif 'П2' in sel or sel == '2' or 'AWAY' in sel:
+                res = 'win' if ag > hg else 'loss'
+            elif 'ТМ' in sel or 'UNDER' in sel:
+                res = 'win' if (hg + ag) < 2.5 else 'loss'
+            elif 'ТБ' in sel or 'OVER' in sel:
+                res = 'win' if (hg + ag) > 2.5 else 'loss'
+            elif 'ОБЗ' in sel or 'BTTS' in sel:
+                res = 'win' if hg > 0 and ag > 0 else 'loss'
+            else:
+                res = 'unknown'
+
+            if res == 'unknown':
+                # Не можем определить — оставляем pending
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+
+            rec['result'] = res
+            rec['home_goals'] = hg
+            rec['away_goals'] = ag
+            rec['settled_at'] = datetime.now().isoformat()
+            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            updated += 1
+
+        with open(path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+
+        if updated > 0:
+            logger.info(f"📊 Anomaly results updated: {updated}")
+        return updated
+    except Exception as e:
+        logger.exception(f"update_anomaly_results: {e}")
+        return 0
+        
 
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
