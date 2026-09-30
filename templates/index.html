@@ -2970,7 +2970,7 @@ function openFromMore(page) {
             case 'dashboard':
                 cachedData = null;
                 await loadPageData('dashboard');
-                await loadAnomalies();
+                await loadDashboardAnomalies();
                 await loadDashboardAutobets();
                 break;
             case 'matches':
@@ -3043,7 +3043,7 @@ async function loadPageData(page) {
 
         if (page === 'dashboard') {
             renderDashboard(data);
-            loadAnomalies();
+            loadDashboardAnomalies();
             loadDashboardAutobets();
         } else if (page === 'matches') {
             renderMatchesPage(data);
@@ -3404,7 +3404,7 @@ function renderActiveMatchesList(matches) {
 // ============================================================
 // АНОМАЛИИ НА DASHBOARD
 // ============================================================
-async function loadAnomalies() {
+async function loadDashboardAnomalies() {
     try {
         const resp = await fetch(API_BASE + '/api/snapshot_anomalies?days=7&limit=3');
         if (!resp.ok) return;
@@ -7776,7 +7776,8 @@ Object.assign(window, {
     loadDailyStats, aggregateByDay, renderDailySummary,
     renderDailyList, setDailyFilter, setDailySort, showDayDetail,
 
-    // ============ ★ TRAIN/TEST (v22.4) ============
+    loadAnomalies,
+    loadDashboardAnomalies,= ★ TRAIN/TEST (v22.4) ============
     runTrainTest,
     renderTrainTestResults,
     runTrainTestGrid,
@@ -7792,5 +7793,6 @@ Object.assign(window, {
 
     // ============ ★ v23.3: АНОМАЛИИ ============
     loadAnomalies,
+    loadDashboardAnomalies,
 });
 </script>   
