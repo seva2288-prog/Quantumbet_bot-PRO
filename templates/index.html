@@ -7613,50 +7613,145 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
-    var statsEl = document.getElementById('anomalyStatsGrid');
-    var listEl = document.getElementById('anomaliesList');
-    var hypEl = document.getElementById('anomalyHypothetical');
-    if (!listEl) {
-        return;
-    }
-    if (statsEl) {
-        try {
-            statsEl.innerHTML = '<div class="stat-card"><div class="value">-</div><div class="label">Всего</div></div>' +
-                                '<div class="stat-card"><div class="value">-</div><div class="label">WIN</div></div>' +
-                                '<div class="stat-card"><div class="value">-</div><div class="label">LOSS</div></div>' +
-                                '<div class="stat-card"><div class="value">-</div><div class="label">Hit</div></div>';
-        } catch(ex) {}
-    }
+    const statsEl = document.getElementById('anomalyStatsGrid');
+    const listEl = document.getElementById('anomaliesList');
+    const hypEl = document.getElementById('anomalyHypothetical');
+    if (!statsEl || !listEl) return;
+
+    statsEl.innerHTML = '<div class="skeleton" style="height:60px;"></div>'.repeat(4);
+    listEl.innerHTML = '<div class="skeleton" style="height:80px;"></div>'.repeat(2);
+
     try {
-        var resp = await fetch(API_BASE + '/api/anomalies?t=' + Date.now());
-        var data = await resp.json();
-        var items = data.items || [];
-        var s = data.stats || {};
-        if (statsEl) {
-            try {
-                statsEl.innerHTML = '<div class="stat-card"><div class="value">' + (s.total || 0) + '</div><div class="label">Всего</div></div>' +
-                                    '<div class="stat-card"><div class="value">' + (s.wins || 0) + '</div><div class="label">WIN</div></div>' +
-                                    '<div class="stat-card"><div class="value">' + (s.losses || 0) + '</div><div class="label">LOSS</div></div>' +
-                                    '<div class="stat-card"><div class="value">' + (s.hit_rate || 0) + '%</div><div class="label">Hit</div></div>';
-            } catch(ex) {}
-        }
+        const resp = await fetch(API_BASE + '/api/anomalies?t=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.status !== 'ok') throw new Error(data.error || 'API error');
+
+        const s = data.stats || {};
+
+        statsEl.innerHTML = `
+            <div class="stat-card">
+                <div class="value">${s.total || 0}</div>
+                <div class="label">🚫 Всего</div>
+            </div>
+            <div class="stat-card">
+                <div class="value green">${s.wins || 0}</div>
+                <div class="label">✅ WIN</div>
+            </div>
+            <div class="stat-card">
+                <div class="value red">${s.losses || 0}</div>
+                <div class="label">❌ LOSS</div>
+            </div>
+            <div class="stat-card">
+                <div class="value gold">${s.hit_rate || 0}%</div>
+                <div class="label">🎯 Hit Rate</div>
+            </div>
+        `;
+
         if (hypEl) {
-            try {
-                hypEl.innerHTML = 'Гипотетическая прибыль: $' + (s.hypothetical_profit || 0).toFixed(2);
-            } catch(ex) {}
+            const profit = s.hypothetical_profit || 0;
+            const color = profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+            const stake = s.stake_per_bet || 50;
+            hypEl.innerHTML = `
+                <div style="text-align:center;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px;margin-top:12px;">
+                    <div style="font-size:10px;color:var(--text-tertiary);">
+                        Если бы ставили $${stake} на каждый пропущенный
+                    </div>
+                    <div style="font-size:24px;font-weight:800;color:${color};margin-top:4px;">
+                        ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}
+                    </div>
+                    <div style="font-size:10px;color:var(--text-tertiary);margin-top:4px;">
+                        ${profit < 0 ? '✅ Фильтр спас банк' : '⚠️ Фильтр зря пропускает матчи'}
+                    </div>
+                </div>
+            `;
         }
-        var html = 'DEBUG: items.length=' + items.length + '<br>';
-        for (var i = 0; i < items.length; i++) {
-            var it = items[i];
-            html += '<div style="padding:8px 0;border-bottom:1px solid #333;">';
-            html += (it.home || '?') + ' vs ' + (it.away || '?');
-            html += ' | ' + (it.league || '?');
-            html += ' | ' + (it.result || 'pending');
-            html += '</div>';
+
+        const items = data.items || [];
+        if (items.length === 0) {
+            listEl.innerHTML = `
+                <div class="no-data" style="padding:20px;">
+                    <div class="emoji">📭</div>
+                    <div class="desc">Пока нет аномалий</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            const r = (it.result || 'pending').toLowerCase();
+            const emoji = r === 'win' ? '✅' : (r === 'loss' ? '❌' : '⏳');
+            const resultColor = r === 'win' ? 'var(--emerald-400)' :
+                               (r === 'loss' ? 'var(--red-400)' : 'var(--gold-400)');
+            const resultBadge = r === 'win' ? 'WIN' : (r === 'loss' ? 'LOSS' : 'PENDING');
+
+            const home = it.home || '?';
+            const away = it.away || '?';
+            const league = it.league || '—';
+            const bestOdds = it.best_odds || 0;
+            const avgOdds = it.avg_odds || 0;
+            const diff = it.diff || 0;
+            const anomalyPct = it.anomaly_pct || 0;
+            const betType = it.bet_type || 'VALUE';
+
+            const scoreStr = (it.home_goals != null && it.away_goals != null)
+                ? `${it.home_goals}-${it.away_goals}` : '';
+
+            html += `
+                <div class="snapshot-card has-anomaly" style="margin-bottom:10px;">
+                    <div class="snapshot-header">
+                        <div style="flex:1;min-width:0;">
+                            <div class="snapshot-match">
+                                ${emoji} ${home} vs ${away}
+                            </div>
+                            <div class="snapshot-meta">
+                                🏆 ${league}
+                            </div>
+                            <div class="snapshot-meta">
+                                🎯 ${betType} ${scoreStr ? '• Счёт: ' + scoreStr : ''}
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                            <div class="snapshot-badge anomaly" style="background:rgba(245,158,11,0.15);color:${resultColor};border-color:${resultColor}40;">
+                                ${resultBadge}
+                            </div>
+                            <div style="font-size:10px;color:var(--gold-400);font-weight:700;">
+                                +${anomalyPct}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="snapshot-trends">
+                        <div class="snapshot-trend">
+                            <span class="trend-label">Best</span>
+                            <span class="trend-values" style="color:var(--gold-400);font-weight:800;">${bestOdds}</span>
+                        </div>
+                        <div class="snapshot-trend">
+                            <span class="trend-label">Avg</span>
+                            <span class="trend-values">${avgOdds}</span>
+                        </div>
+                        <div class="snapshot-trend">
+                            <span class="trend-label">Diff</span>
+                            <span class="trend-values" style="color:var(--emerald-400);">+${diff}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color);font-size:10px;color:var(--text-tertiary);text-align:center;">
+                        🚫 Пропущен фильтром (разброс букмекеров > 0.5)
+                    </div>
+                </div>
+            `;
         }
         listEl.innerHTML = html;
+
     } catch (e) {
-        listEl.innerHTML = 'CATCH_ERROR: ' + e.message;
+        console.error('loadAnomalies error:', e);
+        if (listEl) listEl.innerHTML = `
+            <div class="no-data">
+                <div class="emoji">⚠️</div>
+                <div class="desc">Ошибка: ${e.message}</div>
+            </div>
+        `;
     }
 }
     
