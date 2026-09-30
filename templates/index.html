@@ -7617,36 +7617,47 @@ async function loadAnomalies() {
     var statsEl = document.getElementById('anomalyStatsGrid');
     var listEl = document.getElementById('anomaliesList');
     var hypEl = document.getElementById('anomalyHypothetical');
-    if (!statsEl || !listEl) {
-        if (listEl) listEl.innerHTML = 'NO_ELEMENT: anomalyStatsGrid or anomaliesList not found';
+    if (!listEl) {
         return;
+    }
+    if (statsEl) {
+        try {
+            statsEl.innerHTML = '<div class="stat-card"><div class="value">-</div><div class="label">Всего</div></div>' +
+                                '<div class="stat-card"><div class="value">-</div><div class="label">WIN</div></div>' +
+                                '<div class="stat-card"><div class="value">-</div><div class="label">LOSS</div></div>' +
+                                '<div class="stat-card"><div class="value">-</div><div class="label">Hit</div></div>';
+        } catch(ex) {}
     }
     try {
         var resp = await fetch(API_BASE + '/api/anomalies?t=' + Date.now());
         var data = await resp.json();
-        var s = data.stats || {};
-        statsEl.innerHTML = '<div class="stat-card"><div class="value">' + (s.total || 0) + '</div><div class="label">Всего</div></div>' +
-                            '<div class="stat-card"><div class="value">' + (s.wins || 0) + '</div><div class="label">WIN</div></div>' +
-                            '<div class="stat-card"><div class="value">' + (s.losses || 0) + '</div><div class="label">LOSS</div></div>' +
-                            '<div class="stat-card"><div class="value">' + (s.hit_rate || 0) + '%</div><div class="label">Hit</div></div>';
-        if (hypEl) hypEl.innerHTML = 'Гипотетическая прибыль: $' + (s.hypothetical_profit || 0).toFixed(2);
         var items = data.items || [];
-        var html = 'DEBUG: items.length=' + items.length + ' | ';
-        if (items.length === 0) {
-            html += 'НЕТ ДАННЫХ';
-        } else {
-            for (var i = 0; i < items.length; i++) {
-                var it = items[i];
-                html += '<div style="padding:8px 0;border-bottom:1px solid #ccc;">';
-                html += 'MATCH: ' + (it.home || '?') + ' vs ' + (it.away || '?');
-                html += ' | LEAGUE: ' + (it.league || '?');
-                html += ' | RESULT: ' + (it.result || 'pending');
-                html += '</div>';
-            }
+        var s = data.stats || {};
+        if (statsEl) {
+            try {
+                statsEl.innerHTML = '<div class="stat-card"><div class="value">' + (s.total || 0) + '</div><div class="label">Всего</div></div>' +
+                                    '<div class="stat-card"><div class="value">' + (s.wins || 0) + '</div><div class="label">WIN</div></div>' +
+                                    '<div class="stat-card"><div class="value">' + (s.losses || 0) + '</div><div class="label">LOSS</div></div>' +
+                                    '<div class="stat-card"><div class="value">' + (s.hit_rate || 0) + '%</div><div class="label">Hit</div></div>';
+            } catch(ex) {}
+        }
+        if (hypEl) {
+            try {
+                hypEl.innerHTML = 'Гипотетическая прибыль: $' + (s.hypothetical_profit || 0).toFixed(2);
+            } catch(ex) {}
+        }
+        var html = 'DEBUG: items.length=' + items.length + '<br>';
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            html += '<div style="padding:8px 0;border-bottom:1px solid #333;">';
+            html += (it.home || '?') + ' vs ' + (it.away || '?');
+            html += ' | ' + (it.league || '?');
+            html += ' | ' + (it.result || 'pending');
+            html += '</div>';
         }
         listEl.innerHTML = html;
     } catch (e) {
-        if (listEl) listEl.innerHTML = 'CATCH_ERROR: ' + e.message;
+        listEl.innerHTML = 'CATCH_ERROR: ' + e.message;
     }
 }
     
