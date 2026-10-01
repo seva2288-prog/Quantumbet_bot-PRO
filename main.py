@@ -6765,29 +6765,24 @@ def find_value_matches(matches, max_bets=5):
                 if skip_value:
                     # ★ v23.3: логируем VALUE-аномалию для статистики
                     try:
-                sel_map = {
-                    'x2': 'X2', '1x': '1X',
-                    'home': 'П1', 'away': 'П2', 'draw': 'X'
-                }
-                rec = {
-                    'ts': datetime.now().isoformat(),
-                    'home': home, 'away': away,
-                    'fixture_id': fid,
-                    'league': league_name,
-                    'bet_type': 'VALUE',
-                    'selection': sel_map.get(skipped_mkt, ''),
-                    'best_odds': skipped_max,
-                    'avg_odds': round(skipped_avg, 2),
-                    'diff': round(skipped_max - skipped_avg, 2),
-                    'anomaly_pct': round((skipped_max / skipped_avg - 1) * 100, 1) if skipped_avg > 0 else 0,
-                    'source': 'value',
-                    'result': 'pending',
-                }
-                with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(rec, ensure_ascii=False) + '\n')
-            except Exception as e:
-                logger.error(f"anomaly log: {e}")
-            continue
+                        rec = {
+                            'ts': datetime.now().isoformat(),
+                            'home': home, 'away': away,
+                            'fixture_id': fid,
+                            'league': league_name,
+                            'bet_type': 'VALUE',
+                            'best_odds': skipped_max,
+                            'avg_odds': round(skipped_avg, 2),
+                            'diff': round(skipped_max - skipped_avg, 2),
+                            'anomaly_pct': round((skipped_max / skipped_avg - 1) * 100, 1) if skipped_avg > 0 else 0,
+                            'source': 'value',
+                            'result': 'pending',
+                        }
+                        with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                    except Exception as e:
+                        logger.error(f"anomaly log: {e}")
+                    continue
 
             def _compute_value(model_prob, odds):
                 if model_prob <= 0 or odds <= 1.01:
