@@ -3161,9 +3161,7 @@ function renderLive() {
     if (elLive) elLive.textContent = liveCount;
     if (elSoon) elSoon.textContent = soonCount;
 
-    const liveCount = liveData.filter(m => m.is_live).length;
-    const soonCount = liveData.filter(m => !m.is_live && !m.is_final && m.minutes_to_match > 0).length;
-    if (total === 0 || (liveCount === 0 && soonCount === 0)) {
+    if (total === 0) {
         container.innerHTML = `
             <div class="no-data">
                 <div class="emoji">📭</div>
