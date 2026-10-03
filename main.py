@@ -1101,12 +1101,98 @@ football_api = FootballAPI()
 # ============================================================
 class OddsAPIClient:
     def __init__(self, api_key=None):
-        self.api_key = None
-        self.base_url = None
-        logger.info("⚠️ Odds API ОТКЛЮЧЁН")
+        self.api_key = api_key or getattr(Config, 'ODDS_API_KEY', None)
+        self.base_url = getattr(Config, 'ODDS_API_URL', 'https://api.the-odds-api.com/v4')
+        self.cache = {}
+        self.remaining = None
+        self.active = bool(self.api_key and len(self.api_key) > 10)
 
-    def get_odds_for_match(self, home_team, away_team, league):
-        return None
+        if self.active:
+            logger.info(f"✅ Odds API: {self.api_key[:8]}...{self.api_key[-4:]}")
+            try:
+                r = requests.get(
+                    f'{self.base_url}/sports',
+                    params={'apiKey': self.api_key},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    self.remaining = r.headers.get('x-requests-remaining')
+                    logger.info(f"📊 Odds API: осталось запросов {self.remaining}")
+                else:
+                    logger.warning(f"Odds API quota check HTTP {r.status_code}")
+            except Exception as e:
+                logger.warning(f"Odds API quota: {e}")
+        else:
+            logger.info("⚠️ Odds API: ключ не задан — fallback отключён")
+
+    def get_odds_for_match(self, home_team, away_team, league, sport='soccer'):
+        if not self.active:
+            return None
+        if self.remaining is not None and int(self.remaining) <= 0:
+            self.active = False
+            logger.warning("🛑 Odds API: запросы исчерпаны — отключён")
+            return None
+
+        try:
+            cache_key = f"{home_team}_{away_team}"
+            if cache_key in self.cache:
+                return self.cache[cache_key]
+
+            url = f'{self.base_url}/sports/{sport}/odds'
+            params = {
+                'apiKey': self.api_key,
+                'regions': 'eu',
+                'markets': 'h2h',
+                'oddsFormat': 'decimal',
+            }
+            r = requests.get(url, params=params, timeout=15)
+
+            remaining = r.headers.get('x-requests-remaining')
+            if remaining is not None:
+                self.remaining = remaining
+                if int(remaining) <= 5:
+                    logger.warning(f"⚠️ Odds API: осталось {remaining} — автоотключение")
+
+            if r.status_code != 200:
+                logger.error(f"Odds API HTTP {r.status_code}: {r.text[:200]}")
+                if r.status_code == 429:
+                    self.active = False
+                return None
+
+            data = r.json()
+            for match in data:
+                if (match.get('home_team') == home_team and
+                        match.get('away_team') == away_team):
+                    best_home, best_draw, best_away = 0, 0, 0
+                    for bm in match.get('bookmakers', []):
+                        for market in bm.get('markets', []):
+                            if market.get('key') == 'h2h':
+                                for outcome in market.get('outcomes', []):
+                                    odd = outcome.get('price', 0)
+                                    name = outcome.get('name', '')
+                                    if name == home_team:
+                                        best_home = max(best_home, odd)
+                                    elif name == away_team:
+                                        best_away = max(best_away, odd)
+                                    elif name == 'Draw':
+                                        best_draw = max(best_draw, odd)
+                    result = {
+                        'home_odds': best_home,
+                        'draw_odds': best_draw,
+                        'away_odds': best_away,
+                        'best_odds': max(best_home, best_draw, best_away),
+                        'bookmaker': 'Odds API',
+                        'source': 'odds_api',
+                    }
+                    self.cache[cache_key] = result
+                    return result
+            return None
+        except Exception as e:
+            logger.error(f"Odds API error: {e}")
+            return None
+
+    def should_use_as_fallback(self):
+        return self.active and (self.remaining is None or int(self.remaining) > 0)
 
 
 odds_api = OddsAPIClient()
