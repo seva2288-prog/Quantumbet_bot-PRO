@@ -3196,6 +3196,7 @@ def find_value_matches(matches, max_bets=5):
     VALUE-поток. v22.6: увеличено max_bets по умолчанию (было 2),
     добавлена калибровка.
     ★ v23.3: восстановлен блок ANOMALY SKIP с полем 'selection'.
+    ★ v23.4: добавлен Odds API fallback.
     """
     bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
@@ -3211,6 +3212,7 @@ def find_value_matches(matches, max_bets=5):
     clv_skipped = 0
     prob_filtered = 0
     anomaly_skipped = 0
+    odds_fallback = 0
 
     for match in matches:
         if not match or not isinstance(match, dict): continue
@@ -3258,20 +3260,22 @@ def find_value_matches(matches, max_bets=5):
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form,
                                           h2h, api_predictions=api_predictions)
 
+            # ★ Кэфы: сначала из кэша, потом Football API, потом Odds API
             fo = match.get('_preloaded_odds')
-if not fo and fid:
-    fo = football_api.get_match_odds(fid)
+            if not fo and fid:
+                fo = football_api.get_match_odds(fid)
 
-# ★ Odds API fallback (70%+)
-if not fo and odds_api.should_use_as_fallback():
-    fo = odds_api.get_odds_for_match(home, away, league_name)
-    if fo:
-        logger.info(f"🔄 Odds API fallback (70%): {home} vs {away}")
+            # ★ Odds API fallback (VALUE)
+            if not fo and odds_api.should_use_as_fallback():
+                fo = odds_api.get_odds_for_match(home, away, league_name)
+                if fo:
+                    logger.info(f"🔄 Odds API fallback (VALUE): {home} vs {away}")
+                    odds_fallback += 1
 
-if not fo:
-    continue
+            if not fo:
+                continue
 
-            # ★ v23.3: ВОССТАНОВЛЕННЫЙ БЛОК ANOMALY SKIP
+            # ★ v23.3: ANOMALY SKIP для VALUE
             bm_list = fo.get('all_bookmakers', {})
             if bm_list and len(bm_list) >= 2:
                 skip_value = False
@@ -3470,7 +3474,7 @@ if not fo:
     logger.info(
         f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}, "
         f"CLV-skip: {clv_skipped}, Prob-filter: {prob_filtered}, "
-        f"Anomaly-skip: {anomaly_skipped}"
+        f"Anomaly-skip: {anomaly_skipped}, Odds-fallback: {odds_fallback}"
     )
     return top
 
