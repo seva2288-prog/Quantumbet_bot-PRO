@@ -6784,6 +6784,7 @@ def find_value_matches(matches, max_bets=5):
     blacklist = getattr(Config, 'BLACKLIST_LEAGUES', [])
     clv_skipped = 0
     prob_filtered = 0
+    odds_fallback = 0
 
     for match in matches:
         if not match or not isinstance(match, dict): continue
@@ -6831,18 +6832,20 @@ def find_value_matches(matches, max_bets=5):
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form,
                                           h2h, api_predictions=api_predictions)
 
+            # ★ Кэфы: cache → Football API → Odds API (fallback)
             fo = match.get('_preloaded_odds')
-if not fo and fid:
-    fo = football_api.get_match_odds(fid)
+            if not fo and fid:
+                fo = football_api.get_match_odds(fid)
 
-# ★ Odds API fallback (VALUE)
-if not fo and odds_api.should_use_as_fallback():
-    fo = odds_api.get_odds_for_match(home, away, league_name)
-    if fo:
-        logger.info(f"🔄 Odds API fallback (VALUE): {home} vs {away}")
+            # ★ Odds API fallback (VALUE)
+            if not fo and odds_api.should_use_as_fallback():
+                fo = odds_api.get_odds_for_match(home, away, league_name)
+                if fo:
+                    logger.info(f"🔄 Odds API fallback (VALUE): {home} vs {away}")
+                    odds_fallback += 1
 
-if not fo:
-    continue
+            if not fo:
+                continue
 
             # ★ v23.2: ANOMALY SKIP для VALUE (проверка разброса по букмекерам)
             bm_list = fo.get('all_bookmakers', {})
@@ -6869,12 +6872,17 @@ if not fo:
                 if skip_value:
                     # ★ v23.3: логируем VALUE-аномалию для статистики
                     try:
+                        sel_map = {
+                            'x2': 'X2', '1x': '1X',
+                            'home': 'П1', 'away': 'П2', 'draw': 'X'
+                        }
                         rec = {
                             'ts': datetime.now().isoformat(),
                             'home': home, 'away': away,
                             'fixture_id': fid,
                             'league': league_name,
                             'bet_type': 'VALUE',
+                            'selection': sel_map.get(skipped_mkt, ''),
                             'best_odds': skipped_max,
                             'avg_odds': round(skipped_avg, 2),
                             'diff': round(skipped_max - skipped_avg, 2),
@@ -7045,7 +7053,8 @@ if not fo:
     top = value_candidates[:VALUE_MAX_RESULTS]
     logger.info(
         f"💎 [VALUE] Найдено: {len(value_candidates)}, взято: {len(top)}, "
-        f"CLV-skip: {clv_skipped}, Prob-filter: {prob_filtered}"
+        f"CLV-skip: {clv_skipped}, Prob-filter: {prob_filtered}, "
+        f"Odds-fallback: {odds_fallback}"
     )
     return top
 
