@@ -6497,6 +6497,7 @@ def find_top_matches(matches):
                     reason = llm_generate_reason(m)
                     if reason:
                         m['best_bet']['llm_reason'] = reason
+                        logger.info(f"💡 LLM reason: {m['home']} vs {m['away']} → {reason[:80]}")
                 except Exception as e:
                     logger.debug(f"llm_generate_reason error: {e}")
         except Exception as e:
