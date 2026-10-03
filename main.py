@@ -3259,10 +3259,17 @@ def find_value_matches(matches, max_bets=5):
                                           h2h, api_predictions=api_predictions)
 
             fo = match.get('_preloaded_odds')
-            if not fo and fid:
-                fo = football_api.get_match_odds(fid)
-            if not fo:
-                continue
+if not fo and fid:
+    fo = football_api.get_match_odds(fid)
+
+# ★ Odds API fallback (70%+)
+if not fo and odds_api.should_use_as_fallback():
+    fo = odds_api.get_odds_for_match(home, away, league_name)
+    if fo:
+        logger.info(f"🔄 Odds API fallback (70%): {home} vs {away}")
+
+if not fo:
+    continue
 
             # ★ v23.3: ВОССТАНОВЛЕННЫЙ БЛОК ANOMALY SKIP
             bm_list = fo.get('all_bookmakers', {})
@@ -6821,10 +6828,17 @@ def find_value_matches(matches, max_bets=5):
                                           h2h, api_predictions=api_predictions)
 
             fo = match.get('_preloaded_odds')
-            if not fo and fid:
-                fo = football_api.get_match_odds(fid)
-            if not fo:
-                continue
+if not fo and fid:
+    fo = football_api.get_match_odds(fid)
+
+# ★ Odds API fallback (VALUE)
+if not fo and odds_api.should_use_as_fallback():
+    fo = odds_api.get_odds_for_match(home, away, league_name)
+    if fo:
+        logger.info(f"🔄 Odds API fallback (VALUE): {home} vs {away}")
+
+if not fo:
+    continue
 
             # ★ v23.2: ANOMALY SKIP для VALUE (проверка разброса по букмекерам)
             bm_list = fo.get('all_bookmakers', {})
