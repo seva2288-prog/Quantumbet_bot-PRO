@@ -8144,6 +8144,60 @@ def cleanup_old_backups():
         logger.error(f"❌ cleanup: {e}")
 
 
+cat > /tmp/cleanup_func.py << 'EOF'
+
+
+def cleanup_old_data():
+    """Удаляет .bak, старые бэкапы, обрезает логи. ★ v23.3"""
+    try:
+        import glob
+        # 1. Удаляем все .bak файлы
+        for f in glob.glob(os.path.join(DATA_DIR, '*.bak')):
+            try:
+                os.remove(f)
+                logger.info(f"🧹 Удалён: {os.path.basename(f)}")
+            except Exception as e:
+                logger.error(f"cleanup {f}: {e}")
+
+        # 2. Оставляем только 1 последний бэкап
+        backup_dir = os.path.join(DATA_DIR, 'backups')
+        if os.path.exists(backup_dir):
+            backups = sorted(
+                [os.path.join(backup_dir, f) for f in os.listdir(backup_dir)],
+                key=os.path.getmtime, reverse=True
+            )
+            for old in backups[1:]:
+                try:
+                    os.remove(old)
+                    logger.info(f"🧹 Удалён бэкап: {os.path.basename(old)}")
+                except Exception as e:
+                    logger.error(f"cleanup backup {old}: {e}")
+
+        # 3. Обрезаем matches_log.txt
+        log_path = os.path.join(DATA_DIR, 'matches_log.txt')
+        if os.path.exists(log_path) and os.path.getsize(log_path) > 200 * 1024:
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.writelines(lines[-500:])
+            logger.info("🧹 Обрезан matches_log.txt")
+
+        # 4. Логируем свободное место
+        try:
+            import shutil
+            stat = shutil.disk_usage(DATA_DIR)
+            free_mb = stat.free / (1024 * 1024)
+            logger.info(f"💾 Свободно: {free_mb:.0f} MB")
+        except Exception:
+            pass
+
+        return True
+    except Exception as e:
+        logger.exception(f"cleanup_old_data: {e}")
+        return False
+EOF
+
+
 def send_auto_backup():
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -8155,7 +8209,6 @@ def send_auto_backup():
             items.extend([
                 '/data/storage',
                 '/data/x2_data.json',
-                '/data/matches_log.txt',
                 '/data/bot_state.json',
                 '/data/bot_settings.json',
                 '/data/geocoding_cache.json',
@@ -8205,6 +8258,12 @@ def schedule_auto_backup():
         func=safe_job(send_auto_backup, "auto_backup"),
         trigger='cron', day='1,15', hour=0, minute=0, id='auto_backup',
         replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+    scheduler.add_job(
+        func=safe_job(cleanup_old_data, "cleanup_old_data"),
+        trigger='interval', hours=6, id='cleanup_old_data',
+        replace_existing=True, misfire_grace_time=300,
         coalesce=True, max_instances=1
     )
     scheduler.add_job(
