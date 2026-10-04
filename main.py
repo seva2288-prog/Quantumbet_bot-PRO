@@ -9109,7 +9109,37 @@ def api_live():
 
         with cache_lock:
             cache = storage.load_cache()
-        all_matches = cache.get('all_analyzed', []) + cache.get('top_matches', [])
+
+        # ★ v23.4: объединяем all_analyzed + top_matches, где top_matches ПРИОРИТЕТНЕЕ
+        _all_analyzed = cache.get('all_analyzed', [])
+        _top_matches = cache.get('top_matches', [])
+
+        _top_by_fid = {}
+        for _m in _top_matches:
+            _fid = _m.get('fixture_id')
+            if _fid:
+                _top_by_fid[_fid] = _m
+
+        all_matches = []
+        _seen_fids = set()
+        for _m in _all_analyzed:
+            _fid = _m.get('fixture_id')
+            if _fid and _fid in _top_by_fid:
+                if _fid not in _seen_fids:
+                    all_matches.append(_top_by_fid[_fid])
+                    _seen_fids.add(_fid)
+            else:
+                if _fid not in _seen_fids or not _fid:
+                    all_matches.append(_m)
+                    if _fid:
+                        _seen_fids.add(_fid)
+
+        for _m in _top_matches:
+            _fid = _m.get('fixture_id')
+            if _fid and _fid not in _seen_fids:
+                all_matches.append(_m)
+                _seen_fids.add(_fid)
+
         if not all_matches:
             return jsonify({'status': 'ok', 'count': 0, 'matches': [],
                             'now': now_msk.strftime('%H:%M')})
@@ -9198,7 +9228,7 @@ def api_live():
                 except Exception as e:
                     logger.debug(f"Live single fetch {fid}: {e}")
 
-            best_bet = m.get('best_bet', {})
+            best_bet = m.get('best_bet', {}) or {}
             bet_label = best_bet.get('label', '—')
             bet_odds = best_bet.get('odds', 0)
             bet_ev = best_bet.get('ev', 0)
