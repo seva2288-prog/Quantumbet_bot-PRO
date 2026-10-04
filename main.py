@@ -10678,6 +10678,71 @@ def void_old_endpoint():
     return jsonify({'status': 'ok', 'voided': voided})
 
 
+# ============================================================
+# ★ v23.4: ЗАПУСК ПОИСКА ИЗ ПРИЛОЖЕНИЯ
+# ============================================================
+@app.route('/api/trigger_search', methods=['POST'])
+def api_trigger_search():
+    """Запускает поиск матчей из веб-приложения."""
+    global search_running, search_state
+
+    if search_running:
+        return jsonify({
+            'status': 'already_running',
+            'message': 'Поиск уже запущен',
+        }), 200
+
+    search_running = True
+    search_state = {'start_time': datetime.now()}
+    logger.info("🚀 [APP] Поиск запущен через веб-интерфейс")
+    send_telegram("🚀 <b>Поиск запущен из приложения</b>")
+
+    def run_search():
+        global search_running, search_state
+        try:
+            matches = get_matches_with_factors()
+            if matches:
+                top = find_top_matches_with_tm25(matches)
+                if top:
+                    send_telegram(f"✅ <b>Найдено:</b> {len(top)}")
+                else:
+                    send_telegram("❌ Ничего не найдено")
+            else:
+                send_telegram("❌ Матчей нет")
+        except Exception as e:
+            logger.exception(f"❌ [APP] Ошибка поиска: {e}")
+            send_telegram(f"❌ <b>Ошибка поиска:</b>\n<code>{str(e)[:300]}</code>")
+        finally:
+            search_running = False
+            search_state = {}
+
+    Thread(target=run_search, daemon=True).start()
+
+    return jsonify({
+        'status': 'ok',
+        'message': 'Поиск запущен',
+        'started_at': search_state['start_time'].isoformat(),
+    }), 200
+
+
+@app.route('/api/search_status', methods=['GET'])
+def api_search_status():
+    """Возвращает статус поиска."""
+    global search_running, search_state
+    if search_running and search_state.get('start_time'):
+        elapsed = (datetime.now() - search_state['start_time']).total_seconds()
+        return jsonify({
+            'status': 'running',
+            'started_at': search_state['start_time'].isoformat(),
+            'elapsed_seconds': int(elapsed),
+        }), 200
+    return jsonify({
+        'status': 'idle',
+        'started_at': None,
+        'elapsed_seconds': 0,
+    }), 200
+
+
 @app.route('/health', methods=['GET'])
 def health():
     try:
