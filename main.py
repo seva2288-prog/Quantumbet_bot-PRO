@@ -3999,7 +3999,7 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 3: VALUE 💎 (усиленный)")
     logger.info("=" * 60)
-    value_matches = find_value_matches(matches, max_bets=5)   # ★ было 2
+    value_matches = find_value_matches(matches, max_bets=5)
 
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 4: BTTS (Обе Забьют)")
@@ -4050,13 +4050,14 @@ def find_top_matches_with_tm25(matches):
         return (0, m['best_bet'].get('ev', 0))
 
     combined.sort(key=_sort_key, reverse=True)
+
     # ★ v23.4: сохраняем ВСЕ сырые матчи для Live-вкладки
     all_before_odds_filter = []
     for _m in matches:
         try:
-            _fixture = _m.get('fixture', {})
-            _teams = _m.get('teams', {})
-            _ld = _m.get('league', {})
+            _fixture = _m.get('fixture', {}) or {}
+            _teams = _m.get('teams', {}) or {}
+            _ld = _m.get('league', {}) or {}
             all_before_odds_filter.append({
                 'home': _teams.get('home', {}).get('name', '?'),
                 'away': _teams.get('away', {}).get('name', '?'),
@@ -4067,7 +4068,7 @@ def find_top_matches_with_tm25(matches):
                 'source': 'raw',
             })
         except Exception:
-            continue)
+            continue
 
     if combined:
         logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
@@ -4093,6 +4094,7 @@ def find_top_matches_with_tm25(matches):
     EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
+    template_skipped = 0
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
@@ -4105,10 +4107,12 @@ def find_top_matches_with_tm25(matches):
         else:
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
+
         # ★ ФИНАЛЬНЫЙ ФИЛЬТР PROB > 78%
         if src != 'line_movement' and prob > PROB_MAX_70:
             logger.info(f"⏭️ FINAL PROB SKIP ({prob}% > {PROB_MAX_70}%): {m.get('home')} vs {m.get('away')}")
             continue
+
         # ★ v23.1: НЕ СТАВИМ с шаблонным кэфом
         if not bb.get('odds_updated'):
             template_skipped += 1
@@ -4117,7 +4121,7 @@ def find_top_matches_with_tm25(matches):
                 f"{m.get('home')} vs {m.get('away')} | {bb.get('label')} @ {bb.get('odds')}"
             )
             continue
-        
+
         m.pop('_preloaded_odds', None)
         m.pop('_preloaded_preds', None)
         filtered.append(m)
@@ -7641,18 +7645,40 @@ def find_top_matches_with_tm25(matches):
     all_before_odds_filter = []
     for _m in matches:
         try:
-            _fixture = _m.get('fixture', {})
-            _teams = _m.get('teams', {})
-            _ld = _m.get('league', {})
-            all_before_odds_filter.append({
-                'home': _teams.get('home', {}).get('name', '?'),
-                'away': _teams.get('away', {}).get('name', '?'),
-                'fixture_id': _fixture.get('id'),
-                'match_time': parse_match_time_to_msk(_fixture.get('date', '')),
+            _fixture = _m.get('fixture', {}) or {}
+            _teams = _m.get('teams', {}) or {}
+            _ld = _m.get('league', {}) or {}
+            _home_name = _teams.get('home', {}).get('name', '?')
+            _away_name = _teams.get('away', {}).get('name', '?')
+            _fixture_id = _fixture.get('id')
+            _match_time = parse_match_time_to_msk(_fixture.get('date', ''))
+
+            # ★ Базовые поля для UI
+            _raw = {
+                'home': _home_name,
+                'away': _away_name,
+                'fixture_id': _fixture_id,
+                'match_time': _match_time,
                 'league': _ld.get('name', '') if isinstance(_ld, dict) else '',
                 'status': _fixture.get('status', {}).get('short', 'NS'),
                 'source': 'raw',
-            })
+                'best_bet': {
+                    'label': '—',
+                    'odds': 0,
+                    'ev': 0,
+                    'prob': 0,
+                    'stake': 0,
+                    'bookmaker': '—',
+                },
+                'bets': [],
+                'total_xg': 0,
+                'home_form': '',
+                'away_form': '',
+                'country': '',
+                'country_flag': '',
+                '_preloaded_odds': _m.get('_preloaded_odds'),
+            }
+            all_before_odds_filter.append(_raw)
         except Exception:
             continue
 
