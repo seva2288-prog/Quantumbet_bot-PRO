@@ -8118,7 +8118,7 @@ def schedule_autobet():
     scheduler.start()
 
 
-MAX_BACKUPS = 2
+MAX_BACKUPS = 1
 
 
 def cleanup_old_backups():
