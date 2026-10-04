@@ -7703,6 +7703,7 @@ def find_top_matches_with_tm25(matches):
             'prob_calibrated': bb.get('prob_calibrated', bb.get('prob', 0)),
             'result': 'pending', 'profit': 0,
             'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
+            'match_time': md.get('match_time', ''),
             'fixture_id': md.get('fixture_id'),
             'bookmaker': bb.get('bookmaker', '—'),
             'engine': Config.PREDICTION_ENGINE,
@@ -7767,21 +7768,34 @@ def update_pending_bets():
             if fid:
                 md = football_api.get_match_result(fid)
                 if md:
-                    hg = md['goals']['home']; ag = md['goals']['away']
+                    hg = md['goals']['home']
+                    ag = md['goals']['away']
+
+                    # ★ v23.5: пропускаем, если счёта нет
                     if hg is None or ag is None:
                         continue
+
+                    # ★ v23.5: не считаем 0-0 финалом без is_final
+                    if hg == 0 and ag == 0 and not md.get('is_final', False):
+                        continue
+
                     status = md.get('status', 'NS')
-                    date_str = bet.get('date', '')
-                    match_time_str = ''
-                    if date_str and ' ' in date_str:
-                        parts = date_str.split()
-                        if len(parts) >= 2:
-                            try:
-                                d = datetime.strptime(parts[0], '%Y-%m-%d')
-                                match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
-                            except Exception:
-                                pass
+
+                    # ★ v23.5: сначала берём match_time из базы
+                    match_time_str = bet.get('match_time', '')
+                    if not match_time_str:
+                        date_str = bet.get('date', '')
+                        if date_str and ' ' in date_str:
+                            parts = date_str.split()
+                            if len(parts) >= 2:
+                                try:
+                                    d = datetime.strptime(parts[0], '%Y-%m-%d')
+                                    match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
+                                except Exception:
+                                    pass
+
                     force_final = is_force_final(match_time_str, status)
+
                     if not md.get('is_final', False) and not force_final:
                         if md.get('is_live', False):
                             bet['live_score'] = f"{hg}-{ag}"
@@ -7792,6 +7806,7 @@ def update_pending_bets():
                                 bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
                             live_updated += 1
                         continue
+
                     result = determine_bet_result(bet.get('bet', ''), hg, ag)
                     if result != 'pending':
                         bet['result'] = result
