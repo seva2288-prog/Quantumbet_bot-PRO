@@ -8144,9 +8144,6 @@ def cleanup_old_backups():
         logger.error(f"❌ cleanup: {e}")
 
 
-cat > /tmp/cleanup_func.py << 'EOF'
-
-
 def cleanup_old_data():
     """Удаляет .bak, старые бэкапы, обрезает логи. ★ v23.3"""
     try:
@@ -8195,7 +8192,6 @@ def cleanup_old_data():
     except Exception as e:
         logger.exception(f"cleanup_old_data: {e}")
         return False
-EOF
 
 
 def send_auto_backup():
