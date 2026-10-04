@@ -4050,7 +4050,24 @@ def find_top_matches_with_tm25(matches):
         return (0, m['best_bet'].get('ev', 0))
 
     combined.sort(key=_sort_key, reverse=True)
-    all_before_odds_filter = copy.deepcopy(combined)
+    # ★ v23.4: сохраняем ВСЕ сырые матчи для Live-вкладки
+    all_before_odds_filter = []
+    for _m in matches:
+        try:
+            _fixture = _m.get('fixture', {})
+            _teams = _m.get('teams', {})
+            _ld = _m.get('league', {})
+            all_before_odds_filter.append({
+                'home': _teams.get('home', {}).get('name', '?'),
+                'away': _teams.get('away', {}).get('name', '?'),
+                'fixture_id': _fixture.get('id'),
+                'match_time': parse_match_time_to_msk(_fixture.get('date', '')),
+                'league': _ld.get('name', '') if isinstance(_ld, dict) else '',
+                'status': _fixture.get('status', {}).get('short', 'NS'),
+                'source': 'raw',
+            })
+        except Exception:
+            continue)
 
     if combined:
         logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
@@ -7620,7 +7637,24 @@ def find_top_matches_with_tm25(matches):
         return (0, m['best_bet'].get('ev', 0))
 
     combined.sort(key=_sort_key, reverse=True)
-    all_before_odds_filter = copy.deepcopy(combined)
+    # ★ v23.4: сохраняем ВСЕ сырые матчи для Live-вкладки
+    all_before_odds_filter = []
+    for _m in matches:
+        try:
+            _fixture = _m.get('fixture', {})
+            _teams = _m.get('teams', {})
+            _ld = _m.get('league', {})
+            all_before_odds_filter.append({
+                'home': _teams.get('home', {}).get('name', '?'),
+                'away': _teams.get('away', {}).get('name', '?'),
+                'fixture_id': _fixture.get('id'),
+                'match_time': parse_match_time_to_msk(_fixture.get('date', '')),
+                'league': _ld.get('name', '') if isinstance(_ld, dict) else '',
+                'status': _fixture.get('status', {}).get('short', 'NS'),
+                'source': 'raw',
+            })
+        except Exception:
+            continue
 
     if combined:
         logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
