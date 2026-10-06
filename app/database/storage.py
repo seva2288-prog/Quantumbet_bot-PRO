@@ -669,6 +669,45 @@ class Storage:
             logger.error(f"❌ update_x2_result: {e}")
             return False
 
+   def update_anomaly(self, fixture_id, result, home_goals, away_goals):
+        """Обновляет результат аномалии в anomaly_skipped.jsonl."""
+        try:
+            import os as _os, json as _json
+            from datetime import datetime as _dt
+            path = '/opt/render/project/src/data/anomaly_skipped.jsonl'
+            if not _os.path.exists(path):
+                return False
+
+            with open(path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            updated = False
+            new_lines = []
+            for line in lines:
+                try:
+                    rec = _json.loads(line.strip())
+                except Exception:
+                    new_lines.append(line)
+                    continue
+
+                if rec.get('fixture_id') == fixture_id:
+                    rec['result'] = result
+                    rec['home_goals'] = home_goals
+                    rec['away_goals'] = away_goals
+                    rec['settled_at'] = _dt.now().isoformat()
+                    updated = True
+
+                new_lines.append(_json.dumps(rec, ensure_ascii=False) + '\n')
+
+            if updated:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.writelines(new_lines)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"update_anomaly: {e}")
+            return False
+
     def update_x2_entry_odds(self, candidate_id, entry_odds, entry_1x_odds=None):
         try:
             conn = sqlite3.connect(self._x2_db_path, timeout=10)
