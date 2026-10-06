@@ -7912,4 +7912,4 @@ Object.assign(window, {
     loadAnomalies,
     loadDashboardAnomalies,
 });
-</script>   
+</script>
