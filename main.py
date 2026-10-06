@@ -9247,7 +9247,6 @@ best_bet = m.get('best_bet', {}) or {}
             bet_odds = best_bet.get('odds', 0) or 0
             bet_ev = best_bet.get('ev', 0) or 0
             bet_prob = best_bet.get('prob', 0) or 0
-
             live_status = None
             live_minute = 0
             live_score = None
