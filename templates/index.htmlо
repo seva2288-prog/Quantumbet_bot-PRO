@@ -2413,6 +2413,37 @@
     </div>
 </div>
 
+    <!-- MODAL: ANOMALY SET RESULT -->
+<div class="modal-overlay" id="anomalyResultModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✏️ Ввести счёт</h3>
+            <button class="modal-close" onclick="closeAnomalyResultModal()">✕</button>
+        </div>
+        <div class="modal-field">
+            <label id="anomalyResultMatch" style="font-size:14px;font-weight:700;color:var(--text-primary);">Матч</label>
+            <input type="hidden" id="anomalyResultFixtureId">
+            <input type="hidden" id="anomalyResultSelection">
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>🏠 Хозяева</label>
+                    <input type="number" id="anomalyResultHome" value="0" min="0" step="1">
+                </div>
+                <div>
+                    <label>✈️ Гости</label>
+                    <input type="number" id="anomalyResultAway" value="0" min="0" step="1">
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="saveAnomalyResult()">💾 Сохранить</button>
+            <button class="btn btn-outline" onclick="closeAnomalyResultModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <!-- TOAST -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
@@ -7702,7 +7733,8 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ============================================================
 // ЭКСПОРТ В WINDOW
-// ============================================================// ============================================================
+// ============================================================
+// ============================================================
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
@@ -7792,6 +7824,17 @@ async function loadAnomalies() {
             const scoreStr = (it.home_goals != null && it.away_goals != null)
                 ? `${it.home_goals}-${it.away_goals}` : '';
 
+            // ★ Кнопка "Ввести счёт" для pending
+            const buttonHtml = r === 'pending' ? `
+                <div style="margin-top:8px;">
+                    <button class="btn btn-outline"
+                            onclick="event.stopPropagation();openAnomalyResultModal(${it.fixture_id}, '${(it.selection || '').replace(/'/g, "\\'")}', '${(home + ' vs ' + away).replace(/'/g, "\\'")}')"
+                            style="padding:6px 10px;font-size:11px;width:100%;">
+                        ✏️ Ввести счёт
+                    </button>
+                </div>
+            ` : '';
+
             html += `
                 <div class="snapshot-card has-anomaly" style="margin-bottom:10px;">
                     <div class="snapshot-header">
@@ -7832,6 +7875,7 @@ async function loadAnomalies() {
                     <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color);font-size:10px;color:var(--text-tertiary);text-align:center;">
                         🚫 Пропущен фильтром (разброс букмекеров > 0.5)
                     </div>
+                    ${buttonHtml}
                 </div>
             `;
         }
@@ -7846,14 +7890,49 @@ async function loadAnomalies() {
             </div>
         `;
     }
-}
-    
+}    
 Object.assign(window, {
-    loadAnomalies,
-    loadDashboardAnomalies,
-});
+    // ============ ОСНОВНЫЕ (СТАРЫЕ) ============
+    cycleTheme, setTheme, switchPage, refreshData,
+    openSettings, closeSettings,
+    toggleMoreMenu, closeMoreMenu, openFromMore,
+    filterMatches, setMatchFilter, setViewMode, sortTable, toggleShowAll,
+    showMatchDetail, closeMatchDetail,
+    showAddMatchModal, hideAddMatchModal, saveManualMatch,
+    updateBank, applyBotSettings, exportCSV,
+    exportProject, importProject, clearAllX2,
+    openX2Modal, closeX2Modal, saveX2Match, editX2Match, deleteX2Match,
+    exportX2Excel, setX2Filter, openX2ImportModal, closeX2ImportModal,
+    importX2Excel, autoImportX2FromLogs,
+    installPWA, hideInstallBanner, updatePWA, checkForUpdates,
+    runBotUpdate, renderAnalyticsChart,
+    loadSnapshots, refreshSnapshots, setSnapshotFilter, setSnapshotSort,
+    filterSnapshots, showSnapshotChart, closeSnapshotChart,
+    openSnapshotFromAnomaly, loadAnomalies,
+    quickSetResult,
+    loadAutobets, autobetsPlace, autobetsSettle, autobetsReset,
+    loadSimPresets, applySimPreset, runSimulation, saveSimulation,
+    computeClv, loadClvStats, runGridSearch, renderGridTop5,
+    loadDashboardAutobets, getSourceBadge,
+    loadAutoX2, openX2Detail,
+    loadLive, renderLive, startLiveRefresh,
+    renderSparkline,
+    loadAnomalyStats, renderAnomalyStats,
+    loadClvByStrategy, renderClvByStrategy,
+    renderLMDashboardStats,
+    renderSnapshotBetBlock,
+    showSearchProgressModal, hideSearchProgressModal, pollSearchStatus,
 
-    // ============ ★ v23.3: АНОМАЛИИ ============
+    // ============ КАЛИБРОВКА (СТАРЫЕ) ============
+    loadCalibration, renderCalibration,
+    loadCalibrationSnapshots, renderCalibrationSnapshots,
+    saveCalibrationSnapshot, deleteCalibrationSnapshot,
+    loadCalibrationFull,
+
+    // ============ СТАТИСТИКА ПО ДНЯМ (СТАРЫЕ) ============
+    loadDailyStats, aggregateByDay, renderDailySummary,
+    renderDailyList, setDailyFilter, setDailySort, showDayDetail,
+
     loadAnomalies,
     loadDashboardAnomalies,
 
@@ -7870,8 +7949,9 @@ Object.assign(window, {
     run3WaySplitGrid,
     render3WayGridTop5,
     reset3WayForm,
-    // ВНИМАНИЕ: Убраны дубликаты renderTrainTestResults, runTrainTestGrid, 
-    // renderTrainTestGridTop5, resetTrainTestForm, которые были в конце.
-    // Они уже объявлены в блоке v22.4 выше.
+
+    // ============ ★ v23.3: АНОМАЛИИ ============
+    loadAnomalies,
+    loadDashboardAnomalies,
 });
-</script>
+</script>   
