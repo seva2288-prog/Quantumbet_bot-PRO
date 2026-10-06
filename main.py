@@ -9231,7 +9231,7 @@ def api_live():
             best_bet = m.get('best_bet', {}) or {}
 
 # ★ v23.5: если best_bet пустой — ищем в top_matches
-if not best_bet.get('label') or best_bet.get('odds', 0) <= 1.01:
+    if not best_bet.get('label') or (best_bet.get('odds') or 0) <= 1.01:
     try:
         with cache_lock:
             _cache = storage.load_cache()
