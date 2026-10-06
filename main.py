@@ -6212,7 +6212,7 @@ def find_top_matches(matches):
     X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
     X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
     X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
-    MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.50)
+    MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.70)
 
     for match_idx, match in enumerate(matches):
         if not match or not isinstance(match, dict): continue
@@ -6340,7 +6340,7 @@ def find_top_matches(matches):
                 cheap_fav_skipped += 1
                 continue
 
-            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 12)   # ★ v23.0: было 8
+            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)   # ★ v23.0: было 8
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
