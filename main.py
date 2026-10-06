@@ -9229,10 +9229,24 @@ def api_live():
                     logger.debug(f"Live single fetch {fid}: {e}")
 
             best_bet = m.get('best_bet', {}) or {}
-            bet_label = best_bet.get('label', '—')
-            bet_odds = best_bet.get('odds', 0)
-            bet_ev = best_bet.get('ev', 0)
-            bet_prob = best_bet.get('prob', 0)
+
+# ★ v23.5: если best_bet пустой — ищем в top_matches
+if not best_bet.get('label') or best_bet.get('odds', 0) <= 1.01:
+    try:
+        with cache_lock:
+            _cache = storage.load_cache()
+        _top = _cache.get('top_matches', [])
+        for _tm in _top:
+            if _tm.get('fixture_id') == fid:
+                best_bet = _tm.get('best_bet', {}) or {}
+                break
+    except Exception as e:
+        logger.debug(f"api_live best_bet lookup {fid}: {e}")
+
+bet_label = best_bet.get('label') or '—'
+bet_odds = best_bet.get('odds', 0) or 0
+bet_ev = best_bet.get('ev', 0) or 0
+bet_prob = best_bet.get('prob', 0) or 0
 
             live_status = None
             live_minute = 0
