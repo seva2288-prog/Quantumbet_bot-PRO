@@ -10153,6 +10153,64 @@ def api_snapshot():
 # ============================================================
 # ★ v23.3: API — АНОМАЛИИ (пропущенные матчи)
 # ============================================================
+# ============================================================
+# ★ v23.4: РУЧНОЕ ОБНОВЛЕНИЕ АНОМАЛИИ
+# ============================================================
+@app.route('/api/anomaly_set_result', methods=['POST'])
+def api_anomaly_set_result():
+    """Ручной ввод результата аномалии."""
+    try:
+        data = request.json or {}
+        fixture_id = data.get('fixture_id')
+        home_goals = data.get('home_goals')
+        away_goals = data.get('away_goals')
+        selection = (data.get('selection') or '').upper().strip()
+
+        if fixture_id is None or home_goals is None or away_goals is None:
+            return jsonify({'status': 'error', 'error': 'fixture_id, home_goals, away_goals обязательны'}), 400
+
+        hg = int(home_goals)
+        ag = int(away_goals)
+
+        if selection == 'X2':
+            result = 'win' if ag >= hg else 'loss'
+        elif selection == '1X':
+            result = 'win' if hg >= ag else 'loss'
+        elif selection in ('П1', '1'):
+            result = 'win' if hg > ag else 'loss'
+        elif selection in ('П2', '2'):
+            result = 'win' if ag > hg else 'loss'
+        elif selection == 'X':
+            result = 'win' if hg == ag else 'loss'
+        elif selection == 'ТМ 2.5':
+            result = 'win' if (hg + ag) < 2.5 else 'loss'
+        elif selection == 'ТБ 2.5':
+            result = 'win' if (hg + ag) > 2.5 else 'loss'
+        elif selection == 'ОБЗ':
+            result = 'win' if hg > 0 and ag > 0 else 'loss'
+        else:
+            result = 'unknown'
+
+        ok = storage.update_anomaly(
+            fixture_id=int(fixture_id),
+            result=result,
+            home_goals=hg,
+            away_goals=ag,
+        )
+
+        if ok:
+            logger.info(f"✏️ Аномалия вручную: fid={fixture_id} | {hg}:{ag} | {result.upper()}")
+            return jsonify({
+                'status': 'ok',
+                'result': result,
+                'home_goals': hg,
+                'away_goals': ag,
+            })
+        return jsonify({'status': 'error', 'error': 'Не удалось сохранить'}), 500
+    except Exception as e:
+        logger.exception(f"api_anomaly_set_result: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 @app.route('/api/anomalies', methods=['GET'])
 def api_anomalies():
     """Возвращает пропущенные аномалии с результатами."""
