@@ -669,11 +669,11 @@ class Storage:
             logger.error(f"❌ update_x2_result: {e}")
             return False
 
-   def update_anomaly(self, fixture_id, result, home_goals, away_goals):
+    def update_anomaly(self, fixture_id, result, home_goals, away_goals):
         """Обновляет результат аномалии в anomaly_skipped.jsonl."""
         try:
-            import os as _os, json as _json
-            from datetime import datetime as _dt
+            import os as _os
+            import json as _json
             path = '/opt/render/project/src/data/anomaly_skipped.jsonl'
             if not _os.path.exists(path):
                 return False
@@ -694,7 +694,7 @@ class Storage:
                     rec['result'] = result
                     rec['home_goals'] = home_goals
                     rec['away_goals'] = away_goals
-                    rec['settled_at'] = _dt.now().isoformat()
+                    rec['settled_at'] = datetime.now().isoformat()
                     updated = True
 
                 new_lines.append(_json.dumps(rec, ensure_ascii=False) + '\n')
