@@ -7576,6 +7576,60 @@ def find_line_movement_matches(matches):
 # КОМБИНИРОВАННЫЙ ПОИСК
 # ============================================================
 @timing_decorator()
+# ============================================================
+# ★ v23.7: SCORE-BASED ФИЛЬТР
+# ============================================================
+def calc_match_score(ev, prob, odds, clv_mult=1.0, total_xg=0):
+    """Считает общий score матча для Score-based фильтра."""
+    score = 0.0
+    score += min(max(ev, 0), 50) * 0.4
+    if prob >= 40:
+        if prob <= 70:
+            prob_score = (prob - 40) / 30 * 100
+        elif prob <= 80:
+            prob_score = 100
+        else:
+            prob_score = max(0, 100 - (prob - 80) * 3)
+        score += prob_score * 0.3
+    score += clv_mult * 20
+    if total_xg > 0:
+        if 2.0 <= total_xg <= 3.0:
+            xg_score = 100
+        elif total_xg < 2.0:
+            xg_score = max(0, (total_xg - 1.0) / 1.0 * 100)
+        else:
+            xg_score = max(0, 100 - (total_xg - 3.0) * 50)
+        score += xg_score * 0.1
+    if 1.6 <= odds <= 2.2:
+        score += 5
+    elif odds < 1.5 or odds > 3.0:
+        score -= 5
+    return round(score, 1)
+
+
+def get_score_threshold(source='70_percent'):
+    thresholds = {
+        '70_percent': 7.0,
+        'value': 6.5,
+        'btts': 6.0,
+        'tm25_premium': 7.5,
+        'tm25_standard': 6.5,
+        'line_movement': 5.0,
+    }
+    return thresholds.get(source, 7.0)
+
+
+def get_score_weights(source='70_percent'):
+    weights = {
+        '70_percent': {'ev': 0.4, 'prob': 0.3, 'clv': 0.2, 'xg': 0.1},
+        'value': {'ev': 0.5, 'prob': 0.2, 'clv': 0.2, 'xg': 0.1},
+        'btts': {'ev': 0.4, 'prob': 0.35, 'clv': 0.15, 'xg': 0.1},
+        'tm25_premium': {'ev': 0.35, 'prob': 0.35, 'clv': 0.2, 'xg': 0.1},
+        'tm25_standard': {'ev': 0.4, 'prob': 0.3, 'clv': 0.2, 'xg': 0.1},
+        'line_movement': {'ev': 0, 'prob': 0, 'clv': 0, 'xg': 0},
+    }
+    return weights.get(source, {'ev': 0.4, 'prob': 0.3, 'clv': 0.2, 'xg': 0.1})
+
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 + Calibration)")
@@ -7738,26 +7792,28 @@ def find_top_matches_with_tm25(matches):
         if not m.get('fixture_id'):
             logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
 
-    EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
+   EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
     template_skipped = 0
+    score_skipped = 0
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
         ev = bb.get('ev', 0)
         prob = bb.get('prob', 0)
+        odds = bb.get('odds', 0)
         src = m.get('source', '')
+
+        # Базовые проверки (жёсткие)
         if src in ('value', 'btts', 'line_movement'):
             if ev < EV_MIN: continue
             if src != 'line_movement' and prob < PROB_MIN: continue
         else:
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
-        if src != 'line_movement' and prob > PROB_MAX_70:
-            logger.info(f"⏭️ FINAL PROB SKIP: {m.get('home')} vs {m.get('away')}")
-            continue
-        # ★ v23.1: НЕ СТАВИМ с шаблонным кэфом
+
+        # Template skip
         if not bb.get('odds_updated'):
             template_skipped += 1
             logger.info(
@@ -7765,11 +7821,37 @@ def find_top_matches_with_tm25(matches):
                 f"{m.get('home')} vs {m.get('away')} | {bb.get('label')} @ {bb.get('odds')}"
             )
             continue
+
+        # ★ SCORE-BASED ФИЛЬТР
+        if src != 'line_movement':
+            clv_mult = {
+                'boosted': 1.5, 'normal': 1.0, 'reduced': 0.5,
+                'no_data': 1.0, 'no_model': 1.0, 'disabled': 1.0,
+            }.get(bb.get('clv_action', 'normal'), 1.0)
+
+            score = calc_match_score(
+                ev=ev, prob=prob, odds=odds,
+                clv_mult=clv_mult,
+                total_xg=m.get('total_xg', 0),
+            )
+            threshold = get_score_threshold(src)
+
+            if score < threshold:
+                score_skipped += 1
+                logger.info(
+                    f"⏭️ SCORE SKIP ({score} < {threshold}): "
+                    f"{m.get('home')} vs {m.get('away')} | "
+                    f"EV={ev}% Prob={prob}% CLV×{clv_mult} XG={m.get('total_xg', 0)}"
+                )
+                continue
+
+            m['score'] = score
+
         m.pop('_preloaded_odds', None)
         m.pop('_preloaded_preds', None)
         filtered.append(m)
 
-    logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}")
+    logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}, score-skip: {score_skipped}")
 
     with cache_lock:
         cache = storage.load_cache()
