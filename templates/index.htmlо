@@ -7702,8 +7702,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ============================================================
 // ЭКСПОРТ В WINDOW
-// ============================================================
-// ============================================================
+// ============================================================// ============================================================
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
@@ -7850,11 +7849,32 @@ async function loadAnomalies() {
 }
     
 Object.assign(window, {
-    loadAnomalies,
-    loadDashboardAnomalies,
-    runTrainTest,
-    run3WaySplit,
-});
+    // ============ ОСНОВНЫЕ (СТАРЫЕ) ============
+    cycleTheme, setTheme, switchPage, refreshData,
+    openSettings, closeSettings,
+    toggleMoreMenu, closeMoreMenu, openFromMore,
+    filterMatches, setMatchFilter, setViewMode, sortTable, toggleShowAll,
+    showMatchDetail, closeMatchDetail,
+    showAddMatchModal, hideAddMatchModal, saveManualMatch,
+    updateBank, applyBotSettings, exportCSV,
+    exportProject, importProject, clearAllX2,
+    openX2Modal, closeX2Modal, saveX2Match, editX2Match, deleteX2Match,
+    exportX2Excel, setX2Filter, openX2ImportModal, closeX2ImportModal,
+    importX2Excel, autoImportX2FromLogs,
+    installPWA, hideInstallBanner, updatePWA, checkForUpdates,
+    runBotUpdate, renderAnalyticsChart,
+    loadSnapshots, refreshSnapshots, setSnapshotFilter, setSnapshotSort,
+    filterSnapshots, showSnapshotChart, closeSnapshotChart,
+    openSnapshotFromAnomaly, loadAnomalies,
+    quickSetResult,
+    loadAutobets, autobetsPlace, autobetsSettle, autobetsReset,
+    loadSimPresets, applySimPreset, runSimulation, saveSimulation,
+    computeClv, loadClvStats, runGridSearch, renderGridTop5,
+    loadDashboardAutobets, getSourceBadge,
+    loadAutoX2, openX2Detail,
+    loadLive, renderLive, startLiveRefresh,
+    renderSparkline,
+    loadAnomalyStats, renderAnomalyStats,
 
     // ============ ★ v23.3: АНОМАЛИИ ============
     loadAnomalies,
