@@ -7641,7 +7641,7 @@ def find_top_matches_with_tm25(matches):
         return (0, m['best_bet'].get('ev', 0))
 
     combined.sort(key=_sort_key, reverse=True)
-    # ★ v23.4: сохраняем ВСЕ сырые матчи для Live-вкладки
+    # ★ v23.5: обогащаем сырые матчи кэфами и формой для Live
     all_before_odds_filter = []
     for _m in matches:
         try:
@@ -7653,30 +7653,65 @@ def find_top_matches_with_tm25(matches):
             _fixture_id = _fixture.get('id')
             _match_time = parse_match_time_to_msk(_fixture.get('date', ''))
 
-            # ★ Базовые поля для UI
+            # ★ Достаём кэфы
+            _pre = _m.get('_preloaded_odds') or {}
+            _best_label = '—'
+            _best_odds = 0
+            _bm = '—'
+            for _k, _lbl in [('best_odds', '1X2'), ('1x_odds', '1X'), ('x2_odds', 'X2'),
+                             ('home_odds', 'П1'), ('away_odds', 'П2'),
+                             ('under_odds', 'ТМ 2.5'), ('over_odds', 'ТБ 2.5'),
+                             ('btts_yes', 'ОБЗ')]:
+                _v = _pre.get(_k, 0) or 0
+                if _v > 1.01:
+                    _best_odds = _v
+                    _best_label = _lbl
+                    _bm = _pre.get('bookmaker', '—')
+                    break
+
+            # ★ Форма и XG из factors
+            _factors = _m.get('factors', {}) or {}
+            _hfd = _factors.get('home_form') or {}
+            _afd = _factors.get('away_form') or {}
+            _home_form = _hfd.get('form', '') if isinstance(_hfd, dict) else ''
+            _away_form = _afd.get('form', '') if isinstance(_afd, dict) else ''
+            _total_xg = 0
+            try:
+                _hga = _hfd.get('goals_avg', 1.2) if isinstance(_hfd, dict) else 1.2
+                _aga = _afd.get('goals_avg', 1.0) if isinstance(_afd, dict) else 1.0
+                _hca = _hfd.get('conceded_avg', 1.0) if isinstance(_hfd, dict) else 1.0
+                _aca = _afd.get('conceded_avg', 1.2) if isinstance(_afd, dict) else 1.2
+                _home_xg = (_hga + _aca) / 2
+                _away_xg = (_aga + _hca) / 2
+                _total_xg = round(_home_xg + _away_xg, 2)
+            except Exception:
+                pass
+
+            _country, _flag = _get_country_flag(_ld.get('id') if isinstance(_ld, dict) else None)
+
             _raw = {
                 'home': _home_name,
                 'away': _away_name,
                 'fixture_id': _fixture_id,
                 'match_time': _match_time,
                 'league': _ld.get('name', '') if isinstance(_ld, dict) else '',
+                'country': _country,
+                'country_flag': _flag,
                 'status': _fixture.get('status', {}).get('short', 'NS'),
                 'source': 'raw',
                 'best_bet': {
-                    'label': '—',
-                    'odds': 0,
+                    'label': _best_label,
+                    'odds': _best_odds,
                     'ev': 0,
                     'prob': 0,
                     'stake': 0,
-                    'bookmaker': '—',
+                    'bookmaker': _bm,
                 },
                 'bets': [],
-                'total_xg': 0,
-                'home_form': '',
-                'away_form': '',
-                'country': '',
-                'country_flag': '',
-                '_preloaded_odds': _m.get('_preloaded_odds'),
+                'total_xg': _total_xg,
+                'home_form': _home_form,
+                'away_form': _away_form,
+                '_preloaded_odds': _pre,
             }
             all_before_odds_filter.append(_raw)
         except Exception:
