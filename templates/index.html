@@ -3498,6 +3498,9 @@ function renderBetCard(m, isActive = false) {
     const score = m.score || '-';
     const result = m.result || 'pending';
 
+    // ★ v23.7: Score-based фильтр — отображение
+    const matchScore = m.score != null && typeof m.score === 'number' ? m.score : null;
+
     const htH = m.halftime_home;
     const htA = m.halftime_away;
     const hasHalftime = (htH !== null && htH !== undefined && htA !== null && htA !== undefined);
@@ -3570,6 +3573,19 @@ function renderBetCard(m, isActive = false) {
            </div>`
         : '';
 
+    // ★ v23.7: цвет Score
+    let matchScoreColor = 'var(--text-tertiary)';
+    if (matchScore != null) {
+        if (matchScore >= 10) matchScoreColor = 'var(--emerald-400)';
+        else if (matchScore >= 7) matchScoreColor = 'var(--gold-400)';
+        else matchScoreColor = 'var(--red-400)';
+    }
+
+    // ★ Динамическая сетка: 3 или 4 колонки
+    const statsGridStyle = matchScore != null
+        ? 'grid-template-columns: repeat(4, 1fr);'
+        : '';
+
     return `
         <div class="bet-card ${isActive ? 'active' : ''}"
              data-fixture="${m.fixture_id || ''}"
@@ -3593,7 +3609,7 @@ function renderBetCard(m, isActive = false) {
                     ${resultBadge}
                 </div>
             </div>
-            <div class="bet-stats">
+            <div class="bet-stats" style="${statsGridStyle}">
                 <div class="bet-stat">
                     <span class="stat-label">Кэф</span>
                     <span class="stat-value">${oddsDisplay}</span>
@@ -3606,6 +3622,14 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
+                ${matchScore != null ? `
+                    <div class="bet-stat">
+                        <span class="stat-label">Score</span>
+                        <span class="stat-value" style="color:${matchScoreColor};font-weight:800;">
+                            ${matchScore.toFixed(1)}
+                        </span>
+                    </div>
+                ` : ''}
             </div>
             ${lmMovementHtml}
         </div>
