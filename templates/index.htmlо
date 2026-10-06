@@ -7702,8 +7702,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ============================================================
 // ЭКСПОРТ В WINDOW
-// ============================================================
-    // ============================================================
+// ============================================================// ============================================================
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
@@ -7876,21 +7875,8 @@ Object.assign(window, {
     loadLive, renderLive, startLiveRefresh,
     renderSparkline,
     loadAnomalyStats, renderAnomalyStats,
-    loadClvByStrategy, renderClvByStrategy,
-    renderLMDashboardStats,
-    renderSnapshotBetBlock,
-    showSearchProgressModal, hideSearchProgressModal, pollSearchStatus,
 
-    // ============ КАЛИБРОВКА (СТАРЫЕ) ============
-    loadCalibration, renderCalibration,
-    loadCalibrationSnapshots, renderCalibrationSnapshots,
-    saveCalibrationSnapshot, deleteCalibrationSnapshot,
-    loadCalibrationFull,
-
-    // ============ СТАТИСТИКА ПО ДНЯМ (СТАРЫЕ) ============
-    loadDailyStats, aggregateByDay, renderDailySummary,
-    renderDailyList, setDailyFilter, setDailySort, showDayDetail,
-
+    // ============ ★ v23.3: АНОМАЛИИ ============
     loadAnomalies,
     loadDashboardAnomalies,
 
@@ -7907,9 +7893,8 @@ Object.assign(window, {
     run3WaySplitGrid,
     render3WayGridTop5,
     reset3WayForm,
-
-    // ============ ★ v23.3: АНОМАЛИИ ============
-    loadAnomalies,
-    loadDashboardAnomalies,
+    // ВНИМАНИЕ: Убраны дубликаты renderTrainTestResults, runTrainTestGrid, 
+    // renderTrainTestGridTop5, resetTrainTestForm, которые были в конце.
+    // Они уже объявлены в блоке v22.4 выше.
 });
 </script>
