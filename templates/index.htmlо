@@ -7890,8 +7890,8 @@ async function loadAnomalies() {
             </div>
         `;
     }
-}    
-    
+}
+
 // ============================================================
 // ANOMALY SET RESULT — РУЧНОЕ ОБНОВЛЕНИЕ
 // ============================================================
@@ -7968,7 +7968,7 @@ Object.assign(window, {
     runBotUpdate, renderAnalyticsChart,
     loadSnapshots, refreshSnapshots, setSnapshotFilter, setSnapshotSort,
     filterSnapshots, showSnapshotChart, closeSnapshotChart,
-    openSnapshotFromAnomaly, loadAnomalies,
+    openSnapshotFromAnomaly,
     quickSetResult,
     loadAutobets, autobetsPlace, autobetsSettle, autobetsReset,
     loadSimPresets, applySimPreset, runSimulation, saveSimulation,
@@ -7993,8 +7993,9 @@ Object.assign(window, {
     loadDailyStats, aggregateByDay, renderDailySummary,
     renderDailyList, setDailyFilter, setDailySort, showDayDetail,
 
+    // ============ ★ v23.3: АНОМАЛИИ ============
     loadAnomalies,
-    loadDashboardAnomalies,
+    openAnomalyResultModal, closeAnomalyResultModal, saveAnomalyResult,
 
     // ============ ★ TRAIN/TEST (v22.4) ============
     runTrainTest,
@@ -8009,9 +8010,5 @@ Object.assign(window, {
     run3WaySplitGrid,
     render3WayGridTop5,
     reset3WayForm,
-
-    // ============ ★ v23.3: АНОМАЛИИ ============
-    loadAnomalies,
-    loadDashboardAnomalies,
 });
 </script>   
