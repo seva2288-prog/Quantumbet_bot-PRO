@@ -7630,6 +7630,8 @@ def get_score_weights(source='70_percent'):
     }
     return weights.get(source, {'ev': 0.4, 'prob': 0.3, 'clv': 0.2, 'xg': 0.1})
 
+
+
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 + Calibration)")
@@ -7792,7 +7794,7 @@ def find_top_matches_with_tm25(matches):
         if not m.get('fixture_id'):
             logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
 
-   EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
+EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
     EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
     PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
     template_skipped = 0
@@ -7805,7 +7807,6 @@ def find_top_matches_with_tm25(matches):
         odds = bb.get('odds', 0)
         src = m.get('source', '')
 
-        # Базовые проверки (жёсткие)
         if src in ('value', 'btts', 'line_movement'):
             if ev < EV_MIN: continue
             if src != 'line_movement' and prob < PROB_MIN: continue
@@ -7813,7 +7814,7 @@ def find_top_matches_with_tm25(matches):
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
 
-        # Template skip
+        # ★ v23.1: Template skip
         if not bb.get('odds_updated'):
             template_skipped += 1
             logger.info(
@@ -7822,7 +7823,7 @@ def find_top_matches_with_tm25(matches):
             )
             continue
 
-        # ★ SCORE-BASED ФИЛЬТР
+        # ★ v23.7: SCORE-BASED ФИЛЬТР
         if src != 'line_movement':
             clv_mult = {
                 'boosted': 1.5, 'normal': 1.0, 'reduced': 0.5,
