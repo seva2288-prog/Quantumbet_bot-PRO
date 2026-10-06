@@ -9228,7 +9228,7 @@ def api_live():
                 except Exception as e:
                     logger.debug(f"Live single fetch {fid}: {e}")
 
-best_bet = m.get('best_bet', {}) or {}
+            best_bet = m.get('best_bet', {}) or {}
 
             # ★ v23.5: если best_bet пустой — ищем в top_matches
             if not best_bet.get('label') or (best_bet.get('odds') or 0) <= 1.01:
@@ -9247,7 +9247,7 @@ best_bet = m.get('best_bet', {}) or {}
             bet_odds = best_bet.get('odds', 0) or 0
             bet_ev = best_bet.get('ev', 0) or 0
             bet_prob = best_bet.get('prob', 0) or 0
-        
+
             live_status = None
             live_minute = 0
             live_score = None
