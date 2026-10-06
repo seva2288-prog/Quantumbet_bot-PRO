@@ -3140,6 +3140,9 @@ async function loadLive(force = false) {
         renderLive();
         updateLiveLastUpdate();
         updateLiveNavBadge();
+        renderLive();
+        updateLiveLastUpdate();
+        updateLiveNavBadge();
 
         if (force) showNotification('✅ Live обновлён', 'success');
     } catch (e) {
