@@ -7918,6 +7918,65 @@ async function loadAnomalies() {
         `;
     }
 }    
+// ============================================================
+// ANOMALY SET RESULT — РУЧНОЕ ОБНОВЛЕНИЕ
+// ============================================================
+function openAnomalyResultModal(fixtureId, selection, matchName) {
+    const modal = document.getElementById('anomalyResultModal');
+    if (!modal) {
+        console.error('anomalyResultModal not found in DOM!');
+        showNotification('❌ Модалка не найдена', 'error');
+        return;
+    }
+    document.getElementById('anomalyResultFixtureId').value = fixtureId || '';
+    document.getElementById('anomalyResultSelection').value = selection || '';
+    document.getElementById('anomalyResultMatch').textContent = '🏟️ ' + matchName;
+    document.getElementById('anomalyResultHome').value = 0;
+    document.getElementById('anomalyResultAway').value = 0;
+    modal.classList.add('active');
+    haptic(8);
+}
+
+function closeAnomalyResultModal() {
+    const modal = document.getElementById('anomalyResultModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function saveAnomalyResult() {
+    const fixtureId = parseInt(document.getElementById('anomalyResultFixtureId').value);
+    const selection = document.getElementById('anomalyResultSelection').value;
+    const hg = parseInt(document.getElementById('anomalyResultHome').value) || 0;
+    const ag = parseInt(document.getElementById('anomalyResultAway').value) || 0;
+
+    if (!fixtureId) {
+        showNotification('❌ Нет ID матча', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(API_BASE + '/api/anomaly_set_result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fixture_id: fixtureId,
+                home_goals: hg,
+                away_goals: ag,
+                selection: selection,
+            })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            showNotification(`✅ ${data.result.toUpperCase()}: ${hg}:${ag}`, 'success');
+            closeAnomalyResultModal();
+            await loadAnomalies();
+        } else {
+            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
+        }
+    } catch (e) {
+        showNotification('❌ ' + e.message, 'error');
+    }
+}
+
 Object.assign(window, {
     // ============ ОСНОВНЫЕ (СТАРЫЕ) ============
     cycleTheme, setTheme, switchPage, refreshData,
