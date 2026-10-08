@@ -1871,6 +1871,7 @@
                     <option value="win">✅ WIN</option>
                     <option value="loss">❌ LOSS</option>
                     <option value="pending">⏳ Ожидание</option>
+                    <option value="unknown">❓ Неизвестно</option>
                 </select>
             </div>
             <div id="anomaliesList">
@@ -7819,7 +7820,20 @@ async function loadAnomalies() {
             `;
         }
 
-        const items = data.items || [];
+        let items = data.items || [];
+
+        const filterEl = document.getElementById('anomalyFilter');
+        const filter = filterEl ? (filterEl.value || 'all') : 'all';
+
+        if (filter === 'unknown') {
+            items = items.filter(x => {
+                const r = (x.result || 'pending').toLowerCase();
+                return r !== 'win' && r !== 'loss' && r !== 'pending';
+            });
+        } else if (filter !== 'all') {
+            items = items.filter(x => (x.result || 'pending').toLowerCase() === filter);
+        }
+
         if (items.length === 0) {
             listEl.innerHTML = `
                 <div class="no-data" style="padding:20px;">
@@ -7837,7 +7851,11 @@ async function loadAnomalies() {
             const emoji = r === 'win' ? '✅' : (r === 'loss' ? '❌' : '⏳');
             const resultColor = r === 'win' ? 'var(--emerald-400)' :
                                (r === 'loss' ? 'var(--red-400)' : 'var(--gold-400)');
-            const resultBadge = r === 'win' ? 'WIN' : (r === 'loss' ? 'LOSS' : 'PENDING');
+            let resultBadge;
+            if (r === 'win') resultBadge = 'WIN';
+            else if (r === 'loss') resultBadge = 'LOSS';
+            else if (r === 'pending') resultBadge = 'PENDING';
+            else resultBadge = 'UNKNOWN';
 
             const home = it.home || '?';
             const away = it.away || '?';
@@ -7851,8 +7869,7 @@ async function loadAnomalies() {
             const scoreStr = (it.home_goals != null && it.away_goals != null)
                 ? `${it.home_goals}-${it.away_goals}` : '';
 
-            // ★ Кнопка "Ввести счёт" для pending
-            const buttonHtml = r === 'pending' ? `
+            const buttonHtml = (r === 'pending' || resultBadge === 'UNKNOWN') ? `
                 <div style="margin-top:8px;">
                     <button class="btn btn-outline"
                             onclick="event.stopPropagation();openAnomalyResultModal(${it.fixture_id}, '${(it.selection || '').replace(/'/g, "\\'")}', '${(home + ' vs ' + away).replace(/'/g, "\\'")}')"

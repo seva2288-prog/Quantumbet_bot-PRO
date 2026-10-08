@@ -3321,8 +3321,7 @@ def find_value_matches(matches, max_bets=5):
                             'source': 'value',
                             'result': 'pending',
                         }
-                        with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
-                            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                        storage.add_anomaly(rec)
                         anomaly_skipped += 1
                     except Exception as e:
                         logger.error(f"anomaly log: {e}")
@@ -6912,8 +6911,7 @@ def find_value_matches(matches, max_bets=5):
                             'source': 'value',
                             'result': 'pending',
                         }
-                        with open(ANOMALY_FILE, 'a', encoding='utf-8') as f:
-                            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+                        storage.add_anomaly(rec)
                     except Exception as e:
                         logger.error(f"anomaly log: {e}")
                     continue
@@ -8470,6 +8468,12 @@ def schedule_auto_backup():
     scheduler.add_job(
         func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', day_of_week='mon', hour=4, minute=0, id='cleanup_odds',
+        replace_existing=True, misfire_grace_time=1800,
+        coalesce=True, max_instances=1
+    )
+    scheduler.add_job(
+        func=safe_job(lambda: storage.cleanup_old_anomalies(days=60), "cleanup_anomalies"),
+        trigger='cron', day_of_week='mon', hour=4, minute=30, id='cleanup_anomalies',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
@@ -10345,56 +10349,15 @@ def api_anomaly_set_result():
 
 @app.route('/api/anomalies', methods=['GET'])
 def api_anomalies():
-    """Возвращает пропущенные аномалии с результатами."""
+    """Возвращает пропущенные аномалии с результатами (через storage)."""
     try:
-        path = ANOMALY_FILE
-        if not os.path.exists(path):
-            return jsonify({
-                'status': 'ok', 'count': 0, 'items': [],
-                'stats': {'total': 0, 'wins': 0, 'losses': 0,
-                          'pending': 0, 'hit_rate': 0,
-                          'hypothetical_profit': 0, 'stake_per_bet': 50}
-            })
-
-        items = []
-        with open(path, 'r', encoding='utf-8') as f:
-            for line in f:
-                try:
-                    items.append(json.loads(line.strip()))
-                except Exception:
-                    continue
-
-        items.sort(key=lambda x: x.get('ts', ''), reverse=True)
-
-        wins = sum(1 for x in items if x.get('result') == 'win')
-        losses = sum(1 for x in items if x.get('result') == 'loss')
-        pending = sum(1 for x in items if x.get('result') in ('pending', None))
-        total_settled = wins + losses
-        hit_rate = round(wins / total_settled * 100, 1) if total_settled > 0 else 0
-
-        stake = 50
-        hypo_profit = 0
-        for x in items:
-            if x.get('result') == 'win':
-                odds = x.get('best_odds', 0) or 0
-                if odds > 1:
-                    hypo_profit += stake * (odds - 1)
-            elif x.get('result') == 'loss':
-                hypo_profit -= stake
-
+        items = storage.load_anomalies(limit=200)
+        stats = storage.get_anomaly_stats(stake_per_bet=50.0)
         return jsonify({
             'status': 'ok',
             'count': len(items),
-            'items': items[:200],
-            'stats': {
-                'total': len(items),
-                'wins': wins,
-                'losses': losses,
-                'pending': pending,
-                'hit_rate': hit_rate,
-                'hypothetical_profit': round(hypo_profit, 2),
-                'stake_per_bet': stake,
-            },
+            'items': items,
+            'stats': stats,
         })
     except Exception as e:
         logger.exception(f"api_anomalies: {e}")
@@ -11101,123 +11064,7 @@ def index():
 # ============================================================
 # ★ v23.3: Обновление результатов пропущенных аномалий
 # ============================================================
-def update_anomaly_results():
-    """Проверяет и обновляет результаты пропущенных аномалий."""
-    try:
-        path = '/data/anomaly_skipped.jsonl'
-        if not os.path.exists(path):
-            return 0
-
-        with open(path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-
-        updated = 0
-        new_lines = []
-        for line in lines:
-            try:
-                rec = json.loads(line.strip())
-            except Exception:
-                new_lines.append(line)
-                continue
-
-            if rec.get('result') and rec['result'] not in ('pending', None):
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            fid = rec.get('fixture_id')
-            if not fid:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            md = football_api.get_match_result(fid)
-            if not md or not md.get('is_final'):
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            hg = md['goals']['home']
-            ag = md['goals']['away']
-            if hg is None or ag is None:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            bt = (rec.get('bet_type') or '').upper()
-            if 'X2' in bt:
-                res = 'win' if ag >= hg else 'loss'
-            elif '1X' in bt:
-                res = 'win' if hg >= ag else 'loss'
-            elif bt == 'X' or 'DRAW' in bt or 'НИЧЬЯ' in bt:
-                res = 'win' if hg == ag else 'loss'
-            elif 'П1' in bt or bt == '1' or 'HOME' in bt:
-                res = 'win' if hg > ag else 'loss'
-            elif 'П2' in bt or bt == '2' or 'AWAY' in bt:
-                res = 'win' if ag > hg else 'loss'
-            else:
-                res = 'unknown'
-
-            rec['result'] = res
-            rec['home_goals'] = hg
-            rec['away_goals'] = ag
-            rec['settled_at'] = datetime.now().isoformat()
-            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-            updated += 1
-
-        with open(path, 'w', encoding='utf-8') as f:
-            f.writelines(new_lines)
-
-        if updated > 0:
-            logger.info(f"📊 Anomaly results updated: {updated}")
-        return updated
-    except Exception as e:
-        logger.exception(f"update_anomaly_results: {e}")
-        return 0
-
-
-def register_bot_commands():
-    try:
-        url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands"
-        commands = [
-            {"command": "update", "description": "🔍 Полный поиск (5 потоков)"},
-            {"command": "today", "description": "🎯 ТОП-5 матчей"},
-            {"command": "live", "description": "⚽ Активные live-матчи"},
-            {"command": "snapshots", "description": "📸 Статистика снимков"},
-            {"command": "snapshot", "description": "📸 Создать снимки"},
-            {"command": "x2_info", "description": "🎯 X2-кандидаты"},
-            {"command": "update_results", "description": "🔄 Обновить результаты"},
-            {"command": "force_settle", "description": "🔧 Принудительное обновление"},
-            {"command": "debug_pending", "description": "🔍 Диагностика pending"},
-            {"command": "analyze", "description": "📊 Анализ матча"},
-            {"command": "calibration", "description": "📊 Анализ калибровки"},
-            {"command": "calibration_save", "description": "💾 Сохранить снапшот калибровки"},
-            {"command": "status", "description": "🤖 Статус бота"},
-            {"command": "stop", "description": "🛑 Остановить поиск"},
-            {"command": "reset_search", "description": "🔄 Сбросить поиск"},
-            {"command": "bank", "description": "💰 Текущий банк"},
-            {"command": "stats", "description": "📊 Общая статистика"},
-            {"command": "report", "description": "📅 Отчёт за 7 дней"},
-            {"command": "bettypes", "description": "🎲 По типам ставок"},
-            {"command": "timestats", "description": "🕐 По времени"},
-            {"command": "strategies", "description": "📈 Стратегии + CLV"},
-            {"command": "clv_strategies", "description": "📊 CLV по стратегиям"},
-            {"command": "team", "description": "🏟️ По команде"},
-            {"command": "autobet", "description": "💸 Вкл/выкл автоставки"},
-            {"command": "autobet_state", "description": "📊 Состояние автоставок"},
-            {"command": "clv", "description": "📊 Средний CLV"},
-            {"command": "grid_search", "description": "🎯 Автопоиск стратегии"},
-            {"command": "result", "description": "✏️ Ручной результат"},
-            {"command": "export", "description": "📥 Экспорт в Excel"},
-            {"command": "backup", "description": "💾 Создать бэкап"},
-            {"command": "help", "description": "ℹ️ Справка"},
-        ]
-        r = requests.post(url, json={"commands": commands}, timeout=10)
-        if r.status_code == 200 and r.json().get('ok'):
-            logger.info(f"✅ Команды зарегистрированы: {len(commands)}")
-            return True
-        return False
-    except Exception as e:
-        logger.error(f"❌ register_bot_commands: {e}")
-        return False
-
-
+# ★ [v23.4] Первая update_anomaly_results удалена (дубликат)
 def update_anomaly_results():
     """
     Проверяет и обновляет результаты пропущенных аномалий.
