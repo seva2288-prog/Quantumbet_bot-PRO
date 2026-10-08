@@ -1,8 +1,9 @@
 """Управление данными бота (банк, история, статистика, кэш,
    ★ SQLite для снимков кэфов и X2-кандидатов,
-   ★ автоставки с CLV, ★ симуляции стратегий)
+   ★ автоставки с CLV, ★ симуляции стратегий,
+   ★ v4.4: аномалии (пропущенные матчи) через единый API)
 
-★ Версия 4.3 — snapshots с home/away/league + авто-миграция
+★ Версия 4.4 — snapshots с home/away/league + авто-миграция + аномалии
 """
 import json
 import os
@@ -34,6 +35,7 @@ class Storage:
     Хранилище с защитой от конкурентной записи.
     - JSON для редко меняющихся файлов (bank, history, stats, cache, autobets, simulations)
     - SQLite для снимков кэфов и X2-кандидатов (быстро, много записей)
+    - JSONL для аномалий (append-only лог)
     """
 
     def __init__(self, data_dir=None):
@@ -48,6 +50,7 @@ class Storage:
             'autobets': threading.Lock(),
             'simulations': threading.Lock(),
             'x2': threading.Lock(),
+            'anomaly': threading.Lock(),  # ★ новое
         }
 
         self._default_stats = {
@@ -56,6 +59,7 @@ class Storage:
         }
 
         self.ODDS_HISTORY_RETENTION_DAYS = 30
+        self.ANOMALY_RETENTION_DAYS = 60  # ★ новое
 
         # ★ SQLite
         self._odds_db_path = os.path.join(self.data_dir, 'odds_snapshots.db')
@@ -64,7 +68,11 @@ class Storage:
         self._init_x2_db()
         self._migrate_x2_db()
 
+        # ★ Путь к аномалиям — теперь гибкий
+        self._anomaly_path = os.path.join(self.data_dir, 'anomaly_skipped.jsonl')
+
         logger.info(f"🗄️ Storage: {self.data_dir}")
+        logger.info(f"📁 Аномалии: {self._anomaly_path}")
 
     # ============================================================
     # ВНУТРЕННИЕ ХЕЛПЕРЫ (JSON)
@@ -143,13 +151,11 @@ class Storage:
             """)
             conn.commit()
             conn.close()
-            # ★ Авто-миграция для старых БД
             self._migrate_odds_db()
         except Exception as e:
             logger.error(f"❌ _init_odds_db: {e}")
 
     def _migrate_odds_db(self):
-        """★ Добавляет колонки home/away/league, если их нет."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             cur = conn.cursor()
@@ -175,14 +181,12 @@ class Storage:
 
     def save_odds_snapshot(self, fixture_id, market, selection, odds,
                             bookmaker='—', home='', away='', league=''):
-        """★ Сохраняет снимок с названиями команд/лиги."""
         if not fixture_id or not odds or odds <= 1.01:
             return False
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             cur = conn.cursor()
 
-            # Антидубликат: если последний снимок <60 сек назад или та же цена
             cur.execute("""
                 SELECT odds, created_at FROM snapshots
                 WHERE fixture_id = ? AND market = ? AND selection = ?
@@ -258,12 +262,8 @@ class Storage:
             logger.error(f"❌ get_odds_history: {e}")
             return {} if not (market and selection) else []
 
-    # ============================================================
-    # ★ COMPACT ODDS HISTORY для sparkline (Live)
-    # ============================================================
     def get_odds_history_compact(self, fixture_id, market='1X2', selection='1',
                                    limit=10):
-        """Компактная история: последние N точек с интервалом."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=5)
             conn.row_factory = sqlite3.Row
@@ -299,7 +299,6 @@ class Storage:
 
     def get_odds_history_batch(self, fixture_ids, market='1X2',
                                  selection='1', limit=10):
-        """Batch: компактная история для нескольких матчей одним запросом."""
         if not fixture_ids:
             return {}
         try:
@@ -495,7 +494,6 @@ class Storage:
             return []
 
     def get_snapshot_match_info(self, fixture_id):
-        """★ Возвращает home/away/league для матча из снимков."""
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             conn.row_factory = sqlite3.Row
@@ -557,7 +555,6 @@ class Storage:
             logger.error(f"❌ _init_x2_db: {e}")
 
     def _migrate_x2_db(self):
-        """★ Добавляет новые колонки если их нет."""
         try:
             conn = sqlite3.connect(self._x2_db_path, timeout=10)
             cur = conn.cursor()
@@ -669,45 +666,6 @@ class Storage:
             logger.error(f"❌ update_x2_result: {e}")
             return False
 
-    def update_anomaly(self, fixture_id, result, home_goals, away_goals):
-        """Обновляет результат аномалии в anomaly_skipped.jsonl."""
-        try:
-            import os as _os
-            import json as _json
-            path = '/opt/render/project/src/data/anomaly_skipped.jsonl'
-            if not _os.path.exists(path):
-                return False
-
-            with open(path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-
-            updated = False
-            new_lines = []
-            for line in lines:
-                try:
-                    rec = _json.loads(line.strip())
-                except Exception:
-                    new_lines.append(line)
-                    continue
-
-                if rec.get('fixture_id') == fixture_id:
-                    rec['result'] = result
-                    rec['home_goals'] = home_goals
-                    rec['away_goals'] = away_goals
-                    rec['settled_at'] = datetime.now().isoformat()
-                    updated = True
-
-                new_lines.append(_json.dumps(rec, ensure_ascii=False) + '\n')
-
-            if updated:
-                with open(path, 'w', encoding='utf-8') as f:
-                    f.writelines(new_lines)
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"update_anomaly: {e}")
-            return False
-
     def update_x2_entry_odds(self, candidate_id, entry_odds, entry_1x_odds=None):
         try:
             conn = sqlite3.connect(self._x2_db_path, timeout=10)
@@ -755,6 +713,223 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ x2_count: {e}")
             return 0
+
+    # ============================================================
+    # ★ АНОМАЛИИ (v4.4 — новые методы)
+    # ============================================================
+    def add_anomaly(self, record: dict) -> bool:
+        """
+        Добавляет запись аномалии в anomaly_skipped.jsonl.
+        record должен содержать: ts, home, away, fixture_id, league,
+        bet_type, selection, best_odds, avg_odds, diff, anomaly_pct, source, result.
+        """
+        if not record or not isinstance(record, dict):
+            logger.error("add_anomaly: невалидная запись")
+            return False
+
+        # Автозаполнение
+        record.setdefault('ts', datetime.now().isoformat())
+        record.setdefault('result', 'pending')
+
+        with self._locks['anomaly']:
+            try:
+                os.makedirs(os.path.dirname(self._anomaly_path) or '.', exist_ok=True)
+                with open(self._anomaly_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                return True
+            except Exception as e:
+                logger.error(f"❌ add_anomaly: {e}")
+                return False
+
+    def load_anomalies(self, limit=None) -> list:
+        """
+        Читает все аномалии. Если limit — возвращает последние N.
+        """
+        if not os.path.exists(self._anomaly_path):
+            return []
+
+        with self._locks['anomaly']:
+            items = []
+            try:
+                with open(self._anomaly_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            items.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+            except Exception as e:
+                logger.error(f"❌ load_anomalies: {e}")
+                return []
+
+        # Сортируем по ts (свежие сверху)
+        items.sort(key=lambda x: x.get('ts', ''), reverse=True)
+        if limit:
+            return items[:limit]
+        return items
+
+    def get_anomaly_stats(self, stake_per_bet: float = 50.0) -> dict:
+        """
+        Статистика по аномалиям:
+        - total, wins, losses, pending, unknown
+        - hit_rate
+        - hypothetical_profit (если бы ставили stake_per_bet)
+        """
+        items = self.load_anomalies()
+        if not items:
+            return {
+                'total': 0, 'wins': 0, 'losses': 0,
+                'pending': 0, 'unknown': 0,
+                'hit_rate': 0, 'hypothetical_profit': 0,
+                'stake_per_bet': stake_per_bet,
+            }
+
+        wins = losses = pending = unknown = 0
+        hypo_profit = 0.0
+
+        for x in items:
+            r = x.get('result', 'pending')
+            if r == 'win':
+                wins += 1
+                odds = x.get('best_odds', 0) or 0
+                if odds > 1.01:
+                    hypo_profit += stake_per_bet * (odds - 1)
+            elif r == 'loss':
+                losses += 1
+                hypo_profit -= stake_per_bet
+            elif r in ('pending', None, ''):
+                pending += 1
+            else:
+                unknown += 1
+
+        total_settled = wins + losses
+        hit_rate = round(wins / total_settled * 100, 1) if total_settled > 0 else 0
+
+        return {
+            'total': len(items),
+            'wins': wins,
+            'losses': losses,
+            'pending': pending,
+            'unknown': unknown,
+            'hit_rate': hit_rate,
+            'hypothetical_profit': round(hypo_profit, 2),
+            'stake_per_bet': stake_per_bet,
+        }
+
+    def update_anomaly(self, fixture_id, result, home_goals, away_goals) -> bool:
+        """
+        Обновляет результат аномалии по fixture_id.
+        Использует self.data_dir вместо хардкода.
+        """
+        if not os.path.exists(self._anomaly_path):
+            logger.warning(f"update_anomaly: файл не найден {self._anomaly_path}")
+            return False
+
+        with self._locks['anomaly']:
+            try:
+                with open(self._anomaly_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                updated = False
+                new_lines = []
+                for line in lines:
+                    line_stripped = line.strip()
+                    if not line_stripped:
+                        continue
+                    try:
+                        rec = json.loads(line_stripped)
+                    except json.JSONDecodeError:
+                        new_lines.append(line)
+                        continue
+
+                    if rec.get('fixture_id') == fixture_id:
+                        rec['result'] = result
+                        rec['home_goals'] = home_goals
+                        rec['away_goals'] = away_goals
+                        rec['settled_at'] = datetime.now().isoformat()
+                        rec['manual'] = True
+                        updated = True
+                        logger.info(
+                            f"✏️ Аномалия обновлена вручную: "
+                            f"fid={fixture_id} | {home_goals}:{away_goals} | {result}"
+                        )
+
+                    new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+
+                if updated:
+                    fd, tmp_path = tempfile.mkstemp(
+                        dir=os.path.dirname(self._anomaly_path) or '.',
+                        suffix='.tmp'
+                    )
+                    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                        f.writelines(new_lines)
+                    os.replace(tmp_path, self._anomaly_path)
+
+                return updated
+            except Exception as e:
+                logger.error(f"❌ update_anomaly: {e}")
+                return False
+
+    def get_anomaly_by_fixture(self, fixture_id) -> dict:
+        """Находит аномалию по fixture_id."""
+        items = self.load_anomalies()
+        for x in items:
+            if x.get('fixture_id') == fixture_id:
+                return x
+        return None
+
+    def cleanup_old_anomalies(self, days=None) -> int:
+        """Удаляет аномалии старше N дней."""
+        days = days or self.ANOMALY_RETENTION_DAYS
+        if not os.path.exists(self._anomaly_path):
+            return 0
+
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        with self._locks['anomaly']:
+            try:
+                with open(self._anomaly_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+
+                new_lines = []
+                removed = 0
+                for line in lines:
+                    line_stripped = line.strip()
+                    if not line_stripped:
+                        continue
+                    try:
+                        rec = json.loads(line_stripped)
+                    except json.JSONDecodeError:
+                        new_lines.append(line)
+                        continue
+
+                    ts = rec.get('ts', '')
+                    if ts and ts < cutoff:
+                        removed += 1
+                        continue
+
+                    new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+
+                if removed > 0:
+                    fd, tmp_path = tempfile.mkstemp(
+                        dir=os.path.dirname(self._anomaly_path) or '.',
+                        suffix='.tmp'
+                    )
+                    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                        f.writelines(new_lines)
+                    os.replace(tmp_path, self._anomaly_path)
+                    logger.info(f"🧹 Удалено {removed} старых аномалий (>{days} дней)")
+
+                return removed
+            except Exception as e:
+                logger.error(f"❌ cleanup_old_anomalies: {e}")
+                return 0
+
+    def anomaly_count(self) -> int:
+        """Возвращает количество аномалий."""
+        return len(self.load_anomalies())
 
     # ============================================================
     # БАНК
@@ -1114,6 +1289,11 @@ class Storage:
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(dst, f'{name}.json'))
 
+            # ★ Бэкап JSONL аномалий
+            if os.path.exists(self._anomaly_path):
+                shutil.copy2(self._anomaly_path,
+                             os.path.join(dst, 'anomaly_skipped.jsonl'))
+
             # ★ Безопасный бэкап SQLite через .backup()
             for db_path in (self._odds_db_path, self._x2_db_path):
                 if os.path.exists(db_path):
@@ -1125,7 +1305,6 @@ class Storage:
                         src_conn.close()
                     except Exception as e:
                         logger.warning(f"⚠️ Бэкап {db_path}: {e}")
-                        # Fallback — обычное копирование
                         try:
                             shutil.copy2(db_path, os.path.join(dst, os.path.basename(db_path)))
                         except Exception:
