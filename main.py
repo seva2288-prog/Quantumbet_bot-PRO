@@ -3288,6 +3288,14 @@ def find_value_matches(matches, max_bets=5):
                     if len(vals) >= 2:
                         v_max = max(vals)
                         v_avg = sum(vals) / len(vals)
+                        # ★ v23.7: sanity-check на мусорные кэфы
+                        if v_max > 20:
+                            logger.warning(
+                                f"🚫 SUSPICIOUS ODDS {v_max}: {home} vs {away} | "
+                                f"mkt={mkt_key} — пропускаю без записи"
+                            )
+                            continue
+
                         if v_max - v_avg > 0.5:
                             logger.warning(
                                 f"⏭️ VALUE ANOMALY SKIP: {home} vs {away} | "
@@ -11109,7 +11117,31 @@ def update_anomaly_results():
                 continue
 
             # ★ Приоритет: selection → bet_type
-            sel = (rec.get('selection') or rec.get('bet_type') or '').upper()
+            sel = (rec.get('selection') or rec.get('bet_type') or '').upper().strip()
+            
+            # ★ v23.7: если sel пустой — пробуем восстановить из best_odds
+            if not sel:
+                best_odds = rec.get('best_odds', 0) or 0
+                avg_odds = rec.get('avg_odds', 0) or 0
+                # VALUE-аномалии без selection — определяем по odds
+                if best_odds > 20:
+                    # Слишком подозрительный кэф — скорее всего мусор
+                    logger.warning(
+                        f"⚠️ Anomaly с подозрительным кэфом {best_odds}: "
+                        f"{rec.get('home')} vs {rec.get('away')} — пропускаю"
+                    )
+                    new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                    continue
+                # Если avg_odds близко к 1 (низкий) — вероятно X2/1X
+                # Иначе оставляем unknown
+                logger.warning(
+                    f"⚠️ Anomaly без selection: fid={fid} | "
+                    f"{rec.get('home')} vs {rec.get('away')} | "
+                    f"bet_type={rec.get('bet_type')!r} | "
+                    f"best_odds={best_odds} avg_odds={avg_odds}"
+                )
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
 
             if 'X2' in sel:
                 res = 'win' if ag >= hg else 'loss'
