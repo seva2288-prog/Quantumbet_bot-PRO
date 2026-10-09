@@ -3311,6 +3311,12 @@ function renderLiveCard(m) {
                     <span class="stat-value gold">${betProb} · ${betEv}</span>
                 </div>
             </div>
+            ${sparklineHtml ? `
+                <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-color);">
+                    💰 Движение: <b style="color:var(--gold-400);">${escapeHtml(m.sparkline_label || '—')}</b>
+                    ${m.sparkline_change ? `<span style="color:var(--emerald-400);">+${m.sparkline_change}%</span>` : ''}
+                </div>
+            ` : ''}
             ${sparklineHtml}
         </div>
     `;

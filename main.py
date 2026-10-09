@@ -9325,13 +9325,46 @@ def api_live():
             try:
                 all_fids = [m.get('fixture_id') for m, _, _ in in_window if m.get('fixture_id')]
                 if all_fids:
-                    sparkline_data = storage.get_odds_history_batch(
-                        fixture_ids=all_fids,
-                        market=getattr(Config, 'LIVE_SPARKLINE_MARKET', '1X2'),
-                        selection=getattr(Config, 'LIVE_SPARKLINE_SELECTION', '1'),
-                        limit=getattr(Config, 'LIVE_SPARKLINE_POINTS', 10),
-                    )
-                    logger.info(f"📈 Sparkline: {len(sparkline_data)} матчей")
+                    MARKETS_TO_SCAN = [
+                        ('1X2', '1', 'П1'),
+                        ('1X2', 'X', 'X'),
+                        ('1X2', '2', 'П2'),
+                        ('DC', '1X', '1X'),
+                        ('DC', 'X2', 'X2'),
+                        ('O/U 2.5', 'Under', 'ТМ 2.5'),
+                        ('O/U 2.5', 'Over', 'ТБ 2.5'),
+                    ]
+                    sparkline_data = {}
+                    for mkt, sel, lbl in MARKETS_TO_SCAN:
+                        try:
+                            batch = storage.get_odds_history_batch(
+                                fixture_ids=all_fids,
+                                market=mkt,
+                                selection=sel,
+                                limit=getattr(Config, 'LIVE_SPARKLINE_POINTS', 10),
+                            )
+                        except Exception as e:
+                            logger.debug(f"batch {mkt}/{sel}: {e}")
+                            continue
+                        for fid_key, points in (batch or {}).items():
+                            if not points or len(points) < 2:
+                                continue
+                            first = float(points[0].get('odds', 0) or 0)
+                            last = float(points[-1].get('odds', 0) or 0)
+                            if first <= 1.01 or last <= 1.01:
+                                continue
+                            change_pct = abs((last / first) - 1) * 100
+                            existing = sparkline_data.get(fid_key)
+                            if existing and existing.get('change_pct', 0) >= change_pct:
+                                continue
+                            sparkline_data[fid_key] = {
+                                'points': points,
+                                'market': mkt,
+                                'selection': sel,
+                                'label': lbl,
+                                'change_pct': round(change_pct, 1),
+                            }
+                    logger.info(f"📈 Sparkline: {len(sparkline_data)} матчей (из {len(all_fids)})")
             except Exception as e:
                 logger.error(f"Sparkline batch error: {e}")
 
@@ -9440,12 +9473,20 @@ def api_live():
                 pass
 
             sparkline_points = []
-            raw_spark = sparkline_data.get(fid, [])
-            if raw_spark:
+            sparkline_label = '—'
+            sparkline_market = '—'
+            sparkline_selection = '—'
+            sparkline_change = 0
+            spark_info = sparkline_data.get(fid)
+            if spark_info:
                 sparkline_points = [
                     {'odds': p.get('odds', 0), 'ts': p.get('ts', '')}
-                    for p in raw_spark
+                    for p in spark_info.get('points', [])
                 ]
+                sparkline_label = spark_info.get('label', '—')
+                sparkline_market = spark_info.get('market', '—')
+                sparkline_selection = spark_info.get('selection', '—')
+                sparkline_change = spark_info.get('change_pct', 0)
 
             result.append({
                 'fixture_id': fid,
@@ -9471,6 +9512,10 @@ def api_live():
                 },
                 'odds_trend': odds_trend,
                 'sparkline': sparkline_points,
+                'sparkline_market': sparkline_market,
+                'sparkline_selection': sparkline_selection,
+                'sparkline_label': sparkline_label,
+                'sparkline_change': sparkline_change,
                 'source': m.get('source', '70_percent'),
                 'total_xg': m.get('total_xg', 0),
             })
