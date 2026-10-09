@@ -3247,10 +3247,13 @@ function renderLiveCard(m) {
     }
 
     const bb = m.best_bet || {};
-    const betLabel = bb.label || '—';
-    const betOdds = bb.odds ? bb.odds.toFixed(2) : '—';
-    const betEv = bb.ev ? (bb.ev >= 0 ? '+' : '') + bb.ev.toFixed(1) + '%' : '—';
-    const betProb = bb.prob ? bb.prob.toFixed(0) + '%' : '—';
+
+    // ★ v23.8: реальная ставка только если prob > 0 и label не '1X2'
+    const hasBet = (bb.prob || 0) > 0 && bb.label && bb.label !== '1X2' && bb.label !== '—';
+    const betLabel = hasBet ? (bb.label || '—') : 'Нет ставки';
+    const betOdds = hasBet && bb.odds ? bb.odds.toFixed(2) : '—';
+    const betEv = hasBet && bb.ev ? (bb.ev >= 0 ? '+' : '') + bb.ev.toFixed(1) + '%' : '—';
+    const betProb = hasBet && bb.prob ? bb.prob.toFixed(0) + '%' : '—';
 
     const trend = m.odds_trend || 0;
     const trendEmoji = trend > 1 ? '📈' : trend < -1 ? '📉' : '';
