@@ -2497,7 +2497,13 @@ def update_odds_for_matches(matches):
 # ============================================================
 def get_matches_with_factors():
     all_matches = []
-    today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
+    # ★ v23.10: если сейчас >= 22:00 МСК — искать матчи на ЗАВТРА
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    if now_msk.hour >= 22:
+        today = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
+        logger.info(f"🌙 Позднее время ({now_msk.strftime('%H:%M')} МСК) — ищем матчи на {today} (завтра)")
+    else:
+        today = now_msk.strftime('%Y-%m-%d')
     all_leagues = list(set(Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])))
     total_leagues = len(all_leagues)
     logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
@@ -6095,7 +6101,13 @@ def _map_bet_to_market(bt):
 # ============================================================
 def get_matches_with_factors():
     all_matches = []
-    today = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
+    # ★ v23.10: если сейчас >= 22:00 МСК — искать матчи на ЗАВТРА
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    if now_msk.hour >= 22:
+        today = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
+        logger.info(f"🌙 Позднее время ({now_msk.strftime('%H:%M')} МСК) — ищем матчи на {today} (завтра)")
+    else:
+        today = now_msk.strftime('%Y-%m-%d')
     all_leagues = list(set(Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])))
     total_leagues = len(all_leagues)
     logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
