@@ -379,24 +379,10 @@ class Config:
         'irish premier', 'first division',
 
     # ★ v23.11: проблемные лиги (CLV < -0.5%, тонкий рынок)
-    'nations league',
-    'uefa nations league',
     'friendlies',
     'friendlies international',
     'friendlies clubs',
     'international friendlies',
-    'wc qualification',
-    'wc qualification europe',
-    'wc qualification asia',
-    'wc qualification africa',
-    'wc qualification south america',
-    'wc qualification concacaf',
-    'wc qualification oceania',
-    'world cup qualification',
-    'euro qualification',
-    'afc asian cup qualification',
-    'copa america qualification',
-    'concacaf nations league',
 ]
 
     # ============================================================
