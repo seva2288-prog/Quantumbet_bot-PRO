@@ -2397,7 +2397,7 @@ def update_odds_for_matches(matches):
                         if anomaly_pct > 5:
                             logger.info(f"🎯 АНОМАЛИЯ: {home} vs {away} | {best_bm} = {best_odds_val} (+{anomaly_pct:.1f}%)")
                             prob = best_bet.get('prob', 0) / 100
-                            anomaly_bonus = min(anomaly_pct / 100, 0.10)
+                            anomaly_bonus = min(anomaly_pct / 100, 0.03)  # FIX: было 0.10
                             boosted = min(prob + anomaly_bonus, 0.95)
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
@@ -2496,119 +2496,8 @@ def update_odds_for_matches(matches):
 # ============================================================
 # ПОИСК МАТЧЕЙ + ФАКТОРЫ
 # ============================================================
-def get_matches_with_factors():
-    all_matches = []
-    # ★ v23.10: если сейчас >= 22:00 МСК — искать матчи на ЗАВТРА
-    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-    if now_msk.hour >= 22:
-        today = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
-        logger.info(f"🌙 Позднее время ({now_msk.strftime('%H:%M')} МСК) — ищем матчи на {today} (завтра)")
-    else:
-        today = now_msk.strftime('%Y-%m-%d')
-    all_leagues = list(set(Config.LEAGUES + getattr(Config, 'CUP_LEAGUES', [])))
-    total_leagues = len(all_leagues)
-    logger.info(f"🔍 Поиск: {today}, лиг: {total_leagues}")
-    send_telegram(
-        f"🔎 <b>СТАРТ ПОИСКА</b>\n"
-        f"📅 {today}\n📊 Лиг: {total_leagues}\n⏱️ 5-10 минут"
-    )
-    start_time = time.time()
-    processed = 0
-    found_total = 0
-    progress_step = 25
-    seen_fixtures = set()
+# ★ FIX: дубликат get_matches_with_factors удалён (используется версия ниже)
 
-    for league_id in all_leagues:
-        try:
-            matches = football_api.get_matches(league_id, today)
-            league_name = Config.LEAGUE_NAMES.get(league_id, str(league_id))
-            processed += 1
-
-            batch_odds = {}
-            batch_preds = {}
-            if matches:
-                try:
-                    batch_odds = football_api.get_odds_batch_for_league(league_id, today)
-                except Exception as e:
-                    logger.debug(f"batch odds {league_id}: {e}")
-                try:
-                    batch_preds = football_api.get_predictions_batch_for_league(league_id, today)
-                except Exception as e:
-                    logger.debug(f"batch preds {league_id}: {e}")
-
-            if matches:
-                new_matches = 0
-                for m in matches:
-                    if not isinstance(m, dict): continue
-                    fixture = m.get('fixture')
-                    if not fixture or not isinstance(fixture, dict): continue
-                    if fixture.get('status', {}).get('short') != 'NS': continue
-                    mid = fixture.get('id')
-                    if not mid or mid in seen_fixtures: continue
-                    seen_fixtures.add(mid)
-                    teams = m.get('teams', {})
-                    hid = teams.get('home', {}).get('id')
-                    aid = teams.get('away', {}).get('id')
-                    if not hid or not aid: continue
-
-                    m['factors'] = {
-                        'home_form': football_api.get_form(hid),
-                        'away_form': football_api.get_form(aid),
-                        'home_injuries_list': football_api.get_injuries(hid),
-                        'away_injuries_list': football_api.get_injuries(aid),
-                        'home_id': hid, 'away_id': aid,
-                        'referee': fixture.get('referee'),
-                    }
-
-                    weather = None
-                    venue = fixture.get('venue', {})
-                    city = venue.get('city') if isinstance(venue, dict) else None
-                    if city and Config.WEATHER_ENABLED:
-                        weather = get_weather_for_city_enhanced(city)
-                    m['weather'] = weather
-                    if weather:
-                        m['weather_reason'] = (f"🌤️ {weather['desc']}, {weather['temp']}°C, "
-                                                f"ветер {weather['wind']} м/с, "
-                                                f"дождь {weather['rain']} мм")
-                    else:
-                        m['weather_reason'] = "🌤️ Нет данных"
-
-                    if mid in batch_odds:
-                        m['_preloaded_odds'] = batch_odds[mid]
-                    if mid in batch_preds:
-                        m['_preloaded_preds'] = batch_preds[mid]
-
-                    ld = m.get('league', {})
-                    if isinstance(ld, dict):
-                        ld['name'] = league_name
-                    all_matches.append(m)
-                    new_matches += 1
-                if new_matches > 0:
-                    found_total += new_matches
-
-            if processed % progress_step == 0:
-                elapsed = (time.time() - start_time) / 60
-                remaining = total_leagues - processed
-                eta = (elapsed / processed) * remaining if processed > 0 else 0
-                send_telegram(f"💓 <b>HEARTBEAT</b> | {processed}/{total_leagues}\n"
-                              f"🎯 Матчей: {found_total}\n⏱️ Осталось: ~{eta:.1f} мин")
-        except Exception as e:
-            logger.error(f"❌ {league_id}: {e}")
-        time.sleep(0.01)
-
-    elapsed_total = (time.time() - start_time) / 60
-    send_telegram(f"✅ <b>ПОИСК ЗАВЕРШЁН</b>\n"
-                  f"📊 Лиг: {processed}/{total_leagues}\n"
-                  f"🎯 Матчей: {found_total}\n"
-                  f"⏱️ {elapsed_total:.1f} мин")
-    logger.info(f"📊 Найдено матчей: {len(all_matches)}")
-    return all_matches
-
-
-# ============================================================
-# ★ ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 home + Prob Filter + Calibration)
-# ============================================================
-@timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
     max_bets = getattr(Config, 'MAX_BETS_PER_RUN', 30)
@@ -2770,6 +2659,14 @@ def find_top_matches(matches):
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
+
+            # ★ FIX: sanity-check на подозрительно высокий EV
+            if best_bet['ev'] > 40:
+                logger.warning(
+                    f"⚠️ HIGH EV {best_bet['ev']}%: {home} vs {away} — "
+                    f"prob={best_bet['prob']}% odds={best_bet['odds']} — понижаем stake"
+                )
+                best_bet['high_ev_warning'] = True
 
             kelly_stake = calculate_stake(
                 bank=bank,
@@ -5971,7 +5868,7 @@ def update_odds_for_matches(matches):
                         if anomaly_pct > 5:
                             logger.info(f"🎯 АНОМАЛИЯ: {home} vs {away} | {best_bm} = {best_odds_val} (+{anomaly_pct:.1f}%)")
                             prob = best_bet.get('prob', 0) / 100
-                            anomaly_bonus = min(anomaly_pct / 100, 0.10)
+                            anomaly_bonus = min(anomaly_pct / 100, 0.03)  # FIX: было 0.10
                             boosted = min(prob + anomaly_bonus, 0.95)
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
@@ -9079,6 +8976,19 @@ def webhook():
 
                 Thread(target=_run_force_settle, daemon=True).start()
 
+            elif text == '/force_settle_anomalies':
+                send_telegram("🔧 Обновление аномалий...")
+
+                def _run_settle_anomalies():
+                    try:
+                        updated = update_anomaly_results()
+                        send_telegram(f"✅ Аномалий обновлено: <b>{updated}</b>")
+                    except Exception as e:
+                        logger.exception(f"force_settle_anomalies: {e}")
+                        send_telegram(f"❌ Ошибка: {e}")
+
+                Thread(target=_run_settle_anomalies, daemon=True).start()
+
             elif text == '/debug_pending':
                 try:
                     bets = storage.autobet_load_all()
@@ -9518,9 +9428,9 @@ def api_live():
                 'score': live_score,
                 'halftime': live_halftime,
                 'best_bet': {
-                    'label': bet_label,
-                    'odds': bet_odds,
-                    'ev': bet_ev,
+                    'label': bet_label if bet_prob > 0 else '—',
+                    'odds': bet_odds if bet_prob > 0 else 0,
+                    'ev': bet_ev if bet_prob > 0 else 0,
                     'prob': bet_prob,
                 },
                 'odds_trend': odds_trend,

@@ -3520,7 +3520,7 @@ function renderBetCard(m, isActive = false) {
     const evColor = ev >= 15 ? 'emerald' : ev >= 5 ? 'gold' : 'red';
 
     let homeGoals = '-', awayGoals = '-';
-    if (score && score !== '-' && score.includes('-')) {
+    if (score && score !== '-' && String(score || '').includes('-')) {
         const parts = score.split('-').map(s => s.trim());
         homeGoals = parts[0];
         awayGoals = parts[1];
