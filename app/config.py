@@ -383,6 +383,23 @@ class Config:
     'friendlies international',
     'friendlies clubs',
     'international friendlies',
+
+    'nations league',
+    'uefa nations league',
+    'concacaf nations league',
+    'afc nations league',
+
+    'wc qualification',
+    'wc qualification europe',
+    'wc qualification asia',
+    'wc qualification africa',
+    'wc qualification south america',
+    'wc qualification concacaf',
+    'wc qualification oceania',
+    'world cup qualification',
+    'euro qualification',
+    'afc asian cup qualification',
+    'copa america qualification',
 ]
 
     # ============================================================
