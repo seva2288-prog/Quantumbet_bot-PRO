@@ -3632,6 +3632,12 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
+                ${m.score != null && !isLM ? `
+                <div class="bet-stat">
+                    <span class="stat-label">Score</span>
+                    <span class="stat-value" style="color:${m.score >= 75 ? 'var(--emerald-400)' : m.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">${Number(m.score).toFixed(1)}</span>
+                </div>
+                ` : ''}
                 ${matchScore != null ? `
                     <div class="bet-stat">
                         <span class="stat-label">Score</span>
@@ -4053,7 +4059,7 @@ function showMatchDetail(match) {
         `;
     } else {
         html += `
-            <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+            <div class="stats-grid" style="grid-template-columns:repeat(${match.score != null ? '4' : '3'},1fr);margin-bottom:16px;">
                 <div class="stat-card">
                     <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
                     <div class="label">EV</div>
@@ -4066,6 +4072,14 @@ function showMatchDetail(match) {
                     <div class="value gold">${best.prob ? best.prob.toFixed(0) + '%' : '—'}</div>
                     <div class="label">Prob</div>
                 </div>
+                ${match.score != null ? `
+                <div class="stat-card">
+                    <div class="value" style="color:${match.score >= 75 ? 'var(--emerald-400)' : match.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">
+                        ${Number(match.score).toFixed(1)}
+                    </div>
+                    <div class="label">Score</div>
+                </div>
+                ` : ''}
             </div>
         `;
         if (bets.length > 1) {
