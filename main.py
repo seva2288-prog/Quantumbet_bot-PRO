@@ -1468,7 +1468,8 @@ class AutoBetManager:
                 if match_time_str and match_time_str != '?':
                     try:
                         match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        match_dt = match_dt - timedelta(hours=1)
+                        # ★ v23.13: снимок за 10 мин до матча (не за 1ч) — точнее closing_odds
+                        match_dt = match_dt - timedelta(minutes=10)
                         before_iso = match_dt.isoformat()
                     except Exception:
                         pass
