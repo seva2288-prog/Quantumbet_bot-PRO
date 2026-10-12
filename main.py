@@ -4915,6 +4915,36 @@ def find_top_matches(matches):
             for m, llm in zip(top[:20], llm_results):
                 if llm:
                     _apply_llm_to_match(m, llm, alpha=0.7)
+                    # ★ v23.20: Ensemble LLM + модель (α=0.3)
+                    bb = m.get('best_bet', {})
+                    if bb and bb.get('prob', 0) > 0 and bb.get('odds', 0) > 1.01:
+                        try:
+                            bet_type = (bb.get('type') or '').lower()
+                            llm_key_map = {
+                                '1x': None, 'x2': None, 'п1': 'home_win',
+                                'п2': 'away_win', 'draw': 'draw',
+                                'under': 'under25', 'over': 'over25',
+                                'btts': 'btts',
+                            }
+                            llm_key = llm_key_map.get(bet_type)
+                            if llm_key and llm.get(llm_key) is not None:
+                                model_prob = bb['prob']
+                                llm_prob = llm[llm_key] * 100
+                                alpha = 0.3
+                                blended = model_prob * (1 - alpha) + llm_prob * alpha
+                                bb['prob_before_ensemble'] = model_prob
+                                bb['llm_prob_raw'] = round(llm_prob, 1)
+                                bb['prob'] = round(blended, 1)
+                                bb['ensemble_alpha'] = alpha
+                                if bb['odds'] > 1.01:
+                                    bb['ev'] = round((blended / 100 * bb['odds'] - 1) * 100, 1)
+                                logger.info(
+                                    f"🎯 ENSEMBLE {bb.get('label')}: "
+                                    f"model={model_prob:.1f}% + llm={llm_prob:.1f}% "
+                                    f"-> {blended:.1f}% (α={alpha})"
+                                )
+                        except Exception as e:
+                            logger.error(f"Ensemble error: {e}")
 
             for m in top[:10]:
                 try:
