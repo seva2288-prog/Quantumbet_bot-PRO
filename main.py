@@ -6322,6 +6322,7 @@ def find_top_matches_with_tm25(matches):
             'llm_reason': bb.get('llm_reason', ''),
             'steam_move': bb.get('steam_move', False),
             'clv_adjusted': bb.get('clv_adjusted', False),
+            'score': md.get('score') or bb.get('score') or 0,   # ★ v23.21
         })
         added += 1
     storage.save_history(history)
