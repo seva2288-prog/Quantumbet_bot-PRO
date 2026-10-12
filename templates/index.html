@@ -3509,7 +3509,7 @@ function renderBetCard(m, isActive = false) {
     const result = m.result || 'pending';
 
     // ★ v23.7: Score-based фильтр — отображение
-    const matchScore = m.score != null && typeof m.score === 'number' ? m.score : null;
+    const matchScore = (typeof m.score === 'number' && isFinite(m.score)) ? m.score : null;
 
     const htH = m.halftime_home;
     const htA = m.halftime_away;
@@ -3632,7 +3632,7 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
-                ${m.score != null && !isLM ? `
+                ${typeof m.score === 'number' && isFinite(m.score) && !isLM ? `
                 <div class="bet-stat">
                     <span class="stat-label">Score</span>
                     <span class="stat-value" style="color:${m.score >= 75 ? 'var(--emerald-400)' : m.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">${Number(m.score).toFixed(1)}</span>
@@ -4059,7 +4059,7 @@ function showMatchDetail(match) {
         `;
     } else {
         html += `
-            <div class="stats-grid" style="grid-template-columns:repeat(${match.score != null ? '4' : '3'},1fr);margin-bottom:16px;">
+            <div class="stats-grid" style="grid-template-columns:repeat(${typeof match.score === 'number' && isFinite(match.score) ? '4' : '3'},1fr);margin-bottom:16px;">
                 <div class="stat-card">
                     <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
                     <div class="label">EV</div>
@@ -4072,7 +4072,7 @@ function showMatchDetail(match) {
                     <div class="value gold">${best.prob ? best.prob.toFixed(0) + '%' : '—'}</div>
                     <div class="label">Prob</div>
                 </div>
-                ${match.score != null ? `
+                ${typeof match.score === 'number' && isFinite(match.score) ? `
                 <div class="stat-card">
                     <div class="value" style="color:${match.score >= 75 ? 'var(--emerald-400)' : match.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">
                         ${Number(match.score).toFixed(1)}
