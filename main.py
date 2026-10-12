@@ -6129,6 +6129,19 @@ def find_top_matches_with_tm25(matches):
         return (0, m['best_bet'].get('ev', 0))
 
     combined.sort(key=_sort_key, reverse=True)
+
+    # ★ v23.23: X2-балансировка — лимит X2 в списке
+    X2_MAX_PCT = getattr(Config, 'X2_MAX_PCT_OF_BETS', 0.40)
+    x2_count = sum(1 for m in combined if 'X2' in (m.get('best_bet', {}).get('label', '')))
+    max_x2 = max(3, int(len(combined) * X2_MAX_PCT))
+    if x2_count > max_x2:
+        logger.info(f"⚖️ X2-балансировка: {x2_count} X2 из {len(combined)} (лимит {max_x2}) — урезаем")
+        non_x2 = [m for m in combined if 'X2' not in (m.get('best_bet', {}).get('label', ''))]
+        x2_only = [m for m in combined if 'X2' in (m.get('best_bet', {}).get('label', ''))]
+        combined = non_x2 + x2_only[:max_x2]
+        # Пересортировка
+        combined.sort(key=_sort_key, reverse=True)
+        logger.info(f"⚖️ После X2-балансировки: {len(combined)} матчей ({len(non_x2)} не-X2 + {min(len(x2_only), max_x2)} X2)")
     # ★ v23.5: обогащаем сырые матчи кэфами и формой для Live
     all_before_odds_filter = []
     for _m in matches:

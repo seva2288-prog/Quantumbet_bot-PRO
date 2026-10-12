@@ -101,9 +101,10 @@ class Config:
     X2_ENABLED = True
     X2_MIN_POSITION_DIFF = 3
     X2_MAX_POSITION = 20
-    X2_MIN_EV = 5
-    X2_MIN_PROB = 55
-    X2_BOTH_SIDES = True
+    X2_MIN_EV = 10  # ★ v23.23: было 5
+    X2_MIN_PROB = 58  # ★ v23.23: было 55
+    X2_BOTH_SIDES = False  # ★ v23.23: было True
+    X2_MAX_PCT_OF_BETS = 0.40  # ★ v23.23: макс % X2 в итоговом списке
 
     # ★ X2: home/away context (v3.7)
     X2_HOME_BONUS = 3.0        # +3% к prob если андердог дома
