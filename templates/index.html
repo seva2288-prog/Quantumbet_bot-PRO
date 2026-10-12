@@ -3609,6 +3609,7 @@ function renderBetCard(m, isActive = false) {
                     <div class="bet-league">🏆 ${escapeHtml(league)}${countryHtml}</div>
                     <div class="bet-time">
                         <span>📅 ${escapeHtml(displayDate)}</span>
+                        ${m.weather_reason && m.weather_reason !== '🌤️ Нет данных' ? `<span title="${escapeHtml(m.weather_reason)}" style="cursor:help;font-size:10px;">${m.weather_reason.split(',')[0] || ''}</span>` : ''}
                         ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
                         ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
                     </div>
@@ -3632,6 +3633,12 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
+                ${(typeof m.score === 'number' && isFinite(m.score) && !isLM) ? `
+                <div class="bet-stat">
+                    <span class="stat-label">Score</span>
+                    <span class="stat-value" style="color:${m.score >= 75 ? 'var(--emerald-400)' : m.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">${m.score.toFixed(1)}</span>
+                </div>
+                ` : ''}
                 ${typeof m.score === 'number' && isFinite(m.score) && !isLM ? `
                 <div class="bet-stat">
                     <span class="stat-label">Score</span>
