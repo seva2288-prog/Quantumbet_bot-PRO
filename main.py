@@ -4548,6 +4548,49 @@ def get_matches_with_factors():
 # ============================================================
 # ★ ПОТОК 1: 70%+ (с CLV prob-boost)
 # ============================================================
+
+
+def check_weather_skip(weather):
+    """
+    Проверяет, нужно ли пропустить матч из-за погоды.
+    Возвращает: (skip: bool, reason: str, xg_multiplier: float)
+    """
+    if not weather:
+        return False, '', 1.0
+
+    rain = weather.get('rain', 0) or 0
+    wind = weather.get('wind', 0) or 0
+    temp = weather.get('temp', 20) or 20
+    desc = (weather.get('desc', '') or '').lower()
+
+    if rain > getattr(Config, 'WEATHER_SKIP_RAIN_MM', 4.0):
+        return True, f'🌧️ Дождь {rain:.1f}мм', 0.80
+    if wind > getattr(Config, 'WEATHER_SKIP_WIND_MS', 15.0):
+        return True, f'💨 Ветер {wind:.0f}м/с', 0.85
+    if getattr(Config, 'WEATHER_SKIP_SNOW', True) and ('snow' in desc or 'снег' in desc):
+        return True, f'❄️ Снег', 0.75
+    if temp < getattr(Config, 'WEATHER_SKIP_TEMP_MIN', -10):
+        return True, f'🥶 {temp:.0f}°C', 0.90
+    if temp > getattr(Config, 'WEATHER_SKIP_TEMP_MAX', 40):
+        return True, f'🔥 {temp:.0f}°C', 0.90
+
+    xg_mult = 1.0
+    if rain > 2.0:
+        xg_mult *= getattr(Config, 'WEATHER_RAIN_XG_PENALTY', 0.90)
+    elif rain > 0.5:
+        xg_mult *= 0.96
+    if wind > 10:
+        xg_mult *= getattr(Config, 'WEATHER_WIND_XG_PENALTY', 0.92)
+    elif wind > 7:
+        xg_mult *= 0.97
+    if temp > 35:
+        xg_mult *= getattr(Config, 'WEATHER_HEAT_XG_PENALTY', 0.95)
+    elif temp < -5:
+        xg_mult *= getattr(Config, 'WEATHER_COLD_XG_PENALTY', 0.93)
+
+    return False, '', round(xg_mult, 3)
+
+
 @timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
@@ -4615,18 +4658,14 @@ def find_top_matches(matches):
             away_xg /= home_adv
             total_xg = home_xg + away_xg
 
-            w = match.get('weather')
-            if w:
-                rain = w.get('rain', 0) or 0
-                wind = w.get('wind', 0) or 0
-                if rain > 2:
-                    total_xg *= 0.92; home_xg *= 0.95; away_xg *= 0.95
-                elif rain > 0.5:
-                    total_xg *= 0.96
-                if wind > 10:
-                    total_xg *= 0.95
-                elif wind > 7:
-                    total_xg *= 0.98
+            skip, reason, xg_mult = check_weather_skip(match.get('weather'))
+            if skip:
+                logger.info(f"⏭️ WEATHER SKIP: {home} vs {away} | {reason}")
+                continue
+            if xg_mult != 1.0:
+                total_xg *= xg_mult
+                home_xg *= xg_mult
+                away_xg *= xg_mult
 
             XG_MIN = getattr(Config, 'XG_MIN_70', 1.2)
             XG_MAX = getattr(Config, 'XG_MAX_70', 3.8)

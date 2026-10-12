@@ -1029,3 +1029,17 @@ if __name__ == "__main__":
     else:
         print("Использование:")
         print("  python -m app.config check — общая проверка")
+
+    # ★ v23.17: Погодный фильтр (усиленный)
+    WEATHER_SKIP_RAIN_MM = 4.0
+    WEATHER_SKIP_WIND_MS = 15.0
+    WEATHER_SKIP_SNOW = True
+    WEATHER_SKIP_TEMP_MIN = -10
+    WEATHER_SKIP_TEMP_MAX = 40
+
+    WEATHER_RAIN_XG_PENALTY = 0.90
+    WEATHER_HEAVY_RAIN_XG_PENALTY = 0.80
+    WEATHER_WIND_XG_PENALTY = 0.92
+    WEATHER_HEAT_XG_PENALTY = 0.95
+    WEATHER_COLD_XG_PENALTY = 0.93
+
