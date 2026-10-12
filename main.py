@@ -9572,6 +9572,7 @@ def update_anomaly_results():
             lines = f.readlines()
 
         updated = 0
+        api_errors = 0
         new_lines = []
         for line in lines:
             try:
@@ -9591,7 +9592,17 @@ def update_anomaly_results():
                 continue
 
             md = football_api.get_match_result(fid)
-            if not md or not md.get('is_final'):
+            if not md:
+                # ★ v23.22: логируем API-ошибки (500/401/timeout)
+                api_errors += 1
+                logger.warning(
+                    f"⚠️ API error для fid={fid}: "
+                    f"{rec.get('home')} vs {rec.get('away')} "
+                    f"(повторная попытка через 30 мин)"
+                )
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+            if not md.get('is_final'):
                 new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
 
@@ -9664,6 +9675,8 @@ def update_anomaly_results():
 
         if updated > 0:
             logger.info(f"📊 Anomaly results updated: {updated}")
+        if api_errors > 0:
+            logger.warning(f"⚠️ API errors: {api_errors} (retry через 30 мин)")
         return updated
     except Exception as e:
         logger.exception(f"update_anomaly_results: {e}")
