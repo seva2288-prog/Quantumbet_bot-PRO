@@ -736,16 +736,28 @@ def llm_generate_reason(match_data: dict) -> str:
         hm = _motivation_text(standings.get('home_motivation', 'mid_table'))
         am = _motivation_text(standings.get('away_motivation', 'mid_table'))
 
+        weather_reason = (match_data.get('weather_reason') or '').strip()
+        h2h = match_data.get('h2h') or {}
+        extra_lines = []
+        if weather_reason and weather_reason != '🌤️ Нет данных':
+            extra_lines.append(f"Погода: {weather_reason}")
+        if h2h.get('total_matches'):
+            hw = h2h.get('home_wins', 0)
+            dr = h2h.get('draws', 0)
+            aw = h2h.get('away_wins', 0)
+            extra_lines.append(f"H2H: {hw}-{dr}-{aw} ({h2h.get('total_matches')} игр)")
+        extra = "\n\n" + "\n".join(extra_lines) if extra_lines else ""
+
         prompt = (
             f"Ты футбольный аналитик. Объясни ОДНИМ-ДВУМЯ предложениями "
             f"(макс 25 слов) ПОЧЕМУ эта ставка выгодна. Без воды, без цифр EV/Prob.\n\n"
             f"Матч: {home} vs {away}\n"
             f"Лига: {league}\n"
             f"Ставка: {label} @ {odds}\n"
-            f"xG: {home} {home_xg} — {away} {away_xg} (сумма {total_xg})\n"
-            f"Форма: {home} [{home_form}] vs {away} [{away_form}]\n"
-            f"Позиции: {hp} ({hm}) vs {ap} ({am})\n\n"
-            f"Отвечай ТОЛЬКО текстом объяснения на русском, без префиксов."
+            f"XG: {home} {home_xg} — {away} {away_xg} (сумма {total_xg})\n\n"
+            f"Форма: {home} [{home_form}] vs {away} [{away_form}]\n\n"
+            f"Позиции: {hp} ({hm}) vs {ap} ({am}){extra}\n\n\n"
+            f"Отвечай ТОЛЬКО текстом объяснения на русском, без префиксов.\n\n"
         )
 
         with _semaphore:
