@@ -4689,6 +4689,12 @@ def find_top_matches(matches):
                 hm = get_motivation(hp); am = get_motivation(ap)
                 if getattr(Config, 'SKIP_MID_TABLE_70', False) and hm == 'mid_table' and am == 'mid_table':
                     continue
+            _is_cup_or_intl = (
+                league_id in getattr(Config, 'CUP_LEAGUES', []) or
+                is_international or
+                (hp == 99 and ap == 99)
+            )
+            if not _is_cup_or_intl:
                 if hp > POS_MAX or ap > POS_MAX: continue
                 if league_name in TOP_TEAMS_LEAGUES and hp <= 6 and ap <= 6: continue
 
