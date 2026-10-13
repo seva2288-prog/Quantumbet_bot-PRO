@@ -246,6 +246,13 @@ HOME_ADVANTAGE = {
     'Serie A': 1.10, 'Ligue 1': 1.13, 'Championship': 1.12,
     '2. Bundesliga': 1.15, 'Eredivisie': 1.14, 'Primeira Liga': 1.11,
     'Süper Lig': 1.16,
+    # ★ v23.24: еврокубки — home advantage зависит от уровня турнира
+    'UEFA Champions League': 1.06,   # топ-команды, слабый home adv
+    'UEFA Europa League':    1.10,   # средний уровень
+    'UEFA Conference League': 1.13,  # разные уровни, сильный home adv
+    'Champions League':      1.06,
+    'Europa League':         1.10,
+    'Conference League':     1.13,
 }
 
 FALLBACK_XG = {
