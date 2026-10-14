@@ -5327,7 +5327,7 @@ def find_value_matches(matches, max_bets=5):
                     if len(vals) >= 2:
                         v_max = max(vals)
                         v_avg = sum(vals) / len(vals)
-                        if v_max - v_avg > 0.5:
+                        if v_max - v_avg > 1.5 or v_max / v_avg > 2.5:
                             logger.warning(
                                 f"⏭️ VALUE ANOMALY SKIP: {home} vs {away} | "
                                 f"{mkt_key}: max={v_max} avg={v_avg:.2f} (diff={v_max - v_avg:.2f})"
