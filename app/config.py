@@ -268,12 +268,12 @@ class Config:
     # ★ v23.0: новые пороги
     CLV_EXCELLENT_THRESHOLD = 2.0     # было 1.0
     CLV_GOOD_THRESHOLD = 0.0          # было -0.5
-    CLV_WEAK_THRESHOLD = -1.0         # было -2.0
+    CLV_WEAK_THRESHOLD = -3.0         # было -2.0
 
     CLV_MULT_EXCELLENT = 1.5          # было 1.25
     CLV_MULT_NORMAL = 1.0
     CLV_MULT_WEAK = 0.5
-    CLV_SKIP_CRITICAL = True
+    CLV_SKIP_CRITICAL = False
 
     # ============================================================
     # ★ LIVE-СТРАНИЦА (⚡)
