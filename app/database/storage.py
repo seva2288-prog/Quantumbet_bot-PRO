@@ -84,7 +84,7 @@ class Storage:
         target = self._path(name)
         if os.path.exists(target):
             try:
-                shutil.copy2(target, f"{target}.bak")
+                pass  # ★ v23.26: .bak off
             except Exception as e:
                 logger.warning(f"⚠️ Backup {name}: {e}")
 

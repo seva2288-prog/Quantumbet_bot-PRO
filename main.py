@@ -6904,7 +6904,7 @@ def schedule_auto_backup():
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=safe_job(send_auto_backup, "auto_backup"),
-        trigger='cron', day='1,15', hour=0, minute=0, id='auto_backup',
+        trigger='interval', hours=999999, id='auto_backup',
         replace_existing=True, misfire_grace_time=1800,
         coalesce=True, max_instances=1
     )
