@@ -3745,6 +3745,10 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
                       'critical_skip' | 'normal' | 'boosted' | 'reduced'
         - adjusted_prob: скорректированная вероятность (%)
     """
+    # ★ v23.28: CLV не применяется для ТМ 2.5 (по решению пользователя)
+    if source in ('tm25_premium', 'tm25_standard'):
+        return base_stake, 'no_clv_tm25', prob_pct
+
     if source == 'line_movement':
         return base_stake, 'no_model', prob_pct
 
