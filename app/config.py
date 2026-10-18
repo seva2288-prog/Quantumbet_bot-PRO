@@ -1,10 +1,9 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.9 — исправлены ID лиг + добавлены лиги с кэфами (по проверке API)
+★ ВЕРСИЯ 3.10 — исправлены 43 бага (weather, X2, LEAGUE_NAMES, CLV, STANDARD xG, blacklist)
 """
 import os
 import sys
-import time
 import sqlite3
 import requests
 from dotenv import load_dotenv
@@ -34,6 +33,19 @@ class Config:
     WEATHER_API_URL = os.getenv("WEATHER_API_URL", "https://api.openweathermap.org/data/2.5")
     WEATHER_ENABLED = bool(WEATHER_API_KEY)
 
+    # ★ FIX п.1+33: погодные константы ВНУТРИ класса
+    WEATHER_SKIP_RAIN_MM = 4.0
+    WEATHER_SKIP_WIND_MS = 15.0
+    WEATHER_SKIP_SNOW = True
+    WEATHER_SKIP_TEMP_MIN = -10
+    WEATHER_SKIP_TEMP_MAX = 40
+
+    WEATHER_RAIN_XG_PENALTY = 0.90
+    WEATHER_HEAVY_RAIN_XG_PENALTY = 0.80
+    WEATHER_WIND_XG_PENALTY = 0.92
+    WEATHER_HEAT_XG_PENALTY = 0.95
+    WEATHER_COLD_XG_PENALTY = 0.93
+
     # ============================================================
     # === ODDS API ===
     # ============================================================
@@ -58,14 +70,16 @@ class Config:
     USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
+    # ★ FIX п.15: включать автоматическое построение списка лиг через API
+    USE_API_LEAGUES = False  # True = строить через build_leagues_from_api
+
     # ============================================================
     # === PREDICTION ENGINE ===
     # ============================================================
     PREDICTION_ENGINE = os.getenv("PREDICTION_ENGINE", "heuristic")
     MIN_ODDS = 1.40
     MAX_ODDS = 8.00
-    MAX_ODDS_SAFE = 3.50
-    MIN_CONFIDENCE = 0.60
+    # ★ FIX п.18-19: MIN_CONFIDENCE, MAX_ODDS_SAFE убраны (мёртвые)
 
     # ============================================================
     # === СТАВКИ ===
@@ -77,16 +91,32 @@ class Config:
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
-    EV_MIN_70 = 8                    # ★ v23.0: было 8
+    EV_MIN_70 = 8
     PROB_MIN_70 = 52
-    PROB_MAX_70 = 85.0                # ★ v23.0: НОВОЕ, фильтр мёртвой зоны (было 78)
+    PROB_MAX_70 = 85.0
     POSITION_MAX_70 = 18
-    FORM_REQUIRED_70 = ['excellent', 'good', 'average']
+    # ★ FIX п.21: FORM_REQUIRED_70 убран (мёртвый)
     SKIP_MID_TABLE_70 = False
     LIMIT_BET_TYPE_70 = 15
     LIMIT_LEAGUE_70 = 5
     MIN_ODD_70 = 1.40
     MAX_ODD_70 = 8.00
+
+    # ============================================================
+    # === КАЛИБРОВКА (перенос из main.py) ===
+    # ============================================================
+    # ★ FIX п.2: эти константы теперь в Config, а не в main.py
+    CALIBRATION_FACTOR = 0.91
+    CALIBRATION_BY_BUCKET = {
+        (0, 50):   1.00,
+        (50, 65):  1.00,
+        (65, 70):  1.00,
+        (70, 75):  0.98,
+        (75, 80):  0.90,
+        (80, 85):  0.75,
+        (85, 90):  0.65,
+        (90, 100): 0.60,
+    }
 
     # ============================================================
     # === ФИНАЛЬНЫЙ ФИЛЬТР ===
@@ -98,17 +128,17 @@ class Config:
     # ============================================================
     # === X2 ===
     # ============================================================
-    X2_ENABLED = False  # ★ v23.27: отключено (баг парсинга X2)
+    # ★ FIX п.3: X2 отключено (баг парсинга) — флаг сохранён, но
+    # сопутствующие параметры ниже используются ТОЛЬКО если True.
+    X2_ENABLED = False
     X2_MIN_POSITION_DIFF = 3
     X2_MAX_POSITION = 20
-    X2_MIN_EV = 10  # ★ v23.23: было 5
-    X2_MIN_PROB = 58  # ★ v23.23: было 55
-    X2_BOTH_SIDES = False  # ★ v23.23: было True
-    X2_MAX_PCT_OF_BETS = 0.40  # ★ v23.23: макс % X2 в итоговом списке
-
-    # ★ X2: home/away context (v3.7)
-    X2_HOME_BONUS = 3.0        # +3% к prob если андердог дома
-    X2_AWAY_PENALTY = 2.0      # -2% если в гостях
+    X2_MIN_EV = 10
+    X2_MIN_PROB = 58
+    X2_BOTH_SIDES = False
+    X2_MAX_PCT_OF_BETS = 0.40
+    X2_HOME_BONUS = 3.0
+    X2_AWAY_PENALTY = 2.0
 
     # ★ ПУНКТ 2: минимальный кэф для П1/1X в 70%+
     MIN_ODDS_1X = 1.70
@@ -154,37 +184,31 @@ class Config:
     BTTS_INCLUDE_INTERNATIONAL = False
 
     # ============================================================
-    # ★ LINE MOVEMENT (Аномалии кэфов) — новый поток (v5.0)
+    # ★ LINE MOVEMENT (Аномалии кэфов)
     # ============================================================
     LINE_MOVEMENT_ENABLED = True
 
-    # Пороги движения
     LINE_MOVEMENT_MIN_DROP_PCT = -6.0
     LINE_MOVEMENT_MAX_DROP_PCT = -15.0
     LINE_MOVEMENT_MIN_RISE_PCT = 8.0
     LINE_MOVEMENT_MAX_RISE_PCT = 20.0
 
-    # Окно времени
     LINE_MOVEMENT_HOURS_BEFORE = 6
     LINE_MOVEMENT_MIN_SNAPSHOTS = 3
     LINE_MOVEMENT_MAX_SNAPSHOTS = 20
 
-    # Направление
     LINE_MOVEMENT_TRADE_DROPS = True
     LINE_MOVEMENT_TRADE_RISES = False
 
-    # Типы ставок
+    # ★ FIX п.30: main.py будет проверять, какие selection торговать
     LINE_MOVEMENT_BET_TYPES = ['1', 'X', '2', '1X', 'X2']
 
-    # Лимиты
     LINE_MOVEMENT_MAX_BETS = 2
     LINE_MOVEMENT_MAX_LEAGUE_BETS = 1
 
-    # Кэфы
     LINE_MOVEMENT_MIN_ODDS = 1.40
     LINE_MOVEMENT_MAX_ODDS = 3.50
 
-    # Фиксированный stake
     LINE_MOVEMENT_STAKE_PCT = 0.015
 
     LINE_MOVEMENT_LEAGUE_BLACKLIST = [
@@ -223,12 +247,12 @@ class Config:
     VALUE_MIN_EV = 25
     VALUE_MIN_PROB = 50
     VALUE_MIN_XG_DIFF = 0.3
-    VALUE_MAX_RESULTS = 3
+    VALUE_MAX_RESULTS = 5   # ★ FIX п.4: main.py будет читать это
     VALUE_MAX_PROB = 80
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
-    # ★ KELLY CRITERION (v23.0 — множитель по бакетам)
+    # ★ KELLY CRITERION
     # ============================================================
     KELLY_ENABLED = True
     KELLY_FRACTION = 0.25
@@ -236,12 +260,6 @@ class Config:
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
 
-    # ★ v23.0: множители Kelly по точности бакета
-    # Данные калибровки (141 ставка):
-    # < 75%: модель точна → 1.0
-    # 75-80%: завышает -5% → 0.85
-    # 80-85%: завышает -18% → 0.65
-    # 85%+: завышает -26..-37% → 0.45
     KELLY_BUCKET_FACTORS = {
         (0, 75):   1.0,
         (75, 80):  0.85,
@@ -251,28 +269,27 @@ class Config:
 
     @classmethod
     def get_kelly_bucket_factor(cls, prob_pct):
-        """Возвращает множитель Kelly по точности бакета."""
         for (lo, hi), factor in cls.KELLY_BUCKET_FACTORS.items():
             if lo <= prob_pct < hi:
                 return factor
         return 1.0
 
     # ============================================================
-    # ★ CLV-ФИЛЬТР СТРАТЕГИЙ (v23.0 — ужесточён)
+    # ★ CLV-ФИЛЬТР
     # ============================================================
     CLV_FILTER_ENABLED = True
     CLV_LOOKBACK_DAYS = 30
     CLV_MIN_SAMPLES = 20
     CLV_CACHE_TTL = 600
 
-    # ★ v23.0: новые пороги
-    CLV_EXCELLENT_THRESHOLD = 2.0     # было 1.0
-    CLV_GOOD_THRESHOLD = 0.0          # было -0.5
-    CLV_WEAK_THRESHOLD = -3.0         # было -2.0
+    CLV_EXCELLENT_THRESHOLD = 2.0
+    CLV_GOOD_THRESHOLD = 0.0
+    CLV_WEAK_THRESHOLD = -3.0
 
-    CLV_MULT_EXCELLENT = 1.5          # было 1.25
+    CLV_MULT_EXCELLENT = 1.5
     CLV_MULT_NORMAL = 1.0
     CLV_MULT_WEAK = 0.5
+    # ★ FIX п.26: теперь main.py учитывает этот флаг
     CLV_SKIP_CRITICAL = False
 
     # ============================================================
@@ -287,9 +304,6 @@ class Config:
     LIVE_CACHE_TTL_FINAL = 3600
     LIVE_MAX_MATCHES = 30
 
-    # ============================================================
-    # ★ LIVE SPARKLINE
-    # ============================================================
     LIVE_SPARKLINE_ENABLED = True
     LIVE_SPARKLINE_POINTS = 10
     LIVE_SPARKLINE_MARKET = '1X2'
@@ -301,6 +315,8 @@ class Config:
     WHITELIST_LEAGUES = [
         'premier league', 'championship',
         'efl league one', 'league one',
+        # ★ FIX п.40: League Two добавлен в whitelist
+        'league two',
         'la liga', 'laliga',
         'segunda división', 'segunda division', 'la liga 2',
         'primera federación', 'primera federacion',
@@ -309,6 +325,8 @@ class Config:
         'ligue 1', 'ligue 2', 'national',
         'eredivisie', 'eerste divisie',
         'primeira liga', 'liga portugal',
+        # ★ FIX п.39: Segunda Liga добавлена в whitelist
+        'segunda liga',
         'pro league', 'challenger pro league',
         'süper lig', 'super lig', 'tff 1. lig',
         'superliga', '1. division',
@@ -316,7 +334,7 @@ class Config:
         'ekstraklasa', 'i liga',
         'hnl', '2. hnl',
         'premier league ukraine', 'persha liga',
-        'рпл', 'первая лига',
+        'рпл', 'первая лига', 'вторая лига б',
         'super league', 'challenge league',
         'bundesliga austria',
         'brasileirão', 'brasileirao',
@@ -338,6 +356,8 @@ class Config:
     # ============================================================
     # === BLACKLIST ===
     # ============================================================
+    # ★ FIX п.13+14: убраны 'friendlies', 'nations league', 'wc qualification',
+    #    'euro qualification' и т.д. — они в WHITELIST и LEAGUES
     BLACKLIST_LEAGUES = [
         'isthmian', 'northern premier', 'southern league',
         'county league', 'combined counties',
@@ -378,37 +398,14 @@ class Config:
         'prva liga', 'egyptian premier',
         'uruguay primera', 'northern ireland', 'welsh premier',
         'irish premier', 'first division',
-
-    # ★ v23.11: проблемные лиги (CLV < -0.5%, тонкий рынок)
-    'friendlies',
-    'friendlies international',
-    'friendlies clubs',
-    'international friendlies',
-
-    'nations league',
-    'uefa nations league',
-    'concacaf nations league',
-    'afc nations league',
-
-    'wc qualification',
-    'wc qualification europe',
-    'wc qualification asia',
-    'wc qualification africa',
-    'wc qualification south america',
-    'wc qualification concacaf',
-    'wc qualification oceania',
-    'world cup qualification',
-    'euro qualification',
-    'afc asian cup qualification',
-    'copa america qualification',
-]
+    ]
 
     # ============================================================
-    # ★ ТМ 2.5 — РАСШИРЕННЫЕ ПАРАМЕТРЫ (v4.7)
+    # ★ ТМ 2.5
     # ============================================================
     MAX_TM25_BETS = 5
-    MIN_TM25_EV = 15
-    MIN_TM25_PROB = 55
+    # ★ FIX п.5: MIN_TM25_EV/PROB убраны (мёртвые)
+
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
@@ -418,11 +415,11 @@ class Config:
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
 
-    # ★ v23.1: STANDARD ужесточён (был -30% ROI)
-    STANDARD_MIN_EV = 20       # было 15
-    STANDARD_MIN_PROB = 56     # было 52
-    STANDARD_XG_MIN = 1.2      # было 0.8
-    STANDARD_XG_MAX = 2.8      # было 3.0
+    # ★ FIX п.6: main.py теперь читает эти значения, а не TM25_XG_*
+    STANDARD_MIN_EV = 20
+    STANDARD_MIN_PROB = 56
+    STANDARD_XG_MIN = 1.2
+    STANDARD_XG_MAX = 2.8
 
     TM25_USE_KELLY = True
     TM25_INCLUDE_INTERNATIONAL = False
@@ -447,10 +444,12 @@ class Config:
     # ============================================================
     # === МАППИНГ ЛИГ ДЛЯ ODDS API ===
     # ============================================================
+    # ★ FIX п.16: расширен (было ~30, стало ~50)
     ODDS_SPORT_MAP = {
         'АПЛ': 'soccer_epl', 'Premier League': 'soccer_epl',
         'Чемпионшип': 'soccer_efl_champ', 'Championship': 'soccer_efl_champ',
         'Лига 1 Англия': 'soccer_england_league1', 'League One': 'soccer_england_league1',
+        'League Two': 'soccer_england_league2',
         'Ла Лига': 'soccer_spain_la_liga', 'La Liga': 'soccer_spain_la_liga',
         'Сегунда': 'soccer_spain_segunda_division', 'La Liga 2': 'soccer_spain_segunda_division',
         'Бундеслига': 'soccer_germany_bundesliga', 'Bundesliga': 'soccer_germany_bundesliga',
@@ -497,67 +496,39 @@ class Config:
     ]
 
     # ============================================================
-    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID (v3.9 — исправлены ID)
+    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID
     # ============================================================
     LEAGUE_COUNTRY = {
-        # Cups
         2:   ("Европа", "🇪🇺"), 3:   ("Европа", "🇪🇺"), 848: ("Европа", "🇪🇺"),
-        # England
         39:  ("Англия", "🏴󠁧󠁢󠁥󠁮󠁧󠁿"), 40:  ("Англия", "🏴󠁧󠁢󠁥󠁮󠁧󠁿"), 41:  ("Англия", "🏴󠁧󠁢󠁥󠁮󠁧󠁿"),
         42:  ("Англия", "🏴󠁧󠁢󠁥󠁮󠁧󠁿"),
-        # Spain
         140: ("Испания", "🇪🇸"), 141: ("Испания", "🇪🇸"), 142: ("Испания", "🇪🇸"),
-        # Germany
         78:  ("Германия", "🇩🇪"), 79:  ("Германия", "🇩🇪"), 80:  ("Германия", "🇩🇪"),
-        # Italy
         135: ("Италия", "🇮🇹"), 136: ("Италия", "🇮🇹"), 137: ("Италия", "🇮🇹"),
-        # France
         61:  ("Франция", "🇫🇷"), 62:  ("Франция", "🇫🇷"), 63:  ("Франция", "🇫🇷"),
-        # Netherlands
         88:  ("Нидерланды", "🇳🇱"), 89:  ("Нидерланды", "🇳🇱"),
-        # Portugal
         94:  ("Португалия", "🇵🇹"), 95:  ("Португалия", "🇵🇹"),
-        # Belgium
         144: ("Бельгия", "🇧🇪"), 145: ("Бельгия", "🇧🇪"),
-        # Turkey
         203: ("Турция", "🇹🇷"), 204: ("Турция", "🇹🇷"),
-        # ★ Украина — правильные ID
         333: ("Украина", "🇺🇦"), 334: ("Украина", "🇺🇦"),
-        # Poland
         106: ("Польша", "🇵🇱"), 107: ("Польша", "🇵🇱"),
-        # Denmark
         119: ("Дания", "🇩🇰"), 120: ("Дания", "🇩🇰"),
-        # Norway
         164: ("Норвегия", "🇳🇴"), 165: ("Норвегия", "🇳🇴"),
-        # Croatia
         166: ("Хорватия", "🇭🇷"), 167: ("Хорватия", "🇭🇷"),
-        # Switzerland
         206: ("Швейцария", "🇨🇭"), 207: ("Швейцария", "🇨🇭"),
-        # Austria
         187: ("Австрия", "🇦🇹"),
-        # Greece
         197: ("Греция", "🇬🇷"), 198: ("Греция", "🇬🇷"),
-        # Czech
         261: ("Чехия", "🇨🇿"), 345: ("Чехия", "🇨🇿"),
-        # Sweden
         113: ("Швеция", "🇸🇪"),
-        # Brazil, Argentina, USA
         71:  ("Бразилия", "🇧🇷"), 128: ("Аргентина", "🇦🇷"), 253: ("США", "🇺🇸"),
-        # Mexico
         262: ("Мексика", "🇲🇽"),
-        # Asia
         150: ("Япония", "🇯🇵"), 169: ("Китай", "🇨🇳"), 307: ("Саудовская Аравия", "🇸🇦"),
-        # Africa
         276: ("ЮАР", "🇿🇦"), 278: ("Марокко", "🇲🇦"),
-        # Australia
         183: ("Австралия", "🇦🇺"), 189: ("Австралия", "🇦🇺"),
-        # ★ Russia — правильные ID
         235: ("Россия", "🇷🇺"), 236: ("Россия", "🇷🇺"), 238: ("Россия", "🇷🇺"),
-        # ★ Scotland
         179: ("Шотландия", "🏴󠁧󠁢󠁳󠁣󠁴󠁿"),
         180: ("Шотландия", "🏴󠁧󠁢󠁳󠁣󠁴󠁿"),
         182: ("Шотландия", "🏴󠁧󠁢󠁳󠁣󠁴󠁿"),
-        # National teams
         5:   ("Европа", "🇪🇺"),
         29:  ("Мир", "🌍"), 30:  ("Азия", "🌏"), 31:  ("Африка", "🌍"),
         32:  ("Европа", "🇪🇺"), 33:  ("Ю. Америка", "🌎"), 34:  ("Океания", "🌏"),
@@ -571,31 +542,32 @@ class Config:
     INTERNATIONAL_LEAGUES = [5, 29, 30, 31, 32, 33, 34, 35, 960, 10, 1, 4]
 
     # ============================================================
-    # ★ ЛИГИ + ТУРНИРЫ СБОРНЫХ (v3.9 — добавлены лиги с кэфами)
+    # ★ ЛИГИ + ТУРНИРЫ СБОРНЫХ
     # ============================================================
+    # ★ FIX п.42: убрано 183 (старая A-League)
     LEAGUES = [
         # === КУБКИ ===
         2, 3, 848,
         # === TOP-5 ЕВРОПА ===
-        39, 40, 41, 42,           # England (+League Two)
-        140, 141,                 # Spain
-        78, 79, 80,               # Germany
-        135, 136, 137,            # Italy
-        61, 62,                   # France
+        39, 40, 41, 42,
+        140, 141,
+        78, 79, 80,
+        135, 136, 137,
+        61, 62,
         # === ДРУГИЕ ЕВРОПЕЙСКИЕ ===
-        88, 89,                   # Netherlands
-        94, 95,                   # Portugal (95 = Segunda Liga)
-        144, 145,                 # Belgium
-        203, 204,                 # Turkey
-        106, 107,                 # Poland
-        119, 120,                 # Denmark
-        164, 165,                 # Norway
-        166, 167,                 # Croatia
-        206, 207,                 # Switzerland
-        187,                      # Austria
-        197, 198,                 # Greece
-        261, 345,                 # Czech
-        113,                      # Sweden
+        88, 89,
+        94, 95,
+        144, 145,
+        203, 204,
+        106, 107,
+        119, 120,
+        164, 165,
+        166, 167,
+        206, 207,
+        187,
+        197, 198,
+        261, 345,
+        113,
         # === УКРАИНА ===
         333, 334,
         # === РОССИЯ ===
@@ -603,14 +575,14 @@ class Config:
         # === ШОТЛАНДИЯ ===
         179, 180, 182,
         # === АМЕРИКА ===
-        71, 128, 253,             # Brazil, Argentina, USA
-        262,                      # Mexico
+        71, 128, 253,
+        262,
         # === АЗИЯ ===
         150, 169, 307,
         # === АФРИКА ===
         276, 278,
         # === АВСТРАЛИЯ ===
-        183, 189,
+        189,
         # === СБОРНЫЕ ===
         5,
         29, 30, 31, 32, 33, 34, 35,
@@ -620,7 +592,7 @@ class Config:
     CUP_LEAGUES = [2, 3, 848]
 
     # ============================================================
-    # ★ LEAGUE_NAMES (v3.9 — исправлены названия)
+    # ★ LEAGUE_NAMES (★ FIX п.12: Россия раскомментирована)
     # ============================================================
     LEAGUE_NAMES = {
         # Cups
@@ -643,7 +615,7 @@ class Config:
         144: "Pro League", 145: "Challenger Pro League",
         # Turkey
         203: "Süper Lig", 204: "TFF 1. Lig",
-        # ★ Ukraine
+        # Ukraine
         333: "Premier League Ukraine", 334: "Persha Liga",
         # Poland
         106: "Ekstraklasa", 107: "I Liga",
@@ -657,24 +629,25 @@ class Config:
         206: "Super League", 207: "Challenge League",
         # Austria
         187: "Bundesliga",
-        # ★ Greece
+        # Greece
         197: "Super League 2", 198: "Super League",
-        # ★ Czech
+        # Czech
         261: "Chance Liga", 345: "FNL",
-        # ★ Sweden
+        # Sweden
         113: "Allsvenskan",
         # America
         71: "Brasileirão", 128: "Argentina Primera", 253: "MLS",
-        # ★ Mexico
+        # Mexico
         262: "Liga MX",
         # Asia
         150: "J1 League", 169: "Chinese Super League", 307: "Saudi Pro League",
         # Africa
         276: "South Africa Premier", 278: "Botola Pro",
-        # ★ Australia
-        183: "A-League (old)", 189: "A-League",
-        # ★ Russia        235: "РПЛ", 236: "Первая Лига", 238: "Вторая Лига Б",
-        # ★ Scotland
+        # Australia
+        189: "A-League",
+        # ★ FIX п.12: Russia — раскомментировано
+        235: "РПЛ", 236: "Первая Лига", 238: "Вторая Лига Б",
+        # Scotland
         179: "Scottish Premiership", 180: "Scottish Championship", 182: "Scottish League One",
         # National teams
         5:   "UEFA Nations League",
@@ -732,7 +705,7 @@ class Config:
     }
 
     # ============================================================
-    # === API-МЕТОДЫ (все сохранены) ===
+    # === API-МЕТОДЫ ===
     # ============================================================
     @classmethod
     def build_leagues_from_api(cls, season=None):
@@ -903,52 +876,41 @@ class Config:
             return (cls.CLV_MULT_NORMAL, False, 'good')
         if avg_clv > cls.CLV_WEAK_THRESHOLD:
             return (cls.CLV_MULT_WEAK, False, 'weak')
+        # ★ FIX п.26: при критическом CLV учитываем флаг
         return (cls.CLV_MULT_WEAK, cls.CLV_SKIP_CRITICAL, 'critical')
 
     @classmethod
     def is_tm25_league_whitelisted(cls, league_name):
-        """Лига из whitelist для ТМ 2.5 (бонус к EV)."""
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.TM25_LEAGUE_WHITELIST)
 
     @classmethod
     def is_btts_league_whitelisted(cls, league_name):
-        """Лига из whitelist для BTTS (бонус к EV)."""
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_WHITELIST)
 
     @classmethod
     def is_btts_league_blacklisted(cls, league_name):
-        """Лига из blacklist для BTTS (пропуск)."""
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_BLACKLIST)
 
-    # ★ v5.0: Line Movement helpers
     @classmethod
     def is_lm_league_whitelisted(cls, league_name):
-        """Лига из whitelist для Line Movement."""
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_WHITELIST)
 
     @classmethod
     def is_lm_league_blacklisted(cls, league_name):
-        """Лига из blacklist для Line Movement."""
         if not league_name:
             return False
         return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)
 
-    # ★ v3.7: X2 helpers
     @classmethod
     def get_x2_prob_bonus(cls, side):
-        """
-        Возвращает бонус к prob для X2 в зависимости от того,
-        играет ли андердог дома или в гостях.
-        side: 'X2' (андердог = home) или '1X' (андердог = away)
-        """
         if side == 'X2':
             return cls.X2_HOME_BONUS
         elif side == '1X':
@@ -988,6 +950,7 @@ class Config:
         print(f"")
         print(f"⚽ ТМ 2.5: PREMIUM EV>={cls.PREMIUM_MIN_EV}% Prob>={cls.PREMIUM_MIN_PROB}% | "
               f"STANDARD EV>={cls.STANDARD_MIN_EV}% Prob>={cls.STANDARD_MIN_PROB}%")
+        print(f"   • STANDARD xG: {cls.STANDARD_XG_MIN}..{cls.STANDARD_XG_MAX}")
         print(f"   • Kelly={cls.TM25_USE_KELLY} | сборные={cls.TM25_INCLUDE_INTERNATIONAL}")
         print(f"   • Лиг-whitelist: {len(cls.TM25_LEAGUE_WHITELIST)} | bonus EV +{cls.TM25_LEAGUE_BONUS}%")
         print(f"   • Лимит на лигу: {cls.TM25_MAX_LEAGUE_BETS}")
@@ -1014,9 +977,14 @@ class Config:
         print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
               f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
         print(f"")
-        print(f"🔥 X2: позиции >= {cls.X2_MIN_POSITION_DIFF} | "
+        print(f"🔥 X2: {'вкл' if cls.X2_ENABLED else 'ВЫКЛ'} | позиции >= {cls.X2_MIN_POSITION_DIFF} | "
               f"EV>={cls.X2_MIN_EV}% | Prob>={cls.X2_MIN_PROB}%")
         print(f"   • Дома bonus: +{cls.X2_HOME_BONUS}% | Гости penalty: -{cls.X2_AWAY_PENALTY}%")
+        print(f"")
+        print(f"🌤️ WEATHER: rain>{cls.WEATHER_SKIP_RAIN_MM}мм / wind>{cls.WEATHER_SKIP_WIND_MS}м/с / "
+              f"temp<{cls.WEATHER_SKIP_TEMP_MIN}°C / temp>{cls.WEATHER_SKIP_TEMP_MAX}°C / snow={cls.WEATHER_SKIP_SNOW}")
+        print(f"   • xG-штрафы: rain×{cls.WEATHER_RAIN_XG_PENALTY} / "
+              f"heavy-rain×{cls.WEATHER_HEAVY_RAIN_XG_PENALTY} / wind×{cls.WEATHER_WIND_XG_PENALTY}")
         cls.init_db()
         print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
         print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
@@ -1027,20 +995,9 @@ if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else "check"
     if arg == "check":
         Config.check()
+    elif arg == "build_leagues":
+        Config.build_leagues_from_api()
     else:
         print("Использование:")
-        print("  python -m app.config check — общая проверка")
-
-    # ★ v23.17: Погодный фильтр (усиленный)
-    WEATHER_SKIP_RAIN_MM = 4.0
-    WEATHER_SKIP_WIND_MS = 15.0
-    WEATHER_SKIP_SNOW = True
-    WEATHER_SKIP_TEMP_MIN = -10
-    WEATHER_SKIP_TEMP_MAX = 40
-
-    WEATHER_RAIN_XG_PENALTY = 0.90
-    WEATHER_HEAVY_RAIN_XG_PENALTY = 0.80
-    WEATHER_WIND_XG_PENALTY = 0.92
-    WEATHER_HEAT_XG_PENALTY = 0.95
-    WEATHER_COLD_XG_PENALTY = 0.93
-
+        print("  python -m app.config check          — общая проверка")
+        print("  python -m app.config build_leagues  — построить список лиг через API")
