@@ -93,7 +93,6 @@
             line-height: 1.5;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            /* ★ v22.2: для pull-to-refresh — не мешать с iOS bounce */
             overscroll-behavior-y: contain;
         }
 
@@ -343,7 +342,6 @@
         .bet-stat .stat-value.gold { color: var(--gold-400); }
         .bet-stat .stat-value.red { color: var(--red-400); }
 
-        /* ★ LIVE-КАРТОЧКИ */
         .live-card {
             padding: 14px;
             background: var(--bg-card);
@@ -1527,7 +1525,7 @@
             🚀 Запустить симуляцию
         </button>
 
-        <button class="btn btn-gold" onclick="runGridSearch()" style="width:100%;margin: 0 0 10px;padding: 14px;">
+        <button class="btn btn-gold" onclick="runGridSearch(event)" style="width:100%;margin: 0 0 10px;padding: 14px;">
             🎯 Найти лучшую стратегию (Grid Search)
         </button>
 
@@ -1828,9 +1826,6 @@
     </div>
 
     <!-- ============================================================
-         PAGE: CALIBRATION
-         ============================================================ -->
-    <!-- ============================================================
          PAGE: ANOMALIES (v23.3)
          ============================================================ -->
     <div id="page-anomalies" class="page">
@@ -2103,15 +2098,15 @@
             <div class="setting-item" style="border-bottom:none;">
                 <div>
                     <div class="label">Quantum Bet Tracker</div>
-                    <div class="desc">v22.5 Emerald • Live + X2 + CLV + Calibration + Daily + Train/Test + 3-Way</div>
+                    <div class="desc">v23.0 • Live + X2 + CLV + Calibration + Daily + Train/Test + 3-Way</div>
                 </div>
-                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v22.5</span>
+                <span style="color:var(--text-muted);font-size:10px;" id="appVersion">v23.0</span>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        💎 Quantum Tracker v22.5 Emerald © 2026
+        💎 Quantum Tracker v23.0 © 2026
     </div>
 </div>
 
@@ -2202,7 +2197,6 @@
             </div>
         </button>
 
-        <!-- ★ НОВАЯ КНОПКА 3-WAY SPLIT -->
         <button class="sheet-item" onclick="openFromMore('anomalies')">
             <span class="sheet-icon">🚫</span>
             <div>
@@ -2210,7 +2204,7 @@
                 <div class="sheet-desc">Пропущенные матчи — проверка фильтра</div>
             </div>
         </button>
-        
+
         <button class="sheet-item" onclick="openFromMore('split3way')">
             <span class="sheet-icon">🔬</span>
             <div>
@@ -2414,7 +2408,7 @@
     </div>
 </div>
 
-    <!-- MODAL: ANOMALY SET RESULT -->
+<!-- MODAL: ANOMALY SET RESULT -->
 <div class="modal-overlay" id="anomalyResultModal">
     <div class="modal">
         <div class="modal-header">
@@ -2449,7 +2443,11 @@
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
 <!-- ============================================================ -->
-<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v22.3 — Daily Stats)                 -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (следующее сообщение)                 -->
+<!-- ============================================================ -->
+
+<!-- ============================================================ -->
+<!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
 <script>
 // ============================================================
@@ -2462,6 +2460,26 @@ const AUTO_IMPORT_MS = 180000;
 const ITEMS_LIMIT = 50;
 const SWIPE_THRESHOLD = 100;
 const LIVE_REFRESH_MS = 20000;
+
+// ============================================================
+// ★ FIX #12: безопасный localStorage
+// ============================================================
+function safeLSGet(key, defaultValue = null) {
+    try {
+        const v = localStorage.getItem(key);
+        return v === null ? defaultValue : v;
+    } catch (e) {
+        return defaultValue;
+    }
+}
+function safeLSSet(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
 
 // ============================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -2500,14 +2518,10 @@ let snapshotSort = 'recent';
 let snapshotsSearchQuery = '';
 let currentSnapshotFixture = null;
 
-// ★ v22.3: Daily stats
 let dailyFilter = 30;
 let dailySort = 'date';
 
-// ★ v22.4: Train/Test
 let ttLastResult = null;
-
-// ★ v22.5: 3-Way Split
 let s3LastResult = null;
 
 // ============================================================
@@ -2677,7 +2691,7 @@ function getSystemTheme() {
 
 function applyTheme(mode) {
     themeMode = mode;
-    localStorage.setItem('theme', mode);
+    safeLSSet('theme', mode);  // ★ FIX #12
     let actualTheme = mode;
     if (mode === 'auto') actualTheme = getSystemTheme();
     document.documentElement.setAttribute('data-theme', actualTheme);
@@ -2704,7 +2718,7 @@ function setTheme(mode) {
 }
 
 (function initTheme() {
-    const saved = localStorage.getItem('theme') || 'auto';
+    const saved = safeLSGet('theme', 'auto');  // ★ FIX #12
     applyTheme(saved);
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
         if (themeMode === 'auto') applyTheme('auto');
@@ -2763,12 +2777,8 @@ function switchPage(page) {
     else if (page === 'calibration') loadCalibrationFull();
     else if (page === 'anomalies') loadAnomalies();
     else if (page === 'daily') loadDailyStats();
-    else if (page === 'traintest') {
-        // Форма статичная
-    }
-    else if (page === 'split3way') {
-        // Форма статичная
-    }
+    else if (page === 'traintest') { /* Форма статичная */ }
+    else if (page === 'split3way') { /* Форма статичная */ }
 }
 
 function openSettings() {
@@ -2843,7 +2853,7 @@ function openFromMore(page) {
 })();
 
 // ============================================================
-// ★ PULL-TO-REFRESH
+// PULL-TO-REFRESH
 // ============================================================
 (async function initPullToRefresh() {
     const PULL_THRESHOLD = 80;
@@ -3092,6 +3102,7 @@ async function loadPageData(page) {
 }
 
 function refreshData() {
+    // ★ FIX #13: clearTimeout уже есть — оставляем
     if (refreshTimeout) clearTimeout(refreshTimeout);
     refreshTimeout = setTimeout(() => {
         cachedData = null;
@@ -3138,9 +3149,7 @@ async function loadLive(force = false) {
         }
 
         liveData = data.matches || [];
-        renderLive();
-        updateLiveLastUpdate();
-        updateLiveNavBadge();
+        // ★ FIX #3: убран двойной рендер
         renderLive();
         updateLiveLastUpdate();
         updateLiveNavBadge();
@@ -3251,9 +3260,10 @@ function renderLiveCard(m) {
     // ★ v23.8: реальная ставка только если prob > 0 и label не '1X2'
     const hasBet = (bb.prob || 0) > 0 && bb.label && bb.label !== '1X2' && bb.label !== '—';
     const betLabel = hasBet ? (bb.label || '—') : 'Нет ставки';
-    const betOdds = hasBet && bb.odds ? bb.odds.toFixed(2) : '—';
-    const betEv = hasBet && bb.ev ? (bb.ev >= 0 ? '+' : '') + bb.ev.toFixed(1) + '%' : '—';
-    const betProb = hasBet && bb.prob ? bb.prob.toFixed(0) + '%' : '—';
+    // ★ FIX #8: Number() для безопасного .toFixed
+    const betOdds = hasBet && bb.odds ? Number(bb.odds || 0).toFixed(2) : '—';
+    const betEv = hasBet && bb.ev ? (Number(bb.ev) >= 0 ? '+' : '') + Number(bb.ev).toFixed(1) + '%' : '—';
+    const betProb = hasBet && bb.prob ? Number(bb.prob).toFixed(0) + '%' : '—';
 
     const trend = m.odds_trend || 0;
     const trendEmoji = trend > 1 ? '📈' : trend < -1 ? '📉' : '';
@@ -3447,6 +3457,7 @@ function renderActiveMatchesList(matches) {
 
 // ============================================================
 // АНОМАЛИИ НА DASHBOARD
+// ★ FIX #1: объявлена `card`
 // ============================================================
 async function loadDashboardAnomalies() {
     try {
@@ -3454,6 +3465,8 @@ async function loadDashboardAnomalies() {
         if (!resp.ok) return;
         const data = await resp.json();
         const container = document.getElementById('dashboardAnomaliesList');
+        // ★ FIX #1: card была не объявлена → ReferenceError
+        const card = document.getElementById('anomaliesCard');
         if (!container || !card) return;
 
         if (!data.anomalies || data.anomalies.length === 0) {
@@ -3493,6 +3506,7 @@ function openSnapshotFromAnomaly(fid) {
 
 // ============================================================
 // BET CARD
+// ★ FIX #2: убраны дублирующие блоки Score
 // ============================================================
 function renderBetCard(m, isActive = false) {
     const best = m.best_bet || (m.bets && m.bets[0]) || {};
@@ -3508,7 +3522,7 @@ function renderBetCard(m, isActive = false) {
     const score = m.score || '-';
     const result = m.result || 'pending';
 
-    // ★ v23.7: Score-based фильтр — отображение
+    // Score-based: число или null
     const matchScore = (typeof m.score === 'number' && isFinite(m.score)) ? m.score : null;
 
     const htH = m.halftime_home;
@@ -3549,17 +3563,17 @@ function renderBetCard(m, isActive = false) {
         }
     } catch (e) {}
 
-    const oddsDisplay = odds > 0 ? odds.toFixed(2) : '—';
+    const oddsDisplay = odds > 0 ? Number(odds).toFixed(2) : '—';
 
     const evDisplay = isLM
         ? (best.movement_pct !== undefined && best.movement_pct !== null
             ? (best.movement_pct >= 0 ? '+' : '') + best.movement_pct + '%'
             : '—')
-        : (ev !== 0 ? (ev >= 0 ? '+' : '') + ev.toFixed(1) + '%' : '—');
+        : (ev !== 0 ? (ev >= 0 ? '+' : '') + Number(ev).toFixed(1) + '%' : '—');
 
     const probDisplay = isLM
         ? (best.snapshots_count ? best.snapshots_count + ' сним.' : '—')
-        : (prob > 0 ? prob.toFixed(0) + '%' : '—');
+        : (prob > 0 ? Number(prob).toFixed(0) + '%' : '—');
 
     const evLabel = isLM ? 'Движение' : 'EV';
     const probLabel = isLM ? 'Снимков' : 'Prob';
@@ -3583,7 +3597,7 @@ function renderBetCard(m, isActive = false) {
            </div>`
         : '';
 
-    // ★ v23.7: цвет Score
+    // ★ FIX #2: цвет Score (оставлен один)
     let matchScoreColor = 'var(--text-tertiary)';
     if (matchScore != null) {
         if (matchScore >= 10) matchScoreColor = 'var(--emerald-400)';
@@ -3591,7 +3605,7 @@ function renderBetCard(m, isActive = false) {
         else matchScoreColor = 'var(--red-400)';
     }
 
-    // ★ Динамическая сетка: 3 или 4 колонки
+    // Динамическая сетка: 3 или 4 колонки
     const statsGridStyle = matchScore != null
         ? 'grid-template-columns: repeat(4, 1fr);'
         : '';
@@ -3633,23 +3647,11 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
-                ${(typeof m.score === 'number' && isFinite(m.score) && !isLM) ? `
-                <div class="bet-stat">
-                    <span class="stat-label">Score</span>
-                    <span class="stat-value" style="color:${m.score >= 75 ? 'var(--emerald-400)' : m.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">${m.score.toFixed(1)}</span>
-                </div>
-                ` : ''}
-                ${typeof m.score === 'number' && isFinite(m.score) && !isLM ? `
-                <div class="bet-stat">
-                    <span class="stat-label">Score</span>
-                    <span class="stat-value" style="color:${m.score >= 75 ? 'var(--emerald-400)' : m.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">${Number(m.score).toFixed(1)}</span>
-                </div>
-                ` : ''}
                 ${matchScore != null ? `
                     <div class="bet-stat">
                         <span class="stat-label">Score</span>
                         <span class="stat-value" style="color:${matchScoreColor};font-weight:800;">
-                            ${matchScore.toFixed(1)}
+                            ${Number(matchScore).toFixed(1)}
                         </span>
                     </div>
                 ` : ''}
@@ -3678,6 +3680,7 @@ function getBetClass(label) {
 
 // ============================================================
 // СВАЙПЫ WIN/LOSS
+// ★ FIX #6: добавлены mouse-события
 // ============================================================
 function initCardSwipes() {
     document.querySelectorAll('.bet-card[data-index]').forEach(card => {
@@ -3689,16 +3692,15 @@ function initCardSwipes() {
 
         let startX = 0, startY = 0, currentX = 0, isSwiping = false;
 
-        card.addEventListener('touchstart', (e) => {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
+        function start(clientX, clientY) {
+            startX = clientX;
+            startY = clientY;
             isSwiping = false;
-        }, { passive: true });
-
-        card.addEventListener('touchmove', (e) => {
+        }
+        function move(clientX, clientY) {
             if (!startX) return;
-            const dx = e.touches[0].clientX - startX;
-            const dy = e.touches[0].clientY - startY;
+            const dx = clientX - startX;
+            const dy = clientY - startY;
             if (Math.abs(dy) > Math.abs(dx)) return;
             if (Math.abs(dx) < 10) return;
             isSwiping = true;
@@ -3710,15 +3712,25 @@ function initCardSwipes() {
                 card.classList.add('swipe-right');
                 card.classList.remove('swipe-left');
             }
-        }, { passive: true });
-
-        card.addEventListener('touchend', () => {
+        }
+        function end() {
             if (!isSwiping) { startX = 0; currentX = 0; return; }
             if (currentX > SWIPE_THRESHOLD) { haptic(30); quickSetResult(idx, 'win'); }
             else if (currentX < -SWIPE_THRESHOLD) { haptic(30); quickSetResult(idx, 'loss'); }
             else { card.classList.remove('swipe-left', 'swipe-right'); }
             startX = 0; currentX = 0; isSwiping = false;
-        }, { passive: true });
+        }
+
+        // touch (мобильные)
+        card.addEventListener('touchstart', (e) => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+        card.addEventListener('touchmove', (e) => move(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+        card.addEventListener('touchend', end, { passive: true });
+
+        // ★ FIX #6: mouse (десктоп)
+        card.addEventListener('mousedown', (e) => { if (e.button === 0) start(e.clientX, e.clientY); });
+        card.addEventListener('mousemove', (e) => { if (startX) move(e.clientX, e.clientY); });
+        card.addEventListener('mouseup', end);
+        card.addEventListener('mouseleave', () => { if (startX) end(); });
     });
 }
 
@@ -3833,7 +3845,7 @@ function renderTableView(items) {
     tbody.innerHTML = items.map((item, idx) => {
         const profitClass = item.profit > 0 ? 'profit-positive' : (item.profit < 0 ? 'profit-negative' : '');
         const profitStr = item.profit > 0 ? '+' + item.profit : item.profit;
-        const oddsStr = item.odds > 0 ? item.odds.toFixed(2) : '—';
+        const oddsStr = item.odds > 0 ? Number(item.odds).toFixed(2) : '—';
         const evStr = item.ev !== 0 ? item.ev + '%' : '—';
         const htStr = (item.halftime_home != null && item.halftime_away != null)
             ? `${item.halftime_home}-${item.halftime_away}` : '—';
@@ -3947,6 +3959,7 @@ function getItemByIndex(index) {
     return all[index] || null;
 }
 
+// ★ FIX #4: сначала по fixture_id + home/away/date, потом fallback
 function getHistoryIndex(displayIndex) {
     if (!cachedData) return null;
     const history = cachedData.history || [];
@@ -3955,9 +3968,24 @@ function getHistoryIndex(displayIndex) {
     all = all.slice(0, limit);
     const item = all[displayIndex];
     if (!item || item.type !== 'history') return null;
+
+    // По fixture_id + home/away/date (основной матч)
+    if (item.fixture_id) {
+        for (let i = 0; i < history.length; i++) {
+            const h = history[i];
+            if (h.fixture_id === item.fixture_id &&
+                (h.home || '') === item.home &&
+                (h.away || '') === item.away &&
+                (h.date || '') === item.date) return i;
+        }
+    }
+    // Fallback: home/away/date/bet (для старых записей без fixture_id)
     for (let i = 0; i < history.length; i++) {
         const h = history[i];
-        if ((h.home || '') === item.home && (h.away || '') === item.away && (h.date || '') === item.date) return i;
+        if ((h.home || '') === item.home &&
+            (h.away || '') === item.away &&
+            (h.date || '') === item.date &&
+            (h.bet || '') === item.bet) return i;
     }
     return null;
 }
@@ -3981,7 +4009,7 @@ function setMatchFilter(filter) {
 
 function setViewMode(mode) {
     viewMode = mode;
-    localStorage.setItem('viewMode', mode);
+    safeLSSet('viewMode', mode);  // ★ FIX #12
     document.getElementById('viewCardsBtn').style.color = mode === 'cards' ? 'var(--emerald-400)' : '';
     document.getElementById('viewTableBtn').style.color = mode === 'table' ? 'var(--emerald-400)' : '';
     haptic(6);
@@ -4065,24 +4093,25 @@ function showMatchDetail(match) {
             </div>
         `;
     } else {
+        const scoreNum = (typeof match.score === 'number' && isFinite(match.score)) ? match.score : null;
         html += `
-            <div class="stats-grid" style="grid-template-columns:repeat(${typeof match.score === 'number' && isFinite(match.score) ? '4' : '3'},1fr);margin-bottom:16px;">
+            <div class="stats-grid" style="grid-template-columns:repeat(${scoreNum != null ? '4' : '3'},1fr);margin-bottom:16px;">
                 <div class="stat-card">
-                    <div class="value emerald">${best.ev ? best.ev.toFixed(1) + '%' : '—'}</div>
+                    <div class="value emerald">${best.ev ? Number(best.ev).toFixed(1) + '%' : '—'}</div>
                     <div class="label">EV</div>
                 </div>
                 <div class="stat-card">
-                    <div class="value">${best.odds ? best.odds.toFixed(2) : '—'}</div>
+                    <div class="value">${best.odds ? Number(best.odds).toFixed(2) : '—'}</div>
                     <div class="label">Кэф</div>
                 </div>
                 <div class="stat-card">
-                    <div class="value gold">${best.prob ? best.prob.toFixed(0) + '%' : '—'}</div>
+                    <div class="value gold">${best.prob ? Number(best.prob).toFixed(0) + '%' : '—'}</div>
                     <div class="label">Prob</div>
                 </div>
-                ${typeof match.score === 'number' && isFinite(match.score) ? `
+                ${scoreNum != null ? `
                 <div class="stat-card">
-                    <div class="value" style="color:${match.score >= 75 ? 'var(--emerald-400)' : match.score >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">
-                        ${Number(match.score).toFixed(1)}
+                    <div class="value" style="color:${scoreNum >= 75 ? 'var(--emerald-400)' : scoreNum >= 65 ? 'var(--gold-400)' : 'var(--red-400)'};font-weight:800;">
+                        ${scoreNum.toFixed(1)}
                     </div>
                     <div class="label">Score</div>
                 </div>
@@ -4441,6 +4470,7 @@ function renderSnapshotCard(s) {
 
 // ============================================================
 // БЛОК РЕКОМЕНДАЦИИ В МОДАЛКЕ СНИМКА
+// ★ FIX #7: Number(bet.stake || 0).toFixed(2)
 // ============================================================
 function renderSnapshotBetBlock(bet) {
     const container = document.getElementById('snapshotBetBlock');
@@ -4538,18 +4568,18 @@ function renderSnapshotBetBlock(bet) {
                         ${escapeHtml(bet.label)}
                     </div>
                     <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">
-                        📊 Prob: <b style="color:var(--text-primary);">${(bet.prob || 0).toFixed(0)}%</b>
+                        📊 Prob: <b style="color:var(--text-primary);">${Number(bet.prob || 0).toFixed(0)}%</b>
                         &nbsp;•&nbsp;
-                        EV: <b style="color:${evColor};">${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%</b>
+                        EV: <b style="color:${evColor};">${ev >= 0 ? '+' : ''}${Number(ev).toFixed(1)}%</b>
                     </div>
                 </div>
                 <div style="text-align:right;">
                     <div style="font-size:32px;font-weight:800;color:var(--emerald-400);
                                 font-variant-numeric:tabular-nums;line-height:1;">
-                        ${(bet.odds || 0).toFixed(2)}
+                        ${Number(bet.odds || 0).toFixed(2)}
                     </div>
                     ${bet.stake ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">
-                        💵 $${bet.stake.toFixed(2)}
+                        💵 $${Number(bet.stake || 0).toFixed(2)}
                     </div>` : ''}
                 </div>
             </div>
@@ -4889,7 +4919,7 @@ function renderLeagueBreakdown(history) {
 }
 
 // ============================================================
-// ★ v22.3: СТАТИСТИКА ПО ДНЯМ
+// ★ FIX #10: СТАТИСТИКА ПО ДНЯМ (будущие даты)
 // ============================================================
 async function loadDailyStats() {
     const listEl = document.getElementById('dailyList');
@@ -4931,12 +4961,13 @@ function aggregateByDay(history, period) {
         const dateStr = (bet.date || '').split(' ')[0];
         if (!dateStr) continue;
 
-        if (period !== 'all') {
-            const betDate = new Date(dateStr);
-            const now = new Date();
-            const diffDays = Math.floor((now - betDate) / (1000 * 60 * 60 * 24));
-            if (diffDays > period) continue;
-        }
+        // ★ FIX #10: пропускаем будущие и слишком старые
+        let betDate;
+        try { betDate = new Date(dateStr); } catch (e) { continue; }
+        const now = new Date();
+        const diffDays = Math.floor((now - betDate) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) continue;
+        if (period !== 'all' && diffDays > period) continue;
 
         if (!byDay[dateStr]) {
             byDay[dateStr] = {
@@ -5173,7 +5204,7 @@ async function showDayDetail(dateStr) {
                                         ${emoji} ${b.home} vs ${b.away}${score}
                                     </div>
                                     <div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">
-                                        ${b.bet || '—'} @ ${(b.odds || 0).toFixed(2)}
+                                        ${b.bet || '—'} @ ${Number(b.odds || 0).toFixed(2)}
                                         ${b.league ? ` · ${b.league}` : ''}
                                     </div>
                                 </div>
@@ -5287,9 +5318,7 @@ function renderClvByStrategy(strategies, period) {
                 <div class="label">📅 Период</div>
             </div>
             <div class="stat-card">
-                <div class="value">${
-                    sorted.reduce((s, [_, x]) => s + (x.count || 0), 0)
-                }</div>
+                <div class="value">${sorted.reduce((s, [_, x]) => s + (x.count || 0), 0)}</div>
                 <div class="label">📊 Замеров</div>
             </div>
         </div>
@@ -5335,7 +5364,7 @@ function renderClvByStrategy(strategies, period) {
 
     html += `
         <div style="font-size:10px;color:var(--text-tertiary);margin-top:12px;padding-top:10px;border-top:1px solid var(--border-color);">
-            💡 CLV > +1% → Kelly × 1.25 • CLV < -0.5% → Kelly × 0.5 • CLV < -2% → пропуск ставки
+            💡 CLV > +1% → Kelly × 1.5 • CLV < -0.5% → Kelly × 0.5 • CLV < -3% → пропуск ставки
         </div>
     `;
 
@@ -5443,9 +5472,9 @@ function renderX2List() {
                             m.result === 'loss' ? '❌' :
                             m.result === 'push' ? '🔄' : '⏳';
 
-        const oddsStr = m.odds > 0 ? m.odds.toFixed(2) : '—';
-        const probStr = m.prob > 0 ? m.prob.toFixed(1) + '%' : '—';
-        const evStr = m.ev > 0 ? `${m.ev >= 0 ? '+' : ''}${m.ev.toFixed(1)}%` : '';
+        const oddsStr = m.odds > 0 ? Number(m.odds).toFixed(2) : '—';
+        const probStr = m.prob > 0 ? Number(m.prob).toFixed(1) + '%' : '—';
+        const evStr = m.ev > 0 ? `${m.ev >= 0 ? '+' : ''}${Number(m.ev).toFixed(1)}%` : '';
 
         const trendEmoji = m.trend > 1 ? '📈' : m.trend < -1 ? '📉' : '';
         const trendStr = m.trend !== 0 ? ` (${m.trend > 0 ? '+' : ''}${m.trend.toFixed(1)}%)` : '';
@@ -5517,18 +5546,22 @@ function openX2Detail(source, id) {
     );
 }
 
+// ★ FIX #9: дедупликация auto + manual
 function calcX2Stats() {
-    const autoItems = (autoX2Data || []).map(c => ({
-        result: c.result || 'pending',
-        profit: c.profit || 0,
-        stake: 20,
-    }));
-    const manualItems = (x2Data || []).map(m => ({
-        result: m.result || 'pending',
-        profit: m.profit || 0,
-        stake: m.stake || 20,
-    }));
-    const all = [...autoItems, ...manualItems];
+    const seen = new Set();
+    const all = [];
+    for (const c of (autoX2Data || [])) {
+        const key = `auto|${c.home || ''}|${c.away || ''}|${(c.match_time || '').split(' ')[0]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        all.push({ result: c.result || 'pending', profit: c.profit || 0, stake: 20 });
+    }
+    for (const m of (x2Data || [])) {
+        const key = `manual|${m.match || ''}|${m.date || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        all.push({ result: m.result || 'pending', profit: m.profit || 0, stake: m.stake || 20 });
+    }
 
     const total = all.length;
     const wins = all.filter(m => m.result === 'win').length;
@@ -5542,17 +5575,22 @@ function calcX2Stats() {
 }
 
 function loadX2Data() {
+    x2Data = [];
+    x2CurrentFilter = 'all';
     try {
-        const saved = localStorage.getItem('x2_matches');
+        const saved = safeLSGet('x2_matches');  // ★ FIX #12
         x2Data = saved ? JSON.parse(saved) : [];
-        x2CurrentFilter = localStorage.getItem('x2_filter') || 'all';
     } catch (e) { x2Data = []; }
+    try {
+        x2CurrentFilter = safeLSGet('x2_filter', 'all');  // ★ FIX #12
+    } catch (e) { x2CurrentFilter = 'all'; }
+
     fetch(API_BASE + '/api/x2_data?t=' + Date.now())
         .then(r => r.json())
         .then(data => {
             if (data && data.status === 'ok' && Array.isArray(data.data) && data.data.length > 0) {
                 x2Data = data.data;
-                localStorage.setItem('x2_matches', JSON.stringify(x2Data));
+                safeLSSet('x2_matches', JSON.stringify(x2Data));  // ★ FIX #12
                 renderX2List();
             }
         })
@@ -5560,7 +5598,7 @@ function loadX2Data() {
 }
 
 function saveX2Data() {
-    localStorage.setItem('x2_matches', JSON.stringify(x2Data));
+    safeLSSet('x2_matches', JSON.stringify(x2Data));  // ★ FIX #12
     syncX2ToServer();
 }
 
@@ -5576,7 +5614,7 @@ async function syncX2ToServer() {
 
 function setX2Filter(filter) {
     x2CurrentFilter = filter;
-    localStorage.setItem('x2_filter', filter);
+    safeLSSet('x2_filter', filter);  // ★ FIX #12
     document.querySelectorAll('#page-x2 .filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.x2filter === filter);
     });
@@ -5946,16 +5984,16 @@ function renderAutobetsHistory(history) {
                 <div class="bet-stats">
                     <div class="bet-stat">
                         <span class="stat-label">Кэф</span>
-                        <span class="stat-value">${(b.odds || 0).toFixed(2)}</span>
+                        <span class="stat-value">${Number(b.odds || 0).toFixed(2)}</span>
                     </div>
                     <div class="bet-stat">
                         <span class="stat-label">Ставка</span>
-                        <span class="stat-value">$${(b.stake || 0).toFixed(2)}</span>
+                        <span class="stat-value">$${Number(b.stake || 0).toFixed(2)}</span>
                     </div>
                     <div class="bet-stat">
                         <span class="stat-label">Прибыль</span>
                         <span class="stat-value" style="color:${profitColor};">
-                            ${b.profit >= 0 ? '+' : ''}$${(b.profit || 0).toFixed(2)}
+                            ${b.profit >= 0 ? '+' : ''}$${Number(b.profit || 0).toFixed(2)}
                         </span>
                     </div>
                 </div>
@@ -6158,13 +6196,17 @@ async function saveSimulation() {
     }
 }
 
-async function runGridSearch() {
+// ★ FIX #5: evt?.target с fallback
+async function runGridSearch(evt) {
     if (!confirm('🎯 Запустить Grid Search?\n\nЭто переберёт ~200 комбинаций параметров. Займёт 30-60 сек.')) return;
 
     showNotification('🎯 Grid Search запущен...', '');
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '⏳ Поиск (30-60 сек)...';
+    const btn = (evt && evt.target) || document.querySelector('button[onclick="runGridSearch(event)"]');
+    const oldText = btn ? btn.textContent : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Поиск (30-60 сек)...';
+    }
 
     try {
         const r = await fetch(API_BASE + '/api/simulator/grid_search', {
@@ -6204,8 +6246,10 @@ async function runGridSearch() {
     } catch (e) {
         showNotification('❌ Ошибка: ' + e.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = '🎯 Найти лучшую стратегию (Grid Search)';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = oldText || '🎯 Найти лучшую стратегию (Grid Search)';
+        }
     }
 }
 
@@ -6257,7 +6301,7 @@ function renderGridTop5(top) {
 }
 
 // ============================================================
-// ★ v22.4: TRAIN/TEST
+// TRAIN/TEST
 // ============================================================
 async function runTrainTest() {
     const params = {
@@ -6589,7 +6633,7 @@ function resetTrainTestForm() {
 }
 
 // ============================================================
-// ★ v22.5: 3-WAY SPLIT
+// 3-WAY SPLIT
 // ============================================================
 async function run3WaySplit() {
     const params = {
@@ -7366,7 +7410,7 @@ function exportCSV() {
 
 function exportProject() {
     const projectData = {
-        version: '22.5',
+        version: '23.0',
         exportDate: new Date().toISOString(),
         theme: themeMode,
         data: cachedData,
@@ -7754,45 +7798,6 @@ function checkForUpdates() {
 }
 
 // ============================================================
-// ЗАПУСК
-// ============================================================
-window.addEventListener('load', async () => {
-    viewMode = localStorage.getItem('viewMode') || 'cards';
-    setViewMode(viewMode);
-    await loadPageData('dashboard');
-    loadAutoX2();
-    startKeepAlive();
-    startAutoRefresh();
-    autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
-    setTimeout(autoImportX2FromLogs, 5000);
-    registerPWA();
-
-    try {
-        const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
-        if (resp.ok) {
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                const liveCount = (data.matches || []).filter(m => m.is_live).length;
-                const badge = document.getElementById('liveNavBadge');
-                if (badge && liveCount > 0) {
-                    badge.textContent = liveCount;
-                    badge.style.display = 'flex';
-                }
-            }
-        }
-    } catch (e) {}
-});
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.classList.remove('active');
-    });
-});
-
-// ============================================================
-// ЭКСПОРТ В WINDOW
-// ============================================================
-// ============================================================
 // ★ v23.3: АНОМАЛИИ (пропущенные матчи)
 // ============================================================
 async function loadAnomalies() {
@@ -7964,7 +7969,8 @@ async function loadAnomalies() {
             </div>
         `;
     }
-}    
+}
+
 // ============================================================
 // ANOMALY SET RESULT — РУЧНОЕ ОБНОВЛЕНИЕ
 // ============================================================
@@ -8024,8 +8030,47 @@ async function saveAnomalyResult() {
     }
 }
 
+// ============================================================
+// ФИНАЛЬНЫЙ ЗАПУСК
+// ============================================================
+window.addEventListener('load', async () => {
+    try { viewMode = safeLSGet('viewMode', 'cards'); } catch (e) { viewMode = 'cards'; }  // ★ FIX #12
+    setViewMode(viewMode);
+    await loadPageData('dashboard');
+    loadAutoX2();
+    startKeepAlive();
+    startAutoRefresh();
+    autoImportInterval = setInterval(autoImportX2FromLogs, AUTO_IMPORT_MS);
+    setTimeout(autoImportX2FromLogs, 5000);
+    registerPWA();
+
+    try {
+        const resp = await fetch(API_BASE + '/api/live?t=' + Date.now());
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                const liveCount = (data.matches || []).filter(m => m.is_live).length;
+                const badge = document.getElementById('liveNavBadge');
+                if (badge && liveCount > 0) {
+                    badge.textContent = liveCount;
+                    badge.style.display = 'flex';
+                }
+            }
+        }
+    } catch (e) {}
+});
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+    });
+});
+
+// ============================================================
+// ЭКСПОРТ В WINDOW
+// ============================================================
 Object.assign(window, {
-    // ============ ОСНОВНЫЕ (СТАРЫЕ) ============
+    // Основные
     cycleTheme, setTheme, switchPage, refreshData,
     openSettings, closeSettings,
     toggleMoreMenu, closeMoreMenu, openFromMore,
@@ -8056,35 +8101,37 @@ Object.assign(window, {
     renderSnapshotBetBlock,
     showSearchProgressModal, hideSearchProgressModal, pollSearchStatus,
 
-    // ============ КАЛИБРОВКА (СТАРЫЕ) ============
+    // Калибровка
     loadCalibration, renderCalibration,
     loadCalibrationSnapshots, renderCalibrationSnapshots,
     saveCalibrationSnapshot, deleteCalibrationSnapshot,
     loadCalibrationFull,
 
-    // ============ СТАТИСТИКА ПО ДНЯМ (СТАРЫЕ) ============
+    // Статистика по дням
     loadDailyStats, aggregateByDay, renderDailySummary,
     renderDailyList, setDailyFilter, setDailySort, showDayDetail,
 
-    loadAnomalies,
     loadDashboardAnomalies,
 
-    // ============ ★ TRAIN/TEST (v22.4) ============
+    // Train/Test
     runTrainTest,
     renderTrainTestResults,
     runTrainTestGrid,
     renderTrainTestGridTop5,
     resetTrainTestForm,
 
-    // ============ ★ 3-WAY SPLIT (v22.5) ============
+    // 3-Way Split
     run3WaySplit,
     render3WayResults,
     run3WaySplitGrid,
     render3WayGridTop5,
     reset3WayForm,
 
-    // ============ ★ v23.3: АНОМАЛИИ ============
-    loadAnomalies,
-    loadDashboardAnomalies,
+    // Аномалии
+    openAnomalyResultModal,
+    closeAnomalyResultModal,
+    saveAnomalyResult,
 });
-</script>   
+</script>
+</body>
+</html>   
