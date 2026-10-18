@@ -9759,9 +9759,10 @@ if __name__ == "__main__":
     schedule_autobet()
 
     try:
-       # register_bot_commands()
-    except Exception as e:
-        logger.error(f"⚠️ Команды: {e}")
+    # register_bot_commands()
+    pass
+except Exception as e:
+    logger.error(f"⚠️ Команды: {e}")
 
     try:
         WEBHOOK_URL = (os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook')
