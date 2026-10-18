@@ -576,7 +576,7 @@ class FootballAPI:
         self.cache = SmartCache(max_size=2000)
         self.last_request_time = 0
         self.min_request_interval = 0.4
-        self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60)
+        self.rate_limiter = APIRateLimiter(max_requests=400, time_window=60)
         self.retry_manager = RetryManager(max_retries=3, base_delay=1)
         self.error_stats = defaultdict(int)
         if self.api_key and len(self.api_key) > 10:
@@ -907,6 +907,16 @@ class FootballAPI:
             })
             if not data or 'response' not in data:
                 return {}
+            
+            # ★ ДОБАВЛЕНО ДЛЯ ОТЛАДКИ:
+            if len(data['response']) == 0:
+                logger.warning(f"⚠️ API вернул 0 кэфов для лиги {league_id} на {date}")
+            else:
+                logger.info(f"✅ API вернул {len(data['response'])} матчей с кэфами для лиги {league_id} на {date}")
+            # ★ КОНЕЦ ОТЛАДКИ
+
+            result = {}
+            for item in data['response']:
             result = {}
             for item in data['response']:
                 fid = item.get('fixture', {}).get('id')
