@@ -9759,8 +9759,7 @@ if __name__ == "__main__":
     schedule_autobet()
 
     try:
-    # register_bot_commands()
-    pass
+     register_bot_commands()
 except Exception as e:
     logger.error(f"⚠️ Команды: {e}")
 
