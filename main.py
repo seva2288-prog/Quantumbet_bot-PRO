@@ -4712,6 +4712,12 @@ def find_top_matches(matches):
                 match_data=None, api_predictions=api_predictions,
                 is_international=is_international
             )
+            # ★ H2H Паттерн: Гости проигрывают (ставка на П1)
+            h2h_p1 = analyze_h2h_patterns(h2h, home)
+            if h2h_p1.get("away_lose_pattern"):
+                probs["home_win"] = min(probs.get("home_win", 0) + 0.10, 0.95)
+                probs["1X"] = probs["home_win"] + probs.get("draw", 0)
+                logger.info(f"H2H P1: {home} vs {away}")
 
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
@@ -5660,6 +5666,11 @@ def find_btts_matches(matches):
                     if h2h_btts_pct < H2H_MIN_PCT:
                         stats['h2h_skipped'] += 1
                         continue
+                        
+                    # ★ H2H Паттерн: Обе забили в 4 из 5 матчей
+            h2h_patterns = analyze_h2h_patterns(h2h, home)
+            if h2h_patterns.get("btts_pattern"):
+                logger.info(f"H2H BTTS: {home} vs {away}") 
 
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
             p_btts = probs.get('btts', 0)
