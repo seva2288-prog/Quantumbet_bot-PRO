@@ -4712,12 +4712,6 @@ def find_top_matches(matches):
                 match_data=None, api_predictions=api_predictions,
                 is_international=is_international
             )
-            # ★ H2H Паттерн: Гости проигрывают (ставка на П1)
-            h2h_p1 = analyze_h2h_patterns(h2h, home)
-            if h2h_p1.get("away_lose_pattern"):
-                probs["home_win"] = min(probs.get("home_win", 0) + 0.10, 0.95)
-                probs["1X"] = probs["home_win"] + probs.get("draw", 0)
-                logger.info(f"H2H P1: {home} vs {away}")
 
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
@@ -5666,11 +5660,6 @@ def find_btts_matches(matches):
                     if h2h_btts_pct < H2H_MIN_PCT:
                         stats['h2h_skipped'] += 1
                         continue
-                        
-                    # ★ H2H Паттерн: Обе забили в 4 из 5 матчей
-            h2h_patterns = analyze_h2h_patterns(h2h, home)
-            if h2h_patterns.get("btts_pattern"):
-                logger.info(f"H2H BTTS: {home} vs {away}") 
 
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
             p_btts = probs.get('btts', 0)
@@ -9724,21 +9713,6 @@ def update_anomaly_results():
         return 0
         
 
-def analyze_h2h_patterns(h2h_data, current_home_team):
-    if not h2h_data or not h2h_data.get("matches"): 
-        return {"btts_pattern": False, "away_lose_pattern": False}
-    matches = h2h_data["matches"][:5]
-    btts_count, away_lose_count = 0, 0
-    for m in matches:
-        h, a = m.get("home_score", 0) or 0, m.get("away_score", 0) or 0
-        if h > 0 and a > 0: btts_count += 1
-        if m.get("away") == current_home_team:
-            if h < a: away_lose_count += 1
-        else:
-            if a < h: away_lose_count += 1
-    return {"btts_pattern": btts_count >= 4, "away_lose_pattern": away_lose_count >= 3}
-
-
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
@@ -9759,9 +9733,9 @@ if __name__ == "__main__":
     schedule_autobet()
 
     try:
-     register_bot_commands()
-except Exception as e:
-    logger.error(f"⚠️ Команды: {e}")
+        register_bot_commands()
+    except Exception as e:
+        logger.error(f"⚠️ Команды: {e}")
 
     try:
         WEBHOOK_URL = (os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook')
