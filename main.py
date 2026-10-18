@@ -908,15 +908,13 @@ class FootballAPI:
             if not data or 'response' not in data:
                 return {}
             
-            # ★ ДОБАВЛЕНО ДЛЯ ОТЛАДКИ:
+           # ★ ДОБАВЛЕНО ДЛЯ ОТЛАДКИ:
             if len(data['response']) == 0:
                 logger.warning(f"⚠️ API вернул 0 кэфов для лиги {league_id} на {date}")
             else:
                 logger.info(f"✅ API вернул {len(data['response'])} матчей с кэфами для лиги {league_id} на {date}")
             # ★ КОНЕЦ ОТЛАДКИ
 
-            result = {}
-            for item in data['response']:
             result = {}
             for item in data['response']:
                 fid = item.get('fixture', {}).get('id')
