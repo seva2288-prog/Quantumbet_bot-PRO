@@ -1,5 +1,20 @@
 # ============================================================
-# main.py — ЧАСТЬ 1/3 (v22.6 — Calibration + Prob Filter)
+# main.py — ЧАСТЬ 1/3 (v23.0 — все фиксы config v3.10)
+# HEAD: импорты, конфиг, пути, калибровка, FootballAPI, OddsAPI,
+# AutoBetManager, StrategySimulator (base), PerformanceMonitor
+# ★ v23.0: удалены ВСЕ дубли, которые переопределяются в Части 2/3
+#   - calculate_stake, calculate_kelly_info, apply_clv_filter,
+#     get_strategy_clv, _compute_all_strategy_clv, _guess_source_from_label,
+#     ensemble_probability, _apply_llm_to_match,
+#     update_manual_result, analyze_match, update_odds_for_matches,
+#     update_pending_bets, recalc_stats, auto_update_results,
+#     update_x2_results, snapshot_odds_for_upcoming,
+#     _save_snapshot_from_odds, _count_scoring_matches,
+#     _calc_h2h_btts_pct, _form_is_under, _calculate_tm25_stake,
+#     get_motivation, analyze_form, _get_country_flag,
+#     _is_international_league, export_to_excel, get_profit_data,
+#     calculate_poisson_probability, calculate_form_probability,
+#     calculate_h2h_probability
 # ============================================================
 import sys
 import os
@@ -60,56 +75,35 @@ _x2_candidates_lock = Lock()
 
 
 # ============================================================
-# ★ НОВОЕ v22.8: КОНСТАНТЫ КАЛИБРОВКИ (по 141 ставке)
-# ★ Обновлено: 2026-09-27
+# ★ FIX п.2: константы калибровки — из Config
 # ============================================================
-# Глобальный hкоэффициент (усреднённый по 126+ ставкам)
-CALIBRATION_FACTOR = 0.91
+CALIBRATION_FACTOR = getattr(Config, 'CALIBRATION_FACTOR', 0.91)
+CALIBRATION_BY_BUCKET = getattr(Config, 'CALIBRATION_BY_BUCKET', {
+    (0, 50): 1.00, (50, 65): 1.00, (65, 70): 1.00,
+    (70, 75): 0.98, (75, 80): 0.90, (80, 85): 0.75,
+    (85, 90): 0.65, (90, 100): 0.60,
+})
 
-# Раздельная калибровка по бакетам (реальные данные)
-CALIBRATION_BY_BUCKET = {
-    (0, 50):   1.00,   # нейтрально (мало данных)
-    (50, 65):  1.00,   # точно
-    (65, 70):  1.00,   # +0.2% — точно
-    (70, 75):  0.98,   # -1.8% — почти точно
-    (75, 80):  0.90,   # -5.3% — завышает
-    (80, 85):  0.75,   # -17.8% — сильно завышает
-    (85, 90):  0.65,   # -37.5% — критично
-    (90, 100): 0.60,   # -25.8% — критично
-}
-
-# Фильтр "мёртвой зоны" — не ставить на вероятности выше этого порога
-PROB_MAX_70 = 78.0   # максимальная вероятность для потока 70%+
+# ★ FIX п.2: PROB_MAX_70 из Config (85.0), а не хардкод 78
+PROB_MAX_70 = getattr(Config, 'PROB_MAX_70', 85.0)
 
 
 def calibrate_prob(prob_pct: float, use_bucket: bool = True) -> float:
-    """
-    Корректирует вероятность с учётом калибровки.
-    
-    Args:
-        prob_pct: вероятность в процентах (0-100)
-        use_bucket: если True — раздельная калибровка по бакетам,
-                    если False — глобальный коэффициент
-    
-    Returns:
-        Скорректированная вероятность в процентах
-    """
+    """Корректирует вероятность с учётом калибровки."""
     if prob_pct <= 0:
         return prob_pct
-    
+
     if use_bucket:
         for (lo, hi), coef in CALIBRATION_BY_BUCKET.items():
             if lo <= prob_pct < hi:
                 return round(prob_pct * coef, 1)
         return prob_pct
-    
+
     return round(prob_pct * CALIBRATION_FACTOR, 1)
 
 
 def get_calibration_info(prob_pct: float) -> dict:
-    """
-    Возвращает информацию о калибровке для UI/логов.
-    """
+    """Возвращает информацию о калибровке для UI/логов."""
     calibrated = calibrate_prob(prob_pct, use_bucket=True)
     diff = calibrated - prob_pct
     return {
@@ -121,10 +115,8 @@ def get_calibration_info(prob_pct: float) -> dict:
 
 
 # ============================================================
-# ОСТАЛЬНОЙ КОД — БЕЗ ИЗМЕНЕНИЙ (сохранён из оригинала)
+# SAVE X2 CANDIDATE
 # ============================================================
-
-
 def save_x2_candidate(home, away, hp, ap, league_name, match_time,
                        fixture_id, home_form='', away_form='', total_xg=0,
                        x2_side='X2', x2_ev=0, x2_prob=0,
@@ -246,10 +238,9 @@ HOME_ADVANTAGE = {
     'Serie A': 1.10, 'Ligue 1': 1.13, 'Championship': 1.12,
     '2. Bundesliga': 1.15, 'Eredivisie': 1.14, 'Primeira Liga': 1.11,
     'Süper Lig': 1.16,
-    # ★ v23.24: еврокубки — home advantage зависит от уровня турнира
-    'UEFA Champions League': 1.06,   # топ-команды, слабый home adv
-    'UEFA Europa League':    1.10,   # средний уровень
-    'UEFA Conference League': 1.13,  # разные уровни, сильный home adv
+    'UEFA Champions League': 1.06,
+    'UEFA Europa League':    1.10,
+    'UEFA Conference League': 1.13,
     'Champions League':      1.06,
     'Europa League':         1.10,
     'Conference League':     1.13,
@@ -1104,7 +1095,7 @@ football_api = FootballAPI()
 
 
 # ============================================================
-# ODDS API (отключён)
+# ODDS API
 # ============================================================
 class OddsAPIClient:
     def __init__(self, api_key=None):
@@ -1475,7 +1466,6 @@ class AutoBetManager:
                 if match_time_str and match_time_str != '?':
                     try:
                         match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        # ★ v23.13: снимок за 10 мин до матча (не за 1ч) — точнее closing_odds
                         match_dt = match_dt - timedelta(minutes=10)
                         before_iso = match_dt.isoformat()
                     except Exception:
@@ -1544,14 +1534,12 @@ def determine_bet_result(bet_type, home_goals, away_goals):
 
 
 # ============================================================
-# СИМУЛЯТОР (v22.5 — с Train/Test Split)
+# СИМУЛЯТОР — базовые методы (simulate, grid_search)
+# ★ v23.0: методы _tt_* подключаются из Части 2 через hasattr()
 # ============================================================
 class StrategySimulator:
-    """Симулятор стратегий. v22.5: Train/Test + 3-Way Split."""
+    """Симулятор стратегий. Train/Test + 3-Way Split методы — в Части 2."""
 
-    # --------------------------------------------------------
-    # СТАРЫЙ МЕТОД — simulate
-    # --------------------------------------------------------
     def simulate(self, params, use_history=True, use_cache=True):
         all_matches = []
         if use_cache:
@@ -1674,9 +1662,6 @@ class StrategySimulator:
             'max_drawdown': round(max_drawdown, 1), 'bets': bets_log[:100],
         }
 
-    # --------------------------------------------------------
-    # СТАРЫЙ МЕТОД — grid_search
-    # --------------------------------------------------------
     def grid_search(self, max_combinations=200, min_bets=5):
         try:
             logger.info(f"🔍 GRID SEARCH: до {max_combinations} комбинаций...")
@@ -1745,1138 +1730,15 @@ class StrategySimulator:
 strategy_simulator = StrategySimulator()
 
 
-# ============================================================
-# ★ KELLY CRITERION (v4.5)
-# ============================================================
-def calculate_stake(bank, prob_pct, odds,
-                     base_pct=None, kelly_fraction=None,
-                     max_pct=None, min_stake=None):
-    """
-    Quarter-Kelly с защитой.
-    ★ v23.0: добавлен множитель по точности бакета (Config.get_kelly_bucket_factor).
-    """
-    if base_pct is None:
-        base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
-    if kelly_fraction is None:
-        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
-    if max_pct is None:
-        max_pct = getattr(Config, 'KELLY_MAX_PCT', 0.05)
-    if min_stake is None:
-        min_stake = getattr(Config, 'KELLY_MIN_STAKE', 1.0)
-
-    if not getattr(Config, 'KELLY_ENABLED', True):
-        return max(round(bank * base_pct, 2), min_stake)
-
-    if bank <= 0 or odds <= 1.01 or prob_pct <= 0:
-        return min_stake
-
-    b = odds - 1
-    p = prob_pct / 100.0
-    q = 1 - p
-
-    kelly_full = (b * p - q) / b
-    if kelly_full <= 0:
-        return max(round(bank * base_pct, 2), min_stake)
-
-    kelly_stake_pct = kelly_full * kelly_fraction
-
-    # ★ v23.0: множитель Kelly по точности бакета
-    try:
-        bucket_factor = Config.get_kelly_bucket_factor(prob_pct)
-        kelly_stake_pct *= bucket_factor
-    except Exception:
-        pass
-
-    final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
-    stake = round(bank * final_pct, 2)
-    return max(stake, min_stake)
-
-
-def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
-    """Возвращает инфу о Kelly — для логирования/UI."""
-    if kelly_fraction is None:
-        kelly_fraction = getattr(Config, 'KELLY_FRACTION', 0.25)
-
-    if odds <= 1.01 or prob_pct <= 0:
-        return {'kelly_full': 0, 'kelly_quarter': 0, 'edge': 0}
-    b = odds - 1
-    p = prob_pct / 100.0
-    q = 1 - p
-    kelly_full = (b * p - q) / b if b > 0 else 0
-    edge = (p * odds - 1) * 100
-    return {
-        'kelly_full': round(kelly_full * 100, 2),
-        'kelly_quarter': round(kelly_full * kelly_fraction * 100, 2),
-        'edge': round(edge, 2),
-    }
-
+# === КОНЕЦ ЧАСТИ 1/3 (v23.0 — все фиксы config v3.10) ===
 
 # ============================================================
-# ★ CLV-ФИЛЬТР для стратегий (v4.6)
-# ============================================================
-_CLV_CACHE = {}
-_CLV_CACHE_TS = 0
-_CLV_CACHE_TTL = 600
-
-
-def get_strategy_clv(source, days=None, min_samples=None):
-    """Возвращает CLV-статистику по стратегии (кэш 10 минут)."""
-    global _CLV_CACHE, _CLV_CACHE_TS
-    if days is None:
-        days = getattr(Config, 'CLV_LOOKBACK_DAYS', 30)
-    if min_samples is None:
-        min_samples = getattr(Config, 'CLV_MIN_SAMPLES', 20)
-
-    now = time.time()
-    if (not _CLV_CACHE or now - _CLV_CACHE_TS > _CLV_CACHE_TTL):
-        _CLV_CACHE = _compute_all_strategy_clv(days=days, min_samples=min_samples)
-        _CLV_CACHE_TS = now
-    return _CLV_CACHE.get(source, {
-        'avg_clv': 0, 'count': 0, 'samples': 0,
-        'status': 'no_data', 'multiplier': 1.0, 'skip': False,
-    })
-
-
-def _compute_all_strategy_clv(days=30, min_samples=20):
-    """Считает CLV по каждой стратегии из автобетов."""
-    result = {}
-    try:
-        bets = storage.autobet_load_all()
-        cutoff = (datetime.now() - timedelta(days=days)).timestamp()
-        by_source = defaultdict(list)
-
-        for b in bets:
-            clv = b.get('clv')
-            if clv is None:
-                continue
-            created = b.get('created_at', '')
-            try:
-                ct = datetime.fromisoformat(created).timestamp()
-                if ct < cutoff:
-                    continue
-            except Exception:
-                pass
-
-            src = b.get('source', '') or _guess_source_from_label(b.get('bet_label', ''))
-            by_source[src].append(clv)
-
-        for src, clvs in by_source.items():
-            if not clvs:
-                continue
-            avg = sum(clvs) / len(clvs)
-            n = len(clvs)
-
-            multiplier, skip, status = Config.get_clv_multiplier(avg, n)
-
-            result[src] = {
-                'avg_clv': round(avg, 2),
-                'count': n,
-                'samples': n,
-                'status': status,
-                'multiplier': multiplier,
-                'skip': skip,
-            }
-    except Exception as e:
-        logger.error(f"_compute_all_strategy_clv: {e}")
-
-    logger.info(f"📊 CLV по стратегиям: {result}")
-    return result
-
-
-def _guess_source_from_label(label):
-    """Восстанавливает source по label, если не сохранён."""
-    l = (label or '').lower()
-    if '📈' in (label or '') or 'line movement' in l or 'движение' in l:
-        return 'line_movement'
-    if '💎' in (label or ''):
-        return 'value'
-    if '🔥' in (label or '') or 'premium' in l:
-        return 'tm25_premium'
-    if 'обз' in l or 'btts' in l:
-        return 'btts'
-    if 'тм 2.5' in l or 'under' in l:
-        return 'tm25_standard'
-    if 'x2' in l:
-        return 'x2'
-    return '70_percent'
-
-
-def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
-    """Применяет CLV-фильтр. Возвращает (final_stake, action_str)."""
-    if source == 'line_movement':
-        return base_stake, 'no_model'
-
-    if not getattr(Config, 'CLV_FILTER_ENABLED', True):
-        return base_stake, 'disabled'
-
-    clv_info = get_strategy_clv(source)
-
-    if clv_info['status'] in ('no_data', 'insufficient_data'):
-        return base_stake, 'no_data'
-
-    if clv_info['skip']:
-        logger.warning(f"⏭️ CLV SKIP {source}: avg={clv_info['avg_clv']}% n={clv_info['count']}")
-        return 0, 'skipped'
-
-    mult = clv_info['multiplier']
-    if mult == 1.0:
-        return base_stake, 'normal'
-
-    new_stake = round(base_stake * mult, 2)
-    max_stake = round(bank * getattr(Config, 'KELLY_MAX_PCT', 0.05), 2)
-    if new_stake > max_stake:
-        new_stake = max_stake
-
-    action = 'boosted' if mult > 1.0 else 'reduced'
-    logger.info(f"🎯 CLV {source}: {action} stake {base_stake} → {new_stake} (x{mult})")
-    return new_stake, action
-
-
-# ============================================================
-# УТИЛИТЫ
-# ============================================================
-def get_motivation(position):
-    if position <= 2: return 'title_race'
-    if position <= 4: return 'champions_league'
-    if position <= 6: return 'europa_league'
-    if position <= 14: return 'mid_table'
-    if position <= 17: return 'relegation_playoff'
-    return 'relegation'
-
-
-def analyze_form(form_string):
-    if not form_string: return 'average'
-    wins = form_string.count('W')
-    if wins >= 4: return 'excellent'
-    if wins >= 3: return 'good'
-    if wins >= 2: return 'average'
-    return 'poor'
-
-
-def _get_country_flag(league_id):
-    try:
-        lid = int(league_id) if league_id else None
-    except (ValueError, TypeError):
-        lid = None
-    if lid is None:
-        return ("", "")
-    return Config.LEAGUE_COUNTRY.get(lid, ("", ""))
-
-
-def _is_international_league(league_id, league_name):
-    try:
-        if league_id and int(league_id) in getattr(Config, 'INTERNATIONAL_LEAGUES', []):
-            return True
-    except (ValueError, TypeError):
-        pass
-    ln = (league_name or '').lower()
-    markers = (
-        'nations league', 'world cup', 'euro championship',
-        'friendlies', 'international', 'wc qualification',
-        'euro qualification',
-    )
-    return any(x in ln for x in markers)
-
-
-def export_to_excel():
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
-    import io
-
-    history = storage.load_history()
-    if not history:
-        return None, "📭 Нет данных для экспорта"
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Ставки"
-    headers = ["Дата", "Матч", "Счёт", "1-й тайм", "Ставка", "Коэф", "EV%", "Prob%",
-               "Сумма", "Результат", "Прибыль", "Букмекер", "Источник"]
-    ws.append(headers)
-    for col in range(1, len(headers) + 1):
-        c = ws.cell(row=1, column=col)
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill(start_color="10b981", end_color="10b981", fill_type="solid")
-        c.alignment = Alignment(horizontal="center")
-
-    total_profit = 0
-    for bet in history:
-        score = f"{bet.get('home_goals', '-')}-{bet.get('away_goals', '-')}"
-        ht = f"{bet.get('halftime_home', '-')}-{bet.get('halftime_away', '-')}" \
-            if bet.get('halftime_home') is not None else '-'
-        result = bet.get('result', 'pending')
-        profit = bet.get('profit', 0)
-        if result == 'win' and profit == 0:
-            profit = round(bet.get('stake', 0) * (bet.get('odds', 1) - 1), 2)
-        elif result == 'loss' and profit == 0:
-            profit = -bet.get('stake', 0)
-        if result in ('win', 'loss'):
-            total_profit += profit
-        ws.append([bet.get('date', ''), f"{bet.get('home', '')} vs {bet.get('away', '')}",
-                   score, ht, bet.get('bet', ''), bet.get('odds', 0), bet.get('ev', 0),
-                   bet.get('prob', 0), bet.get('stake', 0), result, profit,
-                   bet.get('bookmaker', '—'), bet.get('source', '70_percent')])
-    ws.append([])
-    ws.append(["ИТОГО", "", "", "", "", "", "", "", "", "", round(total_profit, 2), "", ""])
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return output, f"✅ Экспорт! Ставок: {len(history)}, Прибыль: ${round(total_profit, 2)}"
-
-
-def get_profit_data(history, days=7):
-    profits = []
-    for i in range(days - 1, -1, -1):
-        day_profit = 0
-        day = datetime.now() - timedelta(days=i)
-        for bet in history:
-            try:
-                bd = datetime.strptime(bet.get('date', '').split()[0], '%Y-%m-%d')
-                if bd.date() == day.date():
-                    stake = float(bet.get('stake', 0))
-                    odds = float(bet.get('odds', 1))
-                    if bet.get('result') == 'win':
-                        day_profit += stake * (odds - 1)
-                    elif bet.get('result') == 'loss':
-                        day_profit -= stake
-            except Exception:
-                pass
-        profits.append(round(day_profit, 2))
-    dates = [(datetime.now() - timedelta(days=i)).strftime('%d.%m')
-             for i in range(days - 1, -1, -1)]
-    return {'dates': dates, 'profits': profits}
-
-
-# ============================================================
-# POISSON / ENSEMBLE
-# ============================================================
-def calculate_poisson_probability(home_xg, away_xg):
-    def poisson(avg, g):
-        return (math.exp(-avg) * avg ** g) / math.factorial(g)
-    hgp = [poisson(home_xg, i) for i in range(6)]
-    agp = [poisson(away_xg, i) for i in range(6)]
-    prob = {'home_win': 0, 'away_win': 0, 'draw': 0,
-            '1X': 0, 'X2': 0, 'btts': 0,
-            'over25': 0, 'under25': 0, 'over_2_5': 0, 'under_2_5': 0}
-    for h in range(6):
-        for a in range(6):
-            p = hgp[h] * agp[a]
-            if h > a: prob['home_win'] += p
-            elif h < a: prob['away_win'] += p
-            else: prob['draw'] += p
-            if h >= a: prob['1X'] += p
-            if a >= h: prob['X2'] += p
-            if h > 0 and a > 0: prob['btts'] += p
-            if h + a > 2.5:
-                prob['over25'] += p; prob['over_2_5'] += p
-            else:
-                prob['under25'] += p; prob['under_2_5'] += p
-    return prob
-
-
-def calculate_form_probability(home_form, away_form):
-    hq = analyze_form(home_form)
-    aq = analyze_form(away_form)
-    prob = {'home_win': 0.35, 'away_win': 0.30, 'draw': 0.35,
-            '1X': 0.70, 'X2': 0.65, 'btts': 0.45,
-            'over25': 0.5, 'under25': 0.5, 'over_2_5': 0.45, 'under_2_5': 0.55}
-    if hq == 'excellent' and aq == 'poor':
-        prob['home_win'] += 0.15; prob['1X'] += 0.10
-        prob['away_win'] -= 0.10; prob['X2'] -= 0.10
-    elif hq == 'poor' and aq == 'excellent':
-        prob['away_win'] += 0.15; prob['X2'] += 0.10
-        prob['home_win'] -= 0.10; prob['1X'] -= 0.10
-    return prob
-
-
-def calculate_h2h_probability(h2h_data):
-    prob = {'home_win': 0.33, 'away_win': 0.33, 'draw': 0.34,
-            '1X': 0.67, 'X2': 0.67, 'btts': 0.50,
-            'over25': 0.5, 'under25': 0.5, 'over_2_5': 0.50, 'under_2_5': 0.50}
-    if h2h_data and h2h_data.get('total_matches', 0) > 0:
-        total = h2h_data['total_matches']
-        prob['home_win'] = (h2h_data.get('home_wins', 0) / total) * 0.5 + 0.25
-        prob['away_win'] = (h2h_data.get('away_wins', 0) / total) * 0.5 + 0.25
-        prob['draw'] = (h2h_data.get('draws', 0) / total) * 0.5 + 0.25
-        prob['1X'] = prob['home_win'] + prob['draw']
-        prob['X2'] = prob['away_win'] + prob['draw']
-        avg_goals = h2h_data.get('avg_goals', 2.5)
-        if avg_goals > 2.5:
-            prob['over_2_5'] = 0.55; prob['under_2_5'] = 0.45
-        else:
-            prob['over_2_5'] = 0.45; prob['under_2_5'] = 0.55
-    return prob
-
-
-def ensemble_probability(home_xg, away_xg, home_form, away_form, h2h_data,
-                          match_data=None, api_predictions=None,
-                          is_international=False,
-                          apply_calibration=False):
-    """
-    Ансамбль вероятностей.
-    
-    Args:
-        apply_calibration: если True — применяет calibrate_prob() к финальным вероятностям
-    """
-    engine = getattr(Config, 'PREDICTION_ENGINE', 'heuristic')
-    poisson = calculate_poisson_probability(home_xg, away_xg)
-    form_prob = calculate_form_probability(home_form, away_form)
-    h2h_prob = calculate_h2h_probability(h2h_data)
-
-    if is_international:
-        w_p, w_f, w_h = 0.60, 0.15, 0.10
-    elif engine == 'hybrid':
-        w_p, w_f, w_h = 0.40, 0.30, 0.15
-    else:
-        w_p, w_f, w_h = 0.5, 0.3, 0.2
-
-    final = {}
-    all_keys = set(list(poisson.keys()) + list(form_prob.keys()) + list(h2h_prob.keys()))
-    for k in all_keys:
-        final[k] = (poisson.get(k, 0) * w_p +
-                    form_prob.get(k, 0) * w_f +
-                    h2h_prob.get(k, 0) * w_h)
-    if api_predictions:
-        w_api = 0.15
-        final['home_win'] = final.get('home_win', 0) * (1 - w_api) + api_predictions.get('home_win', 0) * w_api
-        final['draw'] = final.get('draw', 0) * (1 - w_api) + api_predictions.get('draw', 0) * w_api
-        final['away_win'] = final.get('away_win', 0) * (1 - w_api) + api_predictions.get('away_win', 0) * w_api
-    total = final.get('home_win', 0) + final.get('draw', 0) + final.get('away_win', 0)
-    if total > 0:
-        final['home_win'] /= total
-        final['away_win'] /= total
-        final['draw'] /= total
-        final['1X'] = final['home_win'] + final['draw']
-        final['X2'] = final['away_win'] + final['draw']
-
-    if apply_calibration:
-        # Применяем калибровку к итоговым вероятностям (в процентах)
-        for k in list(final.keys()):
-            pct = final[k] * 100
-            calibrated = calibrate_prob(pct, use_bucket=True)
-            final[k] = calibrated / 100.0
-
-    return final
-
-
-def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
-    if not llm:
-        return
-    key_map = {'draw': 'draw', 'underdog': None, 'btts': 'btts',
-               'П1': 'home_win', 'П2': 'away_win',
-               'over25': 'over_2_5', 'under25': None, '1X': None, 'X2': None}
-    for b in match.get('bets', []):
-        llm_key = key_map.get(b.get('type'))
-        if llm_key and llm_key in llm:
-            blended = b['prob'] * (1 - alpha) + llm[llm_key] * 100 * alpha
-            b['prob'] = round(blended, 1)
-            if b.get('odds', 0) > 1.01:
-                # Применяем калибровку к EV
-                calibrated_prob = calibrate_prob(b['prob'], use_bucket=True)
-                b['prob_calibrated'] = calibrated_prob
-                b['ev'] = round((calibrated_prob / 100 * b['odds'] - 1) * 100, 1)
-    match['bets'].sort(key=lambda x: x['ev'], reverse=True)
-    if match['bets']:
-        match['best_bet'] = match['bets'][0]
-        try:
-            bank = storage.load_bank()
-            kelly_stake = calculate_stake(
-                bank=bank,
-                prob_pct=match['best_bet'].get('prob', 0),
-                odds=match['best_bet'].get('odds', 1.85),
-            )
-            src = match.get('source', '70_percent')
-            final_stake, clv_action = apply_clv_filter(
-                source=src,
-                base_stake=kelly_stake,
-                prob_pct=match['best_bet'].get('prob', 0),
-                odds=match['best_bet'].get('odds', 1.85),
-                bank=bank,
-            )
-            if final_stake > 0:
-                for b in match['bets']:
-                    b['stake'] = final_stake
-                    b['clv_action'] = clv_action
-                match['best_bet']['stake'] = final_stake
-                match['best_bet']['clv_action'] = clv_action
-        except Exception:
-            pass
-
-
-# ============================================================
-# РУЧНОЕ ОБНОВЛЕНИЕ
-# ============================================================
-def update_manual_result(match_name, score):
-    try:
-        hg = ag = None
-        if score and '-' in score:
-            parts = score.split('-')
-            hg = int(parts[0].strip()); ag = int(parts[1].strip())
-        history = storage.load_history()
-        found = False
-        result = 'pending'
-        for bet in history:
-            if bet.get('result') in ('pending', None):
-                full = f"{bet.get('home', '')} vs {bet.get('away', '')}"
-                if match_name.lower() in full.lower() or full.lower() in match_name.lower():
-                    bet['home_goals'] = hg
-                    bet['away_goals'] = ag
-                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
-                    bet['result'] = result
-                    if result == 'win':
-                        bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
-                    elif result == 'loss':
-                        bet['profit'] = -bet['stake']
-                    else:
-                        bet['profit'] = 0
-                    found = True
-                    break
-        if found:
-            storage.save_history(history)
-            recalc_stats()
-            return f"✅ {match_name} | {hg}-{ag} | {result}"
-        return f"❌ '{match_name}' не найден"
-    except Exception as e:
-        return f"❌ Ошибка: {e}"
-
-
-def analyze_match(match_name):
-    try:
-        cache = storage.load_cache()
-        matches = cache.get('top_matches', [])
-        for m in matches:
-            full = f"{m.get('home', '')} vs {m.get('away', '')}"
-            if match_name.lower() in full.lower() or full.lower() in match_name.lower():
-                src = m.get('source', '70_percent')
-                src_label = {
-                    'value': '💎 VALUE',
-                    'btts': '⚽ BTTS (Обе Забьют)',
-                    'tm25_premium': '🔥 PREMIUM ТМ 2.5',
-                    'tm25_standard': '⭐ STANDARD ТМ 2.5',
-                    'line_movement': '📈 LINE MOVEMENT',
-                    '70_percent': '🎯 70%+',
-                }.get(src, '🎯')
-                country_str = ''
-                if m.get('country'):
-                    country_str = f" • {m.get('country_flag', '')} {m.get('country')}"
-                r = (f"📊 <b>АНАЛИЗ</b>\n"
-                     f"🏟️ {full}\n"
-                     f"🏆 {m.get('league', '?')}{country_str}\n"
-                     f"📅 {m.get('match_time', '?')}\n"
-                     f"{src_label}\n\n")
-                best = m.get('best_bet', {})
-                r += f"🎯 <b>{best.get('label', '—')}</b>\n"
-                if src == 'line_movement':
-                    r += f"📉 Движение: {best.get('movement_pct', 0)}% за {best.get('movement_hours', 0)}ч\n"
-                    r += f"💰 Было: {best.get('old_odds', 0)} → Стало: {best.get('odds', 0)}\n"
-                    r += f"📸 Снимков: {best.get('snapshots_count', 0)}\n"
-                else:
-                    r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
-                    r += f"💰 Кэф: {best.get('odds', 0)}\n"
-                r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
-                for i, b in enumerate(m.get('bets', [])[:7], 1):
-                    emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
-                    r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
-                r += f"\n⚽ XG: {m.get('total_xg', 0):.2f}\n"
-                r += f"📈 Форма: {m.get('home_form')} vs {m.get('away_form')}"
-                if best.get('llm_reason'):
-                    r += f"\n💡 <i>{best['llm_reason']}</i>"
-                if m.get('weather_reason'):
-                    r += f"\n{m['weather_reason']}"
-                return r
-        return f"❌ '{match_name}' не найден"
-    except Exception as e:
-        return f"❌ {e}"
-
-
-# ============================================================
-# ОБНОВЛЕНИЕ КЭФОВ
-# ============================================================
-def update_odds_for_matches(matches):
-    if not matches:
-        return []
-
-    groups = defaultdict(list)
-    for md in matches:
-        fid = md.get('fixture_id')
-        if not fid:
-            continue
-        league_name = md.get('league', '')
-        league_id = None
-        for lid, lname in Config.LEAGUE_NAMES.items():
-            if lname == league_name:
-                league_id = lid
-                break
-        if not league_id:
-            groups[('single', fid)].append(md)
-            continue
-        match_time = md.get('match_time', '')
-        date_str = None
-        try:
-            dt = datetime.strptime(match_time, "%d.%m.%Y %H:%M")
-            date_str = dt.strftime('%Y-%m-%d')
-        except Exception:
-            date_str = None
-        if date_str:
-            groups[(league_id, date_str)].append(md)
-        else:
-            groups[('single', fid)].append(md)
-
-    batch_odds = {}
-    for key, group_matches in groups.items():
-        if isinstance(key, tuple) and key[0] == 'single':
-            continue
-        league_id, date_str = key
-        try:
-            batch = football_api.get_odds_batch_for_league(league_id, date_str)
-            if batch:
-                batch_odds.update(batch)
-                logger.info(f"📦 Batch odds: league={league_id} date={date_str} → {len(batch)} матчей")
-        except Exception as e:
-            logger.error(f"Batch odds error {key}: {e}")
-
-    updated = []
-    total = len(matches)
-    for idx, md in enumerate(matches, 1):
-        if idx % 10 == 0:
-            send_telegram(f"💓 <b>ОБНОВЛЕНИЕ КЭФОВ</b> | {idx}/{total}")
-        try:
-            home = md.get('home'); away = md.get('away')
-            fid = md.get('fixture_id')
-            best_bet = md.get('best_bet', {})
-            bt = best_bet.get('type', 'under')
-            new_odds = None
-            bookmaker = '—'
-            source = None
-            md_source = md.get('source', '')
-
-            logger.info(f"🔍 [{idx}] {home} vs {away} | fid={fid} | type={bt} | src={md_source}")
-
-            fo = batch_odds.get(fid) if fid else None
-            if not fo and fid:
-                fo = football_api.get_match_odds(fid)
-
-            if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
-                try:
-                    fresh = football_api.get_match_odds(fid)
-                    if fresh:
-                        for k in ['1x_odds', 'x2_odds', 'home_odds', 'away_odds']:
-                            old_v = fo.get(k, 0)
-                            new_v = fresh.get(k, 0)
-                            if old_v > 0 and new_v > 0 and abs(old_v - new_v) > 0.3:
-                                logger.warning(f"⚠️ Кэф устарел {k}: {old_v} → {new_v}")
-                                fo = fresh
-                                break
-                except Exception as e:
-                    logger.error(f"Двойная проверка: {e}")
-
-            if fo and fo.get('best_odds', 0) > 0:
-                bm_list = fo.get('all_bookmakers', {})
-                if bm_list:
-                    if bt == 'X2': target = 'x2'
-                    elif bt == '1X': target = '1x'
-                    elif bt in ('П1', '1'): target = 'home'
-                    elif bt in ('П2', '2'): target = 'away'
-                    elif bt == 'draw': target = 'draw'
-                    else: target = 'home'
-                    target_odds = {bm: data.get(target, 0)
-                                   for bm, data in bm_list.items()
-                                   if data.get(target, 0) > 0}
-                    if target_odds:
-                        best_bm = max(target_odds, key=target_odds.get)
-                        best_odds_val = target_odds[best_bm]
-                        avg_odds = sum(target_odds.values()) / len(target_odds)
-                        anomaly_pct = ((best_odds_val / avg_odds) - 1) * 100 if avg_odds > 0 else 0
-                        odds_diff = best_odds_val - avg_odds
-
-                        # ★ v23.2: ANOMALY SKIP (diff>0.5 OR anomaly>20%)
-                        if odds_diff > 0.5 or anomaly_pct > 20:
-                            logger.warning(
-                                f"⏭️ ANOMALY SKIP: {home} vs {away} | "
-                                f"{best_bm} = {best_odds_val} vs avg {avg_odds:.2f} | "
-                                f"diff={odds_diff:.2f}, anomaly={anomaly_pct:.1f}%"
-                            )
-                            continue
-
-                        new_odds = best_odds_val
-                        bookmaker = f"{best_bm} (+{anomaly_pct:.1f}%)"
-                        source = 'Line Analysis'
-                        if anomaly_pct > 5:
-                            logger.info(f"🎯 АНОМАЛИЯ: {home} vs {away} | {best_bm} = {best_odds_val} (+{anomaly_pct:.1f}%)")
-                            prob = best_bet.get('prob', 0) / 100
-                            anomaly_bonus = min(anomaly_pct / 100, 0.03)  # FIX: было 0.10
-                            boosted = min(prob + anomaly_bonus, 0.95)
-                            best_bet['prob'] = round(boosted * 100, 1)
-                            best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
-                if not new_odds:
-                    if bt == 'X2' and fo.get('x2_odds', 0) > 0:
-                        new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
-                    elif bt == '1X' and fo.get('1x_odds', 0) > 0:
-                        new_odds = fo['1x_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (1X)'
-                    elif bt in ('П1', '1') and fo.get('home_odds', 0) > 0:
-                        new_odds = fo['home_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    elif bt in ('П2', '2') and fo.get('away_odds', 0) > 0:
-                        new_odds = fo['away_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    elif bt == 'draw' and fo.get('draw_odds', 0) > 0:
-                        new_odds = fo['draw_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    elif bt == 'under' and fo.get('under_odds', 0) > 0:
-                        new_odds = fo['under_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    elif bt == 'over' and fo.get('over_odds', 0) > 0:
-                        new_odds = fo['over_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    elif bt == 'btts' and fo.get('btts_yes', 0) > 0:
-                        new_odds = fo['btts_yes']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API'
-                    else:
-                        new_odds = fo.get('best_odds', 0)
-                        if new_odds:
-                            bookmaker = fo.get('bookmaker', 'Football API')
-                            source = 'Football API'
-
-            if new_odds and new_odds > 0:
-                MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
-                MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
-                if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
-                    logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]")
-                    continue
-                prob = best_bet.get('prob', 0) / 100
-                # ★ КАЛИБРОВКА: применяем перед расчётом EV
-                prob_pct = best_bet.get('prob', 0)
-                calibrated_pct = calibrate_prob(prob_pct, use_bucket=True)
-                best_bet['prob_calibrated'] = calibrated_pct
-                calibrated_prob = calibrated_pct / 100
-                best_bet['odds'] = round(new_odds, 2)
-                best_bet['ev'] = round((calibrated_prob * new_odds - 1) * 100, 1)
-                best_bet['bookmaker'] = bookmaker
-                best_bet['odds_source'] = source
-                best_bet['odds_updated'] = True
-
-                try:
-                    bank = storage.load_bank()
-                    kelly_stake = calculate_stake(
-                        bank=bank,
-                        prob_pct=calibrated_pct,  # ★ Kelly по калиброванной
-                        odds=new_odds,
-                    )
-                    src_key = md.get('source', '70_percent')
-                    final_stake, clv_action = apply_clv_filter(
-                        source=src_key,
-                        base_stake=kelly_stake,
-                        prob_pct=calibrated_pct,
-                        odds=new_odds,
-                        bank=bank,
-                    )
-                    best_bet['stake'] = final_stake if final_stake > 0 else kelly_stake
-                    best_bet['clv_action'] = clv_action
-                except Exception as e:
-                    logger.error(f"Kelly/CLV recalc: {e}")
-
-                md['best_bet'] = best_bet
-                md['odds_updated'] = True
-                try:
-                    market_map = {
-                        'draw': ('1X2', 'X'), 'btts': ('BTTS', 'BTTS'),
-                        'over25': ('O/U 2.5', 'Over'), 'under25': ('O/U 2.5', 'Under'),
-                        'over': ('O/U 2.5', 'Over'), 'under': ('O/U 2.5', 'Under'),
-                        'underdog': ('1X2', 'Underdog'),
-                        'П1': ('1X2', '1'), 'П2': ('1X2', '2'),
-                        '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
-                    }
-                    mkt, sel = market_map.get(bt, (bt, 'unknown'))
-                    storage.save_odds_snapshot(
-                        fixture_id=fid, market=mkt,
-                        selection=sel, odds=new_odds, bookmaker=bookmaker,
-                        home=home or '', away=away or '',
-                        league=md.get('league', '') or ''
-                    )
-                except Exception as e:
-                    logger.error(f"Ошибка записи снимка: {e}")
-                updated.append(md)
-            else:
-                logger.warning(f"⏭️ Кэф не найден: {home} vs {away}")
-                updated.append(md)
-                continue
-        except Exception as e:
-            logger.error(f"Ошибка кэфов: {e}")
-            continue
-    return updated
-
-
-# ============================================================
-# ПОИСК МАТЧЕЙ + ФАКТОРЫ
-# ============================================================
-# ★ FIX: дубликат get_matches_with_factors удалён (используется версия ниже)
-
-# ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (с Prob Filter + Calibration)
-# ============================================================
-@timing_decorator()
-def _form_is_under(form_string):
-    if not form_string:
-        return False
-    wins = form_string.count('W')
-    return wins <= 2
-
-
-def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
-    if use_kelly:
-        return calculate_stake(bank=bank, prob_pct=prob_pct, odds=odds)
-    return 42.87
-
-
-# ============================================================
-# ★ ПОТОК 3: VALUE (усиленный)
-# ============================================================
-@timing_decorator()
-# ============================================================
-# ★ ПОТОК 4: BTTS (с калибровкой)
-# ============================================================
-@timing_decorator()
-def _count_scoring_matches(form_string):
-    if not form_string:
-        return 0
-    return form_string.count('W') + form_string.count('D')
-
-
-def _calc_h2h_btts_pct(h2h_data):
-    if not h2h_data or not h2h_data.get('matches'):
-        return 0
-    matches = h2h_data['matches']
-    if not matches:
-        return 0
-    btts_count = 0
-    for m in matches:
-        if m.get('home_score', 0) > 0 and m.get('away_score', 0) > 0:
-            btts_count += 1
-    return round(btts_count / len(matches) * 100, 1)
-
-
-# ============================================================
-# ★ ПОТОК 5: LINE MOVEMENT
-# ============================================================
-@timing_decorator()
-# ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК
-# ============================================================
-@timing_decorator()
-# ============================================================
-# ОБНОВЛЕНИЕ PENDING
-# ============================================================
-@timing_decorator()
-def update_pending_bets():
-    history = storage.load_history()
-    updated = 0
-    live_updated = 0
-    for bet in history:
-        if bet.get('result') in ('pending', None):
-            fid = bet.get('fixture_id')
-            if not fid:
-                fid = football_api.find_fixture_by_teams(bet.get('home', ''), bet.get('away', ''))
-                if fid:
-                    bet['fixture_id'] = fid
-            if fid:
-                md = football_api.get_match_result(fid)
-                if md:
-                    hg = md['goals']['home']; ag = md['goals']['away']
-                    if hg is None or ag is None:
-                        continue
-                    status = md.get('status', 'NS')
-                    date_str = bet.get('date', '')
-                    match_time_str = ''
-                    if date_str and ' ' in date_str:
-                        parts = date_str.split()
-                        if len(parts) >= 2:
-                            try:
-                                d = datetime.strptime(parts[0], '%Y-%m-%d')
-                                match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
-                            except Exception:
-                                pass
-                    force_final = is_force_final(match_time_str, status)
-                    if not md.get('is_final', False) and not force_final:
-                        if md.get('is_live', False):
-                            bet['live_score'] = f"{hg}-{ag}"
-                            bet['live_status'] = status
-                            bet['live_minute'] = md.get('minute', 0)
-                            ht = md.get('halftime', {}) or {}
-                            if ht.get('home') is not None:
-                                bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
-                            live_updated += 1
-                        continue
-                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
-                    if result != 'pending':
-                        bet['result'] = result
-                        bet['home_goals'] = hg
-                        bet['away_goals'] = ag
-                        if md.get('halftime'):
-                            bet['halftime_home'] = md['halftime'].get('home')
-                            bet['halftime_away'] = md['halftime'].get('away')
-                        if result == 'win':
-                            bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
-                        elif result == 'loss':
-                            bet['profit'] = -bet['stake']
-                        else:
-                            bet['profit'] = 0
-                        bet.pop('live_score', None)
-                        bet.pop('live_status', None)
-                        bet.pop('live_minute', None)
-                        bet.pop('live_halftime', None)
-                        updated += 1
-    if updated > 0 or live_updated > 0:
-        storage.save_history(history)
-        if updated > 0:
-            recalc_stats()
-    logger.info(f"🔄 update_pending_bets: FT={updated}, LIVE={live_updated}")
-    return {'ft': updated, 'live': live_updated}
-
-
-def recalc_stats():
-    history = storage.load_history()
-    stats = storage.load_stats()
-    total = len(history)
-    wins = sum(1 for b in history if b.get('result') == 'win')
-    losses = sum(1 for b in history if b.get('result') == 'loss')
-    pushes = sum(1 for b in history if b.get('result') == 'push')
-    profit = sum(b.get('profit', 0) for b in history)
-    stake_sum = sum(b.get('stake', 0) for b in history)
-    stats.update({
-        'total': total, 'wins': wins, 'losses': losses, 'pushes': pushes,
-        'total_profit': round(profit, 2),
-        'winrate': round(wins / (wins + losses) * 100, 1) if (wins + losses) else 0,
-        'roi': round(profit / stake_sum * 100, 1) if stake_sum else 0,
-    })
-    storage.save_stats(stats)
-
-
-# ============================================================
-# СНИМКИ КЭФОВ
-# ============================================================
-def snapshot_odds_for_upcoming():
-    logger.info("🔍 snapshot: НАЧАЛО")
-    try:
-        with cache_lock:
-            cache = storage.load_cache()
-            matches = cache.get('all_analyzed') or cache.get('top_matches', [])
-        if not matches:
-            return 0
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-
-        groups = defaultdict(list)
-        single = []
-        for md in matches:
-            match_time_str = md.get('match_time', '')
-            if not match_time_str or match_time_str == '?':
-                continue
-            try:
-                match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-            except ValueError:
-                continue
-            hours_to_match = (match_dt - now_msk).total_seconds() / 3600
-            if hours_to_match < -24:
-                continue
-            if not (0 < hours_to_match <= 3):
-                continue
-            fid = md.get('fixture_id')
-            if not fid: continue
-            league_name = md.get('league', '')
-            league_id = None
-            for lid, lname in Config.LEAGUE_NAMES.items():
-                if lname == league_name:
-                    league_id = lid
-                    break
-            if league_id:
-                date_str = match_dt.strftime('%Y-%m-%d')
-                groups[(league_id, date_str)].append(md)
-            else:
-                single.append(md)
-
-        total_snapshots = 0
-        for (league_id, date_str), group in groups.items():
-            try:
-                batch = football_api.get_odds_batch_for_league(league_id, date_str)
-                for md in group:
-                    fid = md.get('fixture_id')
-                    fo = batch.get(fid)
-                    if not fo: continue
-                    saved = _save_snapshot_from_odds(
-                        fo, fid,
-                        home=md.get('home', ''),
-                        away=md.get('away', ''),
-                        league=md.get('league', ''),
-                    )
-                    total_snapshots += saved
-            except Exception as e:
-                logger.error(f"snapshot batch {league_id}: {e}")
-
-        for md in single:
-            try:
-                fid = md.get('fixture_id')
-                if not fid: continue
-                fo = football_api.get_match_odds(fid)
-                if not fo: continue
-                saved = _save_snapshot_from_odds(
-                    fo, fid,
-                    home=md.get('home', ''),
-                    away=md.get('away', ''),
-                    league=md.get('league', ''),
-                )
-                total_snapshots += saved
-            except Exception as e:
-                logger.error(f"snapshot single: {e}")
-
-        logger.info(f"📸 Снимков: {total_snapshots}")
-        return total_snapshots
-    except Exception as e:
-        logger.exception(f"❌ snapshot: {e}")
-        return 0
-
-
-def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
-    try:
-        if not fo:
-            return 0
-        bookmaker = fo.get('bookmaker', 'Football API')
-        saved = 0
-
-        has_1x2 = (fo.get('home_odds', 0) > 1.01 or
-                   fo.get('away_odds', 0) > 1.01 or
-                   fo.get('draw_odds', 0) > 1.01)
-        if has_1x2:
-            odds_map = {
-                '1': fo.get('home_odds', 0),
-                'X': fo.get('draw_odds', 0),
-                '2': fo.get('away_odds', 0),
-            }
-            for sel, odd in odds_map.items():
-                if odd and odd > 1.01:
-                    if storage.save_odds_snapshot(
-                        fixture_id=fid, market='1X2',
-                        selection=sel, odds=odd, bookmaker=bookmaker,
-                        home=home, away=away, league=league
-                    ):
-                        saved += 1
-
-        x2_odd = fo.get('x2_odds', 0) or 0
-        x1_odd = fo.get('1x_odds', 0) or 0
-        if x2_odd > 1.01:
-            if storage.save_odds_snapshot(
-                fixture_id=fid, market='DC',
-                selection='X2', odds=x2_odd, bookmaker=bookmaker,
-                home=home, away=away, league=league
-            ):
-                saved += 1
-        if x1_odd > 1.01:
-            if storage.save_odds_snapshot(
-                fixture_id=fid, market='DC',
-                selection='1X', odds=x1_odd, bookmaker=bookmaker,
-                home=home, away=away, league=league
-            ):
-                saved += 1
-
-        btts_yes = fo.get('btts_yes', 0) or 0
-        if btts_yes > 1.01:
-            if storage.save_odds_snapshot(
-                fixture_id=fid, market='BTTS',
-                selection='BTTS', odds=btts_yes, bookmaker=bookmaker,
-                home=home, away=away, league=league
-            ):
-                saved += 1
-
-        return saved
-    except Exception as e:
-        logger.error(f"_save_snapshot_from_odds: {e}")
-        return 0
-
-
-# ============================================================
-# ★ ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ
-# ============================================================
-def auto_update_results():
-    res = update_pending_bets()
-    x2 = update_x2_results()
-    ft = res.get('ft', 0)
-    live = res.get('live', 0)
-    if ft > 0:
-        send_telegram(f"🔄 Авто-обновление: {ft} результатов")
-    if x2 > 0:
-        send_telegram(f"🎯 X2-результатов обновлено: {x2}")
-    return ft + live + x2
-
-
-def update_x2_results():
-    try:
-        candidates = storage.get_x2_candidates(limit=200)
-        updated = 0
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-
-        for c in candidates:
-            if c.get('result') in ('win', 'loss', 'push'):
-                continue
-            fid = c.get('fixture_id')
-            if not fid:
-                continue
-            md = football_api.get_match_result(fid)
-            if not md:
-                continue
-            hg = md['goals']['home']
-            ag = md['goals']['away']
-            if hg is None or ag is None:
-                continue
-            status = md.get('status', 'NS')
-            is_final = md.get('is_final', False)
-            force_final = False
-            hours_ago = 0
-            if not is_final:
-                match_time_str = c.get('match_time', '')
-                if match_time_str and match_time_str != '?':
-                    try:
-                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        hours_ago = (now_msk - mt).total_seconds() / 3600
-                        if hours_ago > 2.5:
-                            force_final = True
-                    except Exception:
-                        pass
-                if not force_final:
-                    continue
-                logger.info(f"🔧 X2 FORCE-FINAL: {c.get('home')} vs {c.get('away')} "
-                            f"(был {status}, {hours_ago:.1f}ч назад)")
-            side = c.get('x2_side', 'X2')
-            if side == 'X2':
-                result = 'win' if ag >= hg else 'loss'
-            else:
-                result = 'win' if hg >= ag else 'loss'
-            odds = float(c.get('entry_odds', 0) or 0)
-            if odds < 1.01:
-                odds = 1.85
-            stake = 20.0
-            if result == 'win':
-                profit = round(stake * (odds - 1), 2)
-            elif result == 'loss':
-                profit = -stake
-            else:
-                profit = 0
-            ok = storage.update_x2_result(
-                candidate_id=c['id'], result=result, profit=profit,
-                home_goals=hg, away_goals=ag,
-            )
-            if ok:
-                updated += 1
-                logger.info(f"🎯 X2: {c.get('home')} vs {c.get('away')} "
-                            f"→ {result.upper()} ({hg}:{ag}) | ${profit:+.2f}")
-        if updated > 0:
-            logger.info(f"✅ X2-результатов обновлено: {updated}")
-        return updated
-    except Exception as e:
-        logger.exception(f"update_x2_results: {e}")
-        return 0
-
-
-# === КОНЕЦ ЧАСТИ 1/3 (v22.6 — Calibration + Prob Filter) ===
-
-# ============================================================
-# main.py — ЧАСТЬ 2/3 (v22.8 — CLV prob-фильтр + Steam Move)
+# main.py — ЧАСТЬ 2/3 (v22.9 — все фиксы из config.py v3.10)
 # Стратегии, 5 потоков поиска, обновление результатов
 # ★ Snapshots c home/away/league
 # ★ Исключение для сборных в 70%+
 # ★ Quarter-Kelly + Calibration
-# ★ CLV-фильтр (теперь влияет на prob!)
+# ★ CLV-фильтр (влияет на prob)
 # ★ Расширенный ТМ 2.5
 # ★ BTTS-поток
 # ★ LINE MOVEMENT (аномалии кэфов)
@@ -2885,7 +1747,7 @@ def update_x2_results():
 # ★ Train/Test Split
 # ★ 3-Way Split + дедупликация Grid Search
 # ★ Calibration + Prob Filter
-# ★ v22.8: CLV prob-boost + STEAM MOVE detection
+# ★ CLV prob-boost + STEAM MOVE detection
 # ============================================================
 
 # ============================================================
@@ -3355,7 +2217,6 @@ def _tt_run_3way_split(self, params, test_size=0.2, valid_size=0.2):
     oos_roi = round((valid_roi + test_roi) / 2, 1)
     gap_train_oos = round(train_roi - oos_roi, 1)
 
-    # ★ v22.9: правильная логика вердикта (Train vs OOS — главный сигнал)
     if gap_train_oos < 5 and abs(spread) < 10 and oos_roi > 0:
         verdict = '✅ СТАБИЛЬНАЯ СТРАТЕГИЯ'
         verdict_color = 'green'
@@ -3595,7 +2456,7 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=None, kelly_fraction=None,
                      max_pct=None, min_stake=None):
-    """Quarter-Kelly с защитой."""
+    """Quarter-Kelly с защитой + множитель по точности бакета."""
     if base_pct is None:
         base_pct = getattr(Config, 'KELLY_MIN_PCT', 0.02)
     if kelly_fraction is None:
@@ -3620,6 +2481,14 @@ def calculate_stake(bank, prob_pct, odds,
         return max(round(bank * base_pct, 2), min_stake)
 
     kelly_stake_pct = kelly_full * kelly_fraction
+
+    # ★ множитель Kelly по точности бакета
+    try:
+        bucket_factor = Config.get_kelly_bucket_factor(prob_pct)
+        kelly_stake_pct *= bucket_factor
+    except Exception:
+        pass
+
     final_pct = max(base_pct, min(kelly_stake_pct, max_pct))
     stake = round(bank * final_pct, 2)
     return max(stake, min_stake)
@@ -3645,7 +2514,7 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
 
 
 # ============================================================
-# ★ CLV-ФИЛЬТР (v22.8: возвращает 3 значения + корректирует prob)
+# ★ CLV-ФИЛЬТР
 # ============================================================
 _CLV_CACHE = {}
 _CLV_CACHE_TS = 0
@@ -3736,7 +2605,7 @@ def _guess_source_from_label(label):
 
 def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
     """
-    ★ v22.8: CLV влияет на prob, а не только на stake.
+    CLV влияет на prob, а не только на stake.
 
     Returns:
         (final_stake, action_str, adjusted_prob)
@@ -3745,7 +2614,7 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
                       'critical_skip' | 'normal' | 'boosted' | 'reduced'
         - adjusted_prob: скорректированная вероятность (%)
     """
-    # ★ v23.28: CLV не применяется для ТМ 2.5 (по решению пользователя)
+    # ★ CLV не применяется для ТМ 2.5
     if source in ('tm25_premium', 'tm25_standard'):
         return base_stake, 'no_clv_tm25', prob_pct
 
@@ -3767,8 +2636,8 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
     avg_clv = clv_info['avg_clv']
     mult = clv_info['multiplier']
 
-    # ★ КРИТИЧЕСКИЙ SKIP: если CLV < -3%
-    if avg_clv < -3.0:
+    # ★ FIX: критический CLV скипается только если CLV_SKIP_CRITICAL=True
+    if avg_clv < -3.0 and getattr(Config, 'CLV_SKIP_CRITICAL', False):
         logger.warning(f"🛑 CLV CRITICAL SKIP {source}: avg={avg_clv}%")
         return 0, 'critical_skip', prob_pct
 
@@ -3797,7 +2666,7 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
 
 
 # ============================================================
-# ★ STEAM MOVE DETECTION (v22.8)
+# ★ STEAM MOVE DETECTION
 # ============================================================
 def detect_steam_move(fixture_id, market, selection, hours_back=3):
     """
@@ -4215,7 +3084,7 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ КЭФОВ (v22.8: + Steam Move)
+# ОБНОВЛЕНИЕ КЭФОВ
 # ============================================================
 def update_odds_for_matches(matches):
     if not matches:
@@ -4318,7 +3187,7 @@ def update_odds_for_matches(matches):
                         if anomaly_pct > 5:
                             logger.info(f"🎯 АНОМАЛИЯ: {home} vs {away} | {best_bm} = {best_odds_val} (+{anomaly_pct:.1f}%)")
                             prob = best_bet.get('prob', 0) / 100
-                            anomaly_bonus = min(anomaly_pct / 100, 0.03)  # FIX: было 0.10
+                            anomaly_bonus = min(anomaly_pct / 100, 0.03)
                             boosted = min(prob + anomaly_bonus, 0.95)
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
@@ -4388,7 +3257,7 @@ def update_odds_for_matches(matches):
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
 
-                # ★ STEAM MOVE: проверяем аномалию
+                # ★ STEAM MOVE
                 try:
                     mkt, sel = _map_bet_to_market(bt)
                     steam = detect_steam_move(fid, mkt, sel, hours_back=3)
@@ -4449,7 +3318,6 @@ def _map_bet_to_market(bt):
 # ============================================================
 def get_matches_with_factors():
     all_matches = []
-    # ★ v23.10: если сейчас >= 22:00 МСК — искать матчи на ЗАВТРА
     now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
     if now_msk.hour >= 22:
         today = (now_msk + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -4557,10 +3425,8 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОТОК 1: 70%+ (с CLV prob-boost)
+# ★ ПОГОДНЫЙ ФИЛЬТР
 # ============================================================
-
-
 def check_weather_skip(weather):
     """
     Проверяет, нужно ли пропустить матч из-за погоды.
@@ -4574,8 +3440,10 @@ def check_weather_skip(weather):
     temp = weather.get('temp', 20) or 20
     desc = (weather.get('desc', '') or '').lower()
 
+    # ★ FIX: HEAVY_RAIN_PENALTY из Config
+    heavy_pen = getattr(Config, 'WEATHER_HEAVY_RAIN_XG_PENALTY', 0.80)
     if rain > getattr(Config, 'WEATHER_SKIP_RAIN_MM', 4.0):
-        return True, f'🌧️ Дождь {rain:.1f}мм', 0.80
+        return True, f'🌧️ Дождь {rain:.1f}мм', heavy_pen
     if wind > getattr(Config, 'WEATHER_SKIP_WIND_MS', 15.0):
         return True, f'💨 Ветер {wind:.0f}м/с', 0.85
     if getattr(Config, 'WEATHER_SKIP_SNOW', True) and ('snow' in desc or 'снег' in desc):
@@ -4602,6 +3470,9 @@ def check_weather_skip(weather):
     return False, '', round(xg_mult, 3)
 
 
+# ============================================================
+# ★ ПОТОК 1: 70%+ (с CLV prob-boost)
+# ============================================================
 @timing_decorator()
 def find_top_matches(matches):
     bank = storage.load_bank()
@@ -4616,12 +3487,13 @@ def find_top_matches(matches):
     cheap_fav_skipped = 0
     prob_filtered = 0
 
-    X2_ENABLED = getattr(Config, 'X2_ENABLED', True)
+    # ★ FIX: X2_* и MIN_ODDS_1X из Config
+    X2_ENABLED = getattr(Config, 'X2_ENABLED', False)
     X2_MIN_POSITION_DIFF = getattr(Config, 'X2_MIN_POSITION_DIFF', 3)
     X2_MAX_POSITION = getattr(Config, 'X2_MAX_POSITION', 20)
-    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 5)
-    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 55)
-    X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', True)
+    X2_MIN_EV = getattr(Config, 'X2_MIN_EV', 10)
+    X2_MIN_PROB = getattr(Config, 'X2_MIN_PROB', 58)
+    X2_BOTH_SIDES = getattr(Config, 'X2_BOTH_SIDES', False)
     MIN_ODDS_1X = getattr(Config, 'MIN_ODDS_1X', 1.70)
 
     for match_idx, match in enumerate(matches):
@@ -4712,6 +3584,12 @@ def find_top_matches(matches):
                 match_data=None, api_predictions=api_predictions,
                 is_international=is_international
             )
+            # ★ H2H Паттерн: Гости проигрывают (ставка на П1)
+            h2h_p1 = analyze_h2h_patterns(h2h, home)
+            if h2h_p1.get("away_lose_pattern"):
+                probs["home_win"] = min(probs.get("home_win", 0) + 0.10, 0.95)
+                probs["1X"] = probs["home_win"] + probs.get("draw", 0)
+                logger.info(f"H2H P1: {home} vs {away}")
 
             if hm == 'relegation' and am == 'mid_table':
                 probs['home_win'] = probs.get('home_win', 0) + 0.05
@@ -4752,12 +3630,11 @@ def find_top_matches(matches):
                 cheap_fav_skipped += 1
                 continue
 
-            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)   # ★ v23.0: было 8
+            EV_MIN_70 = getattr(Config, 'EV_MIN_70', 8)
             PROB_MIN_70 = getattr(Config, 'PROB_MIN_70', 52)
             if best_bet['ev'] < EV_MIN_70: continue
             if best_bet['prob'] < PROB_MIN_70: continue
 
-            # ★ v23.14: sanity-check на подозрительно высокий EV
             if best_bet['ev'] > 40:
                 logger.warning(
                     f"⚠️ HIGH EV {best_bet['ev']}%: {home} vs {away} — "
@@ -4765,7 +3642,6 @@ def find_top_matches(matches):
                 )
                 best_bet['high_ev_warning'] = True
 
-            # ★ v22.8: Kelly + CLV (3 значения)
             prob_for_kelly = best_bet.get('prob_calibrated', best_bet.get('prob', 0))
             kelly_stake = calculate_stake(
                 bank=bank,
@@ -4932,7 +3808,6 @@ def find_top_matches(matches):
             for m, llm in zip(top[:20], llm_results):
                 if llm:
                     _apply_llm_to_match(m, llm, alpha=0.7)
-                    # ★ v23.20: Ensemble LLM + модель (α=0.3)
                     bb = m.get('best_bet', {})
                     if bb and bb.get('prob', 0) > 0 and bb.get('odds', 0) > 1.01:
                         try:
@@ -4977,7 +3852,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5 (с CLV prob-boost)
+# ★ ПОТОК 2: ТМ 2.5
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -4988,10 +3863,15 @@ def find_tm25_matches(matches):
     PREMIUM_MIN_PROB = getattr(Config, 'PREMIUM_MIN_PROB', 58) / 100
     PREMIUM_XG_MIN = getattr(Config, 'PREMIUM_XG_MIN', 1.0)
     PREMIUM_XG_MAX = getattr(Config, 'PREMIUM_XG_MAX', 2.8)
-    STANDARD_MIN_EV = getattr(Config, 'STANDARD_MIN_EV', 15) / 100
-    STANDARD_MIN_PROB = getattr(Config, 'STANDARD_MIN_PROB', 52) / 100
-    STANDARD_XG_MIN = getattr(Config, 'TM25_XG_MIN', 0.8)
-    STANDARD_XG_MAX = getattr(Config, 'TM25_XG_MAX', 3.0)
+    # ★ FIX: STANDARD_* читаются из Config (1.2/2.8), а не TM25_XG_*
+    STANDARD_MIN_EV = getattr(Config, 'STANDARD_MIN_EV', 20) / 100
+    STANDARD_MIN_PROB = getattr(Config, 'STANDARD_MIN_PROB', 56) / 100
+    STANDARD_XG_MIN = getattr(Config, 'STANDARD_XG_MIN', 1.2)
+    STANDARD_XG_MAX = getattr(Config, 'STANDARD_XG_MAX', 2.8)
+    # ★ FIX: порог EV для топ-лиг из Config
+    TOP_LEAGUE_EV = getattr(Config, 'TM25_TOP_LEAGUE_EV', 35) / 100
+    # ★ FIX: STANDARD-порог для топ-лиг (в оригинале был хардкод 0.20)
+    STANDARD_TOP_LEAGUE_EV = getattr(Config, 'STANDARD_MIN_EV', 20) / 100
 
     INCLUDE_INTERNATIONAL = getattr(Config, 'TM25_INCLUDE_INTERNATIONAL', False)
     USE_KELLY = getattr(Config, 'TM25_USE_KELLY', True)
@@ -5002,7 +3882,7 @@ def find_tm25_matches(matches):
     LEAGUE_BONUS = getattr(Config, 'TM25_LEAGUE_BONUS', 5)
     MAX_LEAGUE_BETS = getattr(Config, 'TM25_MAX_LEAGUE_BETS', 2)
 
-    logger.info("🔍 [ТМ 2.5 v22.8] Расширенный поиск + калибровка + CLV...")
+    logger.info("🔍 [ТМ 2.5 v22.9] Расширенный поиск + калибровка + CLV...")
     stats = {
         'premium_found': 0, 'standard_found': 0,
         'clv_skipped': 0, 'intl_skipped': 0,
@@ -5115,7 +3995,9 @@ def find_tm25_matches(matches):
             # === PREMIUM ===
             if (PREMIUM_XG_MIN <= total_xg <= PREMIUM_XG_MAX
                 and ev_under >= PREMIUM_MIN_EV and calibrated_p / 100 >= PREMIUM_MIN_PROB):
-                if league_name in TOP_LEAGUES and ev_under < 0.35: continue
+                # ★ FIX: TOP_LEAGUE_EV из Config
+                if league_name in TOP_LEAGUES and ev_under < TOP_LEAGUE_EV:
+                    continue
                 stake = _calculate_tm25_stake(USE_KELLY, bank, calibrated_p, odds_tm25)
                 final_stake, clv_action, adjusted_prob = apply_clv_filter(
                     source='tm25_premium',
@@ -5166,7 +4048,9 @@ def find_tm25_matches(matches):
             # === STANDARD ===
             if (STANDARD_XG_MIN <= total_xg <= STANDARD_XG_MAX
                 and ev_under >= STANDARD_MIN_EV and calibrated_p / 100 >= STANDARD_MIN_PROB):
-                if league_name in TOP_LEAGUES and ev_under < 0.20: continue
+                # ★ FIX: STANDARD_TOP_LEAGUE_EV из Config
+                if league_name in TOP_LEAGUES and ev_under < STANDARD_TOP_LEAGUE_EV:
+                    continue
                 stake = _calculate_tm25_stake(USE_KELLY, bank, calibrated_p, odds_tm25)
                 final_stake, clv_action, adjusted_prob = apply_clv_filter(
                     source='tm25_standard',
@@ -5238,16 +4122,19 @@ def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE (с CLV prob-boost)
+# ★ ПОТОК 3: VALUE
 # ============================================================
 @timing_decorator()
-def find_value_matches(matches, max_bets=5):
+def find_value_matches(matches, max_bets=None):
     """VALUE-поток."""
     bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
-    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 20)
+    VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
     VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
     VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
+    # ★ FIX: max_bets из Config.VALUE_MAX_RESULTS (5)
+    if max_bets is None:
+        max_bets = getattr(Config, 'VALUE_MAX_RESULTS', 5)
     VALUE_MAX_RESULTS = max_bets
 
     logger.info(f"💎 [VALUE] Поиск: кэф>={VALUE_MIN_ODDS}, EV>={VALUE_MIN_EV}%, Prob>={VALUE_MIN_PROB}%")
@@ -5304,12 +4191,10 @@ def find_value_matches(matches, max_bets=5):
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form,
                                           h2h, api_predictions=api_predictions)
 
-            # ★ Кэфы: cache → Football API → Odds API (fallback)
             fo = match.get('_preloaded_odds')
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
 
-            # ★ Odds API fallback (VALUE)
             if not fo and odds_api.should_use_as_fallback():
                 fo = odds_api.get_odds_for_match(home, away, league_name)
                 if fo:
@@ -5319,7 +4204,6 @@ def find_value_matches(matches, max_bets=5):
             if not fo:
                 continue
 
-            # ★ v23.2: ANOMALY SKIP для VALUE (проверка разброса по букмекерам)
             bm_list = fo.get('all_bookmakers', {})
             if bm_list and len(bm_list) >= 2:
                 skip_value = False
@@ -5342,7 +4226,6 @@ def find_value_matches(matches, max_bets=5):
                             skipped_avg = v_avg
                             break
                 if skip_value:
-                    # ★ v23.3: логируем VALUE-аномалию для статистики
                     try:
                         sel_map = {
                             'x2': 'X2', '1x': '1X',
@@ -5531,7 +4414,7 @@ def find_value_matches(matches, max_bets=5):
 
 
 # ============================================================
-# ★ ПОТОК 4: BTTS (с CLV prob-boost)
+# ★ ПОТОК 4: BTTS
 # ============================================================
 @timing_decorator()
 def find_btts_matches(matches):
@@ -5563,7 +4446,7 @@ def find_btts_matches(matches):
 
     INCLUDE_INTERNATIONAL = getattr(Config, 'BTTS_INCLUDE_INTERNATIONAL', False)
 
-    logger.info("🔍 [BTTS v22.8] Поиск 'Обе Забьют' + калибровка + CLV...")
+    logger.info("🔍 [BTTS v22.9] Поиск 'Обе Забьют' + калибровка + CLV...")
     stats = {
         'found': 0,
         'intl_skipped': 0,
@@ -5606,7 +4489,8 @@ def find_btts_matches(matches):
                     stats['intl_skipped'] += 1
                     continue
 
-            if any(b.lower() in league_name.lower() for b in LEAGUE_BLACKLIST):
+            # ★ FIX: используем Config.is_btts_league_blacklisted()
+            if Config.is_btts_league_blacklisted(league_name):
                 stats['league_blacklist'] += 1
                 continue
 
@@ -5661,6 +4545,10 @@ def find_btts_matches(matches):
                         stats['h2h_skipped'] += 1
                         continue
 
+            h2h_patterns = analyze_h2h_patterns(h2h, home)
+            if h2h_patterns.get("btts_pattern"):
+                logger.info(f"H2H BTTS: {home} vs {away}")
+
             probs = ensemble_probability(home_xg, away_xg, home_form, away_form, h2h)
             p_btts = probs.get('btts', 0)
             if p_btts * 100 < MIN_PROB:
@@ -5688,7 +4576,8 @@ def find_btts_matches(matches):
             calibrated_p = calibrate_prob(p_btts_pct, use_bucket=True)
             ev_btts = (calibrated_p / 100 * btts_odds - 1) * 100
 
-            is_whitelisted = any(w.lower() in league_name.lower() for w in LEAGUE_WHITELIST)
+            # ★ FIX: используем Config.is_btts_league_whitelisted()
+            is_whitelisted = Config.is_btts_league_whitelisted(league_name)
             if is_whitelisted:
                 ev_btts += LEAGUE_BONUS
 
@@ -5857,15 +4746,21 @@ def find_line_movement_matches(matches):
         logger.info("[LM] Нет снимков в БД")
         return []
 
+    # ★ FIX: LINE_MOVEMENT_BET_TYPES учитывается
+    LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
+    LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
+    LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
+
     groups = defaultdict(list)
     for s in all_snaps:
         fid = s.get('fixture_id')
         if not fid: continue
         market = s.get('market', '1X2')
         sel = s.get('selection', '')
-        if market != '1X2' or sel not in ['1', 'X', '2']:
-            continue
-        groups[(fid, market, sel)].append(s)
+        if market == '1X2' and sel in LM_1X2_SELS:
+            groups[(fid, market, sel)].append(s)
+        elif market == 'DC' and sel in LM_DC_SELS:
+            groups[(fid, market, sel)].append(s)
 
     logger.info(f"[LM] Групп: {len(groups)}, снимков: {len(all_snaps)}")
 
@@ -5945,12 +4840,19 @@ def find_line_movement_matches(matches):
                 stats['odds_filter'] += 1
                 continue
 
+            # ★ FIX: корректный label для DC
             if sel == '1':
                 label = 'П1'
             elif sel == '2':
                 label = 'П2'
-            else:
+            elif sel == 'X':
                 label = 'X'
+            elif sel == '1X':
+                label = '1X'
+            elif sel == 'X2':
+                label = 'X2'
+            else:
+                label = sel
 
             final_odds = new_odds
             final_stake = round(bank * STAKE_PCT, 2)
@@ -6022,10 +4924,6 @@ def find_line_movement_matches(matches):
 
 
 # ============================================================
-# КОМБИНИРОВАННЫЙ ПОИСК
-# ============================================================
-@timing_decorator()
-# ============================================================
 # ★ v23.7: SCORE-BASED ФИЛЬТР
 # ============================================================
 def calc_match_score(ev, prob, odds, clv_mult=1.0, total_xg=0):
@@ -6080,7 +4978,10 @@ def get_score_weights(source='70_percent'):
     return weights.get(source, {'ev': 0.4, 'prob': 0.3, 'clv': 0.2, 'xg': 0.1})
 
 
-
+# ============================================================
+# КОМБИНИРОВАННЫЙ ПОИСК
+# ============================================================
+@timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 + Calibration)")
@@ -6095,7 +4996,8 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 3: VALUE 💎")
     logger.info("=" * 60)
-    value_matches = find_value_matches(matches, max_bets=5)
+    # ★ FIX: max_bets из Config через find_value_matches
+    value_matches = find_value_matches(matches)
 
     logger.info("=" * 60)
     logger.info("📊 ПОТОК 4: BTTS")
@@ -6147,19 +5049,20 @@ def find_top_matches_with_tm25(matches):
 
     combined.sort(key=_sort_key, reverse=True)
 
-    # ★ v23.23: X2-балансировка — лимит X2 в списке
-    X2_MAX_PCT = getattr(Config, 'X2_MAX_PCT_OF_BETS', 0.40)
-    x2_count = sum(1 for m in combined if 'X2' in (m.get('best_bet', {}).get('label', '')))
-    max_x2 = max(3, int(len(combined) * X2_MAX_PCT))
-    if x2_count > max_x2:
-        logger.info(f"⚖️ X2-балансировка: {x2_count} X2 из {len(combined)} (лимит {max_x2}) — урезаем")
-        non_x2 = [m for m in combined if 'X2' not in (m.get('best_bet', {}).get('label', ''))]
-        x2_only = [m for m in combined if 'X2' in (m.get('best_bet', {}).get('label', ''))]
-        combined = non_x2 + x2_only[:max_x2]
-        # Пересортировка
-        combined.sort(key=_sort_key, reverse=True)
-        logger.info(f"⚖️ После X2-балансировки: {len(combined)} матчей ({len(non_x2)} не-X2 + {min(len(x2_only), max_x2)} X2)")
-    # ★ v23.5: обогащаем сырые матчи кэфами и формой для Live
+    # ★ FIX: X2-балансировка только если X2_ENABLED=True
+    if getattr(Config, 'X2_ENABLED', False):
+        X2_MAX_PCT = getattr(Config, 'X2_MAX_PCT_OF_BETS', 0.40)
+        x2_count = sum(1 for m in combined if 'X2' in (m.get('best_bet', {}).get('label', '')))
+        max_x2 = max(3, int(len(combined) * X2_MAX_PCT))
+        if x2_count > max_x2:
+            logger.info(f"⚖️ X2-балансировка: {x2_count} X2 из {len(combined)} (лимит {max_x2}) — урезаем")
+            non_x2 = [m for m in combined if 'X2' not in (m.get('best_bet', {}).get('label', ''))]
+            x2_only = [m for m in combined if 'X2' in (m.get('best_bet', {}).get('label', ''))]
+            combined = non_x2 + x2_only[:max_x2]
+            combined.sort(key=_sort_key, reverse=True)
+            logger.info(f"⚖️ После X2-балансировки: {len(combined)} матчей ({len(non_x2)} не-X2 + {min(len(x2_only), max_x2)} X2)")
+
+    # Обогащаем сырые матчи кэфами и формой для Live
     all_before_odds_filter = []
     for _m in matches:
         try:
@@ -6171,7 +5074,6 @@ def find_top_matches_with_tm25(matches):
             _fixture_id = _fixture.get('id')
             _match_time = parse_match_time_to_msk(_fixture.get('date', ''))
 
-            # ★ Достаём кэфы
             _pre = _m.get('_preloaded_odds') or {}
             _best_label = '—'
             _best_odds = 0
@@ -6187,7 +5089,6 @@ def find_top_matches_with_tm25(matches):
                     _bm = _pre.get('bookmaker', '—')
                     break
 
-            # ★ Форма и XG из factors
             _factors = _m.get('factors', {}) or {}
             _hfd = _factors.get('home_form') or {}
             _afd = _factors.get('away_form') or {}
@@ -6276,7 +5177,6 @@ def find_top_matches_with_tm25(matches):
             if ev < EV_MIN or ev > EV_MAX: continue
             if prob < PROB_MIN: continue
 
-        # ★ v23.1: Template skip
         if not bb.get('odds_updated'):
             template_skipped += 1
             logger.info(
@@ -6285,7 +5185,6 @@ def find_top_matches_with_tm25(matches):
             )
             continue
 
-        # ★ v23.7: SCORE-BASED ФИЛЬТР
         if src != 'line_movement':
             clv_mult = {
                 'boosted': 1.5, 'normal': 1.0, 'reduced': 0.5,
@@ -6352,7 +5251,7 @@ def find_top_matches_with_tm25(matches):
             'llm_reason': bb.get('llm_reason', ''),
             'steam_move': bb.get('steam_move', False),
             'clv_adjusted': bb.get('clv_adjusted', False),
-            'score': md.get('score') or bb.get('score') or 0,   # ★ v23.21
+            'score': md.get('score') or bb.get('score') or 0,
         })
         added += 1
     storage.save_history(history)
@@ -6412,17 +5311,14 @@ def update_pending_bets():
                     hg = md['goals']['home']
                     ag = md['goals']['away']
 
-                    # ★ v23.5: пропускаем, если счёта нет
                     if hg is None or ag is None:
                         continue
 
-                    # ★ v23.5: не считаем 0-0 финалом без is_final
                     if hg == 0 and ag == 0 and not md.get('is_final', False):
                         continue
 
                     status = md.get('status', 'NS')
 
-                    # ★ v23.5: сначала берём match_time из базы
                     match_time_str = bet.get('match_time', '')
                     if not match_time_str:
                         date_str = bet.get('date', '')
@@ -6500,7 +5396,7 @@ _snapshot_lock = Lock()
 
 
 def snapshot_odds_for_upcoming():
-    """★ v22.7: не более 30 матчей за раз + lock."""
+    """Снимки кэфов: не более 30 матчей за раз + lock."""
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
@@ -6669,22 +5565,27 @@ def auto_update_results():
     return ft + live + x2
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v22.8 — CLV prob-boost + Steam Move) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v22.9 — все фиксы из config.py v3.10) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v22.7 — Thread для webhook)
+# main.py — ЧАСТЬ 3/3 (v23.0 — все фиксы config v3.10)
 # Schedulers, Webhook, API, __main__
 # ★ Snapshots API без fallback'ов
-# ★ v4.4: single-fetch live status
-# ★ v4.6: CLV по стратегиям
-# ★ v4.9: показ llm_reason в /update
-# ★ v5.0: показ line_movement в /update + StrategyTester
-# ★ v5.1: bet_info в /api/snapshots/<fid>
-# ★ v5.2: /api/calibration для анализа калибровки
-# ★ v22.1: снапшоты калибровки раз в 14 дней (2 слота)
-# ★ v22.7: /force_settle и /update_results в Thread
+# ★ single-fetch live status
+# ★ CLV по стратегиям
+# ★ показ llm_reason в /update
+# ★ показ line_movement в /update + StrategyTester
+# ★ bet_info в /api/snapshots/<fid>
+# ★ /api/calibration для анализа калибровки
+# ★ снапшоты калибровки раз в 14 дней (2 слота)
+# ★ /force_settle и /update_results в Thread
+# ★ /export и /api/export/csv (v23.0)
+# ★ USE_API_LEAGUES при старте (v23.0)
 # ============================================================
 
+# ============================================================
+# SCHEDULER HELPERS
+# ============================================================
 def safe_job(func, name):
     def wrapper():
         try:
@@ -6752,6 +5653,8 @@ def schedule_performance_report():
 
 
 def schedule_autobet():
+    # ★ FIX: интервал live-обновления из Config
+    live_interval = max(5, int(getattr(Config, 'LIVE_REFRESH_SEC', 20) / 2))
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=safe_job(autobet_manager.place_bets_from_cache, "autobet_place"),
@@ -6770,6 +5673,12 @@ def schedule_autobet():
         trigger='interval', hours=6, id='autobet_clv',
         replace_existing=True, max_instances=1,
         misfire_grace_time=300, coalesce=True
+    )
+    scheduler.add_job(
+        func=safe_job(autobet_manager.update_live_scores, "autobet_live_scores"),
+        trigger='interval', minutes=live_interval, id='autobet_live',
+        replace_existing=True, max_instances=1,
+        misfire_grace_time=60, coalesce=True
     )
     scheduler.start()
 
@@ -6801,7 +5710,7 @@ def cleanup_old_backups():
 
 
 def cleanup_old_data():
-    """Удаляет .bak, старые бэкапы, обрезает логи. ★ v23.3"""
+    """Удаляет .bak, старые бэкапы, обрезает логи."""
     try:
         import glob
         # 1. Удаляем все .bak файлы
@@ -7178,7 +6087,7 @@ def _check_webhook_rate_limit(chat_id):
 
 
 # ============================================================
-# WEBHOOK (v22.7 — force_settle и update_results в Thread)
+# WEBHOOK
 # ============================================================
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -7408,7 +6317,7 @@ def webhook():
                                 'x2': '🔥 X2',
                             }.get(src, src)
                             action = {
-                                'excellent': 'x1.25 BOOST',
+                                'excellent': 'x1.5 BOOST',
                                 'good': 'normal',
                                 'weak': 'x0.5 REDUCE',
                                 'critical': '🛑 SKIP',
@@ -7446,7 +6355,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # ★ v22.7: /update_results в фоне
             elif text == '/update_results':
                 send_telegram("🔄 Обновление запущено в фоне...")
 
@@ -7500,7 +6408,6 @@ def webhook():
                 except Exception as e:
                     send_telegram(f"❌ Ошибка: {e}")
 
-            # ★ v22.7: /force_settle в фоне
             elif text == '/force_settle':
                 send_telegram("🔧 Запущено в фоне...")
 
@@ -7699,6 +6606,71 @@ def serve_manifest():
 
 
 # ============================================================
+# ★ FIX: /export и /api/export/csv (было 404)
+# ============================================================
+@app.route('/export', methods=['GET'])
+def export_excel_route():
+    """★ FIX: кнопка «📥 Excel» в настройках — раньше 404."""
+    try:
+        file, message = export_to_excel()
+        if file is None:
+            return message, 400
+        from flask import send_file
+        return send_file(
+            file,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'history_{datetime.now().strftime("%Y-%m-%d")}.xlsx'
+        )
+    except Exception as e:
+        logger.exception(f"export_excel_route: {e}")
+        return f"❌ Ошибка экспорта: {e}", 500
+
+
+@app.route('/api/export/csv', methods=['GET'])
+def export_csv_route():
+    """★ FIX: кнопка «📄 CSV» в настройках."""
+    try:
+        import csv
+        import io
+        history = storage.load_history()
+        if not history:
+            return "📭 Нет данных", 400
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Дата', 'Матч', 'Счёт', '1-й тайм', 'Ставка', 'Коэф',
+                         'EV%', 'Prob%', 'Сумма', 'Результат', 'Прибыль',
+                         'Букмекер', 'Источник'])
+        for bet in history:
+            score = f"{bet.get('home_goals', '-')}-{bet.get('away_goals', '-')}"
+            ht = (f"{bet.get('halftime_home', '-')}-{bet.get('halftime_away', '-')}"
+                  if bet.get('halftime_home') is not None else '-')
+            writer.writerow([
+                bet.get('date', ''),
+                f"{bet.get('home', '')} vs {bet.get('away', '')}",
+                score, ht,
+                bet.get('bet', ''), bet.get('odds', 0),
+                bet.get('ev', 0), bet.get('prob', 0),
+                bet.get('stake', 0), bet.get('result', 'pending'),
+                bet.get('profit', 0),
+                bet.get('bookmaker', '—'),
+                bet.get('source', '70_percent'),
+            ])
+
+        from flask import Response
+        return Response(
+            '\ufeff' + output.getvalue(),
+            mimetype='text/csv; charset=utf-8',
+            headers={'Content-Disposition':
+                     f'attachment; filename=history_{datetime.now().strftime("%Y-%m-%d")}.csv'}
+        )
+    except Exception as e:
+        logger.exception(f"export_csv_route: {e}")
+        return f"❌ Ошибка экспорта: {e}", 500
+
+
+# ============================================================
 # ★ API: LIVE
 # ============================================================
 @app.route('/api/live', methods=['GET'])
@@ -7710,7 +6682,6 @@ def api_live():
         with cache_lock:
             cache = storage.load_cache()
 
-        # ★ v23.4: объединяем all_analyzed + top_matches, где top_matches ПРИОРИТЕТНЕЕ
         _all_analyzed = cache.get('all_analyzed', [])
         _top_matches = cache.get('top_matches', [])
 
@@ -7863,7 +6834,6 @@ def api_live():
 
             best_bet = m.get('best_bet', {}) or {}
 
-            # ★ v23.5: если best_bet пустой — ищем в top_matches
             if not best_bet.get('label') or (best_bet.get('odds') or 0) <= 1.01:
                 try:
                     with cache_lock:
@@ -8809,12 +7779,7 @@ def api_snapshot():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# ============================================================
-# ★ v23.3: API — АНОМАЛИИ (пропущенные матчи)
-# ============================================================
-# ============================================================
-# ★ v23.4: РУЧНОЕ ОБНОВЛЕНИЕ АНОМАЛИИ
-# ============================================================
+
 @app.route('/api/anomaly_set_result', methods=['POST'])
 def api_anomaly_set_result():
     """Ручной ввод результата аномалии."""
@@ -8869,6 +7834,7 @@ def api_anomaly_set_result():
     except Exception as e:
         logger.exception(f"api_anomaly_set_result: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
+
 
 @app.route('/api/anomalies', methods=['GET'])
 def api_anomalies():
@@ -8988,9 +7954,6 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-# ============================================================
-# ★ API: СНИМКИ — детали
-# ============================================================
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
@@ -9460,7 +8423,7 @@ def void_old_endpoint():
 
 
 # ============================================================
-# ★ v23.4: ЗАПУСК ПОИСКА ИЗ ПРИЛОЖЕНИЯ
+# ЗАПУСК ПОИСКА ИЗ ПРИЛОЖЕНИЯ
 # ============================================================
 @app.route('/api/trigger_search', methods=['POST'])
 def api_trigger_search():
@@ -9556,6 +8519,7 @@ def health():
             'geocoding_cache_size': len(_geo_cache),
             'data_dir': DATA_DIR,
             'x2_candidates': x2_count,
+            'version': 'v23.0',
             'autobets': {
                 'count': autobets_state.get('total_bets', 0),
                 'bank': autobets_state.get('bank', 1000),
@@ -9585,13 +8549,11 @@ def index():
 
 
 # ============================================================
-# ★ v23.3: Обновление результатов пропущенных аномалий
+# ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ ПРОПУЩЕННЫХ АНОМАЛИЙ
 # ============================================================
-# ★ [v23.4] Первая update_anomaly_results удалена (дубликат)
 def update_anomaly_results():
     """
     Проверяет и обновляет результаты пропущенных аномалий.
-    ★ v23.3: использует поле 'selection' вместо 'bet_type'.
     """
     try:
         path = ANOMALY_FILE
@@ -9611,7 +8573,6 @@ def update_anomaly_results():
                 new_lines.append(line)
                 continue
 
-            # Если результат уже определён — оставляем
             if rec.get('result') and rec['result'] not in ('pending', None):
                 new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
@@ -9623,7 +8584,6 @@ def update_anomaly_results():
 
             md = football_api.get_match_result(fid)
             if not md:
-                # ★ v23.22: логируем API-ошибки (500/401/timeout)
                 api_errors += 1
                 logger.warning(
                     f"⚠️ API error для fid={fid}: "
@@ -9642,24 +8602,18 @@ def update_anomaly_results():
                 new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
 
-            # ★ Приоритет: selection → bet_type
             sel = (rec.get('selection') or rec.get('bet_type') or '').upper().strip()
-            
-            # ★ v23.7: если sel пустой — пробуем восстановить из best_odds
+
             if not sel:
                 best_odds = rec.get('best_odds', 0) or 0
                 avg_odds = rec.get('avg_odds', 0) or 0
-                # VALUE-аномалии без selection — определяем по odds
                 if best_odds > 20:
-                    # Слишком подозрительный кэф — скорее всего мусор
                     logger.warning(
                         f"⚠️ Anomaly с подозрительным кэфом {best_odds}: "
                         f"{rec.get('home')} vs {rec.get('away')} — пропускаю"
                     )
                     new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                     continue
-                # Если avg_odds близко к 1 (низкий) — вероятно X2/1X
-                # Иначе оставляем unknown
                 logger.warning(
                     f"⚠️ Anomaly без selection: fid={fid} | "
                     f"{rec.get('home')} vs {rec.get('away')} | "
@@ -9689,7 +8643,6 @@ def update_anomaly_results():
                 res = 'unknown'
 
             if res == 'unknown':
-                # Не можем определить — оставляем pending
                 new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
 
@@ -9711,8 +8664,61 @@ def update_anomaly_results():
     except Exception as e:
         logger.exception(f"update_anomaly_results: {e}")
         return 0
-        
 
+
+def analyze_h2h_patterns(h2h_data, current_home_team):
+    if not h2h_data or not h2h_data.get("matches"):
+        return {"btts_pattern": False, "away_lose_pattern": False}
+    matches = h2h_data["matches"][:5]
+    btts_count, away_lose_count = 0, 0
+    for m in matches:
+        h, a = m.get("home_score", 0) or 0, m.get("away_score", 0) or 0
+        if h > 0 and a > 0: btts_count += 1
+        if m.get("away") == current_home_team:
+            if h < a: away_lose_count += 1
+        else:
+            if a < h: away_lose_count += 1
+    return {"btts_pattern": btts_count >= 4, "away_lose_pattern": away_lose_count >= 3}
+
+
+# ============================================================
+# ★ FIX: register_bot_commands — безопасная заглушка
+# ============================================================
+def register_bot_commands():
+    """Регистрация команд в Telegram. Опционально."""
+    try:
+        commands = [
+            {"command": "start", "description": "🚀 Запуск"},
+            {"command": "help", "description": "❓ Помощь"},
+            {"command": "update", "description": "🔎 Поиск матчей"},
+            {"command": "today", "description": "📅 Ставки сегодня"},
+            {"command": "stats", "description": "📊 Статистика"},
+            {"command": "bank", "description": "💰 Банк"},
+            {"command": "live", "description": "⚡ Live матчи"},
+            {"command": "strategies", "description": "📈 Стратегии"},
+            {"command": "clv_strategies", "description": "📊 CLV по стратегиям"},
+            {"command": "calibration", "description": "📊 Калибровка"},
+            {"command": "status", "description": "🤖 Статус"},
+        ]
+        r = requests.post(
+            f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setMyCommands",
+            json={"commands": commands},
+            timeout=10
+        )
+        if r.status_code == 200:
+            logger.info("✅ Команды Telegram зарегистрированы")
+            return True
+        else:
+            logger.warning(f"⚠️ setMyCommands: {r.status_code} {r.text[:100]}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ register_bot_commands: {e}")
+        return False
+
+
+# ============================================================
+# __MAIN__
+# ============================================================
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
@@ -9725,17 +8731,29 @@ if __name__ == "__main__":
     logger.info(f"🌍 Geocoding cache: {len(_geo_cache)} городов")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
 
+    # ★ FIX п.15: USE_API_LEAGUES при старте
+    if getattr(Config, 'USE_API_LEAGUES', False):
+        try:
+            logger.info("🔍 USE_API_LEAGUES=True — построение списка лиг через API...")
+            Config.build_leagues_from_api()
+            logger.info(f"✅ Лиг из API: {len(Config.LEAGUES)}")
+        except Exception as e:
+            logger.error(f"❌ build_leagues_from_api: {e} — используем статический список")
+    else:
+        logger.info(f"📋 Используем статический список лиг: {len(Config.LEAGUES)}")
+
+    # ★ FIX: 3-я часть `register_bot_commands` — теперь через проверку
+    try:
+        register_bot_commands()
+    except Exception as e:
+        logger.error(f"⚠️ Команды: {e}")
+
     start_scheduler()
     schedule_updates()
     schedule_notifications()
     schedule_performance_report()
     schedule_auto_backup()
     schedule_autobet()
-
-    try:
-        register_bot_commands()
-    except Exception as e:
-        logger.error(f"⚠️ Команды: {e}")
 
     try:
         WEBHOOK_URL = (os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook')
@@ -9763,25 +8781,22 @@ if __name__ == "__main__":
         trigger='cron', hour=4, minute=0, id='odds_cleanup',
         replace_existing=True, misfire_grace_time=1800, coalesce=True
     )
-    odds_scheduler.add_job(
-        func=safe_job(autobet_manager.update_live_scores, "autobet_live"),
-        trigger='interval', minutes=10, id='autobet_live',
-        replace_existing=True, max_instances=1,
-        misfire_grace_time=60, coalesce=True
-    )
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v22.7 — Thread webhook + snapshot lock)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v23.0 — все фиксы config v3.10)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
     logger.info(f"💎 VALUE: кэф>={getattr(Config, 'VALUE_MIN_ODDS', 2.5)} | "
-                f"EV>={getattr(Config, 'VALUE_MIN_EV', 20)}% | "
+                f"EV>={getattr(Config, 'VALUE_MIN_EV', 25)}% | "
                 f"Prob>={getattr(Config, 'VALUE_MIN_PROB', 50)}%")
     logger.info(f"📈 LINE MOVEMENT: {'вкл' if getattr(Config, 'LINE_MOVEMENT_ENABLED', True) else 'выкл'}")
     logger.info(f"⚡ LIVE: окно -{getattr(Config, 'LIVE_MINUTES_AFTER', 120)}м .. "
                 f"+{getattr(Config, 'LIVE_HOURS_BEFORE', 2)}ч")
+    logger.info(f"🔥 X2: {'вкл' if getattr(Config, 'X2_ENABLED', False) else 'ВЫКЛ'}")
+    logger.info(f"🌤️ Weather: rain>{getattr(Config, 'WEATHER_SKIP_RAIN_MM', 4.0)}мм / "
+                f"wind>{getattr(Config, 'WEATHER_SKIP_WIND_MS', 15.0)}м/с")
     logger.info(f"📁 DATA_DIR: {DATA_DIR}")
     logger.info("=" * 60)
 
