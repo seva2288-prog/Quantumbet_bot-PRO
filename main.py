@@ -575,7 +575,7 @@ class FootballAPI:
         self.base_url = base_url or Config.FOOTBALL_API_URL
         self.cache = SmartCache(max_size=2000)
         self.last_request_time = 0
-        self.min_request_interval = 0.3
+        self.min_request_interval = 0.4
         self.rate_limiter = APIRateLimiter(max_requests=250, time_window=60)
         self.retry_manager = RetryManager(max_retries=3, base_delay=1)
         self.error_stats = defaultdict(int)
