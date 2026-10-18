@@ -9713,6 +9713,21 @@ def update_anomaly_results():
         return 0
         
 
+def analyze_h2h_patterns(h2h_data, current_home_team):
+    if not h2h_data or not h2h_data.get("matches"): 
+        return {"btts_pattern": False, "away_lose_pattern": False}
+    matches = h2h_data["matches"][:5]
+    btts_count, away_lose_count = 0, 0
+    for m in matches:
+        h, a = m.get("home_score", 0) or 0, m.get("away_score", 0) or 0
+        if h > 0 and a > 0: btts_count += 1
+        if m.get("away") == current_home_team:
+            if h < a: away_lose_count += 1
+        else:
+            if a < h: away_lose_count += 1
+    return {"btts_pattern": btts_count >= 4, "away_lose_pattern": away_lose_count >= 3}
+
+
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
