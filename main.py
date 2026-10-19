@@ -8727,6 +8727,74 @@ def register_bot_commands():
 # ============================================================
 # __MAIN__
 # ============================================================
+# ============================================================
+# X2 РЕЗУЛЬТАТЫ (ВОССТАНОВЛЕНО)
+# ============================================================
+def update_x2_results():
+    try:
+        candidates = storage.get_x2_candidates(limit=200)
+        updated = 0
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+
+        for c in candidates:
+            if c.get('result') in ('win', 'loss', 'push'):
+                continue
+            fid = c.get('fixture_id')
+            if not fid:
+                continue
+            md = football_api.get_match_result(fid)
+            if not md:
+                continue
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                continue
+            status = md.get('status', 'NS')
+            is_final = md.get('is_final', False)
+            force_final = False
+            
+            if not is_final:
+                match_time_str = c.get('match_time', '')
+                if match_time_str and match_time_str != '?':
+                    try:
+                        mt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+                        hours_ago = (now_msk - mt).total_seconds() / 3600
+                        if hours_ago > 2.5:
+                            force_final = True
+                    except Exception:
+                        pass
+                if not force_final:
+                    continue
+                    
+            side = c.get('x2_side', 'X2')
+            if side == 'X2':
+                result = 'win' if ag >= hg else 'loss'
+            else:
+                result = 'win' if hg >= ag else 'loss'
+                
+            odds = float(c.get('entry_odds', 0) or 0)
+            if odds < 1.01:
+                odds = 1.85
+            stake = 20.0
+            
+            if result == 'win':
+                profit = round(stake * (odds - 1), 2)
+            elif result == 'loss':
+                profit = -stake
+            else:
+                profit = 0
+                
+            ok = storage.update_x2_result(
+                candidate_id=c['id'], result=result, profit=profit,
+                home_goals=hg, away_goals=ag,
+            )
+            if ok:
+                updated += 1
+        return updated
+    except Exception as e:
+        logger.exception(f"update_x2_results: {e}")
+        return 0
+
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
