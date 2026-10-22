@@ -130,12 +130,12 @@ class Config:
     # ============================================================
     # ★ FIX п.3: X2 отключено (баг парсинга) — флаг сохранён, но
     # сопутствующие параметры ниже используются ТОЛЬКО если True.
-    X2_ENABLED = False
+    X2_ENABLED = True
     X2_MIN_POSITION_DIFF = 3
     X2_MAX_POSITION = 20
     X2_MIN_EV = 10
     X2_MIN_PROB = 58
-    X2_BOTH_SIDES = False
+    X2_BOTH_SIDES = True
     X2_MAX_PCT_OF_BETS = 0.40
     X2_HOME_BONUS = 3.0
     X2_AWAY_PENALTY = 2.0
