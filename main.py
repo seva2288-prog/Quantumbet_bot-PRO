@@ -1280,7 +1280,8 @@ class AutoBetManager:
             cache = storage.load_cache()
             top = cache.get('top_matches', [])
             VALID_SOURCES = ('Football API', 'Line Analysis',
-                             'Football API (X2)', 'Football API (1X)')
+                 'Football API (X2)', 'Football API (1X)',
+                 'tm25_premium', 'tm25_standard', 'value', 'btts')
             valid_matches = []
             for m in top:
                 bb = m.get('best_bet', {})
