@@ -653,7 +653,7 @@ class FootballAPI:
 
     @timing_decorator()
     def get_form(self, team_id):
-        stats_enabled = getattr(Config, 'STATS_ENABLED', True)
+        stats_enabled = False  # ★ Отключаем для ускорения
         cache_key = f"form_{team_id}"
         cached = self.cache.get(cache_key, data_type='form')
         if cached is not None:
