@@ -595,73 +595,56 @@ class Config:
     # ★ LEAGUE_NAMES (★ FIX п.12: Россия раскомментирована)
     # ============================================================
     LEAGUE_NAMES = {
-        # Cups
-        2: "UEFA Champions League", 3: "UEFA Europa League", 848: "UEFA Conference League",
-        # England
-        39: "Premier League", 40: "Championship", 41: "League One", 42: "League Two",
-        # Spain
-        140: "La Liga", 141: "La Liga 2", 142: "Primera Federación",
-        # Germany
-        78: "Bundesliga", 79: "2. Bundesliga", 80: "3. Liga",
-        # Italy
-        135: "Serie A", 136: "Serie B", 137: "Serie C",
-        # France
-        61: "Ligue 1", 62: "Ligue 2", 63: "National",
-        # Netherlands
+        # Топ-лиги
+        39: "Premier League", 40: "Championship", 41: "League One", 42: "League Two", 45: "FA Cup", 48: "League Cup",
+        140: "La Liga", 141: "La Liga 2", 143: "Copa del Rey",
+        78: "Bundesliga", 79: "2. Bundesliga", 81: "DFB Pokal",
+        135: "Serie A", 136: "Serie B", 137: "Coppa Italia",
+        61: "Ligue 1", 62: "Ligue 2", 66: "Coupe de France",
+        
+        # Европа
         88: "Eredivisie", 89: "Eerste Divisie",
-        # Portugal
         94: "Primeira Liga", 95: "Segunda Liga",
-        # Belgium
         144: "Pro League", 145: "Challenger Pro League",
-        # Turkey
         203: "Süper Lig", 204: "TFF 1. Lig",
-        # Ukraine
+        235: "РПЛ", 236: "Первая Лига",
         333: "Premier League Ukraine", 334: "Persha Liga",
-        # Poland
-        106: "Ekstraklasa", 107: "I Liga",
-        # Denmark
-        119: "Superliga", 120: "1. Division",
-        # Norway
-        164: "Eliteserien", 165: "OBOS-ligaen",
-        # Croatia
-        166: "HNL", 167: "2. HNL",
-        # Switzerland
+        179: "Premiership", 180: "Championship",
+        187: "Bundesliga Austria", 188: "A-League",
         206: "Super League", 207: "Challenge League",
-        # Austria
-        187: "Bundesliga",
-        # Greece
-        197: "Super League 2", 198: "Super League",
-        # Czech
-        261: "Chance Liga", 345: "FNL",
-        # Sweden
-        113: "Allsvenskan",
-        # America
-        71: "Brasileirão", 128: "Argentina Primera", 253: "MLS",
-        # Mexico
-        262: "Liga MX",
-        # Asia
-        150: "J1 League", 169: "Chinese Super League", 307: "Saudi Pro League",
-        # Africa
-        276: "South Africa Premier", 278: "Botola Pro",
-        # Australia
+        198: "Super League", 197: "Super League 2",
+        261: "National Division", 345: "FNL",
+        106: "Ekstraklasa", 107: "I Liga",
+        119: "Superliga", 120: "1. Division",
+        164: "Eliteserien", 165: "OBOS-ligaen",
+        113: "Allsvenskan", 114: "Superettan",
+        166: "HNL", 167: "2. HNL",
+        286: "Super Liga", 283: "Liga 1",
+        172: "First League", 272: "NB I",
+        332: "Super Liga", 373: "Prva Liga",
+        
+        # Америка
+        71: "Serie A", 128: "Primera Division", 253: "MLS", 262: "Liga MX",
+        239: "Primera A", 265: "Primera Division", 299: "Primera Division", 301: "Pro League",
+        370: "Primera Division", 339: "Liga Nacional", 342: "Primera Division",
+        131: "Primera B Metropolitana", 132: "Primera C",
+        
+        # Азия
+        150: "J1 League", 151: "J2 League", 169: "Super League", 307: "Pro League", 292: "K League 1", 296: "Thai League 1", 323: "Indian Super League",
+        98: "J1 League", 99: "J2 League",
+        
+        # Африка
+        276: "Premier League", 278: "Botola Pro", 233: "Premier League",
+        
+        # Австралия
         189: "A-League",
-        # ★ FIX п.12: Russia — раскомментировано
-        235: "РПЛ", 236: "Первая Лига", 238: "Вторая Лига Б",
-        # Scotland
-        179: "Scottish Premiership", 180: "Scottish Championship", 182: "Scottish League One",
-        # National teams
-        5:   "UEFA Nations League",
-        29:  "World Cup Qualification",
-        30:  "WC Qualification Asia",
-        31:  "WC Qualification Africa",
-        32:  "WC Qualification Europe",
-        33:  "WC Qualification South America",
-        34:  "WC Qualification Oceania",
-        35:  "WC Qualification CONCACAF",
-        960: "Euro Championship Qualification",
-        10:  "Friendlies International",
-        1:   "World Cup",
-        4:   "Euro Championship",
+        
+        # Сборные
+        5: "UEFA Nations League", 1: "World Cup", 4: "Euro Championship",
+        29: "WC Qualification", 30: "WC Qualification Asia", 31: "WC Qualification Africa",
+        32: "WC Qualification Europe", 33: "WC Qualification South America",
+        34: "WC Qualification Oceania", 35: "WC Qualification CONCACAF",
+        960: "Euro Qualification", 10: "Friendlies", 9: "Copa America", 11: "Gold Cup",
     }
 
     # ============================================================
