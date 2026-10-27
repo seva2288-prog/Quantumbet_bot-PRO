@@ -91,7 +91,7 @@ class Config:
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
-    EV_MIN_70 = 8
+    EV_MIN_70 = 10
     PROB_MIN_70 = 52
     PROB_MAX_70 = 85.0
     POSITION_MAX_70 = 18
@@ -244,7 +244,7 @@ class Config:
     # === VALUE ===
     # ============================================================
     VALUE_MIN_ODDS = 2.50
-    VALUE_MIN_EV = 25
+    VALUE_MIN_EV = 12
     VALUE_MIN_PROB = 50
     VALUE_MIN_XG_DIFF = 0.3
     VALUE_MAX_RESULTS = 5   # ★ FIX п.4: main.py будет читать это
