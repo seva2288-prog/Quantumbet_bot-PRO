@@ -52,6 +52,7 @@ class Config:
     ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
     ODDS_API_URL = os.getenv("ODDS_API_URL", "https://api.the-odds-api.com/v4")
     BACKUP_ODDS_KEYS = [k.strip() for k in os.getenv("BACKUP_ODDS_KEYS", "").split(",") if k.strip()]
+    ODDS_API_DAILY_LIMIT = 15  # ★ Не более 15 запросов в день, чтобы хватило на месяц
 
     # ============================================================
     # === LLM ===
@@ -183,6 +184,15 @@ class Config:
     BTTS_MAX_LEAGUE_BETS = 1
     BTTS_INCLUDE_INTERNATIONAL = False
 
+    # ============================================================
+    # ★ СТАТИСТИКА: УГЛОВЫЕ И КАРТОЧКИ
+    # ============================================================
+    STATS_ENABLED = True
+    STATS_MIN_EV = 12           # Минимальный EV для статистики
+    STATS_MIN_PROB = 55         # Минимальная вероятность
+    STATS_CORNERS_MIN_AVG = 8.5 # Если в среднем меньше 8.5, ищем ТМ. Если больше — ТБ.
+    STATS_CARDS_MIN_AVG = 3.5   # Если в среднем меньше 3.5, ищем ТМ. Если больше — ТБ.
+    
     # ============================================================
     # ★ LINE MOVEMENT (Аномалии кэфов)
     # ============================================================
@@ -438,7 +448,7 @@ class Config:
     TM25_LEAGUE_BONUS = 5
     TM25_MAX_LEAGUE_BETS = 2
     TM25_FORM_UNDER_REQUIRED = False
-
+    
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
     # ============================================================
