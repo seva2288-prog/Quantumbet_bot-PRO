@@ -255,7 +255,7 @@ class Config:
     # ★ KELLY CRITERION
     # ============================================================
     KELLY_ENABLED = True
-    KELLY_FRACTION = 0.25
+    KELLY_FRACTION = 0.35
     KELLY_MAX_PCT = 0.05
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
