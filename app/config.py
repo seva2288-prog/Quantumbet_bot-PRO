@@ -135,7 +135,7 @@ class Config:
     X2_MAX_POSITION = 20
     X2_MIN_EV = 10
     X2_MIN_PROB = 58
-    X2_BOTH_SIDES = True
+    X2_BOTH_SIDES = False
     X2_MAX_PCT_OF_BETS = 0.40
     X2_HOME_BONUS = 3.0
     X2_AWAY_PENALTY = 2.0
@@ -403,22 +403,22 @@ class Config:
     # ============================================================
     # ★ ТМ 2.5
     # ============================================================
-    MAX_TM25_BETS = 10
+    MAX_TM25_BETS = 5
     # ★ FIX п.5: MIN_TM25_EV/PROB убраны (мёртвые)
 
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
 
-    PREMIUM_MIN_EV = 20
-    PREMIUM_MIN_PROB = 55
+    PREMIUM_MIN_EV = 25
+    PREMIUM_MIN_PROB = 58
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
 
     # ★ FIX п.6: main.py теперь читает эти значения, а не TM25_XG_*
-    STANDARD_MIN_EV = 15
-    STANDARD_MIN_PROB = 52
-    STANDARD_XG_MIN = 1.0
+    STANDARD_MIN_EV = 20
+    STANDARD_MIN_PROB = 56
+    STANDARD_XG_MIN = 1.2
     STANDARD_XG_MAX = 2.8
 
     TM25_USE_KELLY = True
