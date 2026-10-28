@@ -92,7 +92,7 @@ class Config:
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
     EV_MIN_70 = 10
-    PROB_MIN_70 = 52
+    PROB_MIN_70 = 50
     PROB_MAX_70 = 85.0
     POSITION_MAX_70 = 18
     # ★ FIX п.21: FORM_REQUIRED_70 убран (мёртвый)
@@ -123,7 +123,7 @@ class Config:
     # ============================================================
     EV_FINAL_MIN = 10
     EV_FINAL_MAX = 30
-    PROB_FINAL_MIN = 55
+    PROB_FINAL_MIN = 50
 
     # ============================================================
     # === X2 ===
