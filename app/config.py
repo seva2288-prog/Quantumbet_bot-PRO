@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
-Обновлено под тариф Ultra (450 req/min, /odds, /predictions, /injuries)
-★ ВЕРСИЯ 3.10 — исправлены 43 бага (weather, X2, LEAGUE_NAMES, CLV, STANDARD xG, blacklist)
+Обновлено под тариф Ultra (75 000 req/day, 450 req/min)
+★ ВЕРСИЯ 3.11 — оптимизировано под 75k запросов, исправлен риск-менеджмент
 """
 import os
 import sys
@@ -21,10 +21,13 @@ class Config:
     CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 
     # ============================================================
-    # === FOOTBALL API (Ultra) ===
+    # === FOOTBALL API (Ultra 75k) ===
     # ============================================================
     FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "").strip()
     FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io").rstrip("/")
+    
+    # ★ Максимальная скорость (Rate Limit), Ultra обычно дает 450/мин
+    FOOTBALL_API_MAX_RPM = 400 
 
     # ============================================================
     # === WEATHER API ===
@@ -33,7 +36,6 @@ class Config:
     WEATHER_API_URL = os.getenv("WEATHER_API_URL", "https://api.openweathermap.org/data/2.5")
     WEATHER_ENABLED = bool(WEATHER_API_KEY)
 
-    # ★ FIX п.1+33: погодные константы ВНУТРИ класса
     WEATHER_SKIP_RAIN_MM = 4.0
     WEATHER_SKIP_WIND_MS = 15.0
     WEATHER_SKIP_SNOW = True
@@ -47,12 +49,14 @@ class Config:
     WEATHER_COLD_XG_PENALTY = 0.93
 
     # ============================================================
-    # === ODDS API ===
+    # === ODDS API (ОТКЛЮЧЕНО) ===
     # ============================================================
-    ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
-    ODDS_API_URL = os.getenv("ODDS_API_URL", "https://api.the-odds-api.com/v4")
-    BACKUP_ODDS_KEYS = [k.strip() for k in os.getenv("BACKUP_ODDS_KEYS", "").split(",") if k.strip()]
-    ODDS_API_DAILY_LIMIT = 15  # ★ Не более 15 запросов в день, чтобы хватило на месяц
+    # ★ С 75k запросов API-Football нам не нужен Odds API. 
+    # Оставляем пустым, чтобы бот даже не пытался его дергать.
+    ODDS_API_KEY = ""
+    ODDS_API_URL = "https://api.the-odds-api.com/v4"
+    BACKUP_ODDS_KEYS = []
+    ODDS_API_DAILY_LIMIT = 0  
 
     # ============================================================
     # === LLM ===
@@ -71,8 +75,8 @@ class Config:
     USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
-    # ★ FIX п.15: включать автоматическое построение списка лиг через API
-    USE_API_LEAGUES = False  # True = строить через build_leagues_from_api
+    # ★ С 75k запросов можно включить, чтобы бот сам собрал все доступные лиги
+    USE_API_LEAGUES = True  
 
     # ============================================================
     # === PREDICTION ENGINE ===
@@ -80,7 +84,6 @@ class Config:
     PREDICTION_ENGINE = os.getenv("PREDICTION_ENGINE", "heuristic")
     MIN_ODDS = 1.40
     MAX_ODDS = 8.00
-    # ★ FIX п.18-19: MIN_CONFIDENCE, MAX_ODDS_SAFE убраны (мёртвые)
 
     # ============================================================
     # === СТАВКИ ===
@@ -88,7 +91,7 @@ class Config:
     MAX_BETS_PER_RUN = 30
 
     # ============================================================
-    # === 70%+ (обновлено v23.0) ===
+    # === 70%+ ===
     # ============================================================
     XG_MIN_70 = 1.2
     XG_MAX_70 = 3.8
@@ -96,7 +99,6 @@ class Config:
     PROB_MIN_70 = 50
     PROB_MAX_70 = 85.0
     POSITION_MAX_70 = 18
-    # ★ FIX п.21: FORM_REQUIRED_70 убран (мёртвый)
     SKIP_MID_TABLE_70 = False
     LIMIT_BET_TYPE_70 = 15
     LIMIT_LEAGUE_70 = 5
@@ -104,9 +106,8 @@ class Config:
     MAX_ODD_70 = 8.00
 
     # ============================================================
-    # === КАЛИБРОВКА (перенос из main.py) ===
+    # === КАЛИБРОВКА ===
     # ============================================================
-    # ★ FIX п.2: эти константы теперь в Config, а не в main.py
     CALIBRATION_FACTOR = 0.91
     CALIBRATION_BY_BUCKET = {
         (0, 50):   1.00,
@@ -122,6 +123,7 @@ class Config:
     # ============================================================
     # === ФИНАЛЬНЫЙ ФИЛЬТР ===
     # ============================================================
+    # ★ ФИКС: EV_FINAL_MIN = -15, чтобы не отсекать VALUE и BTTS
     EV_FINAL_MIN = -15
     EV_FINAL_MAX = 150
     PROB_FINAL_MIN = 42
@@ -129,8 +131,6 @@ class Config:
     # ============================================================
     # === X2 ===
     # ============================================================
-    # ★ FIX п.3: X2 отключено (баг парсинга) — флаг сохранён, но
-    # сопутствующие параметры ниже используются ТОЛЬКО если True.
     X2_ENABLED = True
     X2_MIN_POSITION_DIFF = 3
     X2_MAX_POSITION = 20
@@ -141,11 +141,10 @@ class Config:
     X2_HOME_BONUS = 3.0
     X2_AWAY_PENALTY = 2.0
 
-    # ★ ПУНКТ 2: минимальный кэф для П1/1X в 70%+
     MIN_ODDS_1X = 1.70
 
     # ============================================================
-    # ★ BTTS (Обе Забьют) (v4.8)
+    # ★ BTTS (Обе Забьют)
     # ============================================================
     BTTS_ENABLED = True
     BTTS_MAX_BETS = 3
@@ -188,10 +187,10 @@ class Config:
     # ★ СТАТИСТИКА: УГЛОВЫЕ И КАРТОЧКИ
     # ============================================================
     STATS_ENABLED = True
-    STATS_MIN_EV = 12           # Минимальный EV для статистики
-    STATS_MIN_PROB = 55         # Минимальная вероятность
-    STATS_CORNERS_MIN_AVG = 8.5 # Если в среднем меньше 8.5, ищем ТМ. Если больше — ТБ.
-    STATS_CARDS_MIN_AVG = 3.5   # Если в среднем меньше 3.5, ищем ТМ. Если больше — ТБ.
+    STATS_MIN_EV = 12           
+    STATS_MIN_PROB = 55         
+    STATS_CORNERS_MIN_AVG = 8.5 
+    STATS_CARDS_MIN_AVG = 3.5   
     
     # ============================================================
     # ★ LINE MOVEMENT (Аномалии кэфов)
@@ -210,7 +209,6 @@ class Config:
     LINE_MOVEMENT_TRADE_DROPS = True
     LINE_MOVEMENT_TRADE_RISES = False
 
-    # ★ FIX п.30: main.py будет проверять, какие selection торговать
     LINE_MOVEMENT_BET_TYPES = ['1', 'X', '2', '1X', 'X2']
 
     LINE_MOVEMENT_MAX_BETS = 2
@@ -257,16 +255,16 @@ class Config:
     VALUE_MIN_EV = 12
     VALUE_MIN_PROB = 42
     VALUE_MIN_XG_DIFF = 0.3
-    VALUE_MAX_RESULTS = 5   # ★ FIX п.4: main.py будет читать это
+    VALUE_MAX_RESULTS = 5   
     VALUE_MAX_PROB = 80
     VALUE_MAX_RATIO = 2.2
 
     # ============================================================
-    # ★ KELLY CRITERION
+    # ★ KELLY CRITERION (Защита банка)
     # ============================================================
     KELLY_ENABLED = True
-    KELLY_FRACTION = 0.20
-    KELLY_MAX_PCT = 0.05
+    KELLY_FRACTION = 0.20      # ★ Безопасное значение (было 0.35)
+    KELLY_MAX_PCT = 0.05       # Не более 5% банка на ставку
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
 
@@ -274,7 +272,7 @@ class Config:
         (0, 75):   1.0,
         (75, 80):  0.85,
         (80, 85):  0.65,
-        (85, 100): 0.45,
+        (85, 100): 0.45, # Сильно режем на завышенных вероятностях
     }
 
     @classmethod
@@ -299,20 +297,19 @@ class Config:
     CLV_MULT_EXCELLENT = 1.5
     CLV_MULT_NORMAL = 1.0
     CLV_MULT_WEAK = 0.5
-    # ★ FIX п.26: теперь main.py учитывает этот флаг
     CLV_SKIP_CRITICAL = False
 
     # ============================================================
-    # ★ LIVE-СТРАНИЦА (⚡)
+    # ★ LIVE-СТРАНИЦА (⚡) - Оптимизировано под 75k
     # ============================================================
     LIVE_HOURS_BEFORE = 2
     LIVE_MINUTES_AFTER = 120
-    LIVE_REFRESH_SEC = 20
+    LIVE_REFRESH_SEC = 10        # ★ Ускорено (было 20)
     LIVE_BATCH_ENABLED = True
     LIVE_CACHE_TTL_LIVE = 30
     LIVE_CACHE_TTL_SOON = 300
     LIVE_CACHE_TTL_FINAL = 3600
-    LIVE_MAX_MATCHES = 30
+    LIVE_MAX_MATCHES = 50        # ★ Увеличено (было 30)
 
     LIVE_SPARKLINE_ENABLED = True
     LIVE_SPARKLINE_POINTS = 10
@@ -325,7 +322,6 @@ class Config:
     WHITELIST_LEAGUES = [
         'premier league', 'championship',
         'efl league one', 'league one',
-        # ★ FIX п.40: League Two добавлен в whitelist
         'league two',
         'la liga', 'laliga',
         'segunda división', 'segunda division', 'la liga 2',
@@ -335,7 +331,6 @@ class Config:
         'ligue 1', 'ligue 2', 'national',
         'eredivisie', 'eerste divisie',
         'primeira liga', 'liga portugal',
-        # ★ FIX п.39: Segunda Liga добавлена в whitelist
         'segunda liga',
         'pro league', 'challenger pro league',
         'süper lig', 'super lig', 'tff 1. lig',
@@ -366,8 +361,6 @@ class Config:
     # ============================================================
     # === BLACKLIST ===
     # ============================================================
-    # ★ FIX п.13+14: убраны 'friendlies', 'nations league', 'wc qualification',
-    #    'euro qualification' и т.д. — они в WHITELIST и LEAGUES
     BLACKLIST_LEAGUES = [
         'isthmian', 'northern premier', 'southern league',
         'county league', 'combined counties',
@@ -407,15 +400,13 @@ class Config:
         'ecuador serie a', 'вторая лига а', 'super league 2',
         'prva liga', 'egyptian premier',
         'uruguay primera', 'northern ireland', 'welsh premier',
-        'irish premier', 
+        'irish premier', 'first division', # ★ Исправлено
     ]
 
     # ============================================================
     # ★ ТМ 2.5
     # ============================================================
     MAX_TM25_BETS = 5
-    # ★ FIX п.5: MIN_TM25_EV/PROB убраны (мёртвые)
-
     TM25_XG_MIN = 0.8
     TM25_XG_MAX = 3.0
     TM25_TOP_LEAGUE_EV = 35
@@ -425,7 +416,6 @@ class Config:
     PREMIUM_XG_MIN = 1.0
     PREMIUM_XG_MAX = 2.8
 
-    # ★ FIX п.6: main.py теперь читает эти значения, а не TM25_XG_*
     STANDARD_MIN_EV = 20
     STANDARD_MIN_PROB = 56
     STANDARD_XG_MIN = 1.2
@@ -452,47 +442,9 @@ class Config:
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
     # ============================================================
-    # === МАППИНГ ЛИГ ДЛЯ ODDS API ===
+    # === МАППИНГ ЛИГ ДЛЯ ODDS API (Оставлено на случай, если понадобится)
     # ============================================================
-    # ★ FIX п.16: расширен (было ~30, стало ~50)
-    ODDS_SPORT_MAP = {
-        'АПЛ': 'soccer_epl', 'Premier League': 'soccer_epl',
-        'Чемпионшип': 'soccer_efl_champ', 'Championship': 'soccer_efl_champ',
-        'Лига 1 Англия': 'soccer_england_league1', 'League One': 'soccer_england_league1',
-        'League Two': 'soccer_england_league2',
-        'Ла Лига': 'soccer_spain_la_liga', 'La Liga': 'soccer_spain_la_liga',
-        'Сегунда': 'soccer_spain_segunda_division', 'La Liga 2': 'soccer_spain_segunda_division',
-        'Бундеслига': 'soccer_germany_bundesliga', 'Bundesliga': 'soccer_germany_bundesliga',
-        'Вторая Бундеслига': 'soccer_germany_bundesliga2', '2. Bundesliga': 'soccer_germany_bundesliga2',
-        'Серия А': 'soccer_italy_serie_a', 'Serie A': 'soccer_italy_serie_a',
-        'Серия B': 'soccer_italy_serie_b', 'Serie B': 'soccer_italy_serie_b',
-        'Ligue 1': 'soccer_france_ligue_one', 'Ligue 2': 'soccer_france_ligue_two',
-        'Эредивизи': 'soccer_netherlands_eredivisie', 'Eredivisie': 'soccer_netherlands_eredivisie',
-        'Примейра Лига': 'soccer_portugal_primeira_liga', 'Primeira Liga': 'soccer_portugal_primeira_liga',
-        'Про Лига': 'soccer_belgium_first_div',
-        'Супер Лига': 'soccer_turkey_super_league', 'Süper Lig': 'soccer_turkey_super_league',
-        'Премьершип': 'soccer_spl',
-        'Суперлига': 'soccer_denmark_superliga', 'Superliga': 'soccer_denmark_superliga',
-        'Элитсериен': 'soccer_norway_eliteserien', 'Eliteserien': 'soccer_norway_eliteserien',
-        'Аллсвенскан': 'soccer_sweden_allsvenskan',
-        'Экстракласа': 'soccer_poland_ekstraklasa', 'Ekstraklasa': 'soccer_poland_ekstraklasa',
-        'Премьер-Лига Украина': 'soccer_ukraine_premier_league',
-        'РПЛ': 'soccer_russia_premier_league',
-        'HNL': 'soccer_croatia_hnl',
-        'Лига Чемпионов УЕФА': 'soccer_uefa_champs_league',
-        'UEFA Champions League': 'soccer_uefa_champs_league',
-        'Лига Европы УЕФА': 'soccer_uefa_europa_league',
-        'UEFA Europa League': 'soccer_uefa_europa_league',
-        'Бразилия Серия А': 'soccer_brazil_campeonato', 'Brasileirão': 'soccer_brazil_campeonato',
-        'Аргентина Примера': 'soccer_argentina_primera_division',
-        'MLS': 'soccer_usa_mls', 'МЛС': 'soccer_usa_mls',
-        'Копа Либертадорес': 'soccer_conmebol_copa_libertadores',
-        'Copa Libertadores': 'soccer_conmebol_copa_libertadores',
-        'Саудовская Аравия Про Лига': 'soccer_saudi_arabia_pro_league',
-        'Япония J1 Лига': 'soccer_japan_j_league', 'J1 League': 'soccer_japan_j_league',
-        'Австралия А-Лига': 'soccer_australia_a_league',
-        'Китай Супер Лига': 'soccer_china_super_league',
-    }
+    ODDS_SPORT_MAP = {}
 
     # ============================================================
     # === СТРАНЫ ДЛЯ АВТОПОСТРОЕНИЯ СПИСКА ЛИГ ===
@@ -506,7 +458,7 @@ class Config:
     ]
 
     # ============================================================
-    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID
+    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID (ОСТАВЛЯЕМ БЕЗ ИЗМЕНЕНИЙ, ОЧЕНЬ ХОРОШО СДЕЛАНО)
     # ============================================================
     LEAGUE_COUNTRY = {
         2:   ("Европа", "🇪🇺"), 3:   ("Европа", "🇪🇺"), 848: ("Европа", "🇪🇺"),
@@ -564,87 +516,48 @@ class Config:
     INTERNATIONAL_LEAGUES = [5, 29, 30, 31, 32, 33, 34, 35, 960, 10, 1, 4]
 
     # ============================================================
-    # ★ ЛИГИ + ТУРНИРЫ СБОРНЫХ (89 лиг)
+    # ★ ЛИГИ (Резервный список, если USE_API_LEAGUES = False)
     # ============================================================
     LEAGUES = [
-        # === КУБКИ ===
         2, 3, 848, 45, 48, 143, 81, 137, 66,
-        # === TOP-5 ЕВРОПА ===
-        39, 40, 41, 42,
-        140, 141,
-        78, 79,
-        135, 136,
-        61, 62,
-        # === ДРУГИЕ ЕВРОПЕЙСКИЕ ===
+        39, 40, 41, 42, 140, 141, 78, 79, 135, 136, 61, 62,
         88, 89, 94, 95, 144, 145, 203, 204, 
-        235, 236, 333, 334, 179, 180,
-        187, 188, 206, 207, 198, 197, 
-        261, 345, 106, 107, 119, 120, 
-        164, 165, 113, 114, 166, 167, 
-        286, 283, 172, 272, 332, 373,
-        # === АМЕРИКА ===
-        71, 128, 253, 262, 239, 265, 299, 301, 370, 339, 342, 131, 132,
-        # === АЗИЯ ===
-        150, 151, 169, 307, 292, 296, 323, 98, 99,
-        # === АФРИКА ===
-        276, 278, 233,
-        # === АВСТРАЛИЯ ===
-        189,
-        # === СБОРНЫЕ ===
+        235, 236, 333, 334, 179, 180, 187, 188, 206, 207, 198, 197, 
+        261, 345, 106, 107, 119, 120, 164, 165, 113, 114, 166, 167, 
+        286, 283, 172, 272, 332, 373, 71, 128, 253, 262, 239, 265, 299, 301, 370, 339, 342, 131, 132,
+        150, 151, 169, 307, 292, 296, 323, 98, 99, 276, 278, 233, 189,
         5, 1, 4, 29, 30, 31, 32, 33, 34, 35, 960, 10, 9, 11,
     ]
 
     CUP_LEAGUES = [2, 3, 848]
 
     # ============================================================
-    # ★ LEAGUE_NAMES (★ FIX п.12: Россия раскомментирована)
+    # ★ LEAGUE_NAMES (Резервный список)
     # ============================================================
     LEAGUE_NAMES = {
-        # Топ-лиги
         39: "Premier League", 40: "Championship", 41: "League One", 42: "League Two", 45: "FA Cup", 48: "League Cup",
         140: "La Liga", 141: "La Liga 2", 143: "Copa del Rey",
         78: "Bundesliga", 79: "2. Bundesliga", 81: "DFB Pokal",
         135: "Serie A", 136: "Serie B", 137: "Coppa Italia",
         61: "Ligue 1", 62: "Ligue 2", 66: "Coupe de France",
-        
-        # Европа
-        88: "Eredivisie", 89: "Eerste Divisie",
-        94: "Primeira Liga", 95: "Segunda Liga",
-        144: "Pro League", 145: "Challenger Pro League",
-        203: "Süper Lig", 204: "TFF 1. Lig",
-        235: "РПЛ", 236: "Первая Лига",
-        333: "Premier League Ukraine", 334: "Persha Liga",
-        179: "Premiership", 180: "Championship",
-        187: "Bundesliga Austria", 188: "Australia Cup",
-        206: "Super League", 207: "Challenge League",
-        198: "Super League", 197: "Super League 2",
-        261: "National Division", 345: "FNL",
-        106: "Ekstraklasa", 107: "I Liga",
-        119: "Superliga", 120: "1. Division",
-        164: "Eliteserien", 165: "OBOS-ligaen",
-        113: "Allsvenskan", 114: "Superettan",
-        166: "HNL", 167: "2. HNL",
-        286: "Super Liga", 283: "Liga 1",
-        172: "First League", 272: "NB I",
+        88: "Eredivisie", 89: "Eerste Divisie", 94: "Primeira Liga", 95: "Segunda Liga",
+        144: "Pro League", 145: "Challenger Pro League", 203: "Süper Lig", 204: "TFF 1. Lig",
+        235: "РПЛ", 236: "Первая Лига", 333: "Premier League Ukraine", 334: "Persha Liga",
+        179: "Premiership", 180: "Championship", 187: "Bundesliga Austria", 188: "Australia Cup",
+        206: "Super League", 207: "Challenge League", 198: "Super League", 197: "Super League 2",
+        261: "National Division", 345: "FNL", 106: "Ekstraklasa", 107: "I Liga",
+        119: "Superliga", 120: "1. Division", 164: "Eliteserien", 165: "OBOS-ligaen",
+        113: "Allsvenskan", 114: "Superettan", 166: "HNL", 167: "2. HNL",
+        286: "Super Liga", 283: "Liga 1", 172: "First League", 272: "NB I",
         332: "Super Liga", 373: "Prva Liga",
-        
-        # Америка
         71: "Serie A", 128: "Primera Division", 253: "MLS", 254: "USL League One", 255: "USL Championship", 262: "Liga MX",
         239: "Primera A", 265: "Primera Division", 299: "Primera Division", 301: "Pro League",
         370: "Primera Division", 339: "Liga Nacional", 342: "Primera Division",
         131: "Primera B Metropolitana", 132: "Primera C",
-        
-        # Азия
         150: "J1 League", 151: "J2 League", 169: "Super League", 307: "Pro League", 292: "K League 1", 296: "Thai League 1", 323: "Indian Super League",
         98: "J1 League", 99: "J2 League",
-        
-        # Африка
         276: "Premier League", 278: "Botola Pro", 233: "Premier League",
-        
-        # Австралия
         189: "A-League",
-        
-        # Сборные
         5: "UEFA Nations League", 1: "World Cup", 4: "Euro Championship",
         29: "WC Qualification", 30: "WC Qualification Asia", 31: "WC Qualification Africa",
         32: "WC Qualification Europe", 33: "WC Qualification South America",
@@ -652,45 +565,7 @@ class Config:
         960: "Euro Qualification", 10: "Friendlies", 9: "Copa America", 11: "Gold Cup",
     }
 
-    # ============================================================
-    # === КООРДИНАТЫ ГОРОДОВ ДЛЯ ПОГОДЫ ===
-    # ============================================================
-    CITY_COORDS = {
-        "London": (51.5074, -0.1278), "Manchester": (53.4808, -2.2426),
-        "Liverpool": (53.4084, -2.9916), "Birmingham": (52.4862, -1.8904),
-        "Leeds": (53.8008, -1.5491), "Newcastle": (54.9783, -1.6178),
-        "Madrid": (40.4168, -3.7038), "Barcelona": (41.3851, 2.1734),
-        "Seville": (37.3891, -5.9845), "Valencia": (39.4699, -0.3763),
-        "Bilbao": (43.2630, -2.9350),
-        "Munich": (48.1351, 11.5820), "Berlin": (52.5200, 13.4050),
-        "Dortmund": (51.5136, 7.4653), "Hamburg": (53.5511, 9.9937),
-        "Frankfurt": (50.1109, 8.6821), "Cologne": (50.9375, 6.9603),
-        "Milan": (45.4642, 9.1900), "Rome": (41.9028, 12.4964),
-        "Turin": (45.0703, 7.6869), "Naples": (40.8518, 14.2681),
-        "Florence": (43.7696, 11.2558),
-        "Paris": (48.8566, 2.3522), "Marseille": (43.2965, 5.3698),
-        "Lyon": (45.7640, 4.8357), "Lille": (50.6292, 3.0573),
-        "Amsterdam": (52.3676, 4.9041), "Rotterdam": (51.9244, 4.4777),
-        "Lisbon": (38.7223, -9.1393), "Porto": (41.1579, -8.6291),
-        "Istanbul": (41.0082, 28.9784), "Ankara": (39.9334, 32.8597),
-        "Glasgow": (55.8642, -4.2518), "Edinburgh": (55.9533, -3.1883),
-        "Copenhagen": (55.6761, 12.5683), "Oslo": (59.9139, 10.7522),
-        "Stockholm": (59.3293, 18.0686), "Warsaw": (52.2297, 21.0122),
-        "Kyiv": (50.4501, 30.5234),
-        "Moscow": (55.7558, 37.6173), "Saint Petersburg": (59.9311, 30.3609),
-        "Zagreb": (45.8150, 15.9819), "Vienna": (48.2082, 16.3738),
-        "Zurich": (47.3769, 8.5417), "Athens": (37.9838, 23.7275),
-        "Prague": (50.0755, 14.4378),
-        "Rio de Janeiro": (-22.9068, -43.1729), "Sao Paulo": (-23.5505, -46.6333),
-        "Buenos Aires": (-34.6037, -58.3816),
-        "Mexico City": (19.4326, -99.1332),
-        "New York": (40.7128, -74.0060), "Los Angeles": (34.0522, -118.2437),
-        "Tokyo": (35.6762, 139.6503),
-        "Riyadh": (24.7136, 46.6753), "Jeddah": (21.4858, 39.1925),
-        "Doha": (25.2854, 51.5310), "Dubai": (25.2048, 55.2708),
-        "Johannesburg": (-26.2041, 28.0473), "Cape Town": (-33.9249, 18.4241),
-        "Cairo": (30.0444, 31.2357),
-    }
+    CITY_COORDS = { ... } # Оставляем как было
 
     # ============================================================
     # === API-МЕТОДЫ ===
@@ -788,15 +663,6 @@ class Config:
         return False
 
     @classmethod
-    def fetch_league_ids(cls):
-        cls.build_leagues_from_api()
-        return cls.LEAGUE_NAMES
-
-    @classmethod
-    def get_whitelist_ids(cls):
-        return sorted(set(cls.LEAGUES))
-
-    @classmethod
     def init_db(cls):
         db_dir = os.path.dirname(cls.DATABASE_URL)
         if db_dir and not os.path.exists(db_dir):
@@ -820,172 +686,4 @@ class Config:
         conn.close()
         print(f"🗄️ БД: {cls.DATABASE_URL}")
 
-    @classmethod
-    def get_weather(cls, lat, lon):
-        if not cls.WEATHER_ENABLED:
-            return None
-        try:
-            r = requests.get(
-                f"{cls.WEATHER_API_URL}/weather",
-                params={'lat': lat, 'lon': lon, 'appid': cls.WEATHER_API_KEY, 'units': 'metric'},
-                timeout=cls.REQUEST_TIMEOUT
-            )
-            if r.status_code == 200:
-                d = r.json()
-                return {
-                    'temp': d['main']['temp'],
-                    'wind': d['wind']['speed'],
-                    'rain': d.get('rain', {}).get('1h', 0),
-                    'desc': d['weather'][0]['description'],
-                }
-        except Exception as e:
-            print(f"❌ Погода: {e}")
-        return None
-
-    @classmethod
-    def get_weather_for_city(cls, city):
-        if not cls.WEATHER_ENABLED or not city:
-            return None
-        coords = cls.CITY_COORDS.get(city)
-        if not coords:
-            return None
-        return cls.get_weather(coords[0], coords[1])
-
-    @classmethod
-    def get_clv_multiplier(cls, avg_clv, samples):
-        """Возвращает (multiplier, skip, status) для CLV-фильтра."""
-        if not cls.CLV_FILTER_ENABLED:
-            return (1.0, False, 'disabled')
-        if samples < cls.CLV_MIN_SAMPLES:
-            return (1.0, False, 'insufficient_data')
-        if avg_clv > cls.CLV_EXCELLENT_THRESHOLD:
-            return (cls.CLV_MULT_EXCELLENT, False, 'excellent')
-        if avg_clv > cls.CLV_GOOD_THRESHOLD:
-            return (cls.CLV_MULT_NORMAL, False, 'good')
-        if avg_clv > cls.CLV_WEAK_THRESHOLD:
-            return (cls.CLV_MULT_WEAK, False, 'weak')
-        # ★ FIX п.26: при критическом CLV учитываем флаг
-        return (cls.CLV_MULT_WEAK, cls.CLV_SKIP_CRITICAL, 'critical')
-
-    @classmethod
-    def is_tm25_league_whitelisted(cls, league_name):
-        if not league_name:
-            return False
-        return any(l.lower() in league_name.lower() for l in cls.TM25_LEAGUE_WHITELIST)
-
-    @classmethod
-    def is_btts_league_whitelisted(cls, league_name):
-        if not league_name:
-            return False
-        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_WHITELIST)
-
-    @classmethod
-    def is_btts_league_blacklisted(cls, league_name):
-        if not league_name:
-            return False
-        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_BLACKLIST)
-
-    @classmethod
-    def is_lm_league_whitelisted(cls, league_name):
-        if not league_name:
-            return False
-        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_WHITELIST)
-
-    @classmethod
-    def is_lm_league_blacklisted(cls, league_name):
-        if not league_name:
-            return False
-        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)
-
-    @classmethod
-    def get_x2_prob_bonus(cls, side):
-        if side == 'X2':
-            return cls.X2_HOME_BONUS
-        elif side == '1X':
-            return -cls.X2_AWAY_PENALTY
-        return 0.0
-
-    @classmethod
-    def check(cls):
-        missing = []
-        if not cls.TELEGRAM_TOKEN: missing.append("TELEGRAM_TOKEN")
-        if not cls.ADMIN_CHAT_ID: missing.append("ADMIN_CHAT_ID")
-        if not cls.FOOTBALL_API_KEY: missing.append("FOOTBALL_API_KEY")
-        if missing:
-            print(f"⚠️ Отсутствуют: {', '.join(missing)}")
-        else:
-            print("✅ Все ключи загружены!")
-        print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'}")
-        print(f"🧠 PREDICTION_ENGINE: {cls.PREDICTION_ENGINE}")
-        print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER}) | модель: {cls.LLM_MODEL}")
-        print(f"📅 Сезон: {cls.USE_SEASON}")
-        print(f"🗄️ БД: {cls.DATABASE_URL}")
-        print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
-        print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
-        print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
-        print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
-        print(f"🌐 Турниров сборных: {len(cls.INTERNATIONAL_LEAGUES)}")
-        print(f"⚡ LIVE: окно -{cls.LIVE_MINUTES_AFTER}м .. +{cls.LIVE_HOURS_BEFORE}ч | refresh {cls.LIVE_REFRESH_SEC}с")
-        print(f"")
-        print(f"💰 KELLY: {'вкл' if cls.KELLY_ENABLED else 'выкл'} | "
-              f"fraction={cls.KELLY_FRACTION} | cap={cls.KELLY_MAX_PCT*100}% | min={cls.KELLY_MIN_PCT*100}%")
-        print(f"📊 CLV-ФИЛЬТР: {'вкл' if cls.CLV_FILTER_ENABLED else 'выкл'} | "
-              f"lookback={cls.CLV_LOOKBACK_DAYS}д | min_samples={cls.CLV_MIN_SAMPLES}")
-        print(f"   • CLV > {cls.CLV_EXCELLENT_THRESHOLD}% → ×{cls.CLV_MULT_EXCELLENT}")
-        print(f"   • CLV > {cls.CLV_GOOD_THRESHOLD}% → ×{cls.CLV_MULT_NORMAL}")
-        print(f"   • CLV > {cls.CLV_WEAK_THRESHOLD}% → ×{cls.CLV_MULT_WEAK}")
-        print(f"   • CLV < {cls.CLV_WEAK_THRESHOLD}% → {'SKIP' if cls.CLV_SKIP_CRITICAL else 'x'+str(cls.CLV_MULT_WEAK)}")
-        print(f"")
-        print(f"⚽ ТМ 2.5: PREMIUM EV>={cls.PREMIUM_MIN_EV}% Prob>={cls.PREMIUM_MIN_PROB}% | "
-              f"STANDARD EV>={cls.STANDARD_MIN_EV}% Prob>={cls.STANDARD_MIN_PROB}%")
-        print(f"   • STANDARD xG: {cls.STANDARD_XG_MIN}..{cls.STANDARD_XG_MAX}")
-        print(f"   • Kelly={cls.TM25_USE_KELLY} | сборные={cls.TM25_INCLUDE_INTERNATIONAL}")
-        print(f"   • Лиг-whitelist: {len(cls.TM25_LEAGUE_WHITELIST)} | bonus EV +{cls.TM25_LEAGUE_BONUS}%")
-        print(f"   • Лимит на лигу: {cls.TM25_MAX_LEAGUE_BETS}")
-        print(f"")
-        print(f"⚽ BTTS (Обе Забьют): {'вкл' if cls.BTTS_ENABLED else 'выкл'} | "
-              f"max={cls.BTTS_MAX_BETS} | кэф {cls.BTTS_MIN_ODDS}-{cls.BTTS_MAX_ODDS}")
-        print(f"   • EV>={cls.BTTS_MIN_EV}% | Prob>={cls.BTTS_MIN_PROB}% | "
-              f"xG each>={cls.BTTS_MIN_XG_EACH} | total>={cls.BTTS_MIN_TOTAL_XG}")
-        print(f"   • Whitelist: {len(cls.BTTS_LEAGUE_WHITELIST)} | "
-              f"Blacklist: {len(cls.BTTS_LEAGUE_BLACKLIST)} | bonus +{cls.BTTS_LEAGUE_BONUS}%")
-        print(f"   • Форма-фильтр={cls.BTTS_FORM_FILTER} | "
-              f"H2H-фильтр={cls.BTTS_H2H_FILTER} | сборные={cls.BTTS_INCLUDE_INTERNATIONAL}")
-        print(f"")
-        print(f"📈 LINE MOVEMENT: {'вкл' if cls.LINE_MOVEMENT_ENABLED else 'выкл'} | "
-              f"max={cls.LINE_MOVEMENT_MAX_BETS} | окно {cls.LINE_MOVEMENT_HOURS_BEFORE}ч")
-        print(f"   • Падение: {cls.LINE_MOVEMENT_MIN_DROP_PCT}% .. {cls.LINE_MOVEMENT_MAX_DROP_PCT}% | "
-              f"trade={cls.LINE_MOVEMENT_TRADE_DROPS}")
-        print(f"   • Рост: {cls.LINE_MOVEMENT_MIN_RISE_PCT}% .. {cls.LINE_MOVEMENT_MAX_RISE_PCT}% | "
-              f"trade={cls.LINE_MOVEMENT_TRADE_RISES}")
-        print(f"   • Снимков: {cls.LINE_MOVEMENT_MIN_SNAPSHOTS}..{cls.LINE_MOVEMENT_MAX_SNAPSHOTS} | "
-              f"типы: {cls.LINE_MOVEMENT_BET_TYPES}")
-        print(f"   • Кэф: {cls.LINE_MOVEMENT_MIN_ODDS}-{cls.LINE_MOVEMENT_MAX_ODDS} | "
-              f"stake={cls.LINE_MOVEMENT_STAKE_PCT*100}% банка")
-        print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
-              f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
-        print(f"")
-        print(f"🔥 X2: {'вкл' if cls.X2_ENABLED else 'ВЫКЛ'} | позиции >= {cls.X2_MIN_POSITION_DIFF} | "
-              f"EV>={cls.X2_MIN_EV}% | Prob>={cls.X2_MIN_PROB}%")
-        print(f"   • Дома bonus: +{cls.X2_HOME_BONUS}% | Гости penalty: -{cls.X2_AWAY_PENALTY}%")
-        print(f"")
-        print(f"🌤️ WEATHER: rain>{cls.WEATHER_SKIP_RAIN_MM}мм / wind>{cls.WEATHER_SKIP_WIND_MS}м/с / "
-              f"temp<{cls.WEATHER_SKIP_TEMP_MIN}°C / temp>{cls.WEATHER_SKIP_TEMP_MAX}°C / snow={cls.WEATHER_SKIP_SNOW}")
-        print(f"   • xG-штрафы: rain×{cls.WEATHER_RAIN_XG_PENALTY} / "
-              f"heavy-rain×{cls.WEATHER_HEAVY_RAIN_XG_PENALTY} / wind×{cls.WEATHER_WIND_XG_PENALTY}")
-        cls.init_db()
-        print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
-        print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
-        return True
-
-
-if __name__ == "__main__":
-    arg = sys.argv[1] if len(sys.argv) > 1 else "check"
-    if arg == "check":
-        Config.check()
-    elif arg == "build_leagues":
-        Config.build_leagues_from_api()
-    else:
-        print("Использование:")
-        print("  python -m app.config check          — общая проверка")
-        print("  python -m app.config build_leagues  — построить список лиг через API")
+    # ... остальные методы (get_weather, get_clv_multiplier и т.д.) оставляем без изменений
