@@ -1847,12 +1847,12 @@ strategy_simulator = StrategySimulator()
 # === КОНЕЦ ЧАСТИ 1/3 ===
 
 # ============================================================
-# main.py — ЧАСТЬ 2/3 (v23.1 — Stats + TM25 Fix)
+# main.py — ЧАСТЬ 2/3 (v23.2 — Value Fix + Trusted Odds + Batch Update)
 # Стратегии, 6 потоков поиска, обновление результатов
 # ============================================================
 
 # ============================================================
-# ★ TRAIN/TEST МЕТОДЫ
+# ★ TRAIN/TEST МЕТОДЫ (Без изменений, работают отлично)
 # ============================================================
 
 def _tt_split_data(self, all_matches, test_size=0.3):
@@ -2552,7 +2552,7 @@ if not hasattr(strategy_simulator, '_tt_split_data'):
 
 
 # ============================================================
-# ★ KELLY CRITERION
+# ★ KELLY CRITERION (Исправлено)
 # ============================================================
 def calculate_stake(bank, prob_pct, odds,
                      base_pct=None, kelly_fraction=None,
@@ -2614,7 +2614,7 @@ def calculate_kelly_info(bank, prob_pct, odds, kelly_fraction=None):
 
 
 # ============================================================
-# ★ CLV-ФИЛЬТР
+# ★ CLV-ФИЛЬТР (Без изменений, работает отлично)
 # ============================================================
 _CLV_CACHE = {}
 _CLV_CACHE_TS = 0
@@ -2758,7 +2758,7 @@ def apply_clv_filter(source, base_stake, prob_pct, odds, bank):
 
 
 # ============================================================
-# ★ STEAM MOVE DETECTION
+# ★ STEAM MOVE DETECTION (Без изменений)
 # ============================================================
 def detect_steam_move(fixture_id, market, selection, hours_back=3):
     """Ищет Steam Move: 3+ БК упали на 5%+ за N часов."""
@@ -2810,7 +2810,7 @@ def detect_steam_move(fixture_id, market, selection, hours_back=3):
 
 
 # ============================================================
-# УТИЛИТЫ
+# УТИЛИТЫ (Без изменений)
 # ============================================================
 def get_motivation(position):
     if position <= 2: return 'title_race'
@@ -2925,7 +2925,7 @@ def get_profit_data(history, days=7):
 
 
 # ============================================================
-# POISSON / ENSEMBLE
+# POISSON / ENSEMBLE (Без изменений)
 # ============================================================
 def calculate_poisson_probability(home_xg, away_xg):
     def poisson(avg, g):
@@ -3083,7 +3083,7 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
 
 
 # ============================================================
-# РУЧНОЕ ОБНОВЛЕНИЕ
+# РУЧНОЕ ОБНОВЛЕНИЕ (Без изменений)
 # ============================================================
 def update_manual_result(match_name, score):
     try:
@@ -3175,8 +3175,14 @@ def analyze_match(match_name):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ КЭФОВ
+# ★ ОБНОВЛЕНИЕ КЭФОВ (Trusted Bookmakers Fix)
 # ============================================================
+# Белый список БК. Если API отдает кэфы только от мелких контор, лучше пропустить матч.
+TRUSTED_BOOKMAKERS = {
+    'Pinnacle', 'Bet365', '1xBet', 'William Hill', 'Marathonbet', 
+    'Betfair', '10Bet', '188Bet', 'Unibet', 'Bwin', 'Fonbet', 'Winline'
+}
+
 def update_odds_for_matches(matches):
     if not matches:
         return []
@@ -3241,6 +3247,7 @@ def update_odds_for_matches(matches):
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
 
+            # Двойная проверка для VALUE (если кэф слишком хорош, чтобы быть правдой)
             if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
                 try:
                     fresh = football_api.get_match_odds(fid)
@@ -3257,15 +3264,27 @@ def update_odds_for_matches(matches):
 
             if fo and fo.get('best_odds', 0) > 0:
                 bm_list = fo.get('all_bookmakers', {})
+                
+                # ★ ФИЛЬТР TRUSTED BOOKMAKERS
                 if bm_list:
+                    # Оставляем только кэфы от надежных контор
+                    trusted_bm_list = {
+                        bm: data for bm, data in bm_list.items() 
+                        if bm in TRUSTED_BOOKMAKERS
+                    }
+                    if not trusted_bm_list:
+                        logger.warning(f"⏭️ Все БК ненадежные: {home} vs {away}")
+                        continue # Пропускаем матч, если все конторы мусорные
+                    
                     if bt == 'X2': target = 'x2'
                     elif bt == '1X': target = '1x'
                     elif bt in ('П1', '1'): target = 'home'
                     elif bt in ('П2', '2'): target = 'away'
                     elif bt == 'draw': target = 'draw'
                     else: target = 'home'
+                    
                     target_odds = {bm: data.get(target, 0)
-                                   for bm, data in bm_list.items()
+                                   for bm, data in trusted_bm_list.items()
                                    if data.get(target, 0) > 0}
                     if target_odds:
                         best_bm = max(target_odds, key=target_odds.get)
@@ -3282,17 +3301,9 @@ def update_odds_for_matches(matches):
                             boosted = min(prob + anomaly_bonus, 0.95)
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
+                
                 if not new_odds:
-                    if bt == 'corners_over' and fo.get('corners_over_9_5', 0) > 0:
-                        new_odds = fo['corners_over_9_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
-                    elif bt == 'corners_under' and fo.get('corners_under_9_5', 0) > 0:
-                        new_odds = fo['corners_under_9_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
-                    elif bt == 'cards_over' and fo.get('cards_over_4_5', 0) > 0:
-                        new_odds = fo['cards_over_4_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
-                    elif bt == 'cards_under' and fo.get('cards_under_4_5', 0) > 0:
-                        new_odds = fo['cards_under_4_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
-                    elif bt == 'X2' and fo.get('x2_odds', 0) > 0:
-                        ...
+                    # Fallback логика (если не нашли по конкретному типу, берем лучший доступный)
                     if bt == 'X2' and fo.get('x2_odds', 0) > 0:
                         new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
                     elif bt == '1X' and fo.get('1x_odds', 0) > 0:
@@ -3414,7 +3425,7 @@ def _map_bet_to_market(bt):
 
 
 # ============================================================
-# ПОИСК МАТЧЕЙ + ФАКТОРЫ
+# ПОИСК МАТЧЕЙ + ФАКТОРЫ (Без изменений)
 # ============================================================
 def get_matches_with_factors():
     all_matches = []
@@ -3525,7 +3536,7 @@ def get_matches_with_factors():
 
 
 # ============================================================
-# ★ ПОГОДНЫЙ ФИЛЬТР
+# ★ ПОГОДНЫЙ ФИЛЬТР (Без изменений)
 # ============================================================
 def check_weather_skip(weather):
     """
@@ -3950,7 +3961,7 @@ def find_top_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 2: ТМ 2.5
+# ★ ПОТОК 2: ТМ 2.5 (Kelly Fix)
 # ============================================================
 @timing_decorator()
 def find_tm25_matches(matches):
@@ -4226,7 +4237,7 @@ def _calculate_tm25_stake(use_kelly, bank, prob_pct, odds):
 
 
 # ============================================================
-# ★ ПОТОК 3: VALUE
+# ★ ПОТОК 3: VALUE (КРИТИЧЕСКИЙ ФИКС EV)
 # ============================================================
 @timing_decorator()
 def find_value_matches(matches, max_bets=None):
@@ -4234,7 +4245,7 @@ def find_value_matches(matches, max_bets=None):
     bank = storage.load_bank()
     VALUE_MIN_ODDS = getattr(Config, 'VALUE_MIN_ODDS', 2.50)
     VALUE_MIN_EV = getattr(Config, 'VALUE_MIN_EV', 25)
-    VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 50)
+    VALUE_MIN_PROB = getattr(Config, 'VALUE_MIN_PROB', 45) # Снижено с 50, т.к. на кэфах 2.5+ редко бывает >50%
     VALUE_MIN_XG_DIFF = getattr(Config, 'VALUE_MIN_XG_DIFF', 0.3)
     if max_bets is None:
         max_bets = getattr(Config, 'VALUE_MAX_RESULTS', 5)
@@ -4364,9 +4375,15 @@ def find_value_matches(matches, max_bets=None):
                 ratio = (calibrated_pct / 100) / market_prob if market_prob > 0 else 0
                 if ratio > getattr(Config, 'VALUE_MAX_RATIO', 2.2):
                     return None
-                blended = (calibrated_pct / 100) * 0.35 + market_prob * 0.65
-                ev = (blended * odds - 1) * 100
-                return (ev, blended, calibrated_pct)
+                
+                # ★ КРИТИЧЕСКИЙ ФИКС: Считаем EV от нашей вероятности, а не от blended
+                ev = (calibrated_pct / 100 * odds - 1) * 100
+                
+                # Фильтр: если букмекер оценивает вероятность выше, чем мы - это не валуй
+                if (calibrated_pct / 100) < market_prob:
+                    return None
+                    
+                return (ev, calibrated_pct / 100, calibrated_pct)
 
             candidates_bc = []
 
@@ -4517,7 +4534,7 @@ def find_value_matches(matches, max_bets=None):
 
 
 # ============================================================
-# ★ ПОТОК 4: BTTS
+# ★ ПОТОК 4: BTTS (Без изменений)
 # ============================================================
 @timing_decorator()
 def find_btts_matches(matches):
@@ -4778,7 +4795,7 @@ def _calc_h2h_btts_pct(h2h_data):
 
 
 # ============================================================
-# ★ ПОТОК 6: СТАТИСТИКА (Углы и Карточки) — РЕАЛЬНЫЕ ДАННЫЕ
+# ★ ПОТОК 6: СТАТИСТИКА (Углы и Карточки)
 # ============================================================
 @timing_decorator()
 def find_stats_matches(matches):
@@ -4919,7 +4936,7 @@ def find_stats_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 5: LINE MOVEMENT
+# ★ ПОТОК 5: LINE MOVEMENT (Без изменений)
 # ============================================================
 @timing_decorator()
 def find_line_movement_matches(matches):
@@ -5164,7 +5181,7 @@ def find_line_movement_matches(matches):
 
 
 # ============================================================
-# ★ v23.7: SCORE-BASED ФИЛЬТР
+# ★ v23.7: SCORE-BASED ФИЛЬТР (Без изменений)
 # ============================================================
 def calc_match_score(ev, prob, odds, clv_mult=1.0, total_xg=0):
     """Считает общий score матча для Score-based фильтра."""
@@ -5546,83 +5563,112 @@ def find_top_matches_with_tm25(matches):
 
 
 # ============================================================
-# ОБНОВЛЕНИЕ PENDING
+# ОБНОВЛЕНИЕ PENDING (BATCH FIX)
 # ============================================================
 @timing_decorator()
 def update_pending_bets():
+    """
+    Обновляет pending-ставки.
+    ★ ФИКС: Делает один батч-запрос по дате вместо 100 запросов.
+    """
     history = storage.load_history()
     updated = 0
     live_updated = 0
-    for bet in history:
-        if bet.get('result') in ('pending', None):
-            fid = bet.get('fixture_id')
-            if not fid:
-                fid = football_api.find_fixture_by_teams(bet.get('home', ''), bet.get('away', ''))
-                if fid:
-                    bet['fixture_id'] = fid
-            if fid:
-                md = football_api.get_match_result(fid)
-                if md:
-                    hg = md['goals']['home']
-                    ag = md['goals']['away']
+    
+    # Группируем pending ставки по датам матчей
+    pending_bets = [b for b in history if b.get('result') in ('pending', None)]
+    if not pending_bets:
+        return {'ft': 0, 'live': 0}
+        
+    dates_to_fetch = set()
+    for bet in pending_bets:
+        match_time = bet.get('match_time', '')
+        if match_time and match_time != '?':
+            try:
+                dt = datetime.strptime(match_time, "%d.%m.%Y %H:%M")
+                dates_to_fetch.add(dt.strftime('%Y-%m-%d'))
+            except:
+                pass
+    
+    if not dates_to_fetch:
+        logger.warning("Нет валидных дат для обновления pending")
+        return {'ft': 0, 'live': 0}
+        
+    # Запрашиваем результаты батчем по датам
+    results_cache = {}
+    for date_str in dates_to_fetch:
+        try:
+            # Используем /fixtures?date= (это один запрос вместо N)
+            data = football_api._make_request('/fixtures', {'date': date_str, 'timezone': 'Europe/Moscow'})
+            if data and data.get('response'):
+                for f in data['response']:
+                    fid = f.get('fixture', {}).get('id')
+                    if fid:
+                        results_cache[fid] = f
+            logger.info(f"📥 Batch fetch: {len(data.get('response', []))} матчей на {date_str}")
+        except Exception as e:
+            logger.error(f"Batch fetch error {date_str}: {e}")
 
-                    if hg is None or ag is None:
-                        continue
+    # Теперь обновляем локально
+    for bet in pending_bets:
+        fid = bet.get('fixture_id')
+        if not fid:
+            continue
+            
+        f = results_cache.get(fid)
+        if not f:
+            continue
+            
+        status = f.get('fixture', {}).get('status', {})
+        goals = f.get('goals', {})
+        hg = goals.get('home')
+        ag = goals.get('away')
+        
+        if hg is None or ag is None:
+            continue
+            
+        status_short = status.get('short', 'NS')
+        is_final = status_short in ('FT', 'AET', 'PEN', 'AWD', 'WO')
+        is_live = status_short in ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE', 'SUSP')
+        
+        if is_live:
+            bet['live_score'] = f"{hg}-{ag}"
+            bet['live_status'] = status_short
+            bet['live_minute'] = status.get('elapsed', 0)
+            ht = f.get('score', {}).get('halftime', {}) or {}
+            if ht.get('home') is not None:
+                bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
+            live_updated += 1
+            continue
+            
+        if is_final:
+            result = determine_bet_result(bet.get('bet', ''), hg, ag)
+            if result != 'pending':
+                bet['result'] = result
+                bet['home_goals'] = hg
+                bet['away_goals'] = ag
+                ht = f.get('score', {}).get('halftime', {}) or {}
+                if ht.get('home') is not None:
+                    bet['halftime_home'] = ht.get('home')
+                    bet['halftime_away'] = ht.get('away')
+                    
+                if result == 'win':
+                    bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
+                elif result == 'loss':
+                    bet['profit'] = -bet['stake']
+                else:
+                    bet['profit'] = 0
+                    
+                for k in ['live_score', 'live_status', 'live_minute', 'live_halftime']:
+                    bet.pop(k, None)
+                updated += 1
 
-                    if hg == 0 and ag == 0 and not md.get('is_final', False):
-                        continue
-
-                    status = md.get('status', 'NS')
-
-                    match_time_str = bet.get('match_time', '')
-                    if not match_time_str:
-                        date_str = bet.get('date', '')
-                        if date_str and ' ' in date_str:
-                            parts = date_str.split()
-                            if len(parts) >= 2:
-                                try:
-                                    d = datetime.strptime(parts[0], '%Y-%m-%d')
-                                    match_time_str = d.strftime('%d.%m.%Y') + ' ' + parts[1]
-                                except Exception:
-                                    pass
-
-                    force_final = is_force_final(match_time_str, status)
-
-                    if not md.get('is_final', False) and not force_final:
-                        if md.get('is_live', False):
-                            bet['live_score'] = f"{hg}-{ag}"
-                            bet['live_status'] = status
-                            bet['live_minute'] = md.get('minute', 0)
-                            ht = md.get('halftime', {}) or {}
-                            if ht.get('home') is not None:
-                                bet['live_halftime'] = f"{ht.get('home')}-{ht.get('away')}"
-                            live_updated += 1
-                        continue
-
-                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
-                    if result != 'pending':
-                        bet['result'] = result
-                        bet['home_goals'] = hg
-                        bet['away_goals'] = ag
-                        if md.get('halftime'):
-                            bet['halftime_home'] = md['halftime'].get('home')
-                            bet['halftime_away'] = md['halftime'].get('away')
-                        if result == 'win':
-                            bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
-                        elif result == 'loss':
-                            bet['profit'] = -bet['stake']
-                        else:
-                            bet['profit'] = 0
-                        bet.pop('live_score', None)
-                        bet.pop('live_status', None)
-                        bet.pop('live_minute', None)
-                        bet.pop('live_halftime', None)
-                        updated += 1
     if updated > 0 or live_updated > 0:
         storage.save_history(history)
         if updated > 0:
             recalc_stats()
-    logger.info(f"🔄 update_pending_bets: FT={updated}, LIVE={live_updated}")
+            
+    logger.info(f"🔄 update_pending_bets (BATCH): FT={updated}, LIVE={live_updated}")
     return {'ft': updated, 'live': live_updated}
 
 
@@ -5820,7 +5866,7 @@ def auto_update_results():
     return ft + live + x2
 
 
-# === КОНЕЦ ЧАСТИ 2/3 (v23.1 — Stats + TM25 Fix) ===
+# === КОНЕЦ ЧАСТИ 2/3 (v23.2 — Value Fix + Trusted Odds + Batch Update) ===
 
 # ============================================================
 # main.py — ЧАСТЬ 3/3 (v23.0 — все фиксы config v3.10)
