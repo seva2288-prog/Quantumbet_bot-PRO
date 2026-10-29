@@ -638,6 +638,74 @@ class FootballAPI:
         return []
 
     @timing_decorator()
+    def get_team_stats_avg(self, team_id):
+        """Возвращает среднее кол-во угловых и карточек за последние 5 матчей."""
+        cache_key = f"team_stats_avg_{team_id}"
+        cached = self.cache.get(cache_key, data_type='statistics')
+        if cached is not None:
+            return cached
+        
+        try:
+            # Берем последние 5 матчей
+            data = self._make_request('/fixtures', {'team': team_id, 'last': 5, 'status': 'FT'})
+            if not data or 'response' not in data:
+                return None
+            
+            matches = data['response']
+            if not matches:
+                return None
+
+            corners_list = []
+            cards_list = []
+
+            for m in matches:
+                fid = m.get('fixture', {}).get('id')
+                if not fid: continue
+                
+                # Запрашиваем статистику матча
+                stats = self.get_match_statistics(fid)
+                if not stats: continue
+
+                # Находим статистику нужной команды
+                team_stats = None
+                for tn, ts in stats.items():
+                    # Проверяем совпадение по ID или имени
+                    if tn == m.get('teams', {}).get('home', {}).get('name') and m.get('teams', {}).get('home', {}).get('id') == team_id:
+                        team_stats = ts
+                        break
+                    elif tn == m.get('teams', {}).get('away', {}).get('name') and m.get('teams', {}).get('away', {}).get('id') == team_id:
+                        team_stats = ts
+                        break
+                
+                if team_stats:
+                    corners = team_stats.get('Corner Kicks', 0)
+                    cards = team_stats.get('Yellow Cards', 0)
+                    # Иногда API отдает карточки как 'Yellow Cards' или 'Yellow Card'
+                    if cards == 0:
+                        cards = team_stats.get('Yellow Card', 0)
+                    
+                    if corners > 0:
+                        corners_list.append(float(corners))
+                    if cards > 0:
+                        cards_list.append(float(cards))
+
+            if not corners_list and not cards_list:
+                return None
+
+            result = {
+                'corners_avg': round(sum(corners_list) / len(corners_list), 1) if corners_list else 0,
+                'cards_avg': round(sum(cards_list) / len(cards_list), 1) if cards_list else 0,
+                'matches_count': len(matches)
+            }
+            
+            self.cache.set(cache_key, result)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Ошибка get_team_stats_avg {team_id}: {e}")
+            return None
+
+    @timing_decorator()
     def get_form(self, team_id):
         # ★ УСКОРЕНО: убрали лишние проверки xG, чтобы не тратить 3 секунды на команду
         cache_key = f"form_{team_id}"
@@ -3215,6 +3283,16 @@ def update_odds_for_matches(matches):
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
                 if not new_odds:
+                    if bt == 'corners_over' and fo.get('corners_over_9_5', 0) > 0:
+                        new_odds = fo['corners_over_9_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
+                    elif bt == 'corners_under' and fo.get('corners_under_9_5', 0) > 0:
+                        new_odds = fo['corners_under_9_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
+                    elif bt == 'cards_over' and fo.get('cards_over_4_5', 0) > 0:
+                        new_odds = fo['cards_over_4_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
+                    elif bt == 'cards_under' and fo.get('cards_under_4_5', 0) > 0:
+                        new_odds = fo['cards_under_4_5']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (Stats)'
+                    elif bt == 'X2' and fo.get('x2_odds', 0) > 0:
+                        ...
                     if bt == 'X2' and fo.get('x2_odds', 0) > 0:
                         new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
                     elif bt == '1X' and fo.get('1x_odds', 0) > 0:
@@ -4700,7 +4778,7 @@ def _calc_h2h_btts_pct(h2h_data):
 
 
 # ============================================================
-# ★ ПОТОК 6: СТАТИСТИКА (Углы и Карточки)
+# ★ ПОТОК 6: СТАТИСТИКА (Углы и Карточки) — РЕАЛЬНЫЕ ДАННЫЕ
 # ============================================================
 @timing_decorator()
 def find_stats_matches(matches):
@@ -4710,8 +4788,10 @@ def find_stats_matches(matches):
 
     MIN_EV = getattr(Config, 'STATS_MIN_EV', 12)
     MIN_PROB = getattr(Config, 'STATS_MIN_PROB', 55)
+    CORNERS_MIN_AVG = getattr(Config, 'STATS_CORNERS_MIN_AVG', 8.5)
+    CARDS_MIN_AVG = getattr(Config, 'STATS_CARDS_MIN_AVG', 3.5)
     
-    logger.info("📊 [STATS] Поиск ставок на угловые и карточки...")
+    logger.info("📊 [STATS] Поиск ставок на угловые и карточки (реальные данные)...")
     candidates = []
 
     for match in matches:
@@ -4723,19 +4803,34 @@ def find_stats_matches(matches):
             fid = fixture.get('id')
             home = teams.get('home', {}).get('name', 'Unknown')
             away = teams.get('away', {}).get('name', 'Unknown')
+            hid = teams.get('home', {}).get('id')
+            aid = teams.get('away', {}).get('id')
             league_name = match.get('league', {}).get('name', 'Unknown')
-            
-            avg_corners = 9.5 if league_name in TOP_LEAGUES else 10.5
-            avg_cards = 4.2 if league_name in TOP_LEAGUES else 4.8
+
+            # Получаем реальную статистику команд
+            home_stats = football_api.get_team_stats_avg(hid)
+            away_stats = football_api.get_team_stats_avg(aid)
+
+            if not home_stats or not away_stats:
+                continue
+
+            # Складываем средние показатели хозяев и гостей
+            avg_corners = home_stats['corners_avg'] + away_stats['corners_avg']
+            avg_cards = home_stats['cards_avg'] + away_stats['cards_avg']
+
+            if avg_corners == 0 and avg_cards == 0:
+                continue
 
             fo = match.get('_preloaded_odds') or {}
             bets = []
             
+            # Достаем кэфы из API-Sports (если есть)
             corners_over = fo.get('corners_over_9_5', 0) or 0
             corners_under = fo.get('corners_under_9_5', 0) or 0
             cards_over = fo.get('cards_over_4_5', 0) or 0
             cards_under = fo.get('cards_under_4_5', 0) or 0
 
+            # Если кэфов в API-Sports нет, пробуем The Odds API (лимитировано)
             if corners_over == 0 and corners_under == 0 and league_name in TOP_LEAGUES:
                 corners_data = odds_api.get_stats_odds_for_match(home, away, league_name, 'totals_corners')
                 if corners_data:
@@ -4748,42 +4843,52 @@ def find_stats_matches(matches):
                     cards_over = cards_data.get('over_odds', 0)
                     cards_under = cards_data.get('under_odds', 0)
 
-            if avg_corners >= 9.5 and corners_over > 0:
+            # --- Логика для УГЛОВЫХ ---
+            if avg_corners >= CORNERS_MIN_AVG and corners_over > 0:
                 prob = 0.55
                 ev = (prob * corners_over - 1) * 100
                 if ev >= MIN_EV and corners_over <= 2.20:
                     bets.append({
-                        'type': 'corners_over', 'label': 'ТБ 9.5 Угловых 📐',
+                        'type': 'corners_over', 
+                        'label': f'ТБ 9.5 Угловых 📐 ({avg_corners})',
                         'prob': prob * 100, 'ev': round(ev, 1),
-                        'odds': corners_over, 'stake': 0
+                        'odds': corners_over, 'stake': 0,
+                        'odds_updated': True  # ★ ВАЖНО: чтобы не было TEMPLATE SKIP
                     })
-            elif avg_corners < 9.5 and corners_under > 0:
+            elif avg_corners < CORNERS_MIN_AVG and corners_under > 0:
                 prob = 0.55
                 ev = (prob * corners_under - 1) * 100
                 if ev >= MIN_EV and corners_under <= 2.20:
                     bets.append({
-                        'type': 'corners_under', 'label': 'ТМ 9.5 Угловых 📐',
+                        'type': 'corners_under', 
+                        'label': f'ТМ 9.5 Угловых 📐 ({avg_corners})',
                         'prob': prob * 100, 'ev': round(ev, 1),
-                        'odds': corners_under, 'stake': 0
+                        'odds': corners_under, 'stake': 0,
+                        'odds_updated': True
                     })
 
-            if avg_cards >= 4.5 and cards_over > 0:
+            # --- Логика для КАРТОЧЕК ---
+            if avg_cards >= CARDS_MIN_AVG and cards_over > 0:
                 prob = 0.55
                 ev = (prob * cards_over - 1) * 100
                 if ev >= MIN_EV and cards_over <= 2.10:
                     bets.append({
-                        'type': 'cards_over', 'label': 'ТБ 4.5 Карточек 🟨',
+                        'type': 'cards_over', 
+                        'label': f'ТБ 4.5 Карточек 🟨 ({avg_cards})',
                         'prob': prob * 100, 'ev': round(ev, 1),
-                        'odds': cards_over, 'stake': 0
+                        'odds': cards_over, 'stake': 0,
+                        'odds_updated': True
                     })
-            elif avg_cards < 4.5 and cards_under > 0:
+            elif avg_cards < CARDS_MIN_AVG and cards_under > 0:
                 prob = 0.55
                 ev = (prob * cards_under - 1) * 100
                 if ev >= MIN_EV and cards_under <= 2.10:
                     bets.append({
-                        'type': 'cards_under', 'label': 'ТМ 4.5 Карточек 🟨',
+                        'type': 'cards_under', 
+                        'label': f'ТМ 4.5 Карточек 🟨 ({avg_cards})',
                         'prob': prob * 100, 'ev': round(ev, 1),
-                        'odds': cards_under, 'stake': 0
+                        'odds': cards_under, 'stake': 0,
+                        'odds_updated': True
                     })
 
             if bets:
@@ -4803,6 +4908,7 @@ def find_stats_matches(matches):
                         "source": "stats", "weather_reason": "",
                         "_preloaded_odds": fo,
                     })
+                    logger.info(f"📐 STATS: {home} vs {away} | {best_bet['label']} @ {best_bet['odds']} | EV: {best_bet['ev']}%")
         except Exception as e:
             logger.error(f"❌ [STATS] {e}")
             continue
