@@ -3256,11 +3256,8 @@ function renderLiveCard(m) {
     }
 
     const bb = m.best_bet || {};
-
-    // ★ v23.8: реальная ставка только если prob > 0 и label не '1X2'
     const hasBet = (bb.prob || 0) > 0 && bb.label && bb.label !== '1X2' && bb.label !== '—';
     const betLabel = hasBet ? (bb.label || '—') : 'Нет ставки';
-    // ★ FIX #8: Number() для безопасного .toFixed
     const betOdds = hasBet && bb.odds ? Number(bb.odds || 0).toFixed(2) : '—';
     const betEv = hasBet && bb.ev ? (Number(bb.ev) >= 0 ? '+' : '') + Number(bb.ev).toFixed(1) + '%' : '—';
     const betProb = hasBet && bb.prob ? Number(bb.prob).toFixed(0) + '%' : '—';
@@ -3273,13 +3270,24 @@ function renderLiveCard(m) {
         ? ` • ${m.country_flag || ''} <span style="color:var(--text-secondary);">${escapeHtml(m.country)}</span>`
         : '';
 
+    // ★ УЛУЧШЕНИЕ 2: Таймлайн для Live-карточек
     let scoreHtml = '';
     if (isLive && m.score) {
-        const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);">${m.minute}'</span>` : '';
+        const minuteStr = m.minute ? ` <span style="font-size:11px;color:var(--red-400);font-weight:700;">${m.minute}'</span>` : '';
+        let matchProgress = 0;
+        if (m.minute) {
+            matchProgress = Math.min((m.minute / 95) * 100, 100);
+        }
         scoreHtml = `
             <div style="display:flex;align-items:center;gap:8px;margin:6px 0 0;">
                 <span class="live-score">${escapeHtml(m.score)}</span>
                 ${minuteStr}
+            </div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden;">
+                    <div style="height: 100%; width: ${matchProgress}%; background: linear-gradient(90deg, var(--red-400), var(--red-500)); border-radius: 999px; transition: width 0.5s ease;"></div>
+                </div>
+                <span style="font-size: 9px; color: var(--text-tertiary); font-weight: 600;">90'</span>
             </div>
         `;
     } else if (isFinal && m.score) {
@@ -3597,18 +3605,48 @@ function renderBetCard(m, isActive = false) {
            </div>`
         : '';
 
-    // ★ FIX #2: цвет Score (оставлен один)
+    // ★ УЛУЧШЕНИЕ 1: Цветной Score (исправлен баг: было matchScore, стало matchScoreColor)
     let matchScoreColor = 'var(--text-tertiary)';
+    let matchScoreBg = 'rgba(255,255,255,0.05)';
     if (matchScore != null) {
-        if (matchScore >= 10) matchScoreColor = 'var(--emerald-400)';
-        else if (matchScore >= 7) matchScoreColor = 'var(--gold-400)';
-        else matchScoreColor = 'var(--red-400)';
+        if (matchScore >= 10) {
+            matchScoreColor = 'var(--emerald-400)';
+            matchScoreBg = 'rgba(16, 185, 129, 0.15)';
+        } else if (matchScore >= 7) {
+            matchScoreColor = 'var(--gold-400)';
+            matchScoreBg = 'rgba(245, 158, 11, 0.15)';
+        } else {
+            matchScoreColor = 'var(--red-400)';
+            matchScoreBg = 'rgba(248, 113, 113, 0.15)';
+        }
     }
 
     // Динамическая сетка: 3 или 4 колонки
     const statsGridStyle = matchScore != null
         ? 'grid-template-columns: repeat(4, 1fr);'
         : '';
+
+    // ★ УЛУЧШЕНИЕ 1: HTML для Score (с фоновым бейджем)
+    let scoreHtml = '';
+    if (matchScore != null) {
+        scoreHtml = `
+            <div class="bet-stat">
+                <span class="stat-label">Score</span>
+                <span class="stat-value" style="
+                    color: ${matchScoreColor};
+                    font-weight: 800;
+                    background: ${matchScoreBg};
+                    padding: 2px 6px;
+                    border-radius: 6px;
+                    display: inline-block;
+                    align-self: flex-start;
+                    margin-top: 2px;
+                ">
+                    ${Number(matchScore).toFixed(1)}
+                </span>
+            </div>
+        `;
+    }
 
     return `
         <div class="bet-card ${isActive ? 'active' : ''}"
@@ -3647,14 +3685,7 @@ function renderBetCard(m, isActive = false) {
                     <span class="stat-label">${probLabel}</span>
                     <span class="stat-value ${isLM ? 'emerald' : probColor}">${probDisplay}</span>
                 </div>
-                ${matchScore != null ? `
-                    <div class="bet-stat">
-                        <span class="stat-label">Score</span>
-                        <span class="stat-value" style="color:${matchScoreColor};font-weight:800;">
-                            ${Number(matchScore).toFixed(1)}
-                        </span>
-                    </div>
-                ` : ''}
+                ${scoreHtml}
             </div>
             ${lmMovementHtml}
         </div>
