@@ -122,9 +122,9 @@ class Config:
     # ============================================================
     # === ФИНАЛЬНЫЙ ФИЛЬТР ===
     # ============================================================
-    EV_FINAL_MIN = 10
-    EV_FINAL_MAX = 30
-    PROB_FINAL_MIN = 50
+    EV_FINAL_MIN = -15
+    EV_FINAL_MAX = 150
+    PROB_FINAL_MIN = 42
 
     # ============================================================
     # === X2 ===
@@ -135,7 +135,7 @@ class Config:
     X2_MIN_POSITION_DIFF = 3
     X2_MAX_POSITION = 20
     X2_MIN_EV = 10
-    X2_MIN_PROB = 58
+    X2_MIN_PROB = 52
     X2_BOTH_SIDES = False
     X2_MAX_PCT_OF_BETS = 0.40
     X2_HOME_BONUS = 3.0
@@ -255,7 +255,7 @@ class Config:
     # ============================================================
     VALUE_MIN_ODDS = 2.50
     VALUE_MIN_EV = 12
-    VALUE_MIN_PROB = 50
+    VALUE_MIN_PROB = 42
     VALUE_MIN_XG_DIFF = 0.3
     VALUE_MAX_RESULTS = 5   # ★ FIX п.4: main.py будет читать это
     VALUE_MAX_PROB = 80
@@ -265,7 +265,7 @@ class Config:
     # ★ KELLY CRITERION
     # ============================================================
     KELLY_ENABLED = True
-    KELLY_FRACTION = 0.35
+    KELLY_FRACTION = 0.20
     KELLY_MAX_PCT = 0.05
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
@@ -407,7 +407,7 @@ class Config:
         'ecuador serie a', 'вторая лига а', 'super league 2',
         'prva liga', 'egyptian premier',
         'uruguay primera', 'northern ireland', 'welsh premier',
-        'irish premier', 'first division',
+        'irish premier', 
     ]
 
     # ============================================================
