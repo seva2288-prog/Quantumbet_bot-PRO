@@ -615,7 +615,7 @@ class Config:
         235: "РПЛ", 236: "Первая Лига",
         333: "Premier League Ukraine", 334: "Persha Liga",
         179: "Premiership", 180: "Championship",
-        187: "Bundesliga Austria", 188: "A-League",
+        187: "Bundesliga Austria", 188: "Australia Cup",
         206: "Super League", 207: "Challenge League",
         198: "Super League", 197: "Super League 2",
         261: "National Division", 345: "FNL",
@@ -629,7 +629,7 @@ class Config:
         332: "Super Liga", 373: "Prva Liga",
         
         # Америка
-        71: "Serie A", 128: "Primera Division", 253: "MLS", 262: "Liga MX",
+        71: "Serie A", 128: "Primera Division", 253: "MLS", 254: "USL League One", 255: "USL Championship", 262: "Liga MX",
         239: "Primera A", 265: "Primera Division", 299: "Primera Division", 301: "Pro League",
         370: "Primera Division", 339: "Liga Nacional", 342: "Primera Division",
         131: "Primera B Metropolitana", 132: "Primera C",
