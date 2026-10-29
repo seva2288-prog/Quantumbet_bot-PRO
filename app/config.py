@@ -52,7 +52,6 @@ class Config:
     # === ODDS API (ОТКЛЮЧЕНО) ===
     # ============================================================
     # ★ С 75k запросов API-Football нам не нужен Odds API. 
-    # Оставляем пустым, чтобы бот даже не пытался его дергать.
     ODDS_API_KEY = ""
     ODDS_API_URL = "https://api.the-odds-api.com/v4"
     BACKUP_ODDS_KEYS = []
@@ -75,7 +74,6 @@ class Config:
     USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
-    # ★ С 75k запросов можно включить, чтобы бот сам собрал все доступные лиги
     USE_API_LEAGUES = True  
 
     # ============================================================
@@ -123,7 +121,6 @@ class Config:
     # ============================================================
     # === ФИНАЛЬНЫЙ ФИЛЬТР ===
     # ============================================================
-    # ★ ФИКС: EV_FINAL_MIN = -15, чтобы не отсекать VALUE и BTTS
     EV_FINAL_MIN = -15
     EV_FINAL_MAX = 150
     PROB_FINAL_MIN = 42
@@ -263,8 +260,8 @@ class Config:
     # ★ KELLY CRITERION (Защита банка)
     # ============================================================
     KELLY_ENABLED = True
-    KELLY_FRACTION = 0.20      # ★ Безопасное значение (было 0.35)
-    KELLY_MAX_PCT = 0.05       # Не более 5% банка на ставку
+    KELLY_FRACTION = 0.20      
+    KELLY_MAX_PCT = 0.05       
     KELLY_MIN_PCT = 0.02
     KELLY_MIN_STAKE = 1.0
 
@@ -272,7 +269,7 @@ class Config:
         (0, 75):   1.0,
         (75, 80):  0.85,
         (80, 85):  0.65,
-        (85, 100): 0.45, # Сильно режем на завышенных вероятностях
+        (85, 100): 0.45,
     }
 
     @classmethod
@@ -300,16 +297,16 @@ class Config:
     CLV_SKIP_CRITICAL = False
 
     # ============================================================
-    # ★ LIVE-СТРАНИЦА (⚡) - Оптимизировано под 75k
+    # ★ LIVE-СТРАНИЦА (⚡) 
     # ============================================================
     LIVE_HOURS_BEFORE = 2
     LIVE_MINUTES_AFTER = 120
-    LIVE_REFRESH_SEC = 10        # ★ Ускорено (было 20)
+    LIVE_REFRESH_SEC = 10        
     LIVE_BATCH_ENABLED = True
     LIVE_CACHE_TTL_LIVE = 30
     LIVE_CACHE_TTL_SOON = 300
     LIVE_CACHE_TTL_FINAL = 3600
-    LIVE_MAX_MATCHES = 50        # ★ Увеличено (было 30)
+    LIVE_MAX_MATCHES = 50        
 
     LIVE_SPARKLINE_ENABLED = True
     LIVE_SPARKLINE_POINTS = 10
@@ -400,7 +397,7 @@ class Config:
         'ecuador serie a', 'вторая лига а', 'super league 2',
         'prva liga', 'egyptian premier',
         'uruguay primera', 'northern ireland', 'welsh premier',
-        'irish premier', 'first division', # ★ Исправлено
+        'irish premier', 'first division',
     ]
 
     # ============================================================
@@ -442,7 +439,7 @@ class Config:
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
     # ============================================================
-    # === МАППИНГ ЛИГ ДЛЯ ODDS API (Оставлено на случай, если понадобится)
+    # === МАППИНГ ЛИГ ДЛЯ ODDS API ===
     # ============================================================
     ODDS_SPORT_MAP = {}
 
@@ -458,7 +455,7 @@ class Config:
     ]
 
     # ============================================================
-    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID (ОСТАВЛЯЕМ БЕЗ ИЗМЕНЕНИЙ, ОЧЕНЬ ХОРОШО СДЕЛАНО)
+    # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID 
     # ============================================================
     LEAGUE_COUNTRY = {
         2:   ("Европа", "🇪🇺"), 3:   ("Европа", "🇪🇺"), 848: ("Европа", "🇪🇺"),
@@ -516,7 +513,7 @@ class Config:
     INTERNATIONAL_LEAGUES = [5, 29, 30, 31, 32, 33, 34, 35, 960, 10, 1, 4]
 
     # ============================================================
-    # ★ ЛИГИ (Резервный список, если USE_API_LEAGUES = False)
+    # ★ ЛИГИ (Резервный список)
     # ============================================================
     LEAGUES = [
         2, 3, 848, 45, 48, 143, 81, 137, 66,
@@ -565,7 +562,42 @@ class Config:
         960: "Euro Qualification", 10: "Friendlies", 9: "Copa America", 11: "Gold Cup",
     }
 
-    CITY_COORDS = { ... } # Оставляем как было
+    CITY_COORDS = {
+        "London": (51.5074, -0.1278), "Manchester": (53.4808, -2.2426),
+        "Liverpool": (53.4084, -2.9916), "Birmingham": (52.4862, -1.8904),
+        "Leeds": (53.8008, -1.5491), "Newcastle": (54.9783, -1.6178),
+        "Madrid": (40.4168, -3.7038), "Barcelona": (41.3851, 2.1734),
+        "Seville": (37.3891, -5.9845), "Valencia": (39.4699, -0.3763),
+        "Bilbao": (43.2630, -2.9350),
+        "Munich": (48.1351, 11.5820), "Berlin": (52.5200, 13.4050),
+        "Dortmund": (51.5136, 7.4653), "Hamburg": (53.5511, 9.9937),
+        "Frankfurt": (50.1109, 8.6821), "Cologne": (50.9375, 6.9603),
+        "Milan": (45.4642, 9.1900), "Rome": (41.9028, 12.4964),
+        "Turin": (45.0703, 7.6869), "Naples": (40.8518, 14.2681),
+        "Florence": (43.7696, 11.2558),
+        "Paris": (48.8566, 2.3522), "Marseille": (43.2965, 5.3698),
+        "Lyon": (45.7640, 4.8357), "Lille": (50.6292, 3.0573),
+        "Amsterdam": (52.3676, 4.9041), "Rotterdam": (51.9244, 4.4777),
+        "Lisbon": (38.7223, -9.1393), "Porto": (41.1579, -8.6291),
+        "Istanbul": (41.0082, 28.9784), "Ankara": (39.9334, 32.8597),
+        "Glasgow": (55.8642, -4.2518), "Edinburgh": (55.9533, -3.1883),
+        "Copenhagen": (55.6761, 12.5683), "Oslo": (59.9139, 10.7522),
+        "Stockholm": (59.3293, 18.0686), "Warsaw": (52.2297, 21.0122),
+        "Kyiv": (50.4501, 30.5234),
+        "Moscow": (55.7558, 37.6173), "Saint Petersburg": (59.9311, 30.3609),
+        "Zagreb": (45.8150, 15.9819), "Vienna": (48.2082, 16.3738),
+        "Zurich": (47.3769, 8.5417), "Athens": (37.9838, 23.7275),
+        "Prague": (50.0755, 14.4378),
+        "Rio de Janeiro": (-22.9068, -43.1729), "Sao Paulo": (-23.5505, -46.6333),
+        "Buenos Aires": (-34.6037, -58.3816),
+        "Mexico City": (19.4326, -99.1332),
+        "New York": (40.7128, -74.0060), "Los Angeles": (34.0522, -118.2437),
+        "Tokyo": (35.6762, 139.6503),
+        "Riyadh": (24.7136, 46.6753), "Jeddah": (21.4858, 39.1925),
+        "Doha": (25.2854, 51.5310), "Dubai": (25.2048, 55.2708),
+        "Johannesburg": (-26.2041, 28.0473), "Cape Town": (-33.9249, 18.4241),
+        "Cairo": (30.0444, 31.2357),
+    }
 
     # ============================================================
     # === API-МЕТОДЫ ===
@@ -686,4 +718,171 @@ class Config:
         conn.close()
         print(f"🗄️ БД: {cls.DATABASE_URL}")
 
-    # ... остальные методы (get_weather, get_clv_multiplier и т.д.) оставляем без изменений
+    @classmethod
+    def get_weather(cls, lat, lon):
+        if not cls.WEATHER_ENABLED:
+            return None
+        try:
+            r = requests.get(
+                f"{cls.WEATHER_API_URL}/weather",
+                params={'lat': lat, 'lon': lon, 'appid': cls.WEATHER_API_KEY, 'units': 'metric'},
+                timeout=cls.REQUEST_TIMEOUT
+            )
+            if r.status_code == 200:
+                d = r.json()
+                return {
+                    'temp': d['main']['temp'],
+                    'wind': d['wind']['speed'],
+                    'rain': d.get('rain', {}).get('1h', 0),
+                    'desc': d['weather'][0]['description'],
+                }
+        except Exception as e:
+            print(f"❌ Погода: {e}")
+        return None
+
+    @classmethod
+    def get_weather_for_city(cls, city):
+        if not cls.WEATHER_ENABLED or not city:
+            return None
+        coords = cls.CITY_COORDS.get(city)
+        if not coords:
+            return None
+        return cls.get_weather(coords[0], coords[1])
+
+    @classmethod
+    def get_clv_multiplier(cls, avg_clv, samples):
+        """Возвращает (multiplier, skip, status) для CLV-фильтра."""
+        if not cls.CLV_FILTER_ENABLED:
+            return (1.0, False, 'disabled')
+        if samples < cls.CLV_MIN_SAMPLES:
+            return (1.0, False, 'insufficient_data')
+        if avg_clv > cls.CLV_EXCELLENT_THRESHOLD:
+            return (cls.CLV_MULT_EXCELLENT, False, 'excellent')
+        if avg_clv > cls.CLV_GOOD_THRESHOLD:
+            return (cls.CLV_MULT_NORMAL, False, 'good')
+        if avg_clv > cls.CLV_WEAK_THRESHOLD:
+            return (cls.CLV_MULT_WEAK, False, 'weak')
+        return (cls.CLV_MULT_WEAK, cls.CLV_SKIP_CRITICAL, 'critical')
+
+    @classmethod
+    def is_tm25_league_whitelisted(cls, league_name):
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.TM25_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_btts_league_whitelisted(cls, league_name):
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_btts_league_blacklisted(cls, league_name):
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.BTTS_LEAGUE_BLACKLIST)
+
+    @classmethod
+    def is_lm_league_whitelisted(cls, league_name):
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_WHITELIST)
+
+    @classmethod
+    def is_lm_league_blacklisted(cls, league_name):
+        if not league_name:
+            return False
+        return any(l.lower() in league_name.lower() for l in cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)
+
+    @classmethod
+    def get_x2_prob_bonus(cls, side):
+        if side == 'X2':
+            return cls.X2_HOME_BONUS
+        elif side == '1X':
+            return -cls.X2_AWAY_PENALTY
+        return 0.0
+
+    @classmethod
+    def check(cls):
+        missing = []
+        if not cls.TELEGRAM_TOKEN: missing.append("TELEGRAM_TOKEN")
+        if not cls.ADMIN_CHAT_ID: missing.append("ADMIN_CHAT_ID")
+        if not cls.FOOTBALL_API_KEY: missing.append("FOOTBALL_API_KEY")
+        if missing:
+            print(f"⚠️ Отсутствуют: {', '.join(missing)}")
+        else:
+            print("✅ Все ключи загружены!")
+        print(f"🌦️ Погода: {'вкл' if cls.WEATHER_ENABLED else 'выкл'}")
+        print(f"🧠 PREDICTION_ENGINE: {cls.PREDICTION_ENGINE}")
+        print(f"🤖 LLM: {'вкл' if cls.LLM_ENABLED else 'выкл'} ({cls.LLM_PROVIDER}) | модель: {cls.LLM_MODEL}")
+        print(f"📅 Сезон: {cls.USE_SEASON}")
+        print(f"🗄️ БД: {cls.DATABASE_URL}")
+        print(f"🚫 Чёрный список лиг: {len(cls.BLACKLIST_LEAGUES)} записей")
+        print(f"✅ Белый список лиг: {len(cls.WHITELIST_LEAGUES)} записей")
+        print(f"🌍 Стран для поиска: {len(cls.LEAGUE_COUNTRIES)}")
+        print(f"🏳️ Стран в LEAGUE_COUNTRY: {len(cls.LEAGUE_COUNTRY)}")
+        print(f"🌐 Турниров сборных: {len(cls.INTERNATIONAL_LEAGUES)}")
+        print(f"⚡ LIVE: окно -{cls.LIVE_MINUTES_AFTER}м .. +{cls.LIVE_HOURS_BEFORE}ч | refresh {cls.LIVE_REFRESH_SEC}с")
+        print(f"")
+        print(f"💰 KELLY: {'вкл' if cls.KELLY_ENABLED else 'выкл'} | "
+              f"fraction={cls.KELLY_FRACTION} | cap={cls.KELLY_MAX_PCT*100}% | min={cls.KELLY_MIN_PCT*100}%")
+        print(f"📊 CLV-ФИЛЬТР: {'вкл' if cls.CLV_FILTER_ENABLED else 'выкл'} | "
+              f"lookback={cls.CLV_LOOKBACK_DAYS}д | min_samples={cls.CLV_MIN_SAMPLES}")
+        print(f"   • CLV > {cls.CLV_EXCELLENT_THRESHOLD}% → ×{cls.CLV_MULT_EXCELLENT}")
+        print(f"   • CLV > {cls.CLV_GOOD_THRESHOLD}% → ×{cls.CLV_MULT_NORMAL}")
+        print(f"   • CLV > {cls.CLV_WEAK_THRESHOLD}% → ×{cls.CLV_MULT_WEAK}")
+        print(f"   • CLV < {cls.CLV_WEAK_THRESHOLD}% → {'SKIP' if cls.CLV_SKIP_CRITICAL else 'x'+str(cls.CLV_MULT_WEAK)}")
+        print(f"")
+        print(f"⚽ ТМ 2.5: PREMIUM EV>={cls.PREMIUM_MIN_EV}% Prob>={cls.PREMIUM_MIN_PROB}% | "
+              f"STANDARD EV>={cls.STANDARD_MIN_EV}% Prob>={cls.STANDARD_MIN_PROB}%")
+        print(f"   • STANDARD xG: {cls.STANDARD_XG_MIN}..{cls.STANDARD_XG_MAX}")
+        print(f"   • Kelly={cls.TM25_USE_KELLY} | сборные={cls.TM25_INCLUDE_INTERNATIONAL}")
+        print(f"   • Лиг-whitelist: {len(cls.TM25_LEAGUE_WHITELIST)} | bonus EV +{cls.TM25_LEAGUE_BONUS}%")
+        print(f"   • Лимит на лигу: {cls.TM25_MAX_LEAGUE_BETS}")
+        print(f"")
+        print(f"⚽ BTTS (Обе Забьют): {'вкл' if cls.BTTS_ENABLED else 'выкл'} | "
+              f"max={cls.BTTS_MAX_BETS} | кэф {cls.BTTS_MIN_ODDS}-{cls.BTTS_MAX_ODDS}")
+        print(f"   • EV>={cls.BTTS_MIN_EV}% | Prob>={cls.BTTS_MIN_PROB}% | "
+              f"xG each>={cls.BTTS_MIN_XG_EACH} | total>={cls.BTTS_MIN_TOTAL_XG}")
+        print(f"   • Whitelist: {len(cls.BTTS_LEAGUE_WHITELIST)} | "
+              f"Blacklist: {len(cls.BTTS_LEAGUE_BLACKLIST)} | bonus +{cls.BTTS_LEAGUE_BONUS}%")
+        print(f"   • Форма-фильтр={cls.BTTS_FORM_FILTER} | "
+              f"H2H-фильтр={cls.BTTS_H2H_FILTER} | сборные={cls.BTTS_INCLUDE_INTERNATIONAL}")
+        print(f"")
+        print(f"📈 LINE MOVEMENT: {'вкл' if cls.LINE_MOVEMENT_ENABLED else 'выкл'} | "
+              f"max={cls.LINE_MOVEMENT_MAX_BETS} | окно {cls.LINE_MOVEMENT_HOURS_BEFORE}ч")
+        print(f"   • Падение: {cls.LINE_MOVEMENT_MIN_DROP_PCT}% .. {cls.LINE_MOVEMENT_MAX_DROP_PCT}% | "
+              f"trade={cls.LINE_MOVEMENT_TRADE_DROPS}")
+        print(f"   • Рост: {cls.LINE_MOVEMENT_MIN_RISE_PCT}% .. {cls.LINE_MOVEMENT_MAX_RISE_PCT}% | "
+              f"trade={cls.LINE_MOVEMENT_TRADE_RISES}")
+        print(f"   • Снимков: {cls.LINE_MOVEMENT_MIN_SNAPSHOTS}..{cls.LINE_MOVEMENT_MAX_SNAPSHOTS} | "
+              f"типы: {cls.LINE_MOVEMENT_BET_TYPES}")
+        print(f"   • Кэф: {cls.LINE_MOVEMENT_MIN_ODDS}-{cls.LINE_MOVEMENT_MAX_ODDS} | "
+              f"stake={cls.LINE_MOVEMENT_STAKE_PCT*100}% банка")
+        print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
+              f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
+        print(f"")
+        print(f"🔥 X2: {'вкл' if cls.X2_ENABLED else 'ВЫКЛ'} | позиции >= {cls.X2_MIN_POSITION_DIFF} | "
+              f"EV>={cls.X2_MIN_EV}% | Prob>={cls.X2_MIN_PROB}%")
+        print(f"   • Дома bonus: +{cls.X2_HOME_BONUS}% | Гости penalty: -{cls.X2_AWAY_PENALTY}%")
+        print(f"")
+        print(f"🌤️ WEATHER: rain>{cls.WEATHER_SKIP_RAIN_MM}мм / wind>{cls.WEATHER_SKIP_WIND_MS}м/с / "
+              f"temp<{cls.WEATHER_SKIP_TEMP_MIN}°C / temp>{cls.WEATHER_SKIP_TEMP_MAX}°C / snow={cls.WEATHER_SKIP_SNOW}")
+        print(f"   • xG-штрафы: rain×{cls.WEATHER_RAIN_XG_PENALTY} / "
+              f"heavy-rain×{cls.WEATHER_HEAVY_RAIN_XG_PENALTY} / wind×{cls.WEATHER_WIND_XG_PENALTY}")
+        cls.init_db()
+        print(f"📊 Лиг: {len(set(cls.LEAGUES))}")
+        print(f"🏆 Кубков: {len(set(cls.CUP_LEAGUES))}")
+        return True
+
+
+if __name__ == "__main__":
+    arg = sys.argv[1] if len(sys.argv) > 1 else "check"
+    if arg == "check":
+        Config.check()
+    elif arg == "build_leagues":
+        Config.build_leagues_from_api()
+    else:
+        print("Использование:")
+        print("  python -m app.config check          — общая проверка")
+        print("  python -m app.config build_leagues  — построить список лиг через API")
