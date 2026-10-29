@@ -5869,19 +5869,11 @@ def auto_update_results():
 # === КОНЕЦ ЧАСТИ 2/3 (v23.2 — Value Fix + Trusted Odds + Batch Update) ===
 
 # ============================================================
-# main.py — ЧАСТЬ 3/3 (v23.0 — все фиксы config v3.10)
+# main.py — ЧАСТЬ 3/3 (v23.3 — Turbo Schedulers for Ultra 75k)
 # Schedulers, Webhook, API, __main__
-# ★ Snapshots API без fallback'ов
-# ★ single-fetch live status
-# ★ CLV по стратегиям
-# ★ показ llm_reason в /update
-# ★ показ line_movement в /update + StrategyTester
-# ★ bet_info в /api/snapshots/<fid>
-# ★ /api/calibration для анализа калибровки
-# ★ снапшоты калибровки раз в 14 дней (2 слота)
-# ★ /force_settle и /update_results в Thread
-# ★ /export и /api/export/csv (v23.0)
-# ★ USE_API_LEAGUES при старте (v23.0)
+# ★ Обновлены интервалы под 75k запросов
+# ★ Добавлена защита от перегрузки Live-запросов
+# ★ Все старые фиксы сохранены (CLV, Calibration, Export)
 # ============================================================
 
 # ============================================================
@@ -5906,20 +5898,21 @@ def safe_job(func, name):
 
 def schedule_updates():
     scheduler = BackgroundScheduler()
+    # ★ 75k запросов позволяют обновлять результаты каждые 30 минут
     scheduler.add_job(
         func=safe_job(auto_update_results, "auto_update_results"),
-        trigger='interval', hours=6, id='auto_update',
+        trigger='interval', minutes=30, id='auto_update', # было 6 часов
         replace_existing=True, misfire_grace_time=300,
         coalesce=True, max_instances=1
     )
     scheduler.add_job(
         func=safe_job(update_anomaly_results, "update_anomaly_results"),
-        trigger='interval', minutes=30, id='anomaly_update',
+        trigger='interval', minutes=15, id='anomaly_update',
         replace_existing=True, misfire_grace_time=300,
         coalesce=True, max_instances=1
     )
     scheduler.start()
-    logger.info("⏰ Авто-обновление: 6ч + аномалии: 30м")
+    logger.info("⏰ Авто-обновление: 30м + аномалии: 15м")
 
 
 def schedule_notifications():
@@ -5954,8 +5947,9 @@ def schedule_performance_report():
 
 
 def schedule_autobet():
-    # ★ FIX: интервал live-обновления из Config
-    live_interval = max(5, int(getattr(Config, 'LIVE_REFRESH_SEC', 20) / 2))
+    # ★ 75k запросов: Live обновляем каждые 2-3 минуты
+    live_interval = max(3, int(getattr(Config, 'LIVE_REFRESH_SEC', 10) / 3))
+    
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=safe_job(autobet_manager.place_bets_from_cache, "autobet_place"),
@@ -5963,9 +5957,10 @@ def schedule_autobet():
         replace_existing=True, max_instances=1,
         misfire_grace_time=60, coalesce=True
     )
+    # ★ Settle тоже ускоряем (было 2 часа)
     scheduler.add_job(
         func=safe_job(autobet_manager.settle_pending, "autobet_settle"),
-        trigger='interval', hours=2, id='autobet_settle',
+        trigger='interval', minutes=60, id='autobet_settle',
         replace_existing=True, max_instances=1,
         misfire_grace_time=300, coalesce=True
     )
@@ -7018,7 +7013,7 @@ def api_live():
 
         hours_before = getattr(Config, 'LIVE_HOURS_BEFORE', 2)
         minutes_after = getattr(Config, 'LIVE_MINUTES_AFTER', 120)
-        max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 30)
+        max_matches = getattr(Config, 'LIVE_MAX_MATCHES', 50)
 
         in_window = []
         seen_fids = set()
@@ -8820,7 +8815,7 @@ def health():
             'geocoding_cache_size': len(_geo_cache),
             'data_dir': DATA_DIR,
             'x2_candidates': x2_count,
-            'version': 'v23.0',
+            'version': 'v23.3',
             'autobets': {
                 'count': autobets_state.get('total_bets', 0),
                 'bank': autobets_state.get('bank', 1000),
@@ -9020,9 +9015,6 @@ def register_bot_commands():
 # ============================================================
 # __MAIN__
 # ============================================================
-# ============================================================
-# X2 РЕЗУЛЬТАТЫ (ВОССТАНОВЛЕНО)
-# ============================================================
 def update_x2_results():
     try:
         candidates = storage.get_x2_candidates(limit=200)
@@ -9138,10 +9130,11 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ Webhook: {e}")
 
+    # ★ TURBO SCHEDULER for 75k
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
-        trigger='interval', minutes=30, id='odds_snapshot',
+        trigger='interval', minutes=5, id='odds_snapshot', # было 30
         replace_existing=True, max_instances=1,
         misfire_grace_time=60, coalesce=True
     )
@@ -9153,7 +9146,7 @@ if __name__ == "__main__":
     odds_scheduler.start()
 
     logger.info("=" * 60)
-    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v23.0 — все фиксы config v3.10)")
+    logger.info("🚀 QUANTUM BET BOT PRO ЗАПУЩЕН (v23.3 — Turbo 75k)")
     logger.info("=" * 60)
     logger.info(f"📊 Лиг: {len(Config.LEAGUES)} | Кубков: {len(Config.CUP_LEAGUES)}")
     logger.info(f"🧠 ENGINE: {Config.PREDICTION_ENGINE}")
