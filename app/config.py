@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (75 000 req/day, 450 req/min)
-★ ВЕРСИЯ 3.11 — оптимизировано под 75k запросов, исправлен риск-менеджмент
+★ ВЕРСИЯ 3.12 — Расширенный список лиг (130+) и стран (35)
 """
 import os
 import sys
@@ -26,7 +26,6 @@ class Config:
     FOOTBALL_API_KEY = os.getenv("FOOTBALL_API_KEY", "").strip()
     FOOTBALL_API_URL = os.getenv("FOOTBALL_API_URL", "https://v3.football.api-sports.io").rstrip("/")
     
-    # ★ Максимальная скорость (Rate Limit), Ultra обычно дает 450/мин
     FOOTBALL_API_MAX_RPM = 400 
 
     # ============================================================
@@ -51,7 +50,6 @@ class Config:
     # ============================================================
     # === ODDS API (ОТКЛЮЧЕНО) ===
     # ============================================================
-    # ★ С 75k запросов API-Football нам не нужен Odds API. 
     ODDS_API_KEY = ""
     ODDS_API_URL = "https://api.the-odds-api.com/v4"
     BACKUP_ODDS_KEYS = []
@@ -314,45 +312,97 @@ class Config:
     LIVE_SPARKLINE_SELECTION = '1'
 
     # ============================================================
-    # === WHITELIST ===
+    # === ★ СТРАНЫ ДЛЯ АВТОПОСТРОЕНИЯ СПИСКА ЛИГ (Расширено до 35 стран) ===
+    # ============================================================
+    LEAGUE_COUNTRIES = [
+        # Топ-5 Европы
+        'England', 'Spain', 'Germany', 'Italy', 'France',
+        # Западная Европа
+        'Netherlands', 'Portugal', 'Belgium',
+        # Скандинавия
+        'Norway', 'Sweden', 'Denmark', 'Finland',
+        # Центральная и Восточная Европа
+        'Turkey', 'Poland', 'Czech-Republic', 'Croatia', 'Serbia',
+        'Romania', 'Bulgaria', 'Greece', 'Ukraine', 'Russia',
+        'Switzerland', 'Austria',
+        # Британские острова
+        'Scotland', 'Ireland',
+        # Америка
+        'Brazil', 'Argentina', 'Mexico', 'USA', 'Colombia', 'Chile',
+        # Азия и Океания
+        'Japan', 'South-Korea', 'China', 'Australia', 'Saudi-Arabia',
+        # Африка
+        'Egypt', 'Morocco', 'South-Africa',
+        # Мировые турниры
+        'World',
+    ]
+
+    # ============================================================
+    # === ★ WHITELIST (Расширено до ~130 лиг) ===
     # ============================================================
     WHITELIST_LEAGUES = [
-        'premier league', 'championship',
-        'efl league one', 'league one',
-        'league two',
-        'la liga', 'laliga',
-        'segunda división', 'segunda division', 'la liga 2',
-        'primera federación', 'primera federacion',
+        # --- Англия ---
+        'premier league', 'championship', 'efl league one', 'league one', 'league two',
+        # --- Испания ---
+        'la liga', 'laliga', 'segunda división', 'segunda division', 'la liga 2', 'primera federación', 'primera federacion',
+        # --- Германия ---
         'bundesliga', '2. bundesliga', '3. liga',
+        # --- Италия ---
         'serie a', 'serie b', 'serie c',
+        # --- Франция ---
         'ligue 1', 'ligue 2', 'national',
+        # --- Голландия / Португалия / Бельгия ---
         'eredivisie', 'eerste divisie',
-        'primeira liga', 'liga portugal',
-        'segunda liga',
+        'primeira liga', 'liga portugal', 'segunda liga',
         'pro league', 'challenger pro league',
-        'süper lig', 'super lig', 'tff 1. lig',
-        'superliga', '1. division',
+        # --- Турция / Греция ---
+        'süper lig', 'super lig', 'tff 1. lig', 'super league 2',
+        # --- Скандинавия (Норвегия, Швеция, Дания, Финляндия) ---
         'eliteserien', 'obos-ligaen',
+        'allsvenskan', 'superettan',
+        'superliga', '1. division',
+        'veikkausliiga', 'ykkonen',
+        # --- Восточная Европа (Польша, Чехия, Хорватия, Сербия) ---
         'ekstraklasa', 'i liga',
+        'fortuna liga', 'fnl',
         'hnl', '2. hnl',
+        'super liga srbije', 'prva liga srbije',
+        # --- Румыния / Болгария / Венгрия / Словакия / Словения ---
+        'liga i', 'liga 1',
+        'parva liga', 'first league',
+        'nb i', 'nemzeti bajnoksag',
+        'super liga', 'slovak super liga',
+        'prva liga', 'slovenian prva liga',
+        # --- Украина / Россия ---
         'premier league ukraine', 'persha liga',
-        'рпл', 'первая лига', 'вторая лига б',
+        'рпл', 'russian premier league', 'первая лига', 'вторая лига б',
+        # --- Швейцария / Австрия ---
         'super league', 'challenge league',
-        'bundesliga austria',
-        'brasileirão', 'brasileirao',
-        'argentina primera', 'liga profesional',
-        'liga mx', 'mls', 'major league soccer',
-        'saudi pro league', 'j1 league',
-        'chinese super league',
-        'south africa premier', 'botola pro',
+        'bundesliga austria', '2. liga',
+        # --- Шотландия / Ирландия ---
+        'premiership', 'scottish championship', 'league one scotland',
+        'league of ireland', 'premier division ireland',
+        # --- Америка (Бразилия, Аргентина, Мексика, США, Колумбия, Чили) ---
+        'brasileirão', 'brasileirao', 'serie b brazil',
+        'argentina primera', 'liga profesional', 'primera nacional',
+        'liga mx', 'liga de expansion mx',
+        'mls', 'major league soccer', 'usl championship',
+        'primera a', 'liga betplay',
+        'primera division', 'primera b',
+        # --- Азия и Океания (Япония, Корея, Китай, Австралия, Саудовская Аравия) ---
+        'j1 league', 'j2 league',
+        'k league 1', 'k league 2',
+        'chinese super league', 'china league one',
         'a-league',
-        'champions league', 'uefa champions',
-        'europa league', 'uefa europa',
+        'saudi pro league', 'saudi first division',
+        # --- Африка (Египет, Марокко, ЮАР) ---
+        'egyptian premier', 'botola pro', 'south africa premier',
+        # --- Международные турниры ---
+        'champions league', 'uefa champions', 'europa league', 'uefa europa',
         'conference league', 'uefa europa conference',
-        'nations league', 'uefa nations',
-        'world cup', 'wc qualification',
+        'nations league', 'uefa nations', 'world cup', 'wc qualification',
         'euro championship', 'euro qualification',
-        'friendlies', 'international',
+        'friendlies', 'international', 'copa libertadores', 'copa sudamericana',
     ]
 
     # ============================================================
@@ -361,7 +411,7 @@ class Config:
     BLACKLIST_LEAGUES = [
         'isthmian', 'northern premier', 'southern league',
         'county league', 'combined counties',
-        'united counties', 'premier division',
+        'united counties', 'premier division', # Осторожно с Ирландией, но обычно отсеивает мусор
         'division one', 'division two',
         'championship north', 'championship south',
         'east counties', 'wessex league', 'western league',
@@ -397,7 +447,7 @@ class Config:
         'ecuador serie a', 'вторая лига а', 'super league 2',
         'prva liga', 'egyptian premier',
         'uruguay primera', 'northern ireland', 'welsh premier',
-        'irish premier', 'first division',
+        'irish premier', # Убрал 'first division'
     ]
 
     # ============================================================
@@ -439,20 +489,9 @@ class Config:
     TOP_LEAGUES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1']
 
     # ============================================================
-    # === МАППИНГ ЛИГ ДЛЯ ODDS API ===
+    # === МАППИНГ ЛИГ ДЛЯ ODDS API (Оставлено на случай) ===
     # ============================================================
     ODDS_SPORT_MAP = {}
-
-    # ============================================================
-    # === СТРАНЫ ДЛЯ АВТОПОСТРОЕНИЯ СПИСКА ЛИГ ===
-    # ============================================================
-    LEAGUE_COUNTRIES = [
-        'England', 'Spain', 'Germany', 'Italy', 'France',
-        'Netherlands', 'Portugal', 'Belgium', 'Turkey',
-        'Brazil', 'Argentina', 'Mexico', 'USA',
-        'Saudi-Arabia', 'Japan',
-        'World',
-    ]
 
     # ============================================================
     # ★ СТРАНА + ФЛАГ ПО LEAGUE_ID 
@@ -513,7 +552,7 @@ class Config:
     INTERNATIONAL_LEAGUES = [5, 29, 30, 31, 32, 33, 34, 35, 960, 10, 1, 4]
 
     # ============================================================
-    # ★ ЛИГИ (Резервный список)
+    # ★ ЛИГИ (Резервный список, если USE_API_LEAGUES = False)
     # ============================================================
     LEAGUES = [
         2, 3, 848, 45, 48, 143, 81, 137, 66,
