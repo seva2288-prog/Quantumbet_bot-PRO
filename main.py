@@ -9080,6 +9080,24 @@ def update_x2_results():
         logger.exception(f"update_x2_results: {e}")
         return 0
 
+
+@app.route('/api/lab', methods=['GET'])
+def api_lab():
+    try:
+        lab_file = os.path.join(DATA_DIR, 'lab_anomalies.jsonl')
+        items = []
+        if os.path.exists(lab_file):
+            with open(lab_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for line in lines[-200:]:
+                    try:
+                        items.append(json.loads(line.strip()))
+                    except: pass
+        items.sort(key=lambda x: x.get('date', ''), reverse=True)
+        return jsonify({'status': 'ok', 'count': len(items), 'items': items})
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
     if os.path.exists('/data'):
