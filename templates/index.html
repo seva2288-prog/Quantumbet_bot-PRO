@@ -2105,6 +2105,20 @@
         </div>
     </div>
 
+    
+    <!-- PAGE: LAB -->
+    <div id="page-lab" class="page">
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🧪 Лаборатория</h2>
+                <button class="btn btn-outline" onclick="loadLab()" style="padding:4px 10px;font-size:10px;">🔄</button>
+            </div>
+        </div>
+        <div id="labList">
+            <div class="skeleton" style="height:80px;"></div>
+        </div>
+    </div>
+
     <div class="footer">
         💎 Quantum Tracker v23.0 © 2026
     </div>
@@ -2134,6 +2148,10 @@
     <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
         <span class="icon">🔥</span>
         <span class="label">X2</span>
+    </button>
+    <button class="nav-item" data-page="lab" onclick="switchPage('lab')">
+        <span class="icon">🧪</span>
+        <span class="label">Лаб</span>
     </button>
     <button class="nav-item" onclick="toggleMoreMenu()">
         <span class="icon">⋯</span>
@@ -2771,6 +2789,7 @@ function switchPage(page) {
         startLiveRefresh();
     }
     else if (page === 'x2') renderX2Page();
+    else if (page === 'lab') loadLab();
     else if (page === 'snapshots') loadSnapshots();
     else if (page === 'autobets') loadAutobets();
     else if (page === 'simulator') loadSimPresets();
@@ -8100,6 +8119,24 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // ============================================================
 // ЭКСПОРТ В WINDOW
 // ============================================================
+
+async function loadLab() {
+    const container = document.getElementById('labList');
+    if (!container) return;
+    container.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+    try {
+        const resp = await fetch(API_BASE + '/api/lab?t=' + Date.now());
+        const data = await resp.json();
+        if (data.status !== 'ok' || !data.items.length) {
+            container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--text-tertiary)">Лаборатория пуста</div>';
+            return;
+        }
+        container.innerHTML = data.items.map(it => '<div class="card" style="padding:12px;margin-bottom:8px;"><b>' + it.home + ' vs ' + it.away + '</b><br>Модель: ' + it.original_bet + ' @ ' + it.odds + ' | Обратная: <b style="color:var(--emerald-400)">' + it.reverse_bet + '</b></div>').join('');
+    } catch (e) {
+        container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--red-400)">Ошибка</div>';
+    }
+}
+
 Object.assign(window, {
     // Основные
     cycleTheme, setTheme, switchPage, refreshData,
