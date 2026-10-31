@@ -5924,6 +5924,12 @@ def schedule_updates():
     scheduler = BackgroundScheduler()
     # ★ 75k запросов позволяют обновлять результаты каждые 30 минут
     scheduler.add_job(
+        func=safe_job(update_lab_results, "update_lab_results"),
+        trigger='interval', minutes=30, id='lab_update',
+        replace_existing=True, misfire_grace_time=300,
+        coalesce=True, max_instances=1
+    )
+    scheduler.add_job(
         func=safe_job(auto_update_results, "auto_update_results"),
         trigger='interval', minutes=30, id='auto_update', # было 6 часов
         replace_existing=True, misfire_grace_time=300,
@@ -9121,6 +9127,76 @@ def api_lab():
         return jsonify({'status': 'ok', 'count': len(items), 'items': items})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+def update_lab_results():
+    try:
+        lab_file = os.path.join(DATA_DIR, 'lab_anomalies.jsonl')
+        if not os.path.exists(lab_file):
+            return 0
+        
+        updated = 0
+        new_lines = []
+        
+        with open(lab_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            
+        for line in lines:
+            try:
+                rec = json.loads(line.strip())
+            except:
+                new_lines.append(line)
+                continue
+                
+            if rec.get('result') and rec['result'] != 'pending':
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+                
+            fid = rec.get('fixture_id')
+            if not fid:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+                
+            md = football_api.get_match_result(fid)
+            if not md or not md.get('is_final'):
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+                
+            hg = md['goals']['home']
+            ag = md['goals']['away']
+            if hg is None or ag is None:
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                continue
+                
+            reverse_bet = rec.get('reverse_bet', '')
+            res = 'unknown'
+            
+            if reverse_bet == 'П1':
+                res = 'win' if hg > ag else 'loss'
+            elif reverse_bet == 'П2':
+                res = 'win' if ag > hg else 'loss'
+            elif reverse_bet == 'X2':
+                res = 'win' if ag >= hg else 'loss'
+            elif reverse_bet == '1X':
+                res = 'win' if hg >= ag else 'loss'
+                
+            if res != 'unknown':
+                rec['result'] = res
+                rec['home_goals'] = hg
+                rec['away_goals'] = ag
+                updated += 1
+                
+            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            
+        if updated > 0:
+            with open(lab_file, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            logger.info(f"🧪 Лаборатория: обновлено {updated} результатов")
+            
+        return updated
+    except Exception as e:
+        logger.error(f"update_lab_results: {e}")
+        return 0
 
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
