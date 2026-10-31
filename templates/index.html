@@ -2119,6 +2119,17 @@
         </div>
     </div>
 
+    <div id="page-lab" class="page">
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">🧪 Лаборатория</h2>
+                <button class="btn btn-outline" onclick="loadLab()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
+            </div>
+        </div>
+        <div id="labList">
+            <div class="skeleton" style="height:80px;"></div>
+        </div>
+    </div>
     <div class="footer">
         💎 Quantum Tracker v23.0 © 2026
     </div>
@@ -2153,6 +2164,7 @@
         <span class="icon">🧪</span>
         <span class="label">Лаб</span>
     </button>
+    <button class="nav-item" data-page="lab" onclick="switchPage('lab')"><span class="icon">🧪</span><span class="label">Лаб</span></button>
     <button class="nav-item" onclick="toggleMoreMenu()">
         <span class="icon">⋯</span>
         <span class="label">Ещё</span>
