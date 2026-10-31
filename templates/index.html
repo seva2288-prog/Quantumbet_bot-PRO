@@ -2119,17 +2119,6 @@
         </div>
     </div>
 
-    <div id="page-lab" class="page">
-        <div class="card emerald">
-            <div class="card-header">
-                <h2 class="emerald-title">🧪 Лаборатория</h2>
-                <button class="btn btn-outline" onclick="loadLab()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
-            </div>
-        </div>
-        <div id="labList">
-            <div class="skeleton" style="height:80px;"></div>
-        </div>
-    </div>
     <div class="footer">
         💎 Quantum Tracker v23.0 © 2026
     </div>
@@ -2164,7 +2153,6 @@
         <span class="icon">🧪</span>
         <span class="label">Лаб</span>
     </button>
-    <button class="nav-item" data-page="lab" onclick="switchPage('lab')"><span class="icon">🧪</span><span class="label">Лаб</span></button>
     <button class="nav-item" onclick="toggleMoreMenu()">
         <span class="icon">⋯</span>
         <span class="label">Ещё</span>
@@ -8143,51 +8131,7 @@ async function loadLab() {
             container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--text-tertiary)">Лаборатория пуста</div>';
             return;
         }
-        
-        container.innerHTML = data.items.map(it => {
-            let statusHtml = '';
-            if (it.result === 'win') {
-                statusHtml = '<span style="color:var(--emerald-400);font-weight:700;font-size:12px;">✅ WIN</span>';
-            } else if (it.result === 'loss') {
-                statusHtml = '<span style="color:var(--red-400);font-weight:700;font-size:12px;">❌ LOSS</span>';
-            } else {
-                statusHtml = '<span style="color:var(--gold-400);font-weight:700;font-size:12px;">⏳ PENDING</span>';
-            }
-            
-            return `<div class="card" style="padding:12px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <b style="font-size:13px;">${it.home} vs ${it.away}</b>
-                    ${statusHtml}
-                </div>
-                <div style="font-size:11px;color:var(--text-secondary);">
-                    Модель: ${it.original_bet} @ ${it.odds} | Обратная: <b style="color:var(--emerald-400)">${it.reverse_bet}</b>
-                </div>
-            </div>`;
-        }).join('');
-    } catch (e) {
-        container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--red-400)">Ошибка</div>';
-    }
-}
-        container.innerHTML = data.items.map(it => {
-            let statusHtml = '';
-            if (it.result === 'win') {
-                statusHtml = '<span style="color:var(--emerald-400);font-weight:700;font-size:12px;">✅ WIN</span>';
-            } else if (it.result === 'loss') {
-                statusHtml = '<span style="color:var(--red-400);font-weight:700;font-size:12px;">❌ LOSS</span>';
-            } else {
-                statusHtml = '<span style="color:var(--gold-400);font-weight:700;font-size:12px;">⏳ PENDING</span>';
-            }
-            
-            return `<div class="card" style="padding:12px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <b style="font-size:13px;">${it.home} vs ${it.away}</b>
-                    ${statusHtml}
-                </div>
-                <div style="font-size:11px;color:var(--text-secondary);">
-                    Модель: ${it.original_bet} @ ${it.odds} | Обратная: <b style="color:var(--emerald-400)">${it.reverse_bet}</b>
-                </div>
-            </div>`;
-        }).join('');
+        container.innerHTML = data.items.map(it => '<div class="card" style="padding:12px;margin-bottom:8px;"><b>' + it.home + ' vs ' + it.away + '</b><br>Модель: ' + it.original_bet + ' @ ' + it.odds + ' | Обратная: <b style="color:var(--emerald-400)">' + it.reverse_bet + '</b></div>').join('');
     } catch (e) {
         container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--red-400)">Ошибка</div>';
     }
