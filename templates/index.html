@@ -8131,6 +8131,31 @@ async function loadLab() {
             container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--text-tertiary)">Лаборатория пуста</div>';
             return;
         }
+        
+        container.innerHTML = data.items.map(it => {
+            let statusHtml = '';
+            if (it.result === 'win') {
+                statusHtml = '<span style="color:var(--emerald-400);font-weight:700;font-size:12px;">✅ WIN</span>';
+            } else if (it.result === 'loss') {
+                statusHtml = '<span style="color:var(--red-400);font-weight:700;font-size:12px;">❌ LOSS</span>';
+            } else {
+                statusHtml = '<span style="color:var(--gold-400);font-weight:700;font-size:12px;">⏳ PENDING</span>';
+            }
+            
+            return `<div class="card" style="padding:12px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <b style="font-size:13px;">${it.home} vs ${it.away}</b>
+                    ${statusHtml}
+                </div>
+                <div style="font-size:11px;color:var(--text-secondary);">
+                    Модель: ${it.original_bet} @ ${it.odds} | Обратная: <b style="color:var(--emerald-400)">${it.reverse_bet}</b>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--red-400)">Ошибка</div>';
+    }
+}
         container.innerHTML = data.items.map(it => {
             let statusHtml = '';
             if (it.result === 'win') {

@@ -9228,6 +9228,15 @@ if __name__ == "__main__":
         logger.error(f"⚠️ Команды: {e}")
 
     start_scheduler()
+    import threading
+    def lab_loop():
+        import time
+        while True:
+            try:
+                update_lab_results()
+            except: pass
+            time.sleep(1800) # 30 минут
+    threading.Thread(target=lab_loop, daemon=True).start()
     schedule_updates()
     schedule_notifications()
     schedule_performance_report()
