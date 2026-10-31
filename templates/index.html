@@ -8123,17 +8123,55 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 async function loadLab() {
     const container = document.getElementById('labList');
     if (!container) return;
-    container.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+    container.innerHTML = '<div class="skeleton" style="height:100px;margin-bottom:10px;"></div>';
+    
     try {
         const resp = await fetch(API_BASE + '/api/lab?t=' + Date.now());
         const data = await resp.json();
+        
         if (data.status !== 'ok' || !data.items.length) {
-            container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--text-tertiary)">Лаборатория пуста</div>';
+            container.innerHTML = '<div class="no-data"><div class="emoji">🧪</div><div class="title">Лаборатория пуста</div><div class="desc">Здесь появятся аномалии (EV > 50%)</div></div>';
             return;
         }
-        container.innerHTML = data.items.map(it => '<div class="card" style="padding:12px;margin-bottom:8px;"><b>' + it.home + ' vs ' + it.away + '</b><br>Модель: ' + it.original_bet + ' @ ' + it.odds + ' | Обратная: <b style="color:var(--emerald-400)">' + it.reverse_bet + '</b></div>').join('');
-    } catch (e) {
-        container.innerHTML = '<div class="no-data" style="padding:20px;text-align:center;color:var(--red-400)">Ошибка</div>';
+        
+        container.innerHTML = data.items.map(it => {
+            const evColor = it.ev > 100 ? 'var(--red-400)' : 'var(--gold-400)';
+            let statusBadge = '';
+            if (it.result === 'win') statusBadge = '<span class="badge win">✅ WIN</span>';
+            else if (it.result === 'loss') statusBadge = '<span class="badge loss">❌ LOSS</span>';
+            else statusBadge = '<span class="badge pending">⏳ PENDING</span>';
+            
+            return `
+                <div class="card" style="padding:14px;margin-bottom:10px;">
+                    <div class="bet-header" style="margin-bottom:8px;">
+                        <div style="flex:1;min-width:0;">
+                            <div class="bet-match">${it.home} vs ${it.away}</div>
+                            <div class="bet-league">🏆 ${it.league || '—'}</div>
+                            <div class="bet-time">📅 ${it.date || '—'}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            ${statusBadge}
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">
+                        <div>
+                            <div style="font-size:10px;color:var(--text-tertiary);">Модель</div>
+                            <div style="font-size:13px;font-weight:700;">${it.original_bet} @ ${it.odds}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:10px;color:var(--text-tertiary);">Обратная</div>
+                            <div style="font-size:13px;font-weight:700;color:var(--emerald-400);">${it.reverse_bet}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:10px;color:var(--text-tertiary);">EV</div>
+                            <div style="font-size:13px;font-weight:700;color:${evColor};">+${it.ev}%</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch(e) { 
+        container.innerHTML = '<div class="no-data">Ошибка загрузки</div>'; 
     }
 }
 
