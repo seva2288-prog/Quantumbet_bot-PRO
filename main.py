@@ -3301,6 +3301,30 @@ def update_odds_for_matches(matches):
                             boosted = min(prob + anomaly_bonus, 0.95)
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
+                            
+                            # ★ ЗАПИСЬ В ФАЙЛ ЛАБОРАТОРИИ
+                            if boosted * best_odds_val - 1 > 0.50:
+                                try:
+                                    reverse_bet = '—'
+                                    lbl = best_bet.get('label', '').upper()
+                                    if 'X2' in lbl: reverse_bet = 'П1'
+                                    elif '1X' in lbl: reverse_bet = 'П2'
+                                    elif 'П1' in lbl: reverse_bet = 'П2'
+                                    elif 'П2' in lbl: reverse_bet = 'П1'
+                                    
+                                    lab_file = os.path.join(DATA_DIR, 'lab_anomalies.jsonl')
+                                    lab_record = {
+                                        'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                                        'home': home, 'away': away, 'league': md.get('league', ''),
+                                        'fixture_id': fid, 'original_bet': best_bet.get('label', ''),
+                                        'reverse_bet': reverse_bet, 'odds': best_odds_val,
+                                        'ev': round((boosted * best_odds_val - 1) * 100, 1),
+                                        'prob': round(boosted * 100, 1), 'result': 'pending'
+                                    }
+                                    with open(lab_file, 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps(lab_record, ensure_ascii=False) + '\n')
+                                except Exception as e:
+                                    logger.error(f"Lab write error: {e}")
                 
                 if not new_odds:
                     # Fallback логика (если не нашли по конкретному типу, берем лучший доступный)
