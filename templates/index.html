@@ -2114,6 +2114,28 @@
                 <button class="btn btn-outline" onclick="loadLab()" style="padding:4px 10px;font-size:10px;">🔄</button>
             </div>
         </div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Здесь собираются аномалии с EV > 50%. Проверяем, выгодно ли ставить в обратную сторону.
+            </div>
+            
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 10px;">
+                <div class="stat-card">
+                    <div class="value" id="lab-stat-total">0</div>
+                    <div class="label">ВСЕГО</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value green" id="lab-stat-wins">0</div>
+                    <div class="label">✅ WIN</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value red" id="lab-stat-losses">0</div>
+                    <div class="label">❌ LOSS</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value gold" id="lab-stat-winrate">0%</div>
+                    <div class="label">🎯 WR</div>
+                </div>
+            </div>
         <div id="labList">
             <div class="skeleton" style="height:80px;"></div>
         </div>
@@ -8128,6 +8150,22 @@ async function loadLab() {
     try {
         const resp = await fetch(API_BASE + '/api/lab?t=' + Date.now());
         const data = await resp.json();
+        
+        let total = data.items ? data.items.length : 0;
+        let wins = data.items ? data.items.filter(i => i.result === 'win').length : 0;
+        let losses = data.items ? data.items.filter(i => i.result === 'loss').length : 0;
+        let resolved = wins + losses;
+        let winrate = resolved > 0 ? Math.round((wins / resolved) * 100) : 0;
+        
+        const elTotal = document.getElementById('lab-stat-total');
+        const elWins = document.getElementById('lab-stat-wins');
+        const elLosses = document.getElementById('lab-stat-losses');
+        const elWinrate = document.getElementById('lab-stat-winrate');
+        
+        if (elTotal) elTotal.textContent = total;
+        if (elWins) elWins.textContent = wins;
+        if (elLosses) elLosses.textContent = losses;
+        if (elWinrate) elWinrate.textContent = winrate + '%';
         
         if (data.status !== 'ok' || !data.items.length) {
             container.innerHTML = '<div class="no-data"><div class="emoji">🧪</div><div class="title">Лаборатория пуста</div><div class="desc">Здесь появятся аномалии (EV > 50%)</div></div>';
