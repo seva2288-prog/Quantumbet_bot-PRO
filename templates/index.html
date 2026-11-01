@@ -8181,46 +8181,64 @@ async function loadLab() {
     const container = document.getElementById('labList');
     if (!container) return;
     container.innerHTML = '<div class="skeleton" style="height:100px;margin-bottom:10px;"></div>';
-    
+
     try {
         const resp = await fetch(API_BASE + '/api/lab?t=' + Date.now());
         const data = await resp.json();
-        
+
         let total = data.items ? data.items.length : 0;
         let wins = data.items ? data.items.filter(i => i.result === 'win').length : 0;
         let losses = data.items ? data.items.filter(i => i.result === 'loss').length : 0;
         let resolved = wins + losses;
         let winrate = resolved > 0 ? Math.round((wins / resolved) * 100) : 0;
-        
+
         const elTotal = document.getElementById('lab-stat-total');
         const elWins = document.getElementById('lab-stat-wins');
         const elLosses = document.getElementById('lab-stat-losses');
         const elWinrate = document.getElementById('lab-stat-winrate');
-        
+
         if (elTotal) elTotal.textContent = total;
         if (elWins) elWins.textContent = wins;
         if (elLosses) elLosses.textContent = losses;
         if (elWinrate) elWinrate.textContent = winrate + '%';
-        
+
         if (data.status !== 'ok' || !data.items.length) {
             container.innerHTML = '<div class="no-data"><div class="emoji">🧪</div><div class="title">Лаборатория пуста</div><div class="desc">Здесь появятся аномалии (EV > 50%)</div></div>';
             return;
         }
-        
+
         container.innerHTML = data.items.map(it => {
             const evColor = it.ev > 100 ? 'var(--red-400)' : 'var(--gold-400)';
             let statusBadge = '';
             if (it.result === 'win') statusBadge = '<span class="badge win">✅ WIN</span>';
             else if (it.result === 'loss') statusBadge = '<span class="badge loss">❌ LOSS</span>';
             else statusBadge = '<span class="badge pending">⏳ PENDING</span>';
-            
+
+            const scoreStr = (it.home_goals != null && it.away_goals != null)
+                ? ` • ${it.home_goals}-${it.away_goals}` : '';
+
+            // ★ НОВОЕ: кнопка ручного ввода только для pending
+            const buttonHtml = (it.result === 'pending' || !it.result) ? `
+                <div style="margin-top:10px;">
+                    <button class="btn btn-outline"
+                            onclick='event.stopPropagation(); openLabResultModal(
+                                ${it.fixture_id},
+                                ${JSON.stringify(it.reverse_bet || "")},
+                                ${JSON.stringify((it.home || "?") + " vs " + (it.away || "?"))}
+                            )'
+                            style="padding:8px 12px;font-size:11px;width:100%;">
+                        ✏️ Ввести счёт вручную
+                    </button>
+                </div>
+            ` : '';
+
             return `
                 <div class="card" style="padding:14px;margin-bottom:10px;">
                     <div class="bet-header" style="margin-bottom:8px;">
                         <div style="flex:1;min-width:0;">
-                            <div class="bet-match">${it.home} vs ${it.away}</div>
-                            <div class="bet-league">🏆 ${it.league || '—'}</div>
-                            <div class="bet-time">📅 ${it.date || '—'}</div>
+                            <div class="bet-match">${escapeHtml(it.home)} vs ${escapeHtml(it.away)}</div>
+                            <div class="bet-league">🏆 ${escapeHtml(it.league || '—')}</div>
+                            <div class="bet-time">📅 ${escapeHtml(it.date || '—')}${scoreStr}</div>
                         </div>
                         <div style="text-align:right;">
                             ${statusBadge}
@@ -8229,22 +8247,86 @@ async function loadLab() {
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">
                         <div>
                             <div style="font-size:10px;color:var(--text-tertiary);">Модель</div>
-                            <div style="font-size:13px;font-weight:700;">${it.original_bet} @ ${it.odds}</div>
+                            <div style="font-size:13px;font-weight:700;">${escapeHtml(it.original_bet || '—')} @ ${it.odds}</div>
                         </div>
                         <div style="text-align:right;">
                             <div style="font-size:10px;color:var(--text-tertiary);">Обратная</div>
-                            <div style="font-size:13px;font-weight:700;color:var(--emerald-400);">${it.reverse_bet}</div>
+                            <div style="font-size:13px;font-weight:700;color:var(--emerald-400);">${escapeHtml(it.reverse_bet || '—')}</div>
                         </div>
                         <div style="text-align:right;">
                             <div style="font-size:10px;color:var(--text-tertiary);">EV</div>
                             <div style="font-size:13px;font-weight:700;color:${evColor};">+${it.ev}%</div>
                         </div>
                     </div>
+                    ${buttonHtml}
                 </div>
             `;
         }).join('');
-    } catch(e) { 
-        container.innerHTML = '<div class="no-data">Ошибка загрузки</div>'; 
+    } catch(e) {
+        container.innerHTML = '<div class="no-data">Ошибка загрузки</div>';
+    }
+}
+
+// ============================================================
+// ★ РУЧНОЙ ВВОД РЕЗУЛЬТАТА В ЛАБОРАТОРИИ
+// ============================================================
+function openLabResultModal(fixtureId, reverseBet, matchName) {
+    const modal = document.getElementById('labResultModal');
+    if (!modal) {
+        showNotification('❌ Модалка не найдена', 'error');
+        return;
+    }
+    document.getElementById('labResultFixtureId').value = fixtureId || '';
+    document.getElementById('labResultReverseBet').value = reverseBet || '';
+    document.getElementById('labResultMatch').textContent = '🏟️ ' + matchName;
+    document.getElementById('labResultBetLabel').textContent = reverseBet || '—';
+    document.getElementById('labResultHome').value = 0;
+    document.getElementById('labResultAway').value = 0;
+    modal.classList.add('active');
+    haptic(8);
+}
+
+function closeLabResultModal() {
+    const modal = document.getElementById('labResultModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function saveLabResult() {
+    const fixtureId = parseInt(document.getElementById('labResultFixtureId').value);
+    const reverseBet = document.getElementById('labResultReverseBet').value;
+    const hg = parseInt(document.getElementById('labResultHome').value) || 0;
+    const ag = parseInt(document.getElementById('labResultAway').value) || 0;
+
+    if (!fixtureId) {
+        showNotification('❌ Нет ID матча', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(API_BASE + '/api/lab/set_result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fixture_id: fixtureId,
+                home_goals: hg,
+                away_goals: ag,
+                reverse_bet: reverseBet,
+            })
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            const emoji = data.result === 'win' ? '✅' : '❌';
+            showNotification(
+                `${emoji} ${data.result.toUpperCase()}: ${hg}:${ag}`,
+                'success'
+            );
+            closeLabResultModal();
+            await loadLab();
+        } else {
+            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
+        }
+    } catch (e) {
+        showNotification('❌ ' + e.message, 'error');
     }
 }
 
