@@ -2479,6 +2479,41 @@
     </div>
 </div>
 
+    <!-- MODAL: LAB SET RESULT -->
+<div class="modal-overlay" id="labResultModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>✏️ Ввести счёт (Лаборатория)</h3>
+            <button class="modal-close" onclick="closeLabResultModal()">✕</button>
+        </div>
+        <div class="modal-field">
+            <label id="labResultMatch" style="font-size:14px;font-weight:700;color:var(--text-primary);">Матч</label>
+            <input type="hidden" id="labResultFixtureId">
+            <input type="hidden" id="labResultReverseBet">
+        </div>
+        <div class="modal-field">
+            <div class="row">
+                <div>
+                    <label>🏠 Хозяева</label>
+                    <input type="number" id="labResultHome" value="0" min="0" step="1">
+                </div>
+                <div>
+                    <label>✈️ Гости</label>
+                    <input type="number" id="labResultAway" value="0" min="0" step="1">
+                </div>
+            </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-tertiary);
+                    padding:8px 0;border-top:1px solid var(--border-color);">
+            Ставка: <b id="labResultBetLabel" style="color:var(--emerald-400);">—</b>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-success" onclick="saveLabResult()">💾 Сохранить</button>
+            <button class="btn btn-outline" onclick="closeLabResultModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <!-- TOAST -->
 <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
 
