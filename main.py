@@ -9140,6 +9140,16 @@ if __name__ == "__main__":
         replace_existing=True, max_instances=1,
         misfire_grace_time=60, coalesce=True
     )
+    # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
+    odds_scheduler.add_job(
+        func=safe_job(get_matches_with_factors, "update_matches"),
+        trigger='interval', hours=6, 
+        id='update_matches',
+        replace_existing=True,
+        max_instances=1,
+        misfire_grace_time=1800,
+        coalesce=True
+    )
     odds_scheduler.add_job(
         func=safe_job(lambda: storage.cleanup_old_odds_history(days=14), "cleanup_odds"),
         trigger='cron', hour=4, minute=0, id='odds_cleanup',
