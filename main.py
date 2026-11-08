@@ -5267,267 +5267,70 @@ def get_score_weights(source='70_percent'):
 @timing_decorator()
 def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
-    logger.info("📊 ПОТОК 1: 70%+ (Kelly + CLV + LLM + X2 + Calibration)")
+    logger.info("🎯 ЕДИНСТВЕННАЯ СТРАТЕГИЯ: LINE MOVEMENT (Steam Move)")
     logger.info("=" * 60)
-    top_matches_70 = find_top_matches(matches)
 
-    logger.info("=" * 60)
-    logger.info("📊 ПОТОК 2: ТМ 2.5")
-    logger.info("=" * 60)
-    tm25_matches = find_tm25_matches(matches)
-
-    logger.info("=" * 60)
-    logger.info("📊 ПОТОК 3: VALUE 💎")
-    logger.info("=" * 60)
-    value_matches = find_value_matches(matches)
-
-    logger.info("=" * 60)
-    logger.info("📊 ПОТОК 4: BTTS")
-    logger.info("=" * 60)
-    btts_matches = find_btts_matches(matches)
-
-    # ★ НОВЫЙ ПОТОК 6: СТАТИСТИКА
-    logger.info("=" * 60)
-    logger.info("📊 ПОТОК 6: СТАТИСТИКА (Углы/Карточки)")
-    logger.info("=" * 60)
-    try:
-        stats_matches = find_stats_matches(matches)
-    except Exception as e:
-        logger.error(f"❌ СТАТИСТИКА упала: {e}")
-        stats_matches = []
-
-    logger.info("=" * 60)
-    logger.info("📊 ПОТОК 5: LINE MOVEMENT")
-    logger.info("=" * 60)
+    # 1. Запускаем ТОЛЬКО поиск движения линии
     try:
         lm_matches = find_line_movement_matches(matches)
     except Exception as e:
         logger.error(f"❌ LINE MOVEMENT упал: {e}")
         lm_matches = []
 
+    # 2. Собираем всё в один список (у нас теперь только он)
     combined = []
     keys = set()
-
-    for m in value_matches:
-        key = f"{m['home']}_{m['away']}"
-        if key not in keys:
-            combined.append(m); keys.add(key)
-
-    for m in btts_matches:
-        key = f"{m['home']}_{m['away']}"
-        if key not in keys:
-            combined.append(m); keys.add(key)
-
-    # ★ ДОБАВЛЯЕМ СТАТИСТИКУ В ОБЩИЙ СПИСОК
-    for m in stats_matches:
-        key = f"{m['home']}_{m['away']}"
-        if key not in keys:
-            combined.append(m); keys.add(key)
 
     for m in lm_matches:
         key = f"{m['home']}_{m['away']}"
         if key not in keys:
-            combined.append(m); keys.add(key)
+            combined.append(m)
+            keys.add(key)
 
-    for m in top_matches_70:
-        key = f"{m['home']}_{m['away']}"
-        if key not in keys:
-            combined.append(m); keys.add(key)
-
-    for m in tm25_matches:
-        key = f"{m['home']}_{m['away']}"
-        if key not in keys:
-            combined.append(m); keys.add(key)
-
+    # Сортируем по силе движения (чем сильнее упал кэф, тем выше)
     def _sort_key(m):
-        src = m.get('source', '')
-        if src == 'line_movement':
-            return (1, abs(m['best_bet'].get('movement_pct', 0)))
-        return (0, m['best_bet'].get('ev', 0))
-
+        return abs(m['best_bet'].get('movement_pct', 0))
+    
     combined.sort(key=_sort_key, reverse=True)
 
-    if getattr(Config, 'X2_ENABLED', False):
-        X2_MAX_PCT = getattr(Config, 'X2_MAX_PCT_OF_BETS', 0.40)
-        x2_count = sum(1 for m in combined if 'X2' in (m.get('best_bet', {}).get('label', '')))
-        max_x2 = max(3, int(len(combined) * X2_MAX_PCT))
-        if x2_count > max_x2:
-            logger.info(f"⚖️ X2-балансировка: {x2_count} X2 из {len(combined)} (лимит {max_x2}) — урезаем")
-            non_x2 = [m for m in combined if 'X2' not in (m.get('best_bet', {}).get('label', ''))]
-            x2_only = [m for m in combined if 'X2' in (m.get('best_bet', {}).get('label', ''))]
-            combined = non_x2 + x2_only[:max_x2]
-            combined.sort(key=_sort_key, reverse=True)
-            logger.info(f"⚖️ После X2-балансировки: {len(combined)} матчей ({len(non_x2)} не-X2 + {min(len(x2_only), max_x2)} X2)")
-
-    all_before_odds_filter = []
-    for _m in matches:
-        try:
-            _fixture = _m.get('fixture', {}) or {}
-            _teams = _m.get('teams', {}) or {}
-            _ld = _m.get('league', {}) or {}
-            _home_name = _teams.get('home', {}).get('name', '?')
-            _away_name = _teams.get('away', {}).get('name', '?')
-            _fixture_id = _fixture.get('id')
-            _match_time = parse_match_time_to_msk(_fixture.get('date', ''))
-
-            _pre = _m.get('_preloaded_odds') or {}
-            _best_label = '—'
-            _best_odds = 0
-            _bm = '—'
-            for _k, _lbl in [('best_odds', '1X2'), ('1x_odds', '1X'), ('x2_odds', 'X2'),
-                             ('home_odds', 'П1'), ('away_odds', 'П2'),
-                             ('under_odds', 'ТМ 2.5'), ('over_odds', 'ТБ 2.5'),
-                             ('btts_yes', 'ОБЗ')]:
-                _v = _pre.get(_k, 0) or 0
-                if _v > 1.01:
-                    _best_odds = _v
-                    _best_label = _lbl
-                    _bm = _pre.get('bookmaker', '—')
-                    break
-
-            _factors = _m.get('factors', {}) or {}
-            _hfd = _factors.get('home_form') or {}
-            _afd = _factors.get('away_form') or {}
-            _home_form = _hfd.get('form', '') if isinstance(_hfd, dict) else ''
-            _away_form = _afd.get('form', '') if isinstance(_afd, dict) else ''
-            _total_xg = 0
-            try:
-                _hga = _hfd.get('goals_avg', 1.2) if isinstance(_hfd, dict) else 1.2
-                _aga = _afd.get('goals_avg', 1.0) if isinstance(_afd, dict) else 1.0
-                _hca = _hfd.get('conceded_avg', 1.0) if isinstance(_hfd, dict) else 1.0
-                _aca = _afd.get('conceded_avg', 1.2) if isinstance(_afd, dict) else 1.2
-                _home_xg = (_hga + _aca) / 2
-                _away_xg = (_aga + _hca) / 2
-                _total_xg = round(_home_xg + _away_xg, 2)
-            except Exception:
-                pass
-
-            _country, _flag = _get_country_flag(_ld.get('id') if isinstance(_ld, dict) else None)
-
-            _raw = {
-                'home': _home_name,
-                'away': _away_name,
-                'fixture_id': _fixture_id,
-                'match_time': _match_time,
-                'league': _ld.get('name', '') if isinstance(_ld, dict) else '',
-                'country': _country,
-                'country_flag': _flag,
-                'status': _fixture.get('status', {}).get('short', 'NS'),
-                'source': 'raw',
-                'best_bet': {
-                    'label': _best_label,
-                    'odds': _best_odds,
-                    'ev': 0,
-                    'prob': 0,
-                    'stake': 0,
-                    'bookmaker': _bm,
-                },
-                'bets': [],
-                'total_xg': _total_xg,
-                'home_form': _home_form,
-                'away_form': _away_form,
-                '_preloaded_odds': _pre,
-            }
-            all_before_odds_filter.append(_raw)
-        except Exception:
-            continue
-
-    if combined:
-        logger.info(f"📡 Обновление кэфов для {len(combined)} матчей...")
-        combined = update_odds_for_matches(combined)
-
     if not combined:
-        with cache_lock:
-            cache = storage.load_cache()
-            cache['top_matches'] = []
-            cache['all_analyzed'] = all_before_odds_filter
-            storage.save_cache(cache)
+        logger.info("⚠️ Нет сигналов Line Movement")
         return []
 
-    for m in combined:
-        bets = [b for b in m.get('bets', []) if b.get('odds', 0) > 1.01]
-        if not bets: continue
-        bets.sort(key=lambda x: x.get('ev', 0), reverse=True)
-        m['bets'] = bets
-        m['best_bet'] = bets[0]
-        if not m.get('fixture_id'):
-            logger.warning(f"⚠️ Потерян fixture_id для {m.get('home')} vs {m.get('away')}")
+    # 3. Обновляем кэфы (делаем один запрос на все найденные матчи)
+    logger.info(f"📡 Обновление кэфов для {len(combined)} сигналов...")
+    combined = update_odds_for_matches(combined)
 
-    EV_MIN = getattr(Config, 'EV_FINAL_MIN', -15)
-    EV_MAX = getattr(Config, 'EV_FINAL_MAX', 150)
-    PROB_MIN = getattr(Config, 'PROB_FINAL_MIN', 40)
-    template_skipped = 0
-    score_skipped = 0
+    # 4. Финальная фильтрация перед сохранением
     filtered = []
     for m in combined:
         bb = m.get('best_bet', {})
-        ev = bb.get('ev', 0)
-        prob = bb.get('prob', 0)
-        odds = bb.get('odds', 0)
-        src = m.get('source', '')
+        # Оставляем только те, где кэф реально обновился (чтобы не ставить по шаблону)
+        if bb.get('odds_updated'):
+            m.pop('_preloaded_odds', None)
+            m.pop('_preloaded_preds', None)
+            filtered.append(m)
 
-        if src in ('value', 'btts', 'line_movement', 'stats'):
-            if ev < EV_MIN: continue
-            if src not in ('line_movement', 'stats') and prob < PROB_MIN: continue
-        else:
-            if ev < EV_MIN or ev > EV_MAX: continue
-            if prob < PROB_MIN: continue
+    logger.info(f"📊 Итоговых сигналов: {len(filtered)}")
 
-        if not bb.get('odds_updated'):
-            template_skipped += 1
-            logger.info(
-                f"⏭️ TEMPLATE SKIP (кэф не найден): "
-                f"{m.get('home')} vs {m.get('away')} | {bb.get('label')} @ {bb.get('odds')}"
-            )
-            continue
-
-        if src not in ('line_movement', 'stats'):
-            clv_mult = {
-                'boosted': 1.5, 'normal': 1.0, 'reduced': 0.5,
-                'no_data': 1.0, 'no_model': 1.0, 'disabled': 1.0,
-            }.get(bb.get('clv_action', 'normal'), 1.0)
-
-            score = calc_match_score(
-                ev=ev, prob=prob, odds=odds,
-                clv_mult=clv_mult,
-                total_xg=m.get('total_xg', 0),
-            )
-            threshold = get_score_threshold(src)
-
-            if score < threshold:
-                score_skipped += 1
-                logger.info(
-                    f"⏭️ SCORE SKIP ({score} < {threshold}): "
-                    f"{m.get('home')} vs {m.get('away')} | "
-                    f"EV={ev}% Prob={prob}% CLV×{clv_mult} XG={m.get('total_xg', 0)}"
-                )
-                continue
-
-            m['score'] = score
-
-        m.pop('_preloaded_odds', None)
-        m.pop('_preloaded_preds', None)
-        filtered.append(m)
-
-    logger.info(f"📊 После фильтра: {len(filtered)} из {len(combined)}, score-skip: {score_skipped}")
-
+    # 5. Сохраняем в кэш
     with cache_lock:
         cache = storage.load_cache()
         cache['top_matches'] = filtered
-        cache['all_analyzed'] = all_before_odds_filter
+        cache['all_analyzed'] = [] # Очищаем мусор
         storage.save_cache(cache)
 
+    # 6. Добавляем в историю (в БД)
     history = storage.load_history()
     today_str = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d')
-    existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0])
-                for h in history}
+    existing = {(h.get('home'), h.get('away'), h.get('date', '').split()[0]) for h in history}
     added = 0
     for md in filtered:
         bb = md.get('best_bet', {})
         key = (md.get('home'), md.get('away'), today_str)
         if key in existing: continue
         existing.add(key)
-        if not md.get('fixture_id'): continue
+        
         history.append({
             'home': md.get('home'), 'away': md.get('away'),
             'league': md.get('league'),
@@ -5535,46 +5338,26 @@ def find_top_matches_with_tm25(matches):
             'odds': bb.get('odds', 0),
             'stake': bb.get('stake', 0),
             'ev': bb.get('ev', 0), 'prob': bb.get('prob', 0),
-            'prob_calibrated': bb.get('prob_calibrated', bb.get('prob', 0)),
             'result': 'pending', 'profit': 0,
             'date': (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M'),
             'match_time': md.get('match_time', ''),
             'fixture_id': md.get('fixture_id'),
             'bookmaker': bb.get('bookmaker', '—'),
-            'engine': Config.PREDICTION_ENGINE,
-            'weather_reason': md.get('weather_reason', ''),
-            'source': md.get('source', '70_percent'),
-            'llm_reason': bb.get('llm_reason', ''),
-            'steam_move': bb.get('steam_move', False),
-            'clv_adjusted': bb.get('clv_adjusted', False),
-            'score': md.get('score') or bb.get('score') or 0,
+            'engine': 'line_movement',
+            'weather_reason': '',
+            'source': 'line_movement',
+            'llm_reason': '',
+            'steam_move': True,
+            'clv_adjusted': True,
+            'score': 0,
         })
         added += 1
-    storage.save_history(history)
-    logger.info(f"📝 Добавлено ставок: {added}")
+    
+    if added > 0:
+        storage.save_history(history)
+        logger.info(f"📝 Добавлено в историю: {added}")
 
-    if Config.LLM_ENABLED and filtered:
-        try:
-            pick = llm_pick_best(filtered)
-            if pick:
-                best_match = pick['match']
-                best = best_match.get('best_bet', {})
-                reason = pick.get('reason', '')
-                pick_msg = (
-                    f"🧠 <b>DeepSeek: МОЙ ВЫБОР ДНЯ</b>\n\n"
-                    f"🏟️ <b>{best_match.get('home')} vs {best_match.get('away')}</b>\n"
-                    f"🏆 {best_match.get('league', '?')}\n"
-                    f"📅 {best_match.get('match_time', '?')}\n\n"
-                    f"🎯 <b>{best.get('label', '—')}</b>\n"
-                    f"💰 Кэф: <b>{best.get('odds', 0)}</b>\n"
-                    f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%\n"
-                    f"💵 Stake: ${best.get('stake', 0)}\n\n"
-                    f"💡 <i>{reason}</i>"
-                )
-                send_telegram(pick_msg)
-        except Exception as e:
-            logger.error(f"llm_pick_best error: {e}")
-
+    # 7. Автоставки
     try:
         placed = autobet_manager.place_bets_from_cache()
         if placed > 0:
@@ -5582,7 +5365,6 @@ def find_top_matches_with_tm25(matches):
     except Exception as e:
         logger.error(f"Ошибка автоставок: {e}")
 
-    logger.info("=" * 60)
     return filtered
 
 
