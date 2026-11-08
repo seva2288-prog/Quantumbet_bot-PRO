@@ -141,7 +141,7 @@ class Config:
     # ============================================================
     # ★ BTTS (Обе Забьют)
     # ============================================================
-    BTTS_ENABLED = True
+    BTTS_ENABLED = False
     BTTS_MAX_BETS = 3
     BTTS_MIN_ODDS = 1.60
     BTTS_MAX_ODDS = 2.20
@@ -181,7 +181,7 @@ class Config:
     # ============================================================
     # ★ СТАТИСТИКА: УГЛОВЫЕ И КАРТОЧКИ
     # ============================================================
-    STATS_ENABLED = True
+    STATS_ENABLED = False
     STATS_MIN_EV = 12           
     STATS_MIN_PROB = 55         
     STATS_CORNERS_MIN_AVG = 8.5 
@@ -192,25 +192,25 @@ class Config:
     # ============================================================
     LINE_MOVEMENT_ENABLED = True
 
-    LINE_MOVEMENT_MIN_DROP_PCT = -6.0
+    LINE_MOVEMENT_MIN_DROP_PCT = -4.0
     LINE_MOVEMENT_MAX_DROP_PCT = -15.0
     LINE_MOVEMENT_MIN_RISE_PCT = 8.0
     LINE_MOVEMENT_MAX_RISE_PCT = 20.0
 
-    LINE_MOVEMENT_HOURS_BEFORE = 6
+    LINE_MOVEMENT_HOURS_BEFORE = 12
     LINE_MOVEMENT_MIN_SNAPSHOTS = 3
     LINE_MOVEMENT_MAX_SNAPSHOTS = 20
 
     LINE_MOVEMENT_TRADE_DROPS = True
     LINE_MOVEMENT_TRADE_RISES = False
 
-    LINE_MOVEMENT_BET_TYPES = ['1', 'X', '2', '1X', 'X2']
+    LINE_MOVEMENT_BET_TYPES = ['2']
 
-    LINE_MOVEMENT_MAX_BETS = 2
+    LINE_MOVEMENT_MAX_BETS = 3
     LINE_MOVEMENT_MAX_LEAGUE_BETS = 1
 
-    LINE_MOVEMENT_MIN_ODDS = 1.40
-    LINE_MOVEMENT_MAX_ODDS = 3.50
+    LINE_MOVEMENT_MIN_ODDS = 2.0
+    LINE_MOVEMENT_MAX_ODDS = 4.5
 
     LINE_MOVEMENT_STAKE_PCT = 0.015
 
