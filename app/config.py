@@ -72,7 +72,7 @@ class Config:
     USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
-    USE_API_LEAGUES = False  
+    USE_API_LEAGUES = True  
 
     # ============================================================
     # === PREDICTION ENGINE ===
