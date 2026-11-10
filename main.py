@@ -9136,7 +9136,7 @@ if __name__ == "__main__":
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
-        trigger='interval', minutes=15, id='odds_snapshot', # было 30
+        trigger='interval', minutes=5, id='odds_snapshot', # было 30
         replace_existing=True, max_instances=1,
         misfire_grace_time=60, coalesce=True
     )
