@@ -3350,6 +3350,27 @@ def update_odds_for_matches(matches):
                             bookmaker = fo.get('bookmaker', 'Football API')
                             source = 'Football API'
 
+                      # ★★★ НАЧАЛО ВТОРОГО СЛОЯ (RLM) ★★★
+            # Если это АПЛ, мы требуем подтверждения: кэф на хозяев должен вырасти
+            if league_name == 'Premier League':
+                home_odds_first = 0
+                home_odds_last = 0
+                
+                for s in snaps_sorted:
+                    if s.get('selection') == '1':
+                        if home_odds_first == 0:
+                            home_odds_first = float(s.get('odds', 0))
+                        home_odds_last = float(s.get('odds', 0))
+                
+                if home_odds_first > 1.01 and home_odds_last > 1.01:
+                    home_change = ((home_odds_last / home_odds_first) - 1) * 100
+                    if home_change < 2.0:
+                        logger.info(f"⏭️ RLM SKIP (АПЛ): {meta['home']} vs {meta['away']} | Кэф Х не вырос ({home_change:.1f}%)")
+                        stats['no_drop'] += 1
+                        continue
+                else:
+                    continue
+            # ★★★ КОНЕЦ ВТОРОГО СЛОЯ ★★★
             if new_odds and new_odds > 0:
                 MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
                 MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
