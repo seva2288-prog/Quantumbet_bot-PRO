@@ -1,6 +1,6 @@
 """Конфигурация бота — Quantum Bet Bot PRO
 Обновлено под тариф Ultra (75 000 req/day, 450 req/min)
-★ ВЕРСИЯ 3.12 — Расширенный список лиг (130+) и стран (35)
+★ ВЕРСИЯ 3.13 — Line Movement v5.1 (RLM EPL + MIN_SPAN_HOURS)
 """
 import os
 import sys
@@ -188,7 +188,7 @@ class Config:
     STATS_CARDS_MIN_AVG = 3.5   
     
     # ============================================================
-    # ★ LINE MOVEMENT (Аномалии кэфов)
+    # ★ LINE MOVEMENT (Аномалии кэфов) — v5.1
     # ============================================================
     LINE_MOVEMENT_ENABLED = True
 
@@ -200,6 +200,9 @@ class Config:
     LINE_MOVEMENT_HOURS_BEFORE = 12
     LINE_MOVEMENT_MIN_SNAPSHOTS = 3
     LINE_MOVEMENT_MAX_SNAPSHOTS = 20
+
+    # ★ v5.1: мин. разброс снимков во времени (часы)
+    LINE_MOVEMENT_MIN_SPAN_HOURS = 0.5
 
     LINE_MOVEMENT_TRADE_DROPS = True
     LINE_MOVEMENT_TRADE_RISES = False
@@ -213,6 +216,11 @@ class Config:
     LINE_MOVEMENT_MAX_ODDS = 4.5
 
     LINE_MOVEMENT_STAKE_PCT = 0.015
+
+    # ★ v5.1: RLM-фильтр для Premier League
+    RLM_EPL_MIN_HOURS = 1.0
+    RLM_EPL_MIN_CHANGE_PCT = 6.0
+    RLM_EPL_REQUIRE_RISE = False
 
     LINE_MOVEMENT_LEAGUE_BLACKLIST = [
         'Primera Federación', 'Serie C', '3. Liga', 'National',
@@ -881,6 +889,10 @@ class Config:
               f"типы: {cls.LINE_MOVEMENT_BET_TYPES}")
         print(f"   • Кэф: {cls.LINE_MOVEMENT_MIN_ODDS}-{cls.LINE_MOVEMENT_MAX_ODDS} | "
               f"stake={cls.LINE_MOVEMENT_STAKE_PCT*100}% банка")
+        print(f"   • MIN_SPAN_HOURS: {cls.LINE_MOVEMENT_MIN_SPAN_HOURS}ч")
+        print(f"   • RLM EPL: min_hours={cls.RLM_EPL_MIN_HOURS}ч | "
+              f"min_change={cls.RLM_EPL_MIN_CHANGE_PCT}% | "
+              f"require_rise={cls.RLM_EPL_REQUIRE_RISE}")
         print(f"   • Whitelist: {len(cls.LINE_MOVEMENT_LEAGUE_WHITELIST)} лиг | "
               f"Blacklist: {len(cls.LINE_MOVEMENT_LEAGUE_BLACKLIST)} лиг")
         print(f"")
