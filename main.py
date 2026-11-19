@@ -4981,7 +4981,7 @@ def find_stats_matches(matches):
 
 
 # ============================================================
-# ★ ПОТОК 5: LINE MOVEMENT (v5.1 — с фиксами)
+# ★ ПОТОК 5: LINE MOVEMENT (v5.2 — с фиксами и фильтром Scotland)
 # ============================================================
 @timing_decorator()
 def find_line_movement_matches(matches):
@@ -5016,15 +5016,12 @@ def find_line_movement_matches(matches):
     MIN_SPAN_HOURS = getattr(Config, 'LINE_MOVEMENT_MIN_SPAN_HOURS', 0.5)
 
     # ★ FIX 5: явные границы диапазонов падения/роста
-    # MIN_DROP/MAX_DROP в конфиге заданы как отрицательные числа,
-    # где MIN_DROP > MAX_DROP (например -6 > -15).
-    # Приводим к виду DROP_LOW <= change <= DROP_HIGH.
     DROP_LOW = min(MIN_DROP, MAX_DROP)     # -15.0
     DROP_HIGH = max(MIN_DROP, MAX_DROP)    # -6.0
     RISE_LOW = min(MIN_RISE, MAX_RISE)     # 8.0
     RISE_HIGH = max(MIN_RISE, MAX_RISE)    # 20.0
 
-    logger.info("🔍 [LINE MOVEMENT v5.1] Поиск аномалий кэфов...")
+    logger.info("🔍 [LINE MOVEMENT v5.2] Поиск аномалий кэфов...")
     stats = {
         'found': 0,
         'blacklist': 0,
@@ -5037,6 +5034,7 @@ def find_line_movement_matches(matches):
         'time_filter': 0,
         'parse_error': 0,
         'rlm_rejected': 0,
+        'fav_collapse_rejected': 0, # ★ Новая метрика
     }
 
     # ---------- match_lookup ----------
@@ -5229,6 +5227,36 @@ def find_line_movement_matches(matches):
                     f"({change_pct:+.1f}% за {hours_diff:.1f}ч)"
                 )
 
+            # ============================================================
+            # ★ NEW: ФИЛЬТР "СЛОМ ФАВОРИТА" (Favourite Collapse)
+            # ============================================================
+            # Применяем для Шотландского Чемпионшипа (где нашли ROI +43%)
+            # Условие: Хозяева - явные фавориты (<2.0), Гости - андердоги (>3.5)
+            country_name, country_flag = name_to_country.get(league_name, ("", ""))
+            
+            if 'Scottish' in country_name and market == '1X2' and sel == '2':
+                # Ищем снимки кэфа на хозяев (1) для этого же матча
+                home_snaps = [s for s in all_snaps if s.get('fixture_id') == fid and s.get('selection') == '1']
+                
+                if home_snaps:
+                    home_snaps_sorted = sorted(home_snaps, key=lambda x: x.get('created_at', ''))
+                    home_odds = float(home_snaps_sorted[-1].get('odds', 0))
+                    
+                    # Отсекаем, если хозяева не фавориты
+                    if home_odds >= 2.0:
+                        stats['fav_collapse_rejected'] += 1
+                        logger.debug(f"⏭️ [LM Scotland] Пропуск: хозяева не фавориты (кэф {home_odds})")
+                        continue
+                    
+                    # Отсекаем, если гости изначально не были андердогами (по открытию)
+                    # Так как new_odds - это закрытие, смотрим на old_odds (открытие)
+                    if old_odds < 3.5:
+                        stats['fav_collapse_rejected'] += 1
+                        logger.debug(f"⏭️ [LM Scotland] Пропуск: гости не были андердогами (кэф {old_odds})")
+                        continue
+                        
+                    logger.info(f"🔥 [LM Scotland] ИДЕАЛЬНЫЙ СИГНАЛ: Хозяева @ {home_odds} (фаворит), Гости @ {old_odds} -> {new_odds}")
+
             # 10) размер ставки
             final_odds = new_odds
             final_stake = round(bank * STAKE_PCT, 2)
@@ -5256,9 +5284,7 @@ def find_line_movement_matches(matches):
                 'rlm_epl': rlm_passed,
             }
 
-            # 11) ★ FIX 12: страна/флаг через предпостроенный словарь
-            country_name, country_flag = name_to_country.get(league_name, ("", ""))
-
+            # 11) страна/флаг
             candidates.append({
                 "home": meta['home'],
                 "away": meta['away'],
