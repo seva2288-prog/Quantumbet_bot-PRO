@@ -229,12 +229,16 @@ class Config:
         'OBOS-ligaen', '2. Liga', 'Вторая Лига Б',
     ]
 
+    # ============================================================
+    # ★ LINE MOVEMENT — Whitelist лиг
+    # ============================================================
     LINE_MOVEMENT_LEAGUE_WHITELIST = [
-        'Premier League',  # АПЛ (Англия) - ROI +18.1%
-        'Super League',    # Греция - ROI +26.1%
-        'Eredivisie',      # Нидерланды - ROI +7.5%
-        'Primeira Liga',   # Португалия - ROI +2.6%
-        'Pro League',      # Бельгия - ROI +2.2%
+        'Premier League',   # АПЛ (Англия) - ROI +18.1%
+        'Super League',     # Греция - ROI +26.1%
+        'Eredivisie',       # Нидерланды - ROI +7.5%
+        'Primeira Liga',    # Португалия - ROI +2.6%
+        'Pro League',       # Бельгия - ROI +2.2%
+        'Championship',     # Шотландия (D2) - ROI +15.0% ★ ДОБАВЛЕНО
     ]
 
     # ============================================================
