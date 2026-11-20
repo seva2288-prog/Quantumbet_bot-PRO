@@ -5302,8 +5302,7 @@ def find_top_matches_with_tm25(matches):
     logger.info("=" * 60)
 
     # 1. Запускаем ТОЛЬКО поиск движения линии
-    try:
-        # ★★★ ФИКС: Делаем снимки ПЕРЕД запуском LM ★★★
+    # ★★★ ФИКС: Делаем снимки ПЕРЕД запуском LM ★★★
     try:
         logger.info("📸 [PRE-LM-FIX] Принудительный вызов снимков...")
         snapshot_odds_for_upcoming()
