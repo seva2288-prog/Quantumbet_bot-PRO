@@ -3174,15 +3174,6 @@ def analyze_match(match_name):
         return f"❌ {e}"
 
 
-# ============================================================
-# ★ ОБНОВЛЕНИЕ КЭФОВ (Trusted Bookmakers Fix)
-# ============================================================
-# Белый список БК. Если API отдает кэфы только от мелких контор, лучше пропустить матч.
-TRUSTED_BOOKMAKERS = {
-    'Pinnacle', 'Bet365', '1xBet', 'William Hill', 'Marathonbet', 
-    'Betfair', '10Bet', '188Bet', 'Unibet', 'Bwin', 'Fonbet', 'Winline'
-}
-
 def update_odds_for_matches(matches):
     if not matches:
         return []
@@ -3232,8 +3223,10 @@ def update_odds_for_matches(matches):
         if idx % 10 == 0:
             send_telegram(f"💓 <b>ОБНОВЛЕНИЕ КЭФОВ</b> | {idx}/{total}")
         try:
-            home = md.get('home'); away = md.get('away')
+            home = md.get('home')
+            away = md.get('away')
             fid = md.get('fixture_id')
+            league_name = md.get('league', '')
             best_bet = md.get('best_bet', {})
             bt = best_bet.get('type', 'under')
             new_odds = None
@@ -3247,7 +3240,34 @@ def update_odds_for_matches(matches):
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
 
-            # Двойная проверка для VALUE (если кэф слишком хорош, чтобы быть правдой)
+            # ★★★ СОХРАНЕНИЕ СНИМКОВ ДЛЯ ВСЕХ ИСХОДОВ (1, X, 2) ★★★
+            if fo and fid:
+                try:
+                    # Сохраняем П1
+                    if fo.get('home_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(
+                            fixture_id=fid, market='1X2', selection='1',
+                            odds=fo['home_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
+                            home=home or '', away=away or '', league=league_name or ''
+                        )
+                    # Сохраняем Ничью
+                    if fo.get('draw_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(
+                            fixture_id=fid, market='1X2', selection='X',
+                            odds=fo['draw_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
+                            home=home or '', away=away or '', league=league_name or ''
+                        )
+                    # Сохраняем П2
+                    if fo.get('away_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(
+                            fixture_id=fid, market='1X2', selection='2',
+                            odds=fo['away_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
+                            home=home or '', away=away or '', league=league_name or ''
+                        )
+                except Exception as snap_err:
+                    logger.error(f"Ошибка записи снимков для {fid}: {snap_err}")
+
+            # Двойная проверка для VALUE
             if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
                 try:
                     fresh = football_api.get_match_odds(fid)
@@ -3265,16 +3285,16 @@ def update_odds_for_matches(matches):
             if fo and fo.get('best_odds', 0) > 0:
                 bm_list = fo.get('all_bookmakers', {})
                 
-                # ★ ФИЛЬТР TRUSTED BOOKMAKERS
+                # Фильтр TRUSTED BOOKMAKERS
                 if bm_list:
-                    # Оставляем только кэфы от надежных контор
                     trusted_bm_list = {
                         bm: data for bm, data in bm_list.items() 
                         if bm in TRUSTED_BOOKMAKERS
                     }
                     if not trusted_bm_list:
                         logger.warning(f"⏭️ Все БК ненадежные: {home} vs {away}")
-                        continue # Пропускаем матч, если все конторы мусорные
+                        updated.append(md)
+                        continue
                     
                     if bt == 'X2': target = 'x2'
                     elif bt == '1X': target = '1x'
@@ -3302,7 +3322,6 @@ def update_odds_for_matches(matches):
                             best_bet['prob'] = round(boosted * 100, 1)
                             best_bet['anomaly_bonus'] = round(anomaly_bonus * 100, 1)
                             
-                            # ★ ЗАПИСЬ В ФАЙЛ ЛАБОРАТОРИИ
                             if boosted * best_odds_val - 1 > 0.50:
                                 try:
                                     reverse_bet = '—'
@@ -3327,7 +3346,7 @@ def update_odds_for_matches(matches):
                                     logger.error(f"Lab write error: {e}")
                 
                 if not new_odds:
-                    # Fallback логика (если не нашли по конкретному типу, берем лучший доступный)
+                    # Fallback логика
                     if bt == 'X2' and fo.get('x2_odds', 0) > 0:
                         new_odds = fo['x2_odds']; bookmaker = fo.get('bookmaker', 'Football API'); source = 'Football API (X2)'
                     elif bt == '1X' and fo.get('1x_odds', 0) > 0:
@@ -3350,32 +3369,14 @@ def update_odds_for_matches(matches):
                             bookmaker = fo.get('bookmaker', 'Football API')
                             source = 'Football API'
 
-                      # ★★★ НАЧАЛО ВТОРОГО СЛОЯ (RLM) ★★★
-            # Если это АПЛ, мы требуем подтверждения: кэф на хозяев должен вырасти
-            if league_name == 'Premier League':
-                home_odds_first = 0
-                home_odds_last = 0
-                
-                for s in snaps_sorted:
-                    if s.get('selection') == '1':
-                        if home_odds_first == 0:
-                            home_odds_first = float(s.get('odds', 0))
-                        home_odds_last = float(s.get('odds', 0))
-                
-                if home_odds_first > 1.01 and home_odds_last > 1.01:
-                    home_change = ((home_odds_last / home_odds_first) - 1) * 100
-                    if home_change < 2.0:
-                        logger.info(f"⏭️ RLM SKIP (АПЛ): {meta['home']} vs {meta['away']} | Кэф Х не вырос ({home_change:.1f}%)")
-                        stats['no_drop'] += 1
-                        continue
-                else:
-                    continue
-            # ★★★ КОНЕЦ ВТОРОГО СЛОЯ ★★★
+            # Убрали блок RLM, который ломал функцию
+
             if new_odds and new_odds > 0:
                 MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
                 MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
                 if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
                     logger.info(f"⏭️ Кэф {new_odds} вне [{MIN_ODDS}, {MAX_ODDS}]")
+                    updated.append(md)
                     continue
                 prob_pct = best_bet.get('prob', 0)
                 calibrated_pct = calibrate_prob(prob_pct, use_bucket=True)
@@ -3413,38 +3414,6 @@ def update_odds_for_matches(matches):
 
                 md['best_bet'] = best_bet
                 md['odds_updated'] = True
-
-                try:
-                    mkt, sel = _map_bet_to_market(bt)
-                    steam = detect_steam_move(fid, mkt, sel, hours_back=3)
-                    if steam:
-                        steam_bonus = min(steam['bm_count'] * 1.5, 5.0)
-                        old_prob = best_bet.get('prob_calibrated', best_bet.get('prob', 0))
-                        boosted_prob = min(old_prob + steam_bonus, 95.0)
-                        best_bet['prob_calibrated'] = round(boosted_prob, 1)
-                        best_bet['steam_move'] = True
-                        best_bet['steam_bm_count'] = steam['bm_count']
-                        best_bet['steam_avg_change'] = steam['avg_change']
-                        if new_odds > 1.01:
-                            best_bet['ev'] = round((boosted_prob / 100 * new_odds - 1) * 100, 1)
-                        logger.info(
-                            f"🔥 STEAM MOVE {home} vs {away} | {sel} | "
-                            f"{steam['bm_count']} БК, avg {steam['avg_change']}% → "
-                            f"prob +{steam_bonus:.1f}%"
-                        )
-                except Exception as e:
-                    logger.error(f"Steam move check: {e}")
-
-                try:
-                    mkt, sel = _map_bet_to_market(bt)
-                    storage.save_odds_snapshot(
-                        fixture_id=fid, market=mkt,
-                        selection=sel, odds=new_odds, bookmaker=bookmaker,
-                        home=home or '', away=away or '',
-                        league=md.get('league', '') or ''
-                    )
-                except Exception as e:
-                    logger.error(f"Ошибка записи снимка: {e}")
                 updated.append(md)
             else:
                 logger.warning(f"⏭️ Кэф не найден: {home} vs {away}")
@@ -3454,19 +3423,6 @@ def update_odds_for_matches(matches):
             logger.error(f"Ошибка кэфов: {e}")
             continue
     return updated
-
-
-def _map_bet_to_market(bt):
-    """Маппинг типа ставки → (market, selection) для снимков."""
-    market_map = {
-        'draw': ('1X2', 'X'), 'btts': ('BTTS', 'BTTS'),
-        'over25': ('O/U 2.5', 'Over'), 'under25': ('O/U 2.5', 'Under'),
-        'over': ('O/U 2.5', 'Over'), 'under': ('O/U 2.5', 'Under'),
-        'underdog': ('1X2', 'Underdog'),
-        'П1': ('1X2', '1'), 'П2': ('1X2', '2'),
-        '1X': ('DC', '1X'), 'X2': ('DC', 'X2'),
-    }
-    return market_map.get(bt, (bt, 'unknown'))
 
 
 # ============================================================
