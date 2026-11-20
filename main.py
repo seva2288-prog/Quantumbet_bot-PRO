@@ -5035,6 +5035,21 @@ def find_line_movement_matches(matches):
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
     LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
 
+    # ★★★ ПРИНУДИТЕЛЬНЫЙ СНИМОК ДЛЯ ДИАГНОСТИКИ ★★★
+            # Берем свежие кэфы из API и сохраняем в базу прямо здесь
+            try:
+                fo = football_api.get_match_odds(fid)
+                if fo:
+                    if fo.get('home_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
+                    if fo.get('draw_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
+                    if fo.get('away_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
+                    logger.info(f"✅ [DEBUG] Принудительно сохранены снимки для {meta['home']} vs {meta['away']} @ {fo.get('away_odds')}")
+            except Exception as e:
+                logger.error(f"❌ [DEBUG] Ошибка сохранения: {e}")
+
     # ---------- группировка снимков ----------
     groups = defaultdict(list)
     for s in all_snaps:
