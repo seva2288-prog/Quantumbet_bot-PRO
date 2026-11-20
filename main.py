@@ -5052,20 +5052,6 @@ def find_line_movement_matches(matches):
             meta = match_lookup[fid]
             league_name = meta['league']
 
-            # ★★★ АБСОЛЮТНЫЙ ХАК: Делаем снимок прямо здесь ★★★
-            try:
-                fo = football_api.get_match_odds(fid)
-                if fo and fo.get('away_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(
-                        fixture_id=fid, market='1X2', selection='2',
-                        odds=fo['away_odds'], bookmaker='Hack',
-                        home=meta['home'], away=meta['away'], league=meta['league']
-                    )
-                    logger.info(f"✅ [HACK] Снимок сохранен! {meta['home']} vs {meta['away']} | П2: {fo['away_odds']}")
-            except Exception as e:
-                logger.error(f"❌ [HACK] Ошибка: {e}")
-            # ★★★ КОНЕЦ ХАКА ★★★
-
             # 1) blacklist / whitelist
             if Config.is_lm_league_blacklisted(league_name):
                 stats['blacklist'] += 1
@@ -5610,7 +5596,7 @@ def snapshot_odds_for_upcoming():
             hours_to_match = (match_dt - now_msk).total_seconds() / 3600
             if hours_to_match < -24:
                 continue
-            if not (0 < hours_to_match <= 15):
+            if not (0 < hours_to_match <= 36):
                 continue
             fid = md.get('fixture_id')
             if not fid:
