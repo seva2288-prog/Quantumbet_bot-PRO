@@ -4942,14 +4942,6 @@ def find_line_movement_matches(matches):
          logger.info("[LM] База пуста. Ждем CACHE-FIX.")
          return []
         
-        # После сохранения снова читаем из базы
-        all_snaps = storage.get_snapshots_since(snapshots_cutoff)
-        if not all_snaps:
-            logger.info("[LM] Всё равно пусто после хака. Выходим.")
-            return []
-        else:
-            logger.info(f"[LM] После хака в базе {len(all_snaps)} снимков!")
-
         LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
     LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
