@@ -3082,98 +3082,6 @@ def _apply_llm_to_match(match: dict, llm: dict, alpha: float = 0.7):
             logger.error(f"_apply_llm_to_match CLV: {e}")
 
 
-# ============================================================
-# РУЧНОЕ ОБНОВЛЕНИЕ (Без изменений)
-# ============================================================
-def update_manual_result(match_name, score):
-    try:
-        hg = ag = None
-        if score and '-' in score:
-            parts = score.split('-')
-            hg = int(parts[0].strip()); ag = int(parts[1].strip())
-        history = storage.load_history()
-        found = False
-        result = 'pending'
-        for bet in history:
-            if bet.get('result') in ('pending', None):
-                full = f"{bet.get('home', '')} vs {bet.get('away', '')}"
-                if match_name.lower() in full.lower() or full.lower() in match_name.lower():
-                    bet['home_goals'] = hg
-                    bet['away_goals'] = ag
-                    result = determine_bet_result(bet.get('bet', ''), hg, ag)
-                    bet['result'] = result
-                    if result == 'win':
-                        bet['profit'] = round(bet['stake'] * (bet['odds'] - 1), 2)
-                    elif result == 'loss':
-                        bet['profit'] = -bet['stake']
-                    else:
-                        bet['profit'] = 0
-                    found = True
-                    break
-        if found:
-            storage.save_history(history)
-            recalc_stats()
-            return f"✅ {match_name} | {hg}-{ag} | {result}"
-        return f"❌ '{match_name}' не найден"
-    except Exception as e:
-        return f"❌ Ошибка: {e}"
-
-
-def analyze_match(match_name):
-    try:
-        cache = storage.load_cache()
-        matches = cache.get('top_matches', [])
-        for m in matches:
-            full = f"{m.get('home', '')} vs {m.get('away', '')}"
-            if match_name.lower() in full.lower() or full.lower() in match_name.lower():
-                src = m.get('source', '70_percent')
-                src_label = {
-                    'value': '💎 VALUE',
-                    'btts': '⚽ BTTS (Обе Забьют)',
-                    'tm25_premium': '🔥 PREMIUM ТМ 2.5',
-                    'tm25_standard': '⭐ STANDARD ТМ 2.5',
-                    'line_movement': '📈 LINE MOVEMENT',
-                    '70_percent': '🎯 70%+',
-                    'stats': '📐 СТАТИСТИКА',
-                }.get(src, '🎯')
-                country_str = ''
-                if m.get('country'):
-                    country_str = f" • {m.get('country_flag', '')} {m.get('country')}"
-                r = (f"📊 <b>АНАЛИЗ</b>\n"
-                     f"🏟️ {full}\n"
-                     f"🏆 {m.get('league', '?')}{country_str}\n"
-                     f"📅 {m.get('match_time', '?')}\n"
-                     f"{src_label}\n\n")
-                best = m.get('best_bet', {})
-                r += f"🎯 <b>{best.get('label', '—')}</b>\n"
-                if src == 'line_movement':
-                    r += f"📉 Движение: {best.get('movement_pct', 0)}% за {best.get('movement_hours', 0)}ч\n"
-                    r += f"💰 Было: {best.get('old_odds', 0)} → Стало: {best.get('odds', 0)}\n"
-                    r += f"📸 Снимков: {best.get('snapshots_count', 0)}\n"
-                else:
-                    r += f"📈 EV: {best.get('ev', 0)}% | Prob: {best.get('prob', 0)}%"
-                    if best.get('prob_calibrated') and best.get('prob_calibrated') != best.get('prob'):
-                        r += f" (cal: {best.get('prob_calibrated')}%)"
-                    if best.get('clv_adjusted'):
-                        r += f" (CLV-adj)"
-                    r += "\n"
-                    r += f"💰 Кэф: {best.get('odds', 0)}\n"
-                r += f"💵 Stake: ${best.get('stake', 0)} ({best.get('clv_action', '')})\n\n"
-                for i, b in enumerate(m.get('bets', [])[:7], 1):
-                    emoji = "🟢" if b.get('ev', 0) > 10 else "🟡" if b.get('ev', 0) > 5 else "🔴"
-                    r += f"{emoji} {i}. {b.get('label')} | EV: {b.get('ev')}% | КЭФ: {b.get('odds')}\n"
-                r += f"\n⚽ XG: {m.get('total_xg', 0):.2f}\n"
-                r += f"📈 Форма: {m.get('home_form')} vs {m.get('away_form')}"
-                if best.get('llm_reason'):
-                    r += f"\n💡 <i>{best['llm_reason']}</i>"
-                if m.get('weather_reason'):
-                    r += f"\n{m['weather_reason']}"
-                return r
-        return f"❌ '{match_name}' не найден"
-    except Exception as e:
-        return f"❌ {e}"
-
-
 def update_odds_for_matches(matches):
     if not matches:
         return []
@@ -3219,6 +3127,39 @@ def update_odds_for_matches(matches):
 
     updated = []
     total = len(matches)
+    
+    # ★★★ ЖЕСТКИЙ ФИКС: Сначала сохраняем снимки для ВСЕХ матчей ★★★
+    logger.info(f"📸 [SNAPSHOT FIX] Принудительное сохранение снимков для {total} матчей...")
+    saved_count = 0
+    for md in matches:
+        fid = md.get('fixture_id')
+        if not fid:
+            continue
+        fo = batch_odds.get(fid)
+        if not fo:
+            fo = football_api.get_match_odds(fid)
+        
+        if fo:
+            try:
+                home = md.get('home', '')
+                away = md.get('away', '')
+                league = md.get('league', '')
+                
+                if fo.get('home_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Fix', home, away, league)
+                if fo.get('draw_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Fix', home, away, league)
+                if fo.get('away_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', home, away, league)
+                    logger.info(f"✅ [SNAPSHOT FIX] Сохранен снимок: {home} vs {away} | П2: {fo['away_odds']}")
+                saved_count += 1
+            except Exception as e:
+                logger.error(f"❌ [SNAPSHOT FIX] Ошибка: {e}")
+    
+    if saved_count > 0:
+        logger.info(f"📸 [SNAPSHOT FIX] Всего сохранено снимков для {saved_count} матчей")
+
+    # ★★★ ДАЛЬШЕ ИДЕТ СТАРАЯ ЛОГИКА ДЛЯ BEST_BET ★★★
     for idx, md in enumerate(matches, 1):
         if idx % 10 == 0:
             send_telegram(f"💓 <b>ОБНОВЛЕНИЕ КЭФОВ</b> | {idx}/{total}")
@@ -3239,33 +3180,6 @@ def update_odds_for_matches(matches):
             fo = batch_odds.get(fid) if fid else None
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
-
-            # ★★★ СОХРАНЕНИЕ СНИМКОВ ДЛЯ ВСЕХ ИСХОДОВ (1, X, 2) ★★★
-            if fo and fid:
-                try:
-                    # Сохраняем П1
-                    if fo.get('home_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(
-                            fixture_id=fid, market='1X2', selection='1',
-                            odds=fo['home_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
-                            home=home or '', away=away or '', league=league_name or ''
-                        )
-                    # Сохраняем Ничью
-                    if fo.get('draw_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(
-                            fixture_id=fid, market='1X2', selection='X',
-                            odds=fo['draw_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
-                            home=home or '', away=away or '', league=league_name or ''
-                        )
-                    # Сохраняем П2
-                    if fo.get('away_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(
-                            fixture_id=fid, market='1X2', selection='2',
-                            odds=fo['away_odds'], bookmaker=fo.get('bookmaker', 'Football API'),
-                            home=home or '', away=away or '', league=league_name or ''
-                        )
-                except Exception as snap_err:
-                    logger.error(f"Ошибка записи снимков для {fid}: {snap_err}")
 
             # Двойная проверка для VALUE
             if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
@@ -3369,8 +3283,6 @@ def update_odds_for_matches(matches):
                             bookmaker = fo.get('bookmaker', 'Football API')
                             source = 'Football API'
 
-            # Убрали блок RLM, который ломал функцию
-
             if new_odds and new_odds > 0:
                 MIN_ODDS = getattr(Config, 'MIN_ODDS', 1.40)
                 MAX_ODDS = getattr(Config, 'MAX_ODDS', 8.00)
@@ -3423,7 +3335,6 @@ def update_odds_for_matches(matches):
             logger.error(f"Ошибка кэфов: {e}")
             continue
     return updated
-
 
 # ============================================================
 # ПОИСК МАТЧЕЙ + ФАКТОРЫ (Без изменений)
