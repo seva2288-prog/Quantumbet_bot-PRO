@@ -4939,8 +4939,37 @@ def find_line_movement_matches(matches):
         return []
 
     if not all_snaps:
-        logger.info("[LM] Нет снимков в БД")
-        return []
+        logger.info("[LM] База пуста. Принудительно делаем снимки для всех матчей...")
+        for m in matches:
+            fid = m.get('fixture_id')
+            if not fid:
+                continue
+            try:
+                # Идем в API за кэфами
+                fo = football_api.get_match_odds(fid)
+                if fo:
+                    home = m.get('home', '')
+                    away = m.get('away', '')
+                    league = m.get('league', '')
+                    
+                    if fo.get('home_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Hack', home, away, league)
+                    if fo.get('draw_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Hack', home, away, league)
+                    if fo.get('away_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Hack', home, away, league)
+                        
+                    logger.info(f"📸 [HACK] Сохранен снимок для {home} vs {away} (П2: {fo.get('away_odds')})")
+            except Exception as e:
+                logger.error(f"Ошибка хака для {fid}: {e}")
+        
+        # После сохранения снова читаем из базы
+        all_snaps = storage.get_snapshots_since(snapshots_cutoff)
+        if not all_snaps:
+            logger.info("[LM] Всё равно пусто после хака. Выходим.")
+            return []
+        else:
+            logger.info(f"[LM] После хака в базе {len(all_snaps)} снимков!")
 
         LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
