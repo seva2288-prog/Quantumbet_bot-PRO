@@ -5310,8 +5310,9 @@ def find_top_matches_with_tm25(matches):
         logger.error(f"❌ [PRE-LM-FIX] Ошибка: {e}")
     # ★★★ КОНЕЦ ФИКСА ★★★
 
-    lm_matches = find_line_movement_matches(matches)
-    top_matches.extend(lm_matches)
+    try:
+        lm_matches = find_line_movement_matches(matches)
+        top_matches.extend(lm_matches)
     except Exception as e:
         logger.error(f"❌ LINE MOVEMENT упал: {e}")
         lm_matches = []
