@@ -4942,7 +4942,7 @@ def find_line_movement_matches(matches):
          logger.info("[LM] База пуста. Ждем CACHE-FIX.")
          return []
         
-        LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
+    LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
     LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
 
