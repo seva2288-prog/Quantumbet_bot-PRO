@@ -5031,24 +5031,44 @@ def find_line_movement_matches(matches):
         logger.info("[LM] Нет снимков в БД")
         return []
 
-    LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
+        LM_BET_TYPES = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['1', 'X', '2', '1X', 'X2'])
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
     LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
 
-    # ★★★ ПРИНУДИТЕЛЬНЫЙ СНИМОК ДЛЯ ДИАГНОСТИКИ ★★★
-            # Берем свежие кэфы из API и сохраняем в базу прямо здесь
-            try:
-                fo = football_api.get_match_odds(fid)
-                if fo:
-                    if fo.get('home_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
-                    if fo.get('draw_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
-                    if fo.get('away_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Debug', meta['home'], meta['away'], meta['league'])
-                    logger.info(f"✅ [DEBUG] Принудительно сохранены снимки для {meta['home']} vs {meta['away']} @ {fo.get('away_odds')}")
-            except Exception as e:
-                logger.error(f"❌ [DEBUG] Ошибка сохранения: {e}")
+    # *** ПРИНУДИТЕЛЬНЫЙ СНИМОК ДЛЯ ДИАГНОСТИКИ ***
+    # Берем свежие кэфы из API и сохраняем в базу прямо здесь
+    try:
+        sample_by_fid = {}
+        for s in all_snaps:
+            fid_val = s.get('fixture_id')
+            if fid_val and fid_val not in sample_by_fid:
+                sample_by_fid[fid_val] = s
+
+        for fid_val, snap in sample_by_fid.items():
+            home_name = snap.get('home_team') or snap.get('home') or ''
+            away_name = snap.get('away_team') or snap.get('away') or ''
+            league_name = snap.get('league') or ''
+
+            fo = football_api.get_match_odds(fid_val)
+            if fo:
+                if fo.get('home_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(
+                        fid_val, '1X2', '1', fo['home_odds'], 'Debug', home_name, away_name, league_name
+                    )
+                if fo.get('draw_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(
+                        fid_val, '1X2', 'X', fo['draw_odds'], 'Debug', home_name, away_name, league_name
+                    )
+                if fo.get('away_odds', 0) > 1.01:
+                    storage.save_odds_snapshot(
+                        fid_val, '1X2', '2', fo['away_odds'], 'Debug', home_name, away_name, league_name
+                    )
+                logger.info(
+                    f"[DEBUG] Принудительно сохранены снимки для {home_name} vs {away_name} @ {fo.get('away_odds')}"
+                )
+    except Exception as e:
+        logger.error(f"[DEBUG] Ошибка сохранения: {e}")
+
 
     # ---------- группировка снимков ----------
     groups = defaultdict(list)
