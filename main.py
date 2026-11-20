@@ -3179,19 +3179,22 @@ def update_odds_for_matches(matches):
 
             fo = batch_odds.get(fid) if fid else None
             if not fo and fid:
-                # ★★★ СОХРАНЯЕМ СНИМКИ ПРЯМО ЗДЕСЬ ★★★
+                fo = football_api.get_match_odds(fid)
+
+            # ★★★ СОХРАНЯЕМ СНИМКИ ПРЯМО ЗДЕСЬ ★★★
             if fo and fid:
                 try:
-                    home = md.get('home', '')
-                    away = md.get('away', '')
-                    league = md.get('league', '')
+                    home_name = md.get('home', '')
+                    away_name = md.get('away', '')
+                    league_name = md.get('league', '')
+                    
                     if fo.get('home_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Fix', home, away, league)
+                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Fix', home_name, away_name, league_name)
                     if fo.get('draw_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Fix', home, away, league)
+                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Fix', home_name, away_name, league_name)
                     if fo.get('away_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', home, away, league)
-                        logger.info(f"📸 [SNAPSHOT] Сохранен снимок для {home} vs {away} (П2: {fo['away_odds']})")
+                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', home_name, away_name, league_name)
+                        logger.info(f"📸 [SNAPSHOT] Сохранен снимок для {home_name} vs {away_name} (П2: {fo['away_odds']})")
                 except Exception as e:
                     logger.error(f"Ошибка записи снимка: {e}")
                 fo = football_api.get_match_odds(fid)
