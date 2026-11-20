@@ -5387,20 +5387,19 @@ def find_top_matches_with_tm25(matches):
 
     logger.info(f"📊 Итоговых сигналов: {len(filtered)}")
 
-    # 5. Сохраняем в кэш
-    with cache_lock:
-        cache = storage.load_cache()
-        cache['top_matches'] = filtered
-        cache['top_matches'] = filtered
-            cache['all_analyzed'] = filtered  # ★ ФИКС: НЕ очищаем, а сохраняем матчи!
-            storage.save_cache(cache)
-            
-            # ★★★ ДЕЛАЕМ СНИМКИ СРАЗУ ПОСЛЕ СОХРАНЕНИЯ В КЭШ ★★★
-            try:
-                logger.info("📸 [CACHE-FIX] Кэш сохранен. Делаем снимки для найденных матчей...")
-                snapshot_odds_for_upcoming()
-            except Exception as e:
-                logger.error(f"❌ [CACHE-FIX] Ошибка снимков: {e}")
+   # 5. Сохраняем в кэш
+            with cache_lock:
+                cache = storage.load_cache()
+                cache['top_matches'] = filtered
+                cache['all_analyzed'] = filtered
+                storage.save_cache(cache)
+                
+                # ★★★ ДЕЛАЕМ СНИМКИ СРАЗУ ПОСЛЕ СОХРАНЕНИЯ В КЭШ ★★★
+                try:
+                    logger.info("📸 [CACHE-FIX] Кэш сохранен. Делаем снимки для найденных матчей...")
+                    snapshot_odds_for_upcoming()
+                except Exception as e:
+                    logger.error(f"❌ [CACHE-FIX] Ошибка снимков: {e}")
 
     # 6. Добавляем в историю (в БД)
     history = storage.load_history()
