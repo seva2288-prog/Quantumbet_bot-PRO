@@ -5312,10 +5312,12 @@ def find_top_matches_with_tm25(matches):
 
     try:
         lm_matches = find_line_movement_matches(matches)
-        top_matches.extend(lm_matches)
     except Exception as e:
         logger.error(f"❌ LINE MOVEMENT упал: {e}")
         lm_matches = []
+
+    # Возвращаем результат работы стратегии
+    return lm_matches
 
     # 2. Собираем всё в один список (у нас теперь только он)
     combined = []
