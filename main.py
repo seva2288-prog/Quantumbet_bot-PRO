@@ -5277,7 +5277,9 @@ def find_line_movement_matches(matches):
             )
 
         except Exception as e:
-            logger.error(f"❌ [LM] {fid}: {e}")
+            logger.error(f"❌ [LM] КРИТИЧЕСКАЯ ОШИБКА {fid}: {e}")
+            import traceback
+            traceback.print_exc()  # <- Это покажет полный стек ошибки в логах Render
             continue
 
     # ---------- топ-N по силе движения ----------
