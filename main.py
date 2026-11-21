@@ -5602,19 +5602,20 @@ def snapshot_odds_for_upcoming():
             if not fid:
                 continue
             league_name = md.get('league', '')
-            # ★ ФИКС: Берем ID лиги прямо из матча
-            league_id = md.get('league_id')
+# * ФИКС: Берем ID лиги прямо из матча
+league_id = md.get('league_id')
 
-            if not league_id:
-        for lid, lname in Config.LEAGUE_NAMES.items():
-            if lname == league_name:
+if not league_id:
+    for lid, lname in Config.LEAGUE_NAMES.items():
+        if lname == league_name:
             league_id = lid
-                break
-            if league_id:
-                date_str = match_dt.strftime('%Y-%m-%d')
-                groups[(league_id, date_str)].append(md)
-            else:
-                single.append(md)
+            break
+
+if league_id:
+    date_str = match_dt.strftime('%Y-%m-%d')
+    groups[(league_id, date_str)].append(md)
+else:
+    single.append(md)
 
         MAX_PER_RUN = 30
         total = 0
