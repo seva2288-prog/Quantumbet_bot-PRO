@@ -5615,10 +5615,9 @@ def snapshot_odds_for_upcoming():
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
     try:
-        try:
         logger.info("🔍 snapshot: НАЧАЛО")
         
-        # ★★★ ЖЕЛЕЗОБЕТОННЫЙ ФИКС (ТЕПЕРЬ ДО БЛОКИРОВКИ КЭША) ★★★
+        # ★★★ ЖЕЛЕЗОБЕТОННЫЙ ФИКС (Берем кэфы ДО блокировки кэша) ★★★
         with cache_lock:
             cache = storage.load_cache()
             matches = cache.get('all_analyzed') or cache.get('top_matches', [])
@@ -5628,18 +5627,22 @@ def snapshot_odds_for_upcoming():
 
         logger.info(f"📸 [HARD-SNAPSHOT] Идем в API за кэфами для {len(matches)} матчей...")
         saved_hard = 0
+        
         for m in matches:
             if saved_hard >= 20:
                 break
+                
             fid = m.get('fixture_id')
             if not fid:
                 continue
+                
             try:
                 fo = football_api.get_match_odds(fid)
                 if fo:
                     home = m.get('home', '')
                     away = m.get('away', '')
                     league = m.get('league', '')
+                    
                     if fo.get('home_odds', 0) > 1.01:
                         storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Hard', home, away, league)
                     if fo.get('draw_odds', 0) > 1.01:
@@ -5656,6 +5659,94 @@ def snapshot_odds_for_upcoming():
         # ★★★ КОНЕЦ ФИКСА ★★★
 
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+
+        groups = defaultdict(list)
+        single = []
+        for md in matches:
+            match_time_str = md.get('match_time', '')
+            if not match_time_str or match_time_str == '?':
+                continue
+            try:
+                match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+            except ValueError:
+                continue
+            hours_to_match = (match_dt - now_msk).total_seconds() / 3600
+            if hours_to_match < -24:
+                continue
+            if not (0 < hours_to_match <= 36): # ★ Лимит 36 часов (как мы обсуждали)
+                continue
+                
+            fid = md.get('fixture_id')
+            if not fid:
+                continue
+                
+            league_name = md.get('league', '')
+            
+            # ★ ФИКС: Берем ID лиги прямо из матча (если он есть)
+            league_id = md.get('league_id')
+            if not league_id:
+                for lid, lname in Config.LEAGUE_NAMES.items():
+                    if lname == league_name:
+                        league_id = lid
+                        break
+                        
+            if league_id:
+                date_str = match_dt.strftime('%Y-%m-%d')
+                groups[(league_id, date_str)].append(md)
+            else:
+                single.append(md)
+
+        MAX_PER_RUN = 30
+        total = 0
+
+        for (league_id, date_str), group in list(groups.items()):
+            if total >= MAX_PER_RUN:
+                break
+            remaining = MAX_PER_RUN - total
+            group = group[:remaining]
+            try:
+                batch = football_api.get_odds_batch_for_league(league_id, date_str)
+                for md in group:
+                    fid = md.get('fixture_id')
+                    fo = batch.get(fid)
+                    if not fo:
+                        continue
+                    saved = _save_snapshot_from_odds(
+                        fo, fid,
+                        home=md.get('home', ''),
+                        away=md.get('away', ''),
+                        league=md.get('league', ''),
+                    )
+                    total += saved
+            except Exception as e:
+                logger.error(f"snapshot batch {league_id}: {e}")
+
+        remaining_single = max(0, MAX_PER_RUN - total)
+        for md in single[:remaining_single]:
+            try:
+                fid = md.get('fixture_id')
+                if not fid:
+                    continue
+                fo = football_api.get_match_odds(fid)
+                if not fo:
+                    continue
+                saved = _save_snapshot_from_odds(
+                    fo, fid,
+                    home=md.get('home', ''),
+                    away=md.get('away', ''),
+                    league=md.get('league', ''),
+                )
+                total += saved
+            except Exception as e:
+                logger.error(f"snapshot single: {e}")
+
+        logger.info(f"📸 Снимков: {total} (лимит {MAX_PER_RUN})")
+        return total
+    except Exception as e:
+        logger.exception(f"❌ snapshot: {e}")
+        return 0
+    finally:
+        _snapshot_lock.release()
 
         groups = defaultdict(list)
         single = []
