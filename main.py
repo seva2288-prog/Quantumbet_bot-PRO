@@ -4886,6 +4886,36 @@ def find_line_movement_matches(matches):
         logger.info("⏭️ [LINE MOVEMENT] Отключено в конфиге")
         return []
 
+    # ★★★ АБСОЛЮТНЫЙ ФИКС: Сохраняем снимки из памяти ★★★
+    logger.info("📸 [LM-SNAPSHOT] Сохраняем снимки из найденных матчей...")
+    saved_mem = 0
+    for m in matches:
+        fid = m.get('fixture_id')
+        if not fid:
+            continue
+        
+        odds_data = m.get('_preloaded_odds', {})
+        if not odds_data:
+            odds_data = m.get('best_bet', {})
+            
+        home = m.get('home', '')
+        away = m.get('away', '')
+        league = m.get('league', '')
+        
+        h_odd = odds_data.get('home_odds') or odds_data.get('odds')
+        a_odd = odds_data.get('away_odds') or odds_data.get('odds')
+        
+        if h_odd and h_odd > 1.01:
+            storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'MemFix', home, away, league)
+            saved_mem += 1
+        if a_odd and a_odd > 1.01:
+            storage.save_odds_snapshot(fid, '1X2', '2', a_odd, 'MemFix', home, away, league)
+            saved_mem += 1
+            
+    if saved_mem > 0:
+        logger.info(f"📸 [LM-SNAPSHOT] Сохранено {saved_mem} снимков из памяти!")
+    # ★★★ КОНЕЦ ФИКСА ★★★
+
     bank = storage.load_bank()
 
     # ★ FIX 13: защита от пустого банка
