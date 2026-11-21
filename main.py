@@ -5626,6 +5626,10 @@ def snapshot_odds_for_upcoming():
         logger.info(f"📸 [HARD-SNAPSHOT] Идем в API за кэфами для {len(matches)} матчей...")
         saved_hard = 0
         for m in matches:
+            # ★ ОГРАНИЧЕНИЕ: Берем только первые 20 матчей, чтобы не зависать
+            if saved_hard >= 20:
+                break
+                
             fid = m.get('fixture_id')
             if not fid:
                 continue
