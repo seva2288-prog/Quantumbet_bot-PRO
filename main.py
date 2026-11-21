@@ -5097,12 +5097,13 @@ def find_line_movement_matches(matches):
             except Exception:
                 stats['time_filter'] += 1
                 continue
-            if match_dt < now_msk:
-                stats['time_filter'] += 1
-                continue
-            if match_dt > cutoff_time:
-                stats['time_filter'] += 1
-                continue
+            # ★ ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ТЕСТА
+            # if match_dt < now_msk:
+            #     stats['time_filter'] += 1
+            #     continue
+            # if match_dt > cutoff_time:
+            #     stats['time_filter'] += 1
+            #     continue
 
             # 3) лимит на лигу
             cur_league_bets = league_bet_count.get(league_name, 0)
