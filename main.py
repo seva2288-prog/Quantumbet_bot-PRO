@@ -5364,7 +5364,14 @@ def find_top_matches_with_tm25(matches):
     # ★★★ ФИКС: Делаем снимки ПЕРЕД запуском LM ★★★
     try:
         logger.info("📸 [PRE-LM-FIX] Принудительный вызов снимков...")
-        snapshot_odds_for_upcoming()
+        
+        # ★ Передаем ТОЛЬКО те матчи, которые нашли сейчас
+        with cache_lock:
+            cache = storage.load_cache()
+            fresh_matches = cache.get('top_matches', [])
+            
+        snapshot_odds_for_upcoming(fresh_matches) # <-- Передаем аргумент!
+        
     except Exception as e:
         logger.error(f"❌ [PRE-LM-FIX] Ошибка: {e}")
     # ★★★ КОНЕЦ ФИКСА ★★★
@@ -5608,31 +5615,38 @@ def recalc_stats():
 # ============================================================
 _snapshot_lock = Lock()
 
-def snapshot_odds_for_upcoming():
+def snapshot_odds_for_upcoming(custom_matches=None):
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
         
     logger.info("🔍 snapshot: НАЧАЛО")
     
-    with cache_lock:
-        cache = storage.load_cache()
-        matches = cache.get('all_analyzed') or cache.get('top_matches', [])
+    # ★ Если передали конкретные матчи — берем их, иначе — из кэша
+    if custom_matches:
+        matches = custom_matches
+    else:
+        with cache_lock:
+            cache = storage.load_cache()
+            matches = cache.get('all_analyzed') or cache.get('top_matches', [])
     
     if not matches:
         _snapshot_lock.release()
         return 0
 
-    # ★★★ ФИКС: Берем кэфы из КЭША, а не из API ★★★
+    # ★★★ ФИКС: Берем кэфы из КЭША ★★★
     logger.info(f"📸 [CACHE-SNAPSHOT] Сохраняем снимки из кэша для {len(matches)} матчей...")
     saved_hard = 0
-    for m in matches[:30]:  # Берем только первые 30 матчей, чтобы не зависнуть
+    
+    for m in matches[:30]:  # Берем только первые 30 матчей
         fid = m.get('fixture_id')
         if not fid:
             continue
         
-        # Ищем кэфы в самом объекте матча (они там есть, если бот их скачал)
+        # Пытаемся достать полные кэфы (1, X, 2) из предзагруженных данных
         fo = m.get('_preloaded_odds')
+        
+        # Если нет, то хотя бы берем то, что есть в best_bet
         if not fo:
             fo = m.get('best_bet', {})
             
@@ -5641,21 +5655,33 @@ def snapshot_odds_for_upcoming():
             away = m.get('away', '')
             league = m.get('league', '')
             
-            # Сохраняем то, что есть
-            h_odd = fo.get('home_odds') or fo.get('odds')
-            a_odd = fo.get('away_odds') or fo.get('odds')
-            
+            # Сохраняем П1
+            h_odd = fo.get('home_odds')
             if h_odd and h_odd > 1.01:
                 storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'Cache', home, away, league)
                 saved_hard += 1
+                
+            # Сохраняем Ничью
+            d_odd = fo.get('draw_odds')
+            if d_odd and d_odd > 1.01:
+                storage.save_odds_snapshot(fid, '1X2', 'X', d_odd, 'Cache', home, away, league)
+                saved_hard += 1
+                
+            # Сохраняем П2
+            a_odd = fo.get('away_odds')
+            if not a_odd and 'odds' in fo and fo.get('type') == 'lm_2':
+                a_odd = fo.get('odds')
+                
             if a_odd and a_odd > 1.01:
                 storage.save_odds_snapshot(fid, '1X2', '2', a_odd, 'Cache', home, away, league)
                 saved_hard += 1
-                
-            logger.info(f"✅ [CACHE-SNAPSHOT] Сохранен: {home} vs {away} (П2: {a_odd})")
+                logger.info(f"✅ [CACHE-SNAPSHOT] Сохранен: {home} vs {away} (П2: {a_odd})")
     
     logger.info(f"📸 [CACHE-SNAPSHOT] Успешно сохранено для {saved_hard} снимков!")
     # ★★★ КОНЕЦ ФИКСА ★★★
+    
+    _snapshot_lock.release()
+    return saved_hard
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
