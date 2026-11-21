@@ -5071,7 +5071,178 @@ def find_line_movement_matches(matches):
     candidates = []
     league_bet_count = {}
 
-    logger.info(f"🔍 [LM] Проверяем fid={fid}, sel={sel}, snaps={len(snaps)}")
+    for (fid, market, sel), snaps in groups.items():
+        logger.info(f"🔍 [LM] Проверяем fid={fid}, sel={sel}, snaps={len(snaps)}")
+        
+        if len(candidates) >= MAX_BETS * 3:
+            continue
+
+        try:
+            if fid not in match_lookup:
+                continue
+            meta = match_lookup[fid]
+            league_name = meta['league']
+
+            # 1) blacklist / whitelist
+            if Config.is_lm_league_blacklisted(league_name):
+                stats['blacklist'] += 1
+                continue
+            if not Config.is_lm_league_whitelisted(league_name):
+                stats['whitelist_miss'] += 1
+                continue
+
+            # 2) проверка времени матча
+            try:
+                match_dt = datetime.strptime(meta['match_time'], "%d.%m.%Y %H:%M")
+            except Exception:
+                stats['time_filter'] += 1
+                continue
+            if match_dt < now_msk:
+                stats['time_filter'] += 1
+                continue
+            if match_dt > cutoff_time:
+                stats['time_filter'] += 1
+                continue
+
+            # 3) лимит на лигу
+            cur_league_bets = league_bet_count.get(league_name, 0)
+            if cur_league_bets >= MAX_LEAGUE_BETS:
+                stats['league_limit'] += 1
+                continue
+
+            # 4) снимки
+            snaps_sorted = sorted(snaps, key=lambda x: x.get('created_at', ''))
+            if len(snaps_sorted) < MIN_SNAPS:
+                stats['no_snaps'] += 1
+                continue
+            if len(snaps_sorted) > MAX_SNAPS:
+                snaps_sorted = snaps_sorted[-MAX_SNAPS:]
+
+            first = snaps_sorted[0]
+            last = snaps_sorted[-1]
+
+            old_odds = float(first.get('odds', 0))
+            new_odds = float(last.get('odds', 0))
+            if old_odds <= 1.01 or new_odds <= 1.01:
+                stats['odds_filter'] += 1
+                continue
+
+            change_pct = ((new_odds / old_odds) - 1) * 100
+
+            # 5) разброс во времени
+            try:
+                t1 = datetime.fromisoformat(str(first.get('created_at', '')))
+                t2 = datetime.fromisoformat(str(last.get('created_at', '')))
+                hours_diff = (t2 - t1).total_seconds() / 3600
+            except Exception:
+                stats['parse_error'] += 1
+                continue
+
+            if hours_diff < MIN_SPAN_HOURS:
+                stats['time_filter'] += 1
+                continue
+
+            # 6) направление
+            is_drop = DROP_LOW <= change_pct <= DROP_HIGH
+            is_rise = RISE_LOW <= change_pct <= RISE_HIGH
+
+            if is_drop and not TRADE_DROPS:
+                stats['no_drop'] += 1
+                continue
+            if is_rise and not TRADE_RISES:
+                stats['no_drop'] += 1
+                continue
+            if not (is_drop or is_rise):
+                stats['no_drop'] += 1
+                continue
+
+            # 7) кэф в диапазоне
+            if new_odds < MIN_ODDS or new_odds > MAX_ODDS:
+                stats['odds_filter'] += 1
+                continue
+
+            # 8) label
+            label = LABELS.get(sel, sel)
+
+            # 9) RLM-фильтр для АПЛ
+            rlm_passed = False
+            if league_name == 'Premier League':
+                valid_time = hours_diff >= rlm_min_hours
+                valid_snaps = len(snaps_sorted) >= MIN_SNAPS
+                valid_move = abs(change_pct) >= rlm_min_pct
+                valid_dir = is_rise if rlm_require_rise else (is_drop or is_rise)
+
+                if not (valid_time and valid_snaps and valid_move and valid_dir):
+                    stats['rlm_rejected'] += 1
+                    continue
+
+                rlm_passed = True
+
+            # 10) размер ставки
+            final_odds = new_odds
+            final_stake = round(bank * STAKE_PCT, 2)
+            if final_stake < 1:
+                final_stake = 1.0
+
+            direction = "📉" if is_drop else "📈"
+            label_full = f'{label} {direction}'
+
+            best_bet = {
+                'type': 'lm_' + sel.lower(),
+                'label': label_full,
+                'prob': 0,
+                'ev': 0,
+                'odds': final_odds,
+                'stake': final_stake,
+                'clv_action': 'no_model',
+                'bookmaker': last.get('bookmaker', '—'),
+                'movement_pct': round(change_pct, 1),
+                'movement_hours': round(hours_diff, 1),
+                'old_odds': round(old_odds, 2),
+                'snapshots_count': len(snaps_sorted),
+                'direction': 'drop' if is_drop else 'rise',
+                'odds_updated': True,
+                'rlm_epl': rlm_passed,
+            }
+
+            # 11) страна/флаг
+            country_name, country_flag = name_to_country.get(league_name, ("", ""))
+            
+            candidates.append({
+                "home": meta['home'],
+                "away": meta['away'],
+                "league": league_name,
+                "country": country_name,
+                "country_flag": country_flag,
+                "fixture_id": fid,
+                "match_time": meta['match_time'],
+                "home_xg": 0,
+                "away_xg": 0,
+                "total_xg": 0,
+                "home_form": '',
+                "away_form": '',
+                "standings": {},
+                "bets": [best_bet],
+                "best_bet": best_bet,
+                "source": "line_movement",
+                "weather_reason": "",
+                "_preloaded_odds": {},
+            })
+            stats['found'] += 1
+            league_bet_count[league_name] = cur_league_bets + 1
+
+            logger.info(
+                f"📈 LM: {meta['home']} vs {meta['away']} | "
+                f"{label} @ {final_odds} | "
+                f"Δ {change_pct:+.1f}% за {hours_diff:.1f}ч | "
+                f"снимков: {len(snaps_sorted)} | stake ${final_stake}"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [LM] КРИТИЧЕСКАЯ ОШИБКА {fid}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
 
     # ---------- топ-N по силе движения ----------
     candidates.sort(
