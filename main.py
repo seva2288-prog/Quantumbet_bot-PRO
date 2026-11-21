@@ -3128,9 +3128,12 @@ def update_odds_for_matches(matches):
     updated = []
     total = len(matches)
     
-    # ★★★ ЖЕСТКИЙ ФИКС: Принудительное сохранение снимков для ВСЕХ матчей ★★★
+    # ============================================================
+    # ★★★ ЖЕСТКИЙ ФИКС: Сохраняем снимки для ВСЕХ матчей ДО фильтров ★★★
+    # ============================================================
     logger.info(f"📸 [SNAPSHOT FIX] Принудительное сохранение снимков для {total} матчей...")
     saved_count = 0
+    skipped_count = 0
     
     for md in matches:
         try:
@@ -3138,7 +3141,7 @@ def update_odds_for_matches(matches):
             if not fid:
                 continue
                 
-            fo = batch_odds.get(fid)
+            fo = batch_odds.get(fid) if batch_odds else None
             if not fo:
                 fo = football_api.get_match_odds(fid)
             
@@ -3156,12 +3159,17 @@ def update_odds_for_matches(matches):
                     logger.info(f"✅ [SNAPSHOT FIX] Сохранен снимок: {home} vs {away} | П2: {fo['away_odds']}")
                 
                 saved_count += 1
+            else:
+                skipped_count += 1
+                logger.debug(f"⚠️ [SNAPSHOT FIX] Нет кэфов для {md.get('home')} vs {md.get('away')}")
+                
         except Exception as e:
             logger.error(f"❌ [SNAPSHOT FIX] Ошибка для {md.get('home')}: {e}")
             continue
     
     if saved_count > 0:
-        logger.info(f"📸 [SNAPSHOT FIX] Всего сохранено снимков для {saved_count} матчей")
+        logger.info(f"📸 [SNAPSHOT FIX] Всего сохранено снимков для {saved_count} матчей (пропущено: {skipped_count})")
+    # ============================================================
 
     # ★★★ ДАЛЬШЕ ИДЕТ СТАРАЯ ЛОГИКА ДЛЯ BEST_BET ★★★
     for idx, md in enumerate(matches, 1):
@@ -3185,23 +3193,22 @@ def update_odds_for_matches(matches):
             if not fo and fid:
                 fo = football_api.get_match_odds(fid)
 
-            # ★★★ СОХРАНЯЕМ СНИМКИ ПРЯМО ЗДЕСЬ ★★★
+            # ★★★ ДУБЛЬ-ФИКС: Сохраняем снимки внутри цикла (если кэфы обновились) ★★★
             if fo and fid:
                 try:
-                    home_name = md.get('home', '')
-                    away_name = md.get('away', '')
-                    league_name = md.get('league', '')
+                    h_name = md.get('home', '')
+                    a_name = md.get('away', '')
+                    l_name = md.get('league', '')
                     
                     if fo.get('home_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Fix', home_name, away_name, league_name)
+                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Fix', h_name, a_name, l_name)
                     if fo.get('draw_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Fix', home_name, away_name, league_name)
+                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Fix', h_name, a_name, l_name)
                     if fo.get('away_odds', 0) > 1.01:
-                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', home_name, away_name, league_name)
-                        logger.info(f"📸 [SNAPSHOT] Сохранен снимок для {home_name} vs {away_name} (П2: {fo['away_odds']})")
-                except Exception as e:
-                    logger.error(f"Ошибка записи снимка: {e}")
-                fo = football_api.get_match_odds(fid)
+                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', h_name, a_name, l_name)
+                except Exception as snap_err:
+                    logger.error(f"Ошибка записи снимков для {fid}: {snap_err}")
+            # ============================================================
 
             # Двойная проверка для VALUE
             if md_source == 'value' and fo and best_bet.get('ev', 0) > 80:
