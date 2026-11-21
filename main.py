@@ -5644,7 +5644,7 @@ def snapshot_odds_for_upcoming(custom_matches=None):
             continue
         
         # Пытаемся достать полные кэфы (1, X, 2) из предзагруженных данных
-        fo = m.get('_preloaded_odds')
+        fo = m.get('_preloaded_odds', {})
         
         # Если нет, то хотя бы берем то, что есть в best_bet
         if not fo:
@@ -5655,21 +5655,23 @@ def snapshot_odds_for_upcoming(custom_matches=None):
             away = m.get('away', '')
             league = m.get('league', '')
             
-            # Сохраняем П1
+            # ★ Сохраняем П1
             h_odd = fo.get('home_odds')
             if h_odd and h_odd > 1.01:
                 storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'Cache', home, away, league)
                 saved_hard += 1
                 
-            # Сохраняем Ничью
+            # ★ Сохраняем Ничью
             d_odd = fo.get('draw_odds')
             if d_odd and d_odd > 1.01:
                 storage.save_odds_snapshot(fid, '1X2', 'X', d_odd, 'Cache', home, away, league)
                 saved_hard += 1
                 
-            # Сохраняем П2
+            # ★ Сохраняем П2 (гости)
             a_odd = fo.get('away_odds')
-            if not a_odd and 'odds' in fo and fo.get('type') == 'lm_2':
+            
+            # Если это Line Movement (lm_2), то кэф лежит в 'odds'
+            if not a_odd and 'odds' in fo:
                 a_odd = fo.get('odds')
                 
             if a_odd and a_odd > 1.01:
