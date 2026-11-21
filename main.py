@@ -5615,21 +5615,22 @@ def snapshot_odds_for_upcoming():
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
     try:
+        try:
         logger.info("🔍 snapshot: НАЧАЛО")
+        
+        # ★★★ ЖЕЛЕЗОБЕТОННЫЙ ФИКС (ТЕПЕРЬ ДО БЛОКИРОВКИ КЭША) ★★★
         with cache_lock:
             cache = storage.load_cache()
             matches = cache.get('all_analyzed') or cache.get('top_matches', [])
+        
         if not matches:
             return 0
 
-        # ★★★ ЖЕЛЕЗОБЕТОННЫЙ ФИКС: Берем кэфы напрямую из API для каждого матча ★★★
         logger.info(f"📸 [HARD-SNAPSHOT] Идем в API за кэфами для {len(matches)} матчей...")
         saved_hard = 0
         for m in matches:
-            # ★ ОГРАНИЧЕНИЕ: Берем только первые 20 матчей, чтобы не зависать
             if saved_hard >= 20:
                 break
-                
             fid = m.get('fixture_id')
             if not fid:
                 continue
