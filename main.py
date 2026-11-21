@@ -3128,19 +3128,21 @@ def update_odds_for_matches(matches):
     updated = []
     total = len(matches)
     
-    # ★★★ ЖЕСТКИЙ ФИКС: Сначала сохраняем снимки для ВСЕХ матчей ★★★
+    # ★★★ ЖЕСТКИЙ ФИКС: Принудительное сохранение снимков для ВСЕХ матчей ★★★
     logger.info(f"📸 [SNAPSHOT FIX] Принудительное сохранение снимков для {total} матчей...")
     saved_count = 0
+    
     for md in matches:
-        fid = md.get('fixture_id')
-        if not fid:
-            continue
-        fo = batch_odds.get(fid)
-        if not fo:
-            fo = football_api.get_match_odds(fid)
-        
-        if fo:
-            try:
+        try:
+            fid = md.get('fixture_id')
+            if not fid:
+                continue
+                
+            fo = batch_odds.get(fid)
+            if not fo:
+                fo = football_api.get_match_odds(fid)
+            
+            if fo:
                 home = md.get('home', '')
                 away = md.get('away', '')
                 league = md.get('league', '')
@@ -3152,9 +3154,11 @@ def update_odds_for_matches(matches):
                 if fo.get('away_odds', 0) > 1.01:
                     storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Fix', home, away, league)
                     logger.info(f"✅ [SNAPSHOT FIX] Сохранен снимок: {home} vs {away} | П2: {fo['away_odds']}")
+                
                 saved_count += 1
-            except Exception as e:
-                logger.error(f"❌ [SNAPSHOT FIX] Ошибка: {e}")
+        except Exception as e:
+            logger.error(f"❌ [SNAPSHOT FIX] Ошибка для {md.get('home')}: {e}")
+            continue
     
     if saved_count > 0:
         logger.info(f"📸 [SNAPSHOT FIX] Всего сохранено снимков для {saved_count} матчей")
