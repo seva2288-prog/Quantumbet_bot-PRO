@@ -5622,6 +5622,34 @@ def snapshot_odds_for_upcoming():
         if not matches:
             return 0
 
+        # ★★★ ЖЕЛЕЗОБЕТОННЫЙ ФИКС: Берем кэфы напрямую из API для каждого матча ★★★
+        logger.info(f"📸 [HARD-SNAPSHOT] Идем в API за кэфами для {len(matches)} матчей...")
+        saved_hard = 0
+        for m in matches:
+            fid = m.get('fixture_id')
+            if not fid:
+                continue
+            try:
+                fo = football_api.get_match_odds(fid)
+                if fo:
+                    home = m.get('home', '')
+                    away = m.get('away', '')
+                    league = m.get('league', '')
+                    if fo.get('home_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Hard', home, away, league)
+                    if fo.get('draw_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Hard', home, away, league)
+                    if fo.get('away_odds', 0) > 1.01:
+                        storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Hard', home, away, league)
+                        logger.info(f"✅ [HARD-SNAPSHOT] Сохранен: {home} vs {away} (П2: {fo['away_odds']})")
+                    saved_hard += 1
+            except Exception as e:
+                logger.error(f"❌ [HARD-SNAPSHOT] Ошибка для {fid}: {e}")
+        
+        if saved_hard > 0:
+            logger.info(f"📸 [HARD-SNAPSHOT] Успешно сохранено для {saved_hard} матчей!")
+        # ★★★ КОНЕЦ ФИКСА ★★★
+
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
 
         groups = defaultdict(list)
