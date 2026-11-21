@@ -5584,38 +5584,42 @@ def snapshot_odds_for_upcoming():
         now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
 
         groups = defaultdict(list)
-        single = []
-        for md in matches:
-            match_time_str = md.get('match_time', '')
-            if not match_time_str or match_time_str == '?':
-                continue
-            try:
-                match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-            except ValueError:
-                continue
-            hours_to_match = (match_dt - now_msk).total_seconds() / 3600
-            if hours_to_match < -24:
-                continue
-            if not (0 < hours_to_match <= 36):
-                continue
-            fid = md.get('fixture_id')
-            if not fid:
-                continue
-                    league_name = md.get('league', '')
-        # * ФИКС: Берем ID лиги прямо из матча
-        league_id = md.get('league_id')
+single = []
 
-        if not league_id:
-            for lid, lname in Config.LEAGUE_NAMES.items():
-                if lname == league_name:
-                    league_id = lid
-                    break
+for md in matches:
+    match_time_str = md.get('match_time', '')
+    if not match_time_str or match_time_str == '?':
+        continue
+    try:
+        match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
+    except ValueError:
+        continue
 
-        if league_id:
-            date_str = match_dt.strftime('%Y-%m-%d')
-            groups[(league_id, date_str)].append(md)
-        else:
-            single.append(md)
+    hours_to_match = (match_dt - now_msk).total_seconds() / 3600
+    if hours_to_match < -24:
+        continue
+    if not (0 < hours_to_match <= 36):
+        continue
+
+    fid = md.get('fixture_id')
+    if not fid:
+        continue
+
+    # * ФИКС: Берем ID лиги прямо из матча
+    league_name = md.get('league', '')
+    league_id = md.get('league_id')
+
+    if not league_id:
+        for lid, lname in Config.LEAGUE_NAMES.items():
+            if lname == league_name:
+                league_id = lid
+                break
+
+    if league_id:
+        date_str = match_dt.strftime('%Y-%m-%d')
+        groups[(league_id, date_str)].append(md)
+    else:
+        single.append(md)
 
         MAX_PER_RUN = 30
         total = 0
