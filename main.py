@@ -5623,36 +5623,39 @@ def snapshot_odds_for_upcoming():
         _snapshot_lock.release()
         return 0
 
-    # ★★★ HARD SNAPSHOT (Сохраняем кэфы для первых 20 матчей) ★★★
-    logger.info(f"📸 [HARD-SNAPSHOT] Идем в API за кэфами для {len(matches)} матчей...")
+    # ★★★ ФИКС: Берем кэфы из КЭША, а не из API ★★★
+    logger.info(f"📸 [CACHE-SNAPSHOT] Сохраняем снимки из кэша для {len(matches)} матчей...")
     saved_hard = 0
-    for m in matches:
-        if saved_hard >= 20:
-            break
+    for m in matches[:30]:  # Берем только первые 30 матчей, чтобы не зависнуть
         fid = m.get('fixture_id')
         if not fid:
             continue
-        try:
-            fo = football_api.get_match_odds(fid)
-            if fo:
-                home = m.get('home', '')
-                away = m.get('away', '')
-                league = m.get('league', '')
-                if fo.get('home_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(fid, '1X2', '1', fo['home_odds'], 'Hard', home, away, league)
-                if fo.get('draw_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(fid, '1X2', 'X', fo['draw_odds'], 'Hard', home, away, league)
-                if fo.get('away_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(fid, '1X2', '2', fo['away_odds'], 'Hard', home, away, league)
-                    logger.info(f"✅ [HARD-SNAPSHOT] Сохранен: {home} vs {away} (П2: {fo['away_odds']})")
+        
+        # Ищем кэфы в самом объекте матча (они там есть, если бот их скачал)
+        fo = m.get('_preloaded_odds')
+        if not fo:
+            fo = m.get('best_bet', {})
+            
+        if fo:
+            home = m.get('home', '')
+            away = m.get('away', '')
+            league = m.get('league', '')
+            
+            # Сохраняем то, что есть
+            h_odd = fo.get('home_odds') or fo.get('odds')
+            a_odd = fo.get('away_odds') or fo.get('odds')
+            
+            if h_odd and h_odd > 1.01:
+                storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'Cache', home, away, league)
                 saved_hard += 1
-        except Exception as e:
-            logger.error(f"❌ [HARD-SNAPSHOT] Ошибка для {fid}: {e}")
+            if a_odd and a_odd > 1.01:
+                storage.save_odds_snapshot(fid, '1X2', '2', a_odd, 'Cache', home, away, league)
+                saved_hard += 1
+                
+            logger.info(f"✅ [CACHE-SNAPSHOT] Сохранен: {home} vs {away} (П2: {a_odd})")
     
-    logger.info(f"📸 [HARD-SNAPSHOT] Успешно сохранено для {saved_hard} матчей!")
-    
-    _snapshot_lock.release()
-    return saved_hard
+    logger.info(f"📸 [CACHE-SNAPSHOT] Успешно сохранено для {saved_hard} снимков!")
+    # ★★★ КОНЕЦ ФИКСА ★★★
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
