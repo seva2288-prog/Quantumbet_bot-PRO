@@ -5731,10 +5731,6 @@ def snapshot_odds_for_upcoming():
     logger.info(f"📸 Снимков: {total} (лимит {MAX_PER_RUN})")
     _snapshot_lock.release()
     return total
-        logger.exception(f"❌ snapshot: {e}")
-        return 0
-    finally:
-        _snapshot_lock.release()
 
         groups = defaultdict(list)
         single = []
