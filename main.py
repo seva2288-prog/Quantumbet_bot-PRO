@@ -8379,6 +8379,96 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+@app.route('/api/day_matches', methods=['GET'])
+def api_day_matches():
+    """Матчи дня, по которым бот делал снимки: счёт + движение кэфов."""
+    try:
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+        today_dm = now_msk.strftime('%d.%m.%Y')
+        today_api = now_msk.strftime('%Y-%m-%d')
+        cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+        rows = _lm_snapshots_since(cutoff)
+        try:
+            batch = _fetch_live_batch(today_api) or {}
+        except Exception:
+            batch = {}
+
+        grouped = {}
+        for r in rows:
+            fid = r.get('fixture_id')
+            if fid:
+                grouped.setdefault(fid, []).append(r)
+
+        try:
+            hist = {}
+            for b in storage.load_history():
+                if b.get('fixture_id'):
+                    hist[b['fixture_id']] = b
+        except Exception:
+            hist = {}
+
+        out = []
+        for fid, snaps in grouped.items():
+            snaps.sort(key=lambda s: s.get('created_at') or '')
+            first = snaps[0]
+            mt = next((s.get('match_time') for s in snaps if s.get('match_time')), '') or ''
+            fx = batch.get(fid)
+            if not fx and not str(mt).startswith(today_dm):
+                continue
+
+            sel = {}
+            for s in snaps:
+                k = s.get('selection')
+                o = s.get('odds') or 0
+                if not k or o <= 0:
+                    continue
+                d = sel.setdefault(k, {'points': []})
+                d['points'].append([(s.get('created_at') or '')[11:16], o])
+            selections = {}
+            for k, d in sel.items():
+                pts = d['points']
+                f0, l0 = pts[0][1], pts[-1][1]
+                vals = [p[1] for p in pts]
+                selections[k] = {
+                    'first': f0, 'last': l0, 'min': min(vals), 'max': max(vals),
+                    'change_pct': round((l0 / f0 - 1) * 100, 1) if f0 else 0,
+                    'count': len(pts), 'points': pts[-24:],
+                }
+
+            lid = first.get('league_id')
+            cn, cf = Config.LEAGUE_COUNTRY.get(lid, ('', ''))
+            item = {
+                'fixture_id': fid,
+                'home': first.get('home') or '?', 'away': first.get('away') or '?',
+                'league': first.get('league') or '', 'league_id': lid,
+                'country': cn, 'country_flag': cf,
+                'match_time': mt, 'snapshots_count': len(snaps),
+                'selections': selections,
+                'status': 'NS', 'elapsed': None,
+                'home_goals': None, 'away_goals': None,
+                'halftime_home': None, 'halftime_away': None,
+            }
+            if fx:
+                st = (fx.get('fixture') or {}).get('status') or {}
+                g = fx.get('goals') or {}
+                ht = (fx.get('score') or {}).get('halftime') or {}
+                item.update(status=st.get('short') or 'NS', elapsed=st.get('elapsed'),
+                            home_goals=g.get('home'), away_goals=g.get('away'),
+                            halftime_home=ht.get('home'), halftime_away=ht.get('away'))
+            b = hist.get(fid)
+            if b:
+                item['bet'] = {'bet': b.get('bet'), 'odds': b.get('odds'),
+                               'stake': b.get('stake'), 'result': b.get('result'),
+                               'profit': b.get('profit')}
+            out.append(item)
+
+        out.sort(key=lambda x: (str(x['match_time'])[11:16], x['fixture_id']))
+        return jsonify({'status': 'ok', 'date': today_dm, 'count': len(out), 'matches': out})
+    except Exception as e:
+        logger.exception(f"api_day_matches error: {e}")
+        return jsonify({'status': 'error', 'error': str(e), 'matches': []}), 500
+
+
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
 def api_snapshots_detail(fixture_id):
     try:
