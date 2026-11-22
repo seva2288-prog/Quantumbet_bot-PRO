@@ -2529,6 +2529,21 @@
 // КОНФИГУРАЦИЯ
 // ============================================================
 const API_BASE = window.location.origin;
+const ADMIN_TOKEN = 'KfC4L7yzyjS+rK9r40lLNwoDplQQhUXEeolu/mlhibE=';   // ← сюда вставь токен
+
+// Автоматически добавляем токен ко всем /api/* запросам
+// (кроме /api/keepalive — он публичный)
+const _origFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+    if (typeof url === 'string' && url.includes('/api/') && !url.includes('/api/keepalive')) {
+        opts = opts || {};
+        opts.headers = Object.assign({}, opts.headers || {}, {
+            'X-Admin-Token': ADMIN_TOKEN
+        });
+    }
+    return _origFetch.call(this, url, opts);
+};
+
 const AUTO_REFRESH_MS = 60000;
 const KEEPALIVE_MS = 180000;
 const AUTO_IMPORT_MS = 180000;
