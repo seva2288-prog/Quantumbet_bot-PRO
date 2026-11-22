@@ -1089,6 +1089,26 @@
 .dm-detail-sel{padding:10px;margin-top:8px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
 .dm-times{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:10px;color:var(--text-tertiary);}
 .dm-times b{color:var(--text-secondary);}
+
+/* Избранное, заметки, состояние бота, аналитика */
+.fav-btn{margin-left:auto;background:none;border:none;font-size:18px;line-height:1;padding:0 4px;color:var(--text-tertiary);cursor:pointer;}
+.fav-btn.on{color:#fbbf24;}
+.card-note{margin-top:8px;font-size:11px;color:var(--text-secondary);padding:6px 10px;border-radius:10px;background:rgba(251,191,36,.1);}
+.note-input{width:100%;box-sizing:border-box;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:13px;font-family:inherit;resize:vertical;}
+.health-card{padding:12px;margin-bottom:12px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);}
+.health-card.ok{border-color:rgba(52,211,153,.4);}
+.health-card.warn{border-color:rgba(251,146,60,.6);}
+.health-head{font-size:13px;font-weight:800;margin-bottom:8px;}
+.health-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.health-grid div{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.health-grid b{font-size:13px;}
+.health-grid span{font-size:9px;color:var(--text-tertiary);text-align:center;}
+.health-warn{margin-top:8px;font-size:11px;color:#fb923c;}
+.dm-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.dm-table{width:100%;min-width:0!important;font-size:11px;border-collapse:collapse;table-layout:auto;}
+.dm-table th,.dm-table td{padding:6px 3px!important;text-align:right;white-space:nowrap;}
+.dm-table th:first-child,.dm-table td:first-child{text-align:left;white-space:normal;}
+.dm-table th{color:var(--text-tertiary);font-weight:600;font-size:10px;}
 </style>
 </head>
 <body>
@@ -1151,6 +1171,8 @@
          PAGE: DASHBOARD
          ============================================================ -->
     <div id="page-dashboard" class="page active">
+
+        <div id="botHealthBox"></div>
 
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
@@ -1339,6 +1361,7 @@
                 <button class="filter-btn" data-filter="dm_fin" onclick="setMatchFilter('dm_fin')">🏁 Завершены</button>
                 <button class="filter-btn" data-filter="dm_soon" onclick="setMatchFilter('dm_soon')">🕒 Скоро</button>
                 <button class="filter-btn" data-filter="dm_move" onclick="setMatchFilter('dm_move')">🔥 Движение 5%+</button>
+                <button class="filter-btn" data-filter="fav" onclick="setMatchFilter('fav')">⭐ Избранные</button>
             </div>
 
             <div class="dm-sortrow">
@@ -1520,6 +1543,14 @@
          PAGE: ANALYTICS
          ============================================================ -->
     <div id="page-analytics" class="page">
+
+        <div class="card" id="lmAnalyticsCard">
+            <div class="card-header">
+                <h2>🧪 Line Movement: CLV и разрезы</h2>
+                <button class="btn btn-primary" onclick="exportHistoryCsv()" style="padding:5px 12px;font-size:11px;">⬇️ CSV</button>
+            </div>
+            <div id="lmAnalyticsBody"><div style="font-size:12px;color:var(--text-tertiary);">Загрузка…</div></div>
+        </div>
 
         <div class="stats-grid">
             <div class="stat-card">
@@ -3561,6 +3592,134 @@ async function loadDayMatches() {
         const j = await r.json();
         if (j && Array.isArray(j.matches)) dayMatchesData = j.matches;
     } catch (e) {}
+    try {
+        const r2 = await fetch(API_BASE + '/api/notes?t=' + Date.now());
+        if (r2.ok) { const j2 = await r2.json(); if (j2 && j2.notes) betNotes = j2.notes; }
+    } catch (e) {}
+}
+
+// ===== Избранное (на устройстве) и заметки (на сервере) =====
+let betNotes = {};
+function itemKey(m) {
+    return m.fixture_id ? 'f' + m.fixture_id : ((m.home || '') + '|' + (m.away || '') + '|' + String(m.date || m.match_time || '').split(' ')[0]);
+}
+function getFavs() {
+    try { return new Set(JSON.parse(safeLSGet('favItems', '[]') || '[]')); } catch (e) { return new Set(); }
+}
+function isFav(m) { return getFavs().has(itemKey(m)); }
+function toggleFav(ev, key) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    const f = getFavs();
+    if (f.has(key)) f.delete(key); else f.add(key);
+    safeLSSet('favItems', JSON.stringify([...f]));
+    haptic(8);
+    renderMatchesPage();
+}
+async function saveNote(key) {
+    const ta = document.getElementById('noteInput');
+    if (!ta) return;
+    const note = ta.value.trim();
+    try {
+        const r = await fetch(API_BASE + '/api/notes', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({key: key, note: note})
+        });
+        if (!r.ok) throw new Error('Сервер: ' + r.status);
+        if (note) betNotes[key] = note; else delete betNotes[key];
+        showNotification(note ? '📝 Заметка сохранена' : '🗑️ Заметка удалена', 'success');
+        renderMatchesPage();
+    } catch (e) {
+        showNotification('❌ Не удалось сохранить: ' + e.message, 'error');
+    }
+}
+function renderNoteBox(m) {
+    const key = itemKey(m);
+    const val = betNotes[key] || '';
+    return `<div class="dm-detail">
+        <div class="dm-title">📝 Заметка</div>
+        <textarea id="noteInput" class="note-input" maxlength="500" rows="3" placeholder="Например: движение после новости о составе">${escapeHtml(val)}</textarea>
+        <button class="btn btn-primary" data-key="${escapeHtml(key)}" onclick="saveNote(this.dataset.key)" style="margin-top:8px;padding:8px 16px;font-size:12px;">Сохранить</button>
+    </div>`;
+}
+
+// ===== Состояние бота =====
+async function loadBotHealth() {
+    const box = document.getElementById('botHealthBox');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/bot_health?t=' + Date.now());
+        if (!r.ok) return;
+        const h = await r.json();
+        if (h.status !== 'ok') return;
+        const ok = h.ok;
+        const ago = h.minutes_ago == null ? 'нет данных' : (h.minutes_ago < 1 ? 'только что' : h.minutes_ago + ' мин назад');
+        const q = h.quota && h.quota.remaining != null ? h.quota.remaining + (h.quota.limit ? ' / ' + h.quota.limit : '') : '—';
+        box.innerHTML = `<div class="health-card ${ok ? 'ok' : 'warn'}">
+            <div class="health-head">${ok ? '🟢 Бот работает' : '🟠 Нужно внимание'}</div>
+            <div class="health-grid">
+                <div><b>${ago}</b><span>последний снимок</span></div>
+                <div><b>${h.snapshots_today}</b><span>снимков сегодня</span></div>
+                <div><b>${h.fixtures_today}</b><span>матчей</span></div>
+                <div><b>${q}</b><span>лимит API</span></div>
+            </div>
+            ${(h.warnings || []).map(w => `<div class="health-warn">⚠️ ${escapeHtml(w)}</div>`).join('')}
+        </div>`;
+    } catch (e) {}
+}
+
+// ===== Аналитика Line Movement =====
+function fmtPct(v, plus) { return v == null ? '—' : (plus && v > 0 ? '+' : '') + v + '%'; }
+function lmRow(name, a) {
+    const clvCol = a.avg_clv == null ? '' : a.avg_clv > 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+    const roiCol = a.roi == null ? '' : a.roi > 0 ? 'var(--emerald-400)' : a.roi < 0 ? 'var(--red-400)' : '';
+    return `<tr>
+        <td>${escapeHtml(String(name))}</td><td>${a.n}</td>
+        <td>${a.wins}/${a.losses}</td><td>${fmtPct(a.winrate)}</td>
+        <td style="color:${roiCol};">${fmtPct(a.roi, true)}</td>
+        <td style="color:${clvCol};">${fmtPct(a.avg_clv, true)}</td></tr>`;
+}
+async function loadLmAnalytics() {
+    const box = document.getElementById('lmAnalyticsBody');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/lm_analytics?t=' + Date.now());
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (d.status !== 'ok') throw new Error(d.error || 'error');
+        const o = d.overall;
+        const clvCol = o.avg_clv == null ? '' : o.avg_clv > 0 ? 'var(--emerald-400)' : 'var(--red-400)';
+        const head = '<thead><tr><th></th><th>Ст.</th><th>W/L</th><th>Win%</th><th>ROI</th><th>CLV</th></tr></thead>';
+        box.innerHTML = `
+            <div class="dm-summary" style="grid-template-columns:repeat(4,1fr);">
+                <div class="dm-sum-item"><b>${o.n}</b><span>ставок</span></div>
+                <div class="dm-sum-item"><b>${fmtPct(o.winrate)}</b><span>Win rate</span></div>
+                <div class="dm-sum-item"><b>${fmtPct(o.roi, true)}</b><span>ROI</span></div>
+                <div class="dm-sum-item"><b style="color:${clvCol};">${fmtPct(o.avg_clv, true)}</b><span>средний CLV</span></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                CLV — насколько кэф ставки выше последнего снимка перед матчем. Стабильно выше 0 = стратегия берёт цену лучше рынка. Доля ставок с CLV&gt;0: ${fmtPct(o.clv_pos)} (по ${o.clv_n} ставкам).
+            </div>
+            <div class="dm-title">По лигам</div>
+            <div class="dm-tablewrap"><table class="dm-table">${head}<tbody>${d.by_league.map(x => lmRow(x.league, x)).join('') || '<tr><td colspan="6">Нет данных</td></tr>'}</tbody></table></div>
+            <div class="dm-title" style="margin-top:12px;">По размеру движения (от первого снимка до кэфа ставки)</div>
+            <div class="dm-tablewrap"><table class="dm-table">${head}<tbody>${d.by_move.map(x => lmRow(x.bucket, x)).join('')}</tbody></table></div>`;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
+async function exportHistoryCsv() {
+    try {
+        const r = await fetch(API_BASE + '/api/export_history.csv');
+        if (!r.ok) throw new Error('Сервер: ' + r.status);
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'history.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+        showNotification('❌ Экспорт: ' + e.message, 'error');
+    }
 }
 const DM_FINISHED = ['FT', 'AET', 'PEN'];
 const DM_LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
@@ -3652,6 +3811,7 @@ async function loadPageData(page) {
         if (page === 'dashboard') {
             renderDashboard(data);
             loadDashboardAnomalies();
+            loadBotHealth();
             loadDashboardAutobets();
         } else if (page === 'matches') {
             renderMatchesPage(data);
@@ -4172,6 +4332,11 @@ function renderBetCard(m, isActive = false) {
         : '';
 
     const dmHtml = renderDayMovement(m.dm, m);
+    const _key = itemKey(m);
+    const _fav = isFav(m);
+    const _note = betNotes[_key] || '';
+    const noteHtml = _note ? `<div class="card-note">📝 ${escapeHtml(_note)}</div>` : '';
+    const favBtn = `<button class="fav-btn ${_fav ? 'on' : ''}" data-key="${escapeHtml(_key)}" onclick="toggleFav(event, this.dataset.key)" aria-label="Избранное">${_fav ? '★' : '☆'}</button>`;
     const _mv = dmMaxMove(m.dm);
     const dmHotClass = Math.abs(_mv) >= DM_HOT_PCT ? (_mv < 0 ? 'dm-hot-drop' : 'dm-hot-rise')
         : Math.abs(_mv) >= DM_WARM_PCT ? 'dm-warm' : '';
@@ -4238,6 +4403,7 @@ function renderBetCard(m, isActive = false) {
                         ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
                         ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
                         ${dmFinal}
+                        ${favBtn}
                         ${(m.live_minute || m.live_status) && result === 'pending' && !(m.dm && DM_FINISHED.includes(m.dm.status)) ? `<span class="bet-halftime">🔴 LIVE ${m.live_status === 'HT' ? 'HT' : (m.live_minute || '') + "'"}</span>` : ''}
                     </div>
                 </div>
@@ -4264,6 +4430,7 @@ function renderBetCard(m, isActive = false) {
             </div>
             ${lmMovementHtml}
             ${dmHtml}
+            ${noteHtml}
         </div>
     `;
 }
@@ -4448,6 +4615,7 @@ function renderMatchesPage(data) {
         else if (matchesFilter === 'dm_live') allItems = allItems.filter(i => dmState(i) === 'live');
         else if (matchesFilter === 'dm_fin') allItems = allItems.filter(i => dmState(i) === 'fin');
         else if (matchesFilter === 'dm_soon') allItems = allItems.filter(i => dmState(i) === 'soon');
+        else if (matchesFilter === 'fav') allItems = allItems.filter(i => isFav(i));
         else if (matchesFilter === 'dm_move') allItems = allItems.filter(i => Math.abs(dmMaxMove(i.dm)) >= DM_WARM_PCT);
         else allItems = allItems.filter(i => i.result === matchesFilter);
     }
@@ -4926,6 +5094,7 @@ function showMatchDetail(match) {
     }
 
     html += renderDmDetail(match);
+    html += renderNoteBox(match);
     body.innerHTML = html;
     modal.classList.add('active');
     haptic(8);
@@ -5571,6 +5740,7 @@ function renderAnalytics(data) {
     document.getElementById('aLosses').textContent = losses;
     document.getElementById('aAvgOdds').textContent = avgOdds;
     setTimeout(() => renderAnalyticsChart(), 100);
+    loadLmAnalytics();
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);
     renderLeagueBreakdown(history);
