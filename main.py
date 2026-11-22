@@ -5247,6 +5247,7 @@ def find_line_movement_matches(matches):
                 "home": meta['home'],
                 "away": meta['away'],
                 "league": league_name,
+                "league_id": meta.get('league_id'),
                 "country": country_name,
                 "country_flag": country_flag,
                 "fixture_id": fid,
@@ -5381,7 +5382,13 @@ def find_top_matches_with_tm25(matches):
         logger.error(f"❌ LINE MOVEMENT упал: {e}")
         lm_matches = []
 
-    # Возвращаем результат работы стратегии
+    # ★ Сохраняем сигналы: кэш (Матчи/Live) + история (счёт после финала) + автоставки.
+    #   Раньше всё это стояло ПОСЛЕ return и никогда не выполнялось.
+    try:
+        lm_matches = _persist_lm_picks(lm_matches)
+    except Exception as e:
+        logger.error(f"❌ Сохранение LM-сигналов: {e}")
+
     return lm_matches
 
     # 2. Собираем всё в один список (у нас теперь только он)
@@ -5613,6 +5620,161 @@ def recalc_stats():
 # ★ СНИМКИ КЭФОВ (LOCK + ЛИМИТ 30)
 # ============================================================
 
+# ============================================================
+# ★ ФИЛЬТР «ТОЛЬКО ЛИГИ LINE MOVEMENT» для всех вкладок
+# ============================================================
+_LM_FIX_CACHE = {'ts': 0.0, 'ids': set()}
+_LM_API_NAMES = {'premier league', 'super league 1', 'eredivisie', 'primeira liga',
+                 'pro league', 'jupiler pro league', 'championship'}
+
+
+def _lm_known_fixture_ids():
+    """ID матчей LM-лиг, известных по снимкам (обновляется раз в минуту)."""
+    now = time.time()
+    if now - _LM_FIX_CACHE['ts'] > 60:
+        try:
+            ids = storage.get_lm_fixture_ids(_lm_league_ids())
+        except Exception:
+            ids = set()
+        _LM_FIX_CACHE['ts'] = now
+        _LM_FIX_CACHE['ids'] = ids
+    return _LM_FIX_CACHE['ids']
+
+
+def is_lm_item(rec):
+    """Запись (матч/ставка/снимок/кандидат) относится к лигам Line Movement?
+    1) есть league_id -> строго по ID; 2) матч известен по снимкам LM-лиг;
+    3) старые записи без ID -> по названию лиги (+страна, если указана)."""
+    if not isinstance(rec, dict):
+        return True
+    ids = set(_lm_league_ids())
+    lid = rec.get('league_id')
+    if lid not in (None, ''):
+        try:
+            return int(lid) in ids
+        except Exception:
+            return False
+    fid = rec.get('fixture_id')
+    if fid and fid in _lm_known_fixture_ids():
+        return True
+    countries = {Config.LEAGUE_COUNTRY.get(l, ('', ''))[0] for l in ids} - {''}
+    country = str(rec.get('country') or '').strip()
+    if country and country not in countries:
+        return False
+    name = str(rec.get('league') or '').strip().lower()
+    allowed = set(_LM_API_NAMES) | {str(Config.LEAGUE_NAMES.get(l, '')).lower() for l in ids}
+    allowed.discard('super league')          # неоднозначно (Греция/Швейцария/Китай)
+    allowed.discard('')
+    if name in allowed:
+        return True
+    return name == 'super league' and country in countries
+
+
+def lm_filter(items):
+    return [x for x in (items or []) if is_lm_item(x)]
+
+
+def _lm_snapshots_since(cutoff):
+    return [r for r in storage.get_snapshots_since(cutoff) if is_lm_item(r)]
+
+
+def _stats_from_history(history):
+    total = len(history)
+    wins = sum(1 for b in history if b.get('result') == 'win')
+    losses = sum(1 for b in history if b.get('result') == 'loss')
+    profit = sum(b.get('profit', 0) or 0 for b in history)
+    stake_sum = sum(b.get('stake', 0) or 0 for b in history)
+    return {
+        'total': total, 'wins': wins, 'losses': losses,
+        'total_profit': round(profit, 2),
+        'winrate': round(wins / (wins + losses) * 100, 1) if (wins + losses) else 0,
+        'roi': round(profit / stake_sum * 100, 1) if stake_sum else 0,
+        'avg_stake': round(stake_sum / total, 2) if total else 0,
+    }
+
+
+_LIVE_BATCH = {'date': None, 'ts': 0.0, 'data': {}}
+
+
+def _fetch_live_batch(today_str):
+    """Все матчи дня одним запросом (память 15 сек — Live обновляется каждые 20 сек)."""
+    now = time.time()
+    if _LIVE_BATCH['date'] == today_str and now - _LIVE_BATCH['ts'] < 15:
+        return _LIVE_BATCH['data']
+    out = {}
+    try:
+        batch = football_api._make_request('/fixtures', {
+            'date': today_str, 'timezone': 'Europe/Moscow'
+        })
+        if batch and batch.get('response'):
+            for f in batch['response']:
+                fid = f.get('fixture', {}).get('id')
+                if fid:
+                    out[fid] = f
+            logger.info(f"📡 Live batch: {len(out)} матчей на {today_str}")
+    except Exception as e:
+        logger.error(f"Live batch error: {e}")
+        return _LIVE_BATCH['data'] if _LIVE_BATCH['date'] == today_str else {}
+    _LIVE_BATCH.update(date=today_str, ts=now, data=out)
+    return out
+
+
+def _persist_lm_picks(picks):
+    """Сигналы Line Movement -> кэш (вкладки Матчи/Live) + история (pending;
+    счёт и результат проставит update_pending_bets после финала) + автоставки."""
+    if not picks:
+        return []
+    for p in picks:
+        p.pop('_preloaded_odds', None)
+        p.pop('_preloaded_preds', None)
+
+    with cache_lock:
+        cache = storage.load_cache()
+        cache['top_matches'] = picks
+        cache['all_analyzed'] = picks
+        storage.save_cache(cache)
+
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    history = storage.load_history()
+    existing_fids = {h.get('fixture_id') for h in history if h.get('fixture_id')}
+    existing_keys = {(h.get('home'), h.get('away'), str(h.get('date', '')).split(' ')[0])
+                     for h in history}
+    today_str = now_msk.strftime('%Y-%m-%d')
+    added = 0
+    for md in picks:
+        bb = md.get('best_bet', {}) or {}
+        fid = md.get('fixture_id')
+        if (fid and fid in existing_fids) or (md.get('home'), md.get('away'), today_str) in existing_keys:
+            continue
+        history.append({
+            'home': md.get('home'), 'away': md.get('away'),
+            'league': md.get('league'), 'league_id': md.get('league_id'),
+            'country': md.get('country', ''), 'country_flag': md.get('country_flag', ''),
+            'bet': bb.get('label', '—'),
+            'odds': bb.get('odds', 0), 'stake': bb.get('stake', 0),
+            'ev': bb.get('ev', 0), 'prob': bb.get('prob', 0),
+            'result': 'pending', 'profit': 0,
+            'date': now_msk.strftime('%Y-%m-%d %H:%M'),
+            'match_time': md.get('match_time', ''),
+            'fixture_id': fid,
+            'bookmaker': bb.get('bookmaker', '—'),
+            'engine': 'line_movement', 'source': 'line_movement',
+            'weather_reason': '', 'llm_reason': '',
+            'steam_move': True, 'clv_adjusted': True, 'score': 0,
+        })
+        added += 1
+    if added:
+        storage.save_history(history)
+        logger.info(f"📝 LM: добавлено в историю {added}")
+    try:
+        placed = autobet_manager.place_bets_from_cache()
+        if placed:
+            logger.info(f"💸 Автоставок размещено: {placed}")
+    except Exception as e:
+        logger.error(f"Ошибка автоставок: {e}")
+    return picks
+
+
 def _lm_league_ids():
     """ID лиг Line Movement из конфига (единый источник правды)."""
     return [int(x) for x in (getattr(Config, 'LINE_MOVEMENT_LEAGUE_IDS', None) or [])]
@@ -5688,13 +5850,19 @@ def lm_take_snapshots():
                 home = (teams.get('home') or {}).get('name', '')
                 away = (teams.get('away') or {}).get('name', '')
                 league = (f.get('league') or {}).get('name', lname)
+                try:
+                    mt_msk = parse_match_time_to_msk((f.get('fixture') or {}).get('date', ''))
+                except Exception:
+                    mt_msk = ''
                 for sel, key in (('1', 'home_odds'), ('X', 'draw_odds'), ('2', 'away_odds')):
                     if fo.get(key, 0) > 1.01:
-                        if storage.save_odds_snapshot(fid, '1X2', sel, fo[key], 'LM-Job', home, away, league):
+                        if storage.save_odds_snapshot(fid, '1X2', sel, fo[key], 'LM-Job', home, away, league,
+                                                      league_id=lid, match_time=mt_msk):
                             saved += 1
                 for sel, key in (('1X', '1x_odds'), ('X2', 'x2_odds')):
                     if sel in bet_types and fo.get(key, 0) > 1.01:
-                        if storage.save_odds_snapshot(fid, 'DC', sel, fo[key], 'LM-Job', home, away, league):
+                        if storage.save_odds_snapshot(fid, 'DC', sel, fo[key], 'LM-Job', home, away, league,
+                                                      league_id=lid, match_time=mt_msk):
                             saved += 1
             saved_total += saved
             logger.info(f"📸 [LM-SNAP] {lname} {date}: матчей {len(fixtures)}, "
@@ -5706,117 +5874,14 @@ def lm_take_snapshots():
 _snapshot_lock = Lock()
 
 
-# ============================================================
-# ★ LM LIVE ALERTS — оповещение в Telegram при падении кэфа
-# ============================================================
-_LM_ALERTED_PATH = os.path.join(DATA_DIR, 'lm_alerted.json')
-_lm_alerted_lock = Lock()
-
-
-def _load_lm_alerted():
-    if not os.path.exists(_LM_ALERTED_PATH):
-        return {}
-    try:
-        with open(_LM_ALERTED_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f) or {}
-    except Exception:
-        return {}
-
-
-def _save_lm_alerted(data):
-    try:
-        os.makedirs(os.path.dirname(_LM_ALERTED_PATH) or '.', exist_ok=True)
-        with open(_LM_ALERTED_PATH, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"lm_alerted save: {e}")
-
-
-def _already_alerted(fid, sel):
-    key = f"{fid}:{sel}"
-    with _lm_alerted_lock:
-        data = _load_lm_alerted()
-        return key in data
-
-
-def _mark_alerted(fid, sel):
-    key = f"{fid}:{sel}"
-    with _lm_alerted_lock:
-        data = _load_lm_alerted()
-        data[key] = datetime.now().isoformat()
-        cutoff = (datetime.now() - timedelta(days=2)).isoformat()
-        data = {k: v for k, v in data.items() if v >= cutoff}
-        _save_lm_alerted(data)
-
-
-def check_and_alert_line_movement():
-    """
-    После снимков: ищем падения кэфов по фильтрам LM
-    и шлём в Telegram только новые сигналы.
-    """
-    if not getattr(Config, 'LINE_MOVEMENT_LIVE_ALERTS', True):
-        return 0
-    if not getattr(Config, 'LINE_MOVEMENT_ENABLED', True):
-        return 0
-
-    try:
-        signals = find_line_movement_matches([])
-        if not signals:
-            logger.info("[LM-ALERT] Новых сигналов нет")
-            return 0
-
-        new_ones = []
-        for m in signals:
-            fid = m.get('fixture_id')
-            bb = m.get('best_bet') or {}
-            sel = (bb.get('type') or 'lm_2').replace('lm_', '')
-            if not fid:
-                continue
-            if _already_alerted(fid, sel):
-                continue
-            new_ones.append(m)
-            _mark_alerted(fid, sel)
-
-        if not new_ones:
-            logger.info("[LM-ALERT] Сигналы есть, но уже алертили")
-            return 0
-
-        msg = f"📉 <b>LINE MOVEMENT — {len(new_ones)}</b>\n\n"
-        for i, m in enumerate(new_ones, 1):
-            b = m.get('best_bet') or {}
-            direction = "📉" if b.get('direction') == 'drop' else "📈"
-            msg += (
-                f"{i}. <b>{m.get('home', '?')} vs {m.get('away', '?')}</b> {direction}\n"
-                f"🏆 {m.get('league', '?')}\n"
-                f"📅 {m.get('match_time', '?')}\n"
-                f"🎯 {b.get('label', '—')} | КЭФ: {b.get('odds')}\n"
-                f"Δ {b.get('movement_pct', 0):+.1f}% за {b.get('movement_hours', 0)}ч "
-                f"({b.get('old_odds')} → {b.get('odds')})\n"
-                f"💵 Stake: ${b.get('stake', 0)}\n"
-                f"🏷️ {b.get('bookmaker', '—')}\n\n"
-            )
-
-        send_telegram(msg)
-        logger.info(f"[LM-ALERT] Отправлено: {len(new_ones)}")
-        return len(new_ones)
-    except Exception as e:
-        logger.exception(f"[LM-ALERT] {e}")
-        return 0
-
-
 def snapshot_odds_for_upcoming(custom_matches=None):
-    """Снимки кэфов. custom_matches игнорируется: только LINE_MOVEMENT_LEAGUE_IDS."""
+    """Совместимая обёртка (планировщик, /snapshot, /api/snapshot, поиск).
+    custom_matches игнорируется: берём матчи только из LINE_MOVEMENT_LEAGUE_IDS."""
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
     try:
-        n = lm_take_snapshots()
-        # ★ сразу после снимков — алерт в Telegram
-        try:
-            check_and_alert_line_movement()
-        except Exception as e:
-            logger.error(f"[LM-ALERT] после снимков: {e}")
-        return n
+        return lm_take_snapshots()
     finally:
         _snapshot_lock.release()
 
@@ -7044,6 +7109,37 @@ def api_live():
                 all_matches.append(_m)
                 _seen_fids.add(_fid)
 
+        # ★ только лиги Line Movement
+        all_matches = lm_filter(all_matches)
+
+        # ★ + все матчи этих лиг из дневного батча (чтобы вкладка не была пустой)
+        live_data = {}
+        if getattr(Config, 'LIVE_BATCH_ENABLED', True):
+            live_data = dict(_fetch_live_batch(today_str))
+        _known = {x.get('fixture_id') for x in all_matches}
+        _ids = set(_lm_league_ids())
+        for _fid, _f in live_data.items():
+            if _fid in _known:
+                continue
+            _lg = _f.get('league') or {}
+            if _lg.get('id') not in _ids:
+                continue
+            _ts = (_f.get('fixture') or {}).get('timestamp')
+            if not _ts:
+                continue
+            _dt = datetime(1970, 1, 1) + timedelta(seconds=_ts + TIMEZONE_OFFSET * 3600)
+            _tm = _f.get('teams') or {}
+            _cn, _cf = Config.LEAGUE_COUNTRY.get(_lg.get('id'), ('', ''))
+            all_matches.append({
+                'fixture_id': _fid,
+                'home': (_tm.get('home') or {}).get('name', '?'),
+                'away': (_tm.get('away') or {}).get('name', '?'),
+                'league': _lg.get('name', ''), 'league_id': _lg.get('id'),
+                'country': _cn, 'country_flag': _cf,
+                'match_time': _dt.strftime('%d.%m.%Y %H:%M'),
+                'source': 'line_movement', 'best_bet': {}, 'total_xg': 0,
+            })
+
         if not all_matches:
             return jsonify({'status': 'ok', 'count': 0, 'matches': [],
                             'now': now_msk.strftime('%H:%M')})
@@ -7078,21 +7174,7 @@ def api_live():
         in_window.sort(key=lambda x: x[2])
         in_window = in_window[:max_matches]
 
-        live_data = {}
-        if getattr(Config, 'LIVE_BATCH_ENABLED', True):
-            try:
-                batch = football_api._make_request('/fixtures', {
-                    'date': today_str,
-                    'timezone': 'Europe/Moscow'
-                })
-                if batch and batch.get('response'):
-                    for f in batch['response']:
-                        fid = f.get('fixture', {}).get('id')
-                        if fid:
-                            live_data[fid] = f
-                    logger.info(f"📡 Live batch: {len(live_data)} матчей на {today_str}")
-            except Exception as e:
-                logger.error(f"Live batch error: {e}")
+        # live_data уже загружен выше (_fetch_live_batch)
 
         sparkline_data = {}
         if getattr(Config, 'LIVE_SPARKLINE_ENABLED', True):
@@ -7312,7 +7394,7 @@ def api_live():
 @app.route('/api/x2_auto', methods=['GET'])
 def api_x2_auto():
     try:
-        candidates = storage.get_x2_candidates(limit=100)
+        candidates = lm_filter(storage.get_x2_candidates(limit=100))
         if not candidates:
             return jsonify({'status': 'ok', 'count': 0, 'candidates': []})
 
@@ -7436,6 +7518,7 @@ def api_x2_data_get():
         if os.path.exists(X2_FILE):
             with open(X2_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+        data = lm_filter(data) if isinstance(data, list) else data
         return jsonify({'status': 'ok', 'data': data or []})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
@@ -7479,7 +7562,7 @@ def api_autobets_state():
 def api_autobets_history():
     try:
         limit = int(request.args.get('limit', 100))
-        return jsonify(storage.autobet_get_history(limit))
+        return jsonify(lm_filter(storage.autobet_get_history(1000))[:limit])
     except Exception as e:
         return jsonify([])
 
@@ -8051,15 +8134,15 @@ def api_history():
 @app.route('/api/matches', methods=['GET'])
 def api_matches():
     cache = storage.load_cache()
-    return jsonify(cache.get('top_matches', []))
+    return jsonify(lm_filter(cache.get('top_matches', [])))
 
 
 @app.route('/api/all_data', methods=['GET'])
 def all_data():
     try:
-        stats = storage.load_stats()
         bank = storage.load_bank()
-        history = storage.load_history()
+        history = lm_filter(storage.load_history())     # ★ только лиги Line Movement
+        stats = _stats_from_history(history)
         cache = storage.load_cache()
         profit_data = get_profit_data(history)
         return jsonify({
@@ -8069,7 +8152,7 @@ def all_data():
                       'winrate': stats.get('winrate', 0),
                       'roi': stats.get('roi', 0), 'avg_stake': stats.get('avg_stake', 0)},
             'history': history, 'profit_data': profit_data,
-            'matches': cache.get('top_matches', [])
+            'matches': lm_filter(cache.get('top_matches', []))
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -8173,7 +8256,7 @@ def api_anomaly_set_result():
 def api_anomalies():
     """Возвращает пропущенные аномалии с результатами (через storage)."""
     try:
-        items = storage.load_anomalies(limit=200)
+        items = lm_filter(storage.load_anomalies(limit=200))
         stats = storage.get_anomaly_stats(stake_per_bet=50.0)
         return jsonify({
             'status': 'ok',
@@ -8194,9 +8277,11 @@ def api_snapshots_list():
     try:
         days = int(request.args.get('days', 7))
         only_anomaly = request.args.get('only_anomaly', 'false').lower() == 'true'
+        only_today = request.args.get('only_today', 'false').lower() == 'true'
+        today_ddmmyyyy = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%d.%m.%Y')
         limit = int(request.args.get('limit', 50))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-        matches_raw = storage.get_snapshots_since(cutoff)
+        matches_raw = _lm_snapshots_since(cutoff)
 
         grouped = {}
         for row in matches_raw:
@@ -8209,6 +8294,7 @@ def api_snapshots_list():
                     'home': row.get('home', ''),
                     'away': row.get('away', ''),
                     'league': row.get('league', ''),
+                    'match_time': row.get('match_time') or '',
                     'first_time': None,
                     'last_time': None,
                 }
@@ -8219,6 +8305,8 @@ def api_snapshots_list():
                 grouped[fid]['away'] = row['away']
             if row.get('league') and not grouped[fid]['league']:
                 grouped[fid]['league'] = row['league']
+            if row.get('match_time') and not grouped[fid]['match_time']:
+                grouped[fid]['match_time'] = row['match_time']
 
             t = row.get('created_at')
             if t:
@@ -8262,12 +8350,16 @@ def api_snapshots_list():
             if only_anomaly and not anomalies:
                 continue
 
+            mt_value = info.get('match_time') or match_time_lookup.get(fid, '?')
+            if only_today and not str(mt_value).startswith(today_ddmmyyyy):
+                continue
+
             result.append({
                 'fixture_id': fid,
                 'home': info['home'] or '?',
                 'away': info['away'] or '?',
                 'league': info['league'] or '?',
-                'match_time': match_time_lookup.get(fid, '?'),
+                'match_time': mt_value,
                 'snapshot_count': len(snaps),
                 'first_time': info['first_time'],
                 'last_time': info['last_time'],
@@ -8383,7 +8475,7 @@ def api_snapshot_anomalies():
         days = int(request.args.get('days', 7))
         limit = int(request.args.get('limit', 50))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-        matches_raw = storage.get_snapshots_since(cutoff)
+        matches_raw = _lm_snapshots_since(cutoff)
 
         grouped = {}
         for row in matches_raw:
@@ -8459,7 +8551,7 @@ def api_snapshot_anomalies_stats():
     try:
         days = int(request.args.get('days', 7))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-        matches_raw = storage.get_snapshots_since(cutoff)
+        matches_raw = _lm_snapshots_since(cutoff)
 
         grouped = {}
         for row in matches_raw:
@@ -9139,6 +9231,7 @@ def api_lab():
                     try:
                         items.append(json.loads(line.strip()))
                     except: pass
+        items = lm_filter(items)
         items.sort(key=lambda x: x.get('date', ''), reverse=True)
         return jsonify({'status': 'ok', 'count': len(items), 'items': items})
     except Exception as e:
