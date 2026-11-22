@@ -192,7 +192,8 @@ class Config:
     # ★ LINE MOVEMENT (Аномалии кэфов) — v5.1
     # ============================================================
     LINE_MOVEMENT_ENABLED = True
-
+    LINE_MOVEMENT_LIVE_ALERTS = True
+    
     LINE_MOVEMENT_MIN_DROP_PCT = -4.0
     LINE_MOVEMENT_MAX_DROP_PCT = -15.0
     LINE_MOVEMENT_MIN_RISE_PCT = 8.0
