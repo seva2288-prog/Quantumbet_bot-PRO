@@ -1073,6 +1073,22 @@
 .dm-odds{font-size:11px;color:var(--text-secondary);}
 .dm-odds b{color:var(--text-primary,inherit);}
 .dm-ch{font-size:11px;font-weight:800;}
+
+/* Матчи дня: сводка, сортировка, подсветка, детали */
+.dm-sortrow{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:11px;color:var(--text-tertiary);}
+.dm-sortrow select{flex:1;min-width:0;padding:7px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:12px;}
+.dm-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;}
+.dm-sum-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
+.dm-sum-item b{font-size:15px;font-weight:800;}
+.dm-sum-item span{font-size:9px;color:var(--text-tertiary);text-align:center;}
+.bet-card.dm-hot-drop{box-shadow:0 0 0 2px rgba(52,211,153,.75),0 0 18px rgba(52,211,153,.25);}
+.bet-card.dm-hot-rise{box-shadow:0 0 0 2px rgba(248,113,113,.75),0 0 18px rgba(248,113,113,.25);}
+.bet-card.dm-warm{box-shadow:0 0 0 1px rgba(251,191,36,.6);}
+.dm-clv{margin-top:8px;font-size:11px;font-weight:700;}
+.dm-detail{margin-top:16px;}
+.dm-detail-sel{padding:10px;margin-top:8px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
+.dm-times{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:10px;color:var(--text-tertiary);}
+.dm-times b{color:var(--text-secondary);}
 </style>
 </head>
 <body>
@@ -1319,7 +1335,23 @@
                 <button class="filter-btn" data-filter="win" onclick="setMatchFilter('win')">✅ WIN</button>
                 <button class="filter-btn" data-filter="loss" onclick="setMatchFilter('loss')">❌ LOSS</button>
                 <button class="filter-btn" data-filter="pending" onclick="setMatchFilter('pending')">⏳ Ожидание</button>
+                <button class="filter-btn" data-filter="dm_live" onclick="setMatchFilter('dm_live')">🔴 Идут</button>
+                <button class="filter-btn" data-filter="dm_fin" onclick="setMatchFilter('dm_fin')">🏁 Завершены</button>
+                <button class="filter-btn" data-filter="dm_soon" onclick="setMatchFilter('dm_soon')">🕒 Скоро</button>
+                <button class="filter-btn" data-filter="dm_move" onclick="setMatchFilter('dm_move')">🔥 Движение 5%+</button>
             </div>
+
+            <div class="dm-sortrow">
+                <span>Сортировка:</span>
+                <select id="matchesSort" onchange="setMatchSort(this.value)">
+                    <option value="date">По дате</option>
+                    <option value="time">По времени матча</option>
+                    <option value="move">По движению кэфа</option>
+                    <option value="status">По статусу (идут → скоро → завершены)</option>
+                </select>
+            </div>
+
+            <div id="dayMatchesSummary"></div>
 
             <div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-bottom:8px;">
                 💡 Свайп влево = WIN &nbsp;|&nbsp; Свайп вправо = LOSS
@@ -3532,6 +3564,70 @@ async function loadDayMatches() {
 }
 const DM_FINISHED = ['FT', 'AET', 'PEN'];
 const DM_LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+const DM_HOT_PCT = 8;     // сильное движение
+const DM_WARM_PCT = 5;    // заметное движение
+
+function dmMaxMove(d) {
+    if (!d || !d.selections) return 0;
+    let best = 0;
+    Object.values(d.selections).forEach(x => {
+        const c = Number(x.change_pct) || 0;
+        if (Math.abs(c) > Math.abs(best)) best = c;
+    });
+    return best;
+}
+// 'live' | 'fin' | 'soon' для любого элемента списка
+function dmState(it) {
+    const st = it.dm && it.dm.status;
+    if (st) {
+        if (DM_FINISHED.includes(st)) return 'fin';
+        if (DM_LIVE.includes(st)) return 'live';
+        return 'soon';
+    }
+    if (it.result && it.result !== 'pending') return 'fin';
+    return it.is_active ? 'soon' : 'live';
+}
+function dmTimeValue(it) {
+    const m = String(it.date || '').match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+    if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime();
+    const t = new Date(it.date).getTime();
+    return isNaN(t) ? 0 : t;
+}
+const DM_BETKEY = {'П1': '1', 'P1': '1', '1': '1', 'Х': 'X', 'X': 'X', 'Н': 'X', 'П2': '2', 'P2': '2', '2': '2', '1Х': '1X', '1X': '1X', 'Х2': 'X2', 'X2': 'X2'};
+function dmBetSelection(label) {
+    const t = String(label || '').toUpperCase().replace(/\s+/g, '');
+    return DM_BETKEY[t] || null;
+}
+
+// автообновление вкладки «Матчи»: счёт, минуты, кэфы + уведомления о событиях
+let _dmPrev = null;
+async function dmAutoRefresh() {
+    if (currentPage !== 'matches' || document.hidden) return;
+    const modal = document.getElementById('matchDetailModal');
+    if (modal && modal.classList && (modal.classList.contains('show') || modal.classList.contains('active'))) return;
+    await loadDayMatches();
+    dmNotifyChanges();
+    renderMatchesPage();
+}
+function dmNotifyChanges() {
+    const cur = {};
+    (dayMatchesData || []).forEach(d => { cur[d.fixture_id] = d; });
+    if (_dmPrev) {
+        Object.keys(cur).forEach(fid => {
+            const n = cur[fid], o = _dmPrev[fid];
+            if (!o) return;
+            const nm = (n.home || '?') + ' — ' + (n.away || '?');
+            if (!DM_FINISHED.includes(o.status) && DM_FINISHED.includes(n.status)) {
+                showNotification('🏁 ' + nm + ' ' + n.home_goals + ':' + n.away_goals, 'success');
+                try { haptic(20); } catch (e) {}
+            } else if (Math.abs(dmMaxMove(n)) >= DM_HOT_PCT && Math.abs(dmMaxMove(o)) < DM_HOT_PCT) {
+                showNotification('🔥 ' + nm + ': кэф ' + (dmMaxMove(n) > 0 ? '+' : '') + dmMaxMove(n) + '%', '');
+            }
+        });
+    }
+    _dmPrev = cur;
+}
+setInterval(dmAutoRefresh, 45000);
 
 async function loadPageData(page) {
     if (isLoading) return;
@@ -4075,7 +4171,10 @@ function renderBetCard(m, isActive = false) {
            </div>`
         : '';
 
-    const dmHtml = renderDayMovement(m.dm);
+    const dmHtml = renderDayMovement(m.dm, m);
+    const _mv = dmMaxMove(m.dm);
+    const dmHotClass = Math.abs(_mv) >= DM_HOT_PCT ? (_mv < 0 ? 'dm-hot-drop' : 'dm-hot-rise')
+        : Math.abs(_mv) >= DM_WARM_PCT ? 'dm-warm' : '';
     const dmFinal = (m.dm && DM_FINISHED.includes(m.dm.status))
         ? '<span class="bet-halftime">🏁 Итог</span>' : '';
 
@@ -4123,7 +4222,7 @@ function renderBetCard(m, isActive = false) {
     }
 
     return `
-        <div class="bet-card ${isActive ? 'active' : ''}"
+        <div class="bet-card ${isActive ? 'active' : ''} ${dmHotClass}"
              data-fixture="${m.fixture_id || ''}"
              data-index="${itemIndex}"
              onclick='handleCardClick(event, ${JSON.stringify(m).replace(/'/g, "&#39;")})'>
@@ -4169,7 +4268,19 @@ function renderBetCard(m, isActive = false) {
     `;
 }
 
-function renderDayMovement(d) {
+function dmClvHtml(d, m) {
+    if (!d || !m || !m.odds) return '';
+    const k = dmBetSelection(m.bet);
+    const x = k && d.selections ? d.selections[k] : null;
+    if (!x) return '';
+    const clv = (Number(m.odds) / Number(x.last) - 1) * 100;
+    const good = clv >= 0;
+    return `<div class="dm-clv" style="color:${good ? 'var(--emerald-400)' : 'var(--red-400)'};">
+        ${good ? '✅' : '⚠️'} Взяли ${Number(m.odds).toFixed(2)} • сейчас/закрытие ${Number(x.last).toFixed(2)}
+        (${clv > 0 ? '+' : ''}${clv.toFixed(1)}%)</div>`;
+}
+
+function renderDayMovement(d, m) {
     if (!d || !d.selections) return '';
     const order = ['1', 'X', '2', '1X', 'X2'];
     const names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'};
@@ -4192,6 +4303,7 @@ function renderDayMovement(d) {
         <div class="dm-title">📈 Движение кэфов <span style="opacity:.7;">• ${d.snapshots_count} сним.</span></div>
         <div class="dm-chips">${chips}</div>
         ${spark}
+        ${dmClvHtml(d, m)}
     </div>`;
 }
 
@@ -4323,6 +4435,7 @@ async function quickSetResult(displayIndex, result) {
 // ============================================================
 // MATCHES PAGE
 // ============================================================
+let _lastDisplayed = [];
 function renderMatchesPage(data) {
     if (!data) data = cachedData;
     if (!data) return;
@@ -4332,6 +4445,10 @@ function renderMatchesPage(data) {
 
     if (matchesFilter !== 'all') {
         if (matchesFilter === 'active') allItems = allItems.filter(i => i.is_active);
+        else if (matchesFilter === 'dm_live') allItems = allItems.filter(i => dmState(i) === 'live');
+        else if (matchesFilter === 'dm_fin') allItems = allItems.filter(i => dmState(i) === 'fin');
+        else if (matchesFilter === 'dm_soon') allItems = allItems.filter(i => dmState(i) === 'soon');
+        else if (matchesFilter === 'dm_move') allItems = allItems.filter(i => Math.abs(dmMaxMove(i.dm)) >= DM_WARM_PCT);
         else allItems = allItems.filter(i => i.result === matchesFilter);
     }
     if (matchesSearchQuery) {
@@ -4361,6 +4478,8 @@ function renderMatchesPage(data) {
     }
 
     displayed.forEach((item, i) => item._index = i);
+    _lastDisplayed = displayed;
+    renderDaySummary();
 
     if (viewMode === 'cards') renderCardsView(displayed);
     else renderTableView(displayed);
@@ -4536,6 +4655,15 @@ function buildAllItems(history, matches) {
 
 function sortItems(items) {
     const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortBy === 'time' || sortBy === 'move' || sortBy === 'status') {
+        const rank = {live: 0, soon: 1, fin: 2};
+        return items.sort((a, b) => {
+            if (sortBy === 'time') return dir * (dmTimeValue(a) - dmTimeValue(b));
+            if (sortBy === 'move') return dir * (Math.abs(dmMaxMove(a.dm)) - Math.abs(dmMaxMove(b.dm)));
+            const d = rank[dmState(a)] - rank[dmState(b)];
+            return d !== 0 ? d : dmTimeValue(a) - dmTimeValue(b);
+        });
+    }
     return items.sort((a, b) => {
         if (a.is_active && !b.is_active) return -1;
         if (!a.is_active && b.is_active) return 1;
@@ -4552,6 +4680,7 @@ function sortItems(items) {
 }
 
 function getItemByIndex(index) {
+    if (_lastDisplayed && _lastDisplayed[index]) return _lastDisplayed[index];
     if (!cachedData) return null;
     let all = sortItems(buildAllItems(cachedData.history || [], cachedData.matches || []));
     const limit = showAllItems ? all.length : ITEMS_LIMIT;
@@ -4607,6 +4736,46 @@ function setMatchFilter(filter) {
     renderMatchesPage();
 }
 
+function setMatchSort(v) {
+    sortBy = v;
+    sortDir = (v === 'time' || v === 'status') ? 'asc' : 'desc';
+    haptic(6);
+    renderMatchesPage();
+}
+
+function renderDaySummary() {
+    const el = document.getElementById('dayMatchesSummary');
+    if (!el) return;
+    const list = dayMatchesData || [];
+    if (!list.length) { el.innerHTML = ''; return; }
+    let live = 0, fin = 0, soon = 0, hot = 0;
+    list.forEach(d => {
+        if (DM_FINISHED.includes(d.status)) fin++;
+        else if (DM_LIVE.includes(d.status)) live++;
+        else soon++;
+        if (Math.abs(dmMaxMove(d)) >= DM_HOT_PCT) hot++;
+    });
+    const hist = (cachedData && cachedData.history) || [];
+    const fids = new Set(list.map(d => d.fixture_id));
+    let w = 0, l = 0, profit = 0;
+    hist.forEach(h => {
+        if (!fids.has(h.fixture_id)) return;
+        if (h.result === 'win') w++;
+        else if (h.result === 'loss') l++;
+        if (h.result === 'win' || h.result === 'loss') profit += Number(h.profit) || 0;
+    });
+    const pc = profit > 0 ? 'var(--emerald-400)' : profit < 0 ? 'var(--red-400)' : 'var(--text-secondary)';
+    el.innerHTML = `<div class="dm-summary">
+        <div class="dm-sum-item"><b>${list.length}</b><span>со снимками</span></div>
+        <div class="dm-sum-item"><b>${live}</b><span>🔴 идут</span></div>
+        <div class="dm-sum-item"><b>${soon}</b><span>🕒 скоро</span></div>
+        <div class="dm-sum-item"><b>${fin}</b><span>🏁 завершены</span></div>
+        <div class="dm-sum-item"><b>${hot}</b><span>🔥 движение</span></div>
+        <div class="dm-sum-item"><b>${w}/${l}</b><span>WIN / LOSS</span></div>
+        <div class="dm-sum-item"><b style="color:${pc};">${profit > 0 ? '+' : ''}${profit.toFixed(1)}</b><span>прибыль дня</span></div>
+    </div>`;
+}
+
 function setViewMode(mode) {
     viewMode = mode;
     safeLSSet('viewMode', mode);  // ★ FIX #12
@@ -4632,6 +4801,32 @@ function toggleShowAll() {
 // ============================================================
 // MATCH DETAIL
 // ============================================================
+function renderDmDetail(match) {
+    const d = match && match.dm;
+    if (!d || !d.selections) return '';
+    const names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'};
+    const keys = ['1', 'X', '2', '1X', 'X2'].filter(k => d.selections[k]);
+    if (!keys.length) return '';
+    const betKey = dmBetSelection(match.bet);
+    let h = '<div class="dm-detail"><div class="dm-title">📈 Движение кэфов по снимкам</div>';
+    keys.forEach(k => {
+        const x = d.selections[k];
+        const ch = Number(x.change_pct) || 0;
+        const col = ch < -0.05 ? 'var(--emerald-400)' : ch > 0.05 ? 'var(--red-400)' : 'var(--text-tertiary)';
+        h += `<div class="dm-detail-sel">
+            <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <b>${names[k]}${k === betKey ? ' • ваша ставка' : ''}</b>
+                <span style="color:${col};font-weight:800;">${ch > 0 ? '+' : ''}${ch}%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);">старт ${Number(x.first).toFixed(2)} → сейчас ${Number(x.last).toFixed(2)} • мин ${Number(x.min).toFixed(2)} • макс ${Number(x.max).toFixed(2)}</div>
+            ${renderDmSpark(x.points || [])}
+            <div class="dm-times">${(x.points || []).map(p => `<span>${escapeHtml(String(p[0]))} <b>${Number(p[1]).toFixed(2)}</b></span>`).join('')}</div>
+        </div>`;
+    });
+    h += dmClvHtml(d, match) + '</div>';
+    return h;
+}
+
 function showMatchDetail(match) {
     const modal = document.getElementById('matchDetailModal');
     const body = document.getElementById('matchDetailBody');
@@ -4730,6 +4925,7 @@ function showMatchDetail(match) {
         }
     }
 
+    html += renderDmDetail(match);
     body.innerHTML = html;
     modal.classList.add('active');
     haptic(8);
