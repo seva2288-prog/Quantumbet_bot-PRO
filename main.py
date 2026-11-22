@@ -5706,14 +5706,117 @@ def lm_take_snapshots():
 _snapshot_lock = Lock()
 
 
+# ============================================================
+# ★ LM LIVE ALERTS — оповещение в Telegram при падении кэфа
+# ============================================================
+_LM_ALERTED_PATH = os.path.join(DATA_DIR, 'lm_alerted.json')
+_lm_alerted_lock = Lock()
+
+
+def _load_lm_alerted():
+    if not os.path.exists(_LM_ALERTED_PATH):
+        return {}
+    try:
+        with open(_LM_ALERTED_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _save_lm_alerted(data):
+    try:
+        os.makedirs(os.path.dirname(_LM_ALERTED_PATH) or '.', exist_ok=True)
+        with open(_LM_ALERTED_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"lm_alerted save: {e}")
+
+
+def _already_alerted(fid, sel):
+    key = f"{fid}:{sel}"
+    with _lm_alerted_lock:
+        data = _load_lm_alerted()
+        return key in data
+
+
+def _mark_alerted(fid, sel):
+    key = f"{fid}:{sel}"
+    with _lm_alerted_lock:
+        data = _load_lm_alerted()
+        data[key] = datetime.now().isoformat()
+        cutoff = (datetime.now() - timedelta(days=2)).isoformat()
+        data = {k: v for k, v in data.items() if v >= cutoff}
+        _save_lm_alerted(data)
+
+
+def check_and_alert_line_movement():
+    """
+    После снимков: ищем падения кэфов по фильтрам LM
+    и шлём в Telegram только новые сигналы.
+    """
+    if not getattr(Config, 'LINE_MOVEMENT_LIVE_ALERTS', True):
+        return 0
+    if not getattr(Config, 'LINE_MOVEMENT_ENABLED', True):
+        return 0
+
+    try:
+        signals = find_line_movement_matches([])
+        if not signals:
+            logger.info("[LM-ALERT] Новых сигналов нет")
+            return 0
+
+        new_ones = []
+        for m in signals:
+            fid = m.get('fixture_id')
+            bb = m.get('best_bet') or {}
+            sel = (bb.get('type') or 'lm_2').replace('lm_', '')
+            if not fid:
+                continue
+            if _already_alerted(fid, sel):
+                continue
+            new_ones.append(m)
+            _mark_alerted(fid, sel)
+
+        if not new_ones:
+            logger.info("[LM-ALERT] Сигналы есть, но уже алертили")
+            return 0
+
+        msg = f"📉 <b>LINE MOVEMENT — {len(new_ones)}</b>\n\n"
+        for i, m in enumerate(new_ones, 1):
+            b = m.get('best_bet') or {}
+            direction = "📉" if b.get('direction') == 'drop' else "📈"
+            msg += (
+                f"{i}. <b>{m.get('home', '?')} vs {m.get('away', '?')}</b> {direction}\n"
+                f"🏆 {m.get('league', '?')}\n"
+                f"📅 {m.get('match_time', '?')}\n"
+                f"🎯 {b.get('label', '—')} | КЭФ: {b.get('odds')}\n"
+                f"Δ {b.get('movement_pct', 0):+.1f}% за {b.get('movement_hours', 0)}ч "
+                f"({b.get('old_odds')} → {b.get('odds')})\n"
+                f"💵 Stake: ${b.get('stake', 0)}\n"
+                f"🏷️ {b.get('bookmaker', '—')}\n\n"
+            )
+
+        send_telegram(msg)
+        logger.info(f"[LM-ALERT] Отправлено: {len(new_ones)}")
+        return len(new_ones)
+    except Exception as e:
+        logger.exception(f"[LM-ALERT] {e}")
+        return 0
+
+
 def snapshot_odds_for_upcoming(custom_matches=None):
-    """Совместимая обёртка (планировщик, /snapshot, /api/snapshot, поиск).
-    custom_matches игнорируется: берём матчи только из LINE_MOVEMENT_LEAGUE_IDS."""
+    """Снимки кэфов. custom_matches игнорируется: только LINE_MOVEMENT_LEAGUE_IDS."""
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
     try:
-        return lm_take_snapshots()
+        n = lm_take_snapshots()
+        # ★ сразу после снимков — алерт в Telegram
+        try:
+            check_and_alert_line_movement()
+        except Exception as e:
+            logger.error(f"[LM-ALERT] после снимков: {e}")
+        return n
     finally:
         _snapshot_lock.release()
 
