@@ -8379,94 +8379,158 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+def _build_day_matches():
+    """Матчи дня со снимками: счёт + движение кэфов (общая логика для API и уведомлений)."""
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    today_dm = now_msk.strftime('%d.%m.%Y')
+    today_api = now_msk.strftime('%Y-%m-%d')
+    cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
+    rows = _lm_snapshots_since(cutoff)
+    try:
+        batch = _fetch_live_batch(today_api) or {}
+    except Exception:
+        batch = {}
+
+    grouped = {}
+    for r in rows:
+        fid = r.get('fixture_id')
+        if fid:
+            grouped.setdefault(fid, []).append(r)
+
+    try:
+        hist = {}
+        for b in storage.load_history():
+            if b.get('fixture_id'):
+                hist[b['fixture_id']] = b
+    except Exception:
+        hist = {}
+
+    out = []
+    for fid, snaps in grouped.items():
+        snaps.sort(key=lambda s: s.get('created_at') or '')
+        first = snaps[0]
+        mt = next((s.get('match_time') for s in snaps if s.get('match_time')), '') or ''
+        fx = batch.get(fid)
+        if not fx and not str(mt).startswith(today_dm):
+            continue
+
+        sel = {}
+        for s in snaps:
+            k = s.get('selection')
+            o = s.get('odds') or 0
+            if not k or o <= 0:
+                continue
+            d = sel.setdefault(k, {'points': []})
+            d['points'].append([(s.get('created_at') or '')[11:16], o])
+        selections = {}
+        for k, d in sel.items():
+            pts = d['points']
+            f0, l0 = pts[0][1], pts[-1][1]
+            vals = [p[1] for p in pts]
+            selections[k] = {
+                'first': f0, 'last': l0, 'min': min(vals), 'max': max(vals),
+                'change_pct': round((l0 / f0 - 1) * 100, 1) if f0 else 0,
+                'count': len(pts), 'points': pts[-120:],
+            }
+
+        lid = first.get('league_id')
+        cn, cf = Config.LEAGUE_COUNTRY.get(lid, ('', ''))
+        item = {
+            'fixture_id': fid,
+            'home': first.get('home') or '?', 'away': first.get('away') or '?',
+            'league': first.get('league') or '', 'league_id': lid,
+            'country': cn, 'country_flag': cf,
+            'match_time': mt, 'snapshots_count': len(snaps),
+            'selections': selections,
+            'status': 'NS', 'elapsed': None,
+            'home_goals': None, 'away_goals': None,
+            'halftime_home': None, 'halftime_away': None,
+        }
+        if fx:
+            st = (fx.get('fixture') or {}).get('status') or {}
+            g = fx.get('goals') or {}
+            ht = (fx.get('score') or {}).get('halftime') or {}
+            item.update(status=st.get('short') or 'NS', elapsed=st.get('elapsed'),
+                        home_goals=g.get('home'), away_goals=g.get('away'),
+                        halftime_home=ht.get('home'), halftime_away=ht.get('away'))
+        b = hist.get(fid)
+        if b:
+            item['bet'] = {'bet': b.get('bet'), 'odds': b.get('odds'),
+                           'stake': b.get('stake'), 'result': b.get('result'),
+                           'profit': b.get('profit')}
+        out.append(item)
+
+    out.sort(key=lambda x: (str(x['match_time'])[11:16], x['fixture_id']))
+    return out, today_dm
+
+
 @app.route('/api/day_matches', methods=['GET'])
 def api_day_matches():
-    """Матчи дня, по которым бот делал снимки: счёт + движение кэфов."""
     try:
-        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
-        today_dm = now_msk.strftime('%d.%m.%Y')
-        today_api = now_msk.strftime('%Y-%m-%d')
-        cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')
-        rows = _lm_snapshots_since(cutoff)
-        try:
-            batch = _fetch_live_batch(today_api) or {}
-        except Exception:
-            batch = {}
-
-        grouped = {}
-        for r in rows:
-            fid = r.get('fixture_id')
-            if fid:
-                grouped.setdefault(fid, []).append(r)
-
-        try:
-            hist = {}
-            for b in storage.load_history():
-                if b.get('fixture_id'):
-                    hist[b['fixture_id']] = b
-        except Exception:
-            hist = {}
-
-        out = []
-        for fid, snaps in grouped.items():
-            snaps.sort(key=lambda s: s.get('created_at') or '')
-            first = snaps[0]
-            mt = next((s.get('match_time') for s in snaps if s.get('match_time')), '') or ''
-            fx = batch.get(fid)
-            if not fx and not str(mt).startswith(today_dm):
-                continue
-
-            sel = {}
-            for s in snaps:
-                k = s.get('selection')
-                o = s.get('odds') or 0
-                if not k or o <= 0:
-                    continue
-                d = sel.setdefault(k, {'points': []})
-                d['points'].append([(s.get('created_at') or '')[11:16], o])
-            selections = {}
-            for k, d in sel.items():
-                pts = d['points']
-                f0, l0 = pts[0][1], pts[-1][1]
-                vals = [p[1] for p in pts]
-                selections[k] = {
-                    'first': f0, 'last': l0, 'min': min(vals), 'max': max(vals),
-                    'change_pct': round((l0 / f0 - 1) * 100, 1) if f0 else 0,
-                    'count': len(pts), 'points': pts[-24:],
-                }
-
-            lid = first.get('league_id')
-            cn, cf = Config.LEAGUE_COUNTRY.get(lid, ('', ''))
-            item = {
-                'fixture_id': fid,
-                'home': first.get('home') or '?', 'away': first.get('away') or '?',
-                'league': first.get('league') or '', 'league_id': lid,
-                'country': cn, 'country_flag': cf,
-                'match_time': mt, 'snapshots_count': len(snaps),
-                'selections': selections,
-                'status': 'NS', 'elapsed': None,
-                'home_goals': None, 'away_goals': None,
-                'halftime_home': None, 'halftime_away': None,
-            }
-            if fx:
-                st = (fx.get('fixture') or {}).get('status') or {}
-                g = fx.get('goals') or {}
-                ht = (fx.get('score') or {}).get('halftime') or {}
-                item.update(status=st.get('short') or 'NS', elapsed=st.get('elapsed'),
-                            home_goals=g.get('home'), away_goals=g.get('away'),
-                            halftime_home=ht.get('home'), halftime_away=ht.get('away'))
-            b = hist.get(fid)
-            if b:
-                item['bet'] = {'bet': b.get('bet'), 'odds': b.get('odds'),
-                               'stake': b.get('stake'), 'result': b.get('result'),
-                               'profit': b.get('profit')}
-            out.append(item)
-
-        out.sort(key=lambda x: (str(x['match_time'])[11:16], x['fixture_id']))
+        out, today_dm = _build_day_matches()
         return jsonify({'status': 'ok', 'date': today_dm, 'count': len(out), 'matches': out})
     except Exception as e:
         logger.exception(f"api_day_matches error: {e}")
         return jsonify({'status': 'error', 'error': str(e), 'matches': []}), 500
+
+
+_DAY_NOTIFY_FILE = os.path.join(DATA_DIR, 'day_notify.json')
+_SEL_NAMES = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'}
+
+
+def notify_day_events():
+    """Telegram: сильное движение кэфа и завершение матчей со снимками (без повторов)."""
+    if not getattr(Config, 'DAY_NOTIFY_ENABLED', True):
+        return
+    try:
+        import html as _html
+        items, today = _build_day_matches()
+        try:
+            with open(_DAY_NOTIFY_FILE, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+        except Exception:
+            state = {}
+        first = state.get('date') != today
+        sent = set() if first else set(state.get('sent', []))
+        thr = float(getattr(Config, 'DAY_NOTIFY_MOVE_PCT', 8))
+        lines = []
+        for d in items:
+            fid = d['fixture_id']
+            title = _html.escape(f"{d['home']} — {d['away']}")
+            if d['status'] in ('FT', 'AET', 'PEN'):
+                key = f"ft:{fid}"
+                if key in sent:
+                    continue
+                sent.add(key)
+                if first or d.get('home_goals') is None:
+                    continue
+                txt = f"🏁 <b>{title}</b>\nИтог: {d['home_goals']}:{d['away_goals']}"
+                b = d.get('bet')
+                if b and b.get('result') in ('win', 'loss', 'push'):
+                    icon = {'win': '✅ WIN', 'loss': '❌ LOSS', 'push': '➖ PUSH'}[b['result']]
+                    txt += f"\nСтавка {b.get('bet')} @ {b.get('odds')} — {icon}"
+                lines.append(txt)
+            else:
+                for k, x in d['selections'].items():
+                    ch = x.get('change_pct') or 0
+                    if abs(ch) < thr:
+                        continue
+                    key = f"mv:{fid}:{k}:{1 if ch > 0 else -1}"
+                    if key in sent:
+                        continue
+                    sent.add(key)
+                    arrow = '📉' if ch < 0 else '📈'
+                    lines.append(f"{arrow} <b>{title}</b>\n{_SEL_NAMES.get(k, k)}: {x['first']} → {x['last']} ({ch:+.1f}%)")
+        try:
+            with open(_DAY_NOTIFY_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'date': today, 'sent': sorted(sent)}, f)
+        except Exception as e:
+            logger.warning(f"day_notify: не удалось сохранить состояние: {e}")
+        if lines:
+            send_telegram('\n\n'.join(lines[:8]))
+            logger.info(f"📨 day_notify: отправлено событий {min(len(lines), 8)}")
+    except Exception as e:
+        logger.exception(f"notify_day_events error: {e}")
 
 
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
@@ -9569,6 +9633,13 @@ if __name__ == "__main__":
         next_run_time=datetime.now() + timedelta(seconds=20),   # первый снимок сразу после старта
         replace_existing=True, max_instances=1,
         misfire_grace_time=300, coalesce=True
+    )
+    # ★ Telegram-уведомления: сильное движение кэфов и итоги матчей со снимками
+    odds_scheduler.add_job(
+        func=safe_job(notify_day_events, "day_notify"),
+        trigger='interval', minutes=5,
+        id='day_notify', replace_existing=True, max_instances=1,
+        misfire_grace_time=120, coalesce=True
     )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
     odds_scheduler.add_job(
