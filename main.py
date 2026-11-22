@@ -17,8 +17,10 @@ import zipfile
 import shutil
 import itertools
 import tempfile
+import hmac
+import hashlib
 from datetime import datetime, timedelta, timezone
-from threading import Lock, Thread
+from threading import Lock, RLock, Thread
 from collections import defaultdict
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -36,6 +38,7 @@ from app.llm import (
 )
 
 logger = get_logger(__name__)
+storage.SNAPSHOT_HEARTBEAT_SEC = int(getattr(Config, 'LINE_MOVEMENT_SNAPSHOT_HEARTBEAT_MIN', 25) * 60)
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 search_running = False
@@ -43,6 +46,63 @@ search_state = {}
 TIMEZONE_OFFSET = 3
 
 cache_lock = Lock()
+
+# ============================================================
+# 🔐 АВТОРИЗАЦИЯ API + ЗАЩИТА ВЕБХУКА + БЛОКИРОВКИ ФАЙЛОВ
+# ============================================================
+# ADMIN_TOKEN — задать в Render → Environment. Без него /api/* закрыт (503).
+ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', '').strip()
+
+# secret_token для Telegram: берём из env WEBHOOK_SECRET (A-Z a-z 0-9 _ -)
+# или выводим из TELEGRAM_TOKEN — отдельной переменной не нужно.
+_WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', '').strip() or hashlib.sha256(
+    ('qb-webhook:' + (getattr(Config, 'TELEGRAM_TOKEN', '') or '')).encode()
+).hexdigest()
+
+_PUBLIC_PATHS = {'/api/keepalive'}          # пингуется без токена
+_PROTECTED_EXACT = {'/export', '/void_old'}  # вне /api/, но тоже закрыты
+
+
+def _token_ok(supplied: str) -> bool:
+    if not ADMIN_TOKEN or not supplied:
+        return False
+    return hmac.compare_digest(supplied.encode('utf-8'), ADMIN_TOKEN.encode('utf-8'))
+
+
+@app.before_request
+def _require_admin_token():
+    if request.method == 'OPTIONS':
+        return None
+    p = request.path
+    if not (p.startswith('/api/') or p in _PROTECTED_EXACT):
+        return None
+    if p in _PUBLIC_PATHS:
+        return None
+    if not ADMIN_TOKEN:
+        return jsonify({'status': 'error',
+                        'error': 'ADMIN_TOKEN не задан на сервере'}), 503
+    if not _token_ok(request.headers.get('X-Admin-Token', '')):
+        return jsonify({'status': 'error', 'error': 'unauthorized'}), 401
+    return None
+
+
+# Блокировка для read-modify-write над jsonl-файлами (lab / anomalies)
+_jsonl_lock = RLock()
+
+
+def _atomic_write_lines(path, lines):
+    """Атомарная запись: tmp-файл + os.replace (читатели не видят полфайла)."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or '.', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 # ============================================================
 # ★ ПУТИ НА ПЕРСИСТЕНТНЫЙ ДИСК RENDER (/data)
@@ -972,6 +1032,32 @@ class FootballAPI:
         except Exception as e:
             logger.error(f"Ошибка batch-кэфов {league_id}: {e}")
             return {}
+
+    def get_odds_fresh_for_league(self, league_id, date):
+        """Свежие кэфы лиги на дату БЕЗ кэша и с пагинацией
+        (/odds отдаёт ~10 матчей на страницу). -> {fixture_id: odds_dict}"""
+        result = {}
+        page = 1
+        while page <= 10:
+            data = self._make_request('/odds', {
+                'league': league_id, 'season': Config.USE_SEASON,
+                'date': date, 'page': page,
+            })
+            if not data or 'response' not in data:
+                break
+            for item in data['response']:
+                fid = (item.get('fixture') or {}).get('id')
+                bms = item.get('bookmakers') or []
+                if fid and bms:
+                    result[fid] = self._extract_best_odds(bms)
+            try:
+                total = int((data.get('paging') or {}).get('total', 1) or 1)
+            except Exception:
+                total = 1
+            if page >= total:
+                break
+            page += 1
+        return result
 
     @timing_decorator()
     def get_predictions_batch_for_league(self, league_id, date):
@@ -3283,8 +3369,9 @@ def update_odds_for_matches(matches):
                                         'ev': round((boosted * best_odds_val - 1) * 100, 1),
                                         'prob': round(boosted * 100, 1), 'result': 'pending'
                                     }
-                                    with open(lab_file, 'a', encoding='utf-8') as f:
-                                        f.write(json.dumps(lab_record, ensure_ascii=False) + '\n')
+                                    with _jsonl_lock:
+                                        with open(lab_file, 'a', encoding='utf-8') as f:
+                                            f.write(json.dumps(lab_record, ensure_ascii=False) + '\n')
                                 except Exception as e:
                                     logger.error(f"Lab write error: {e}")
                 
@@ -4886,35 +4973,7 @@ def find_line_movement_matches(matches):
         logger.info("⏭️ [LINE MOVEMENT] Отключено в конфиге")
         return []
 
-    # ★★★ АБСОЛЮТНЫЙ ФИКС: Сохраняем снимки из памяти ★★★
-    logger.info("📸 [LM-SNAPSHOT] Сохраняем снимки из найденных матчей...")
-    saved_mem = 0
-    for m in matches:
-        fid = m.get('fixture_id')
-        if not fid:
-            continue
-        
-        odds_data = m.get('_preloaded_odds', {})
-        if not odds_data:
-            odds_data = m.get('best_bet', {})
-            
-        home = m.get('home', '')
-        away = m.get('away', '')
-        league = m.get('league', '')
-        
-        h_odd = odds_data.get('home_odds') or odds_data.get('odds')
-        a_odd = odds_data.get('away_odds') or odds_data.get('odds')
-        
-        if h_odd and h_odd > 1.01:
-            storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'MemFix', home, away, league)
-            saved_mem += 1
-        if a_odd and a_odd > 1.01:
-            storage.save_odds_snapshot(fid, '1X2', '2', a_odd, 'MemFix', home, away, league)
-            saved_mem += 1
-            
-    if saved_mem > 0:
-        logger.info(f"📸 [LM-SNAPSHOT] Сохранено {saved_mem} снимков из памяти!")
-    # ★★★ КОНЕЦ ФИКСА ★★★
+    # (снимки делает lm_take_snapshots() — планировщик и PRE-LM; здесь только анализ)
 
     bank = storage.load_bank()
 
@@ -4961,27 +5020,32 @@ def find_line_movement_matches(matches):
         'parse_error': 0,
         'rlm_rejected': 0,
         'fav_collapse_rejected': 0, # ★ Новая метрика
+        'not_in_lookup': 0,        # ★ снимки матчей вне LM-лиг / уже начавшихся
     }
 
-    # ---------- match_lookup ----------
+    # ---------- match_lookup: ТОЛЬКО матчи из LINE_MOVEMENT_LEAGUE_IDS ----------
+    LM_IDS = set(_lm_league_ids())
+    _lm_src = list(lm_collect_fixtures()) + [x for x in (matches or []) if isinstance(x, dict)]
     match_lookup = {}
-    for m in matches:
-        if not isinstance(m, dict):
-            continue
+    for m in _lm_src:
         fixture = m.get('fixture')
         if not fixture or not isinstance(fixture, dict):
             continue
         fid = fixture.get('id')
         if not fid:
             continue
+        ld = m.get('league', {})
+        lid = ld.get('id') if isinstance(ld, dict) else None
+        if lid not in LM_IDS:
+            continue
         teams = m.get('teams', {})
         ht = teams.get('home', {})
         at = teams.get('away', {})
-        ld = m.get('league', {})
         match_lookup[fid] = {
             'home': ht.get('name', 'Unknown'),
             'away': at.get('name', 'Unknown'),
-            'league': ld.get('name', 'Unknown') if isinstance(ld, dict) else 'Unknown',
+            'league': ld.get('name', 'Unknown'),
+            'league_id': lid,
             'match_time': parse_match_time_to_msk(fixture.get('date', '')),
             'fixture_date': fixture.get('date', ''),
         }
@@ -5005,39 +5069,6 @@ def find_line_movement_matches(matches):
     LM_1X2_SELS = [t for t in LM_BET_TYPES if t in ('1', 'X', '2')]
     LM_DC_SELS = [t for t in LM_BET_TYPES if t in ('1X', 'X2')]
 
-    # *** ПРИНУДИТЕЛЬНЫЙ СНИМОК ДЛЯ ДИАГНОСТИКИ ***
-    # Берем свежие кэфы из API и сохраняем в базу прямо здесь
-    try:
-        sample_by_fid = {}
-        for s in all_snaps:
-            fid_val = s.get('fixture_id')
-            if fid_val and fid_val not in sample_by_fid:
-                sample_by_fid[fid_val] = s
-
-        for fid_val, snap in sample_by_fid.items():
-            home_name = snap.get('home_team') or snap.get('home') or ''
-            away_name = snap.get('away_team') or snap.get('away') or ''
-            league_name = snap.get('league') or ''
-
-            fo = football_api.get_match_odds(fid_val)
-            if fo:
-                if fo.get('home_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(
-                        fid_val, '1X2', '1', fo['home_odds'], 'Debug', home_name, away_name, league_name
-                    )
-                if fo.get('draw_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(
-                        fid_val, '1X2', 'X', fo['draw_odds'], 'Debug', home_name, away_name, league_name
-                    )
-                if fo.get('away_odds', 0) > 1.01:
-                    storage.save_odds_snapshot(
-                        fid_val, '1X2', '2', fo['away_odds'], 'Debug', home_name, away_name, league_name
-                    )
-                logger.info(
-                    f"[DEBUG] Принудительно сохранены снимки для {home_name} vs {away_name} @ {fo.get('away_odds')}"
-                )
-    except Exception as e:
-        logger.error(f"[DEBUG] Ошибка сохранения: {e}")
 
 
     # ---------- группировка снимков ----------
@@ -5053,7 +5084,12 @@ def find_line_movement_matches(matches):
         elif market == 'DC' and sel in LM_DC_SELS:
             groups[(fid, market, sel)].append(s)
 
-    logger.info(f"[LM] Групп: {len(groups)}, снимков: {len(all_snaps)}")
+    _total_groups = len(groups)
+    groups = {k: v for k, v in groups.items() if k[0] in match_lookup}
+    stats['not_in_lookup'] = _total_groups - len(groups)
+    logger.info(f"[LM] Матчей LM-лиг (сегодня/завтра): {len(match_lookup)} | "
+                f"групп снимков: {_total_groups}, из них по LM-матчам: {len(groups)} | "
+                f"снимков в окне: {len(all_snaps)}")
 
     # ★ FIX 12: обратный словарь league_name → (country, flag) один раз
     name_to_country = {}
@@ -5072,7 +5108,7 @@ def find_line_movement_matches(matches):
     league_bet_count = {}
 
     for (fid, market, sel), snaps in groups.items():
-        logger.info(f"🔍 [LM] Проверяем fid={fid}, sel={sel}, snaps={len(snaps)}")
+        logger.debug(f"🔍 [LM] Проверяем fid={fid}, sel={sel}, snaps={len(snaps)}")
         
         if len(candidates) >= MAX_BETS * 3:
             continue
@@ -5083,11 +5119,8 @@ def find_line_movement_matches(matches):
             meta = match_lookup[fid]
             league_name = meta['league']
 
-            # 1) blacklist / whitelist
-            if Config.is_lm_league_blacklisted(league_name):
-                stats['blacklist'] += 1
-                continue
-            if not Config.is_lm_league_whitelisted(league_name):
+            # 1) лига должна быть из LINE_MOVEMENT_LEAGUE_IDS (по ID, а не по названию)
+            if meta.get('league_id') not in LM_IDS:
                 stats['whitelist_miss'] += 1
                 continue
 
@@ -5097,13 +5130,13 @@ def find_line_movement_matches(matches):
             except Exception:
                 stats['time_filter'] += 1
                 continue
-            # ★ ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ТЕСТА
-            # if match_dt < now_msk:
-            #     stats['time_filter'] += 1
-            #     continue
-            # if match_dt > cutoff_time:
-            #     stats['time_filter'] += 1
-            #     continue
+            # матч ещё не начался и стартует в пределах LINE_MOVEMENT_HOURS_BEFORE
+            if match_dt < now_msk:
+                stats['time_filter'] += 1
+                continue
+            if match_dt > cutoff_time:
+                stats['time_filter'] += 1
+                continue
 
             # 3) лимит на лигу
             cur_league_bets = league_bet_count.get(league_name, 0)
@@ -5207,7 +5240,8 @@ def find_line_movement_matches(matches):
             }
 
             # 11) страна/флаг
-            country_name, country_flag = name_to_country.get(league_name, ("", ""))
+            country_name, country_flag = Config.LEAGUE_COUNTRY.get(
+                meta.get('league_id'), name_to_country.get(league_name, ("", "")))
             
             candidates.append({
                 "home": meta['home'],
@@ -5578,77 +5612,110 @@ def recalc_stats():
 # ============================================================
 # ★ СНИМКИ КЭФОВ (LOCK + ЛИМИТ 30)
 # ============================================================
+
+def _lm_league_ids():
+    """ID лиг Line Movement из конфига (единый источник правды)."""
+    return [int(x) for x in (getattr(Config, 'LINE_MOVEMENT_LEAGUE_IDS', None) or [])]
+
+
+def _lm_dates():
+    now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+    days = int(getattr(Config, 'LINE_MOVEMENT_SNAPSHOT_DAYS_AHEAD', 1))
+    return [(now_msk + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(days + 1)]
+
+
+def _lm_fixtures_for(league_id, date):
+    """Ещё не начавшиеся матчи лиги на дату (сырой формат API-Football)."""
+    try:
+        fixtures = football_api.get_matches(league_id, date) or []
+    except Exception as e:
+        logger.error(f"[LM-SNAP] fixtures {league_id} {date}: {e}")
+        return []
+    out = []
+    now_ts = time.time()
+    for f in fixtures:
+        fx = f.get('fixture') or {}
+        if not fx.get('id'):
+            continue
+        if (f.get('league') or {}).get('id') != league_id:
+            continue
+        if (fx.get('status') or {}).get('short') not in ('NS', 'TBD'):
+            continue
+        ts = fx.get('timestamp')
+        if ts and ts <= now_ts:      # кэш матчей живёт 12 ч — статус мог устареть
+            continue
+        out.append(f)
+    return out
+
+
+def lm_collect_fixtures():
+    """Матчи ТОЛЬКО из LINE_MOVEMENT_LEAGUE_IDS на сегодня/завтра (МСК), ещё не начавшиеся."""
+    out = {}
+    for lid in _lm_league_ids():
+        for date in _lm_dates():
+            for f in _lm_fixtures_for(lid, date):
+                out[f['fixture']['id']] = f
+    return list(out.values())
+
+
+def lm_take_snapshots():
+    """Снимки кэфов ТОЛЬКО по лигам Line Movement. Не зависит от кэша стратегий."""
+    ids = _lm_league_ids()
+    if not ids:
+        logger.warning("[LM-SNAP] LINE_MOVEMENT_LEAGUE_IDS пуст — снимки не делаются")
+        return 0
+    bet_types = getattr(Config, 'LINE_MOVEMENT_BET_TYPES', ['2'])
+    saved_total = 0
+    for lid in ids:
+        lname = Config.LEAGUE_NAMES.get(lid, str(lid))
+        for date in _lm_dates():
+            fixtures = _lm_fixtures_for(lid, date)
+            if not fixtures:
+                continue
+            try:
+                odds_map = football_api.get_odds_fresh_for_league(lid, date)
+            except Exception as e:
+                logger.error(f"[LM-SNAP] odds {lid} {date}: {e}")
+                continue
+            with_odds = saved = 0
+            for f in fixtures:
+                fid = f['fixture']['id']
+                fo = odds_map.get(fid)
+                if not fo:
+                    continue
+                with_odds += 1
+                teams = f.get('teams') or {}
+                home = (teams.get('home') or {}).get('name', '')
+                away = (teams.get('away') or {}).get('name', '')
+                league = (f.get('league') or {}).get('name', lname)
+                for sel, key in (('1', 'home_odds'), ('X', 'draw_odds'), ('2', 'away_odds')):
+                    if fo.get(key, 0) > 1.01:
+                        if storage.save_odds_snapshot(fid, '1X2', sel, fo[key], 'LM-Job', home, away, league):
+                            saved += 1
+                for sel, key in (('1X', '1x_odds'), ('X2', 'x2_odds')):
+                    if sel in bet_types and fo.get(key, 0) > 1.01:
+                        if storage.save_odds_snapshot(fid, 'DC', sel, fo[key], 'LM-Job', home, away, league):
+                            saved += 1
+            saved_total += saved
+            logger.info(f"📸 [LM-SNAP] {lname} {date}: матчей {len(fixtures)}, "
+                        f"с кэфами {with_odds}, новых снимков {saved}")
+    logger.info(f"📸 [LM-SNAP] Итого новых снимков: {saved_total}")
+    return saved_total
+
+
 _snapshot_lock = Lock()
 
+
 def snapshot_odds_for_upcoming(custom_matches=None):
+    """Совместимая обёртка (планировщик, /snapshot, /api/snapshot, поиск).
+    custom_matches игнорируется: берём матчи только из LINE_MOVEMENT_LEAGUE_IDS."""
     if not _snapshot_lock.acquire(blocking=False):
         logger.warning("⏭️ snapshot уже выполняется — пропуск")
         return 0
-        
-    logger.info("🔍 snapshot: НАЧАЛО")
-    
-    # ★ Если передали конкретные матчи — берем их, иначе — из кэша
-    if custom_matches:
-        matches = custom_matches
-    else:
-        with cache_lock:
-            cache = storage.load_cache()
-            matches = cache.get('all_analyzed') or cache.get('top_matches', [])
-    
-    if not matches:
+    try:
+        return lm_take_snapshots()
+    finally:
         _snapshot_lock.release()
-        return 0
-
-    # ★★★ ФИКС: Берем кэфы из КЭША ★★★
-    logger.info(f"📸 [CACHE-SNAPSHOT] Сохраняем снимки из кэша для {len(matches)} матчей...")
-    saved_hard = 0
-    
-    for m in matches[:30]:  # Берем только первые 30 матчей
-        fid = m.get('fixture_id')
-        if not fid:
-            continue
-        
-        # Пытаемся достать полные кэфы (1, X, 2) из предзагруженных данных
-        fo = m.get('_preloaded_odds', {})
-        
-        # Если нет, то хотя бы берем то, что есть в best_bet
-        if not fo:
-            fo = m.get('best_bet', {})
-            
-        if fo:
-            home = m.get('home', '')
-            away = m.get('away', '')
-            league = m.get('league', '')
-            
-            # ★ Сохраняем П1
-            h_odd = fo.get('home_odds')
-            if h_odd and h_odd > 1.01:
-                storage.save_odds_snapshot(fid, '1X2', '1', h_odd, 'Cache', home, away, league)
-                saved_hard += 1
-                
-            # ★ Сохраняем Ничью
-            d_odd = fo.get('draw_odds')
-            if d_odd and d_odd > 1.01:
-                storage.save_odds_snapshot(fid, '1X2', 'X', d_odd, 'Cache', home, away, league)
-                saved_hard += 1
-                
-            # ★ Сохраняем П2 (гости)
-            a_odd = fo.get('away_odds')
-            
-            # Если это Line Movement (lm_2), то кэф лежит в 'odds'
-            if not a_odd and 'odds' in fo:
-                a_odd = fo.get('odds')
-                
-            if a_odd and a_odd > 1.01:
-                storage.save_odds_snapshot(fid, '1X2', '2', a_odd, 'Cache', home, away, league)
-                saved_hard += 1
-                logger.info(f"✅ [CACHE-SNAPSHOT] Сохранен: {home} vs {away} (П2: {a_odd})")
-    
-    logger.info(f"📸 [CACHE-SNAPSHOT] Успешно сохранено для {saved_hard} снимков!")
-    # ★★★ КОНЕЦ ФИКСА ★★★
-    
-    _snapshot_lock.release()
-    return saved_hard
 
 
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
@@ -6252,6 +6319,10 @@ def _check_webhook_rate_limit(chat_id):
 def webhook():
     global search_running, search_state
     try:
+        if not hmac.compare_digest(
+                request.headers.get('X-Telegram-Bot-Api-Secret-Token', '').encode('utf-8'),
+                _WEBHOOK_SECRET.encode('utf-8')):
+            return "forbidden", 403
         data = request.get_json()
         if not data:
             return "ok", 200
@@ -8556,7 +8627,7 @@ def import_project():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/void_old', methods=['GET'])
+@app.route('/void_old', methods=['POST'])
 def void_old_endpoint():
     bets = storage.autobet_load_all()
     now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
@@ -8648,6 +8719,8 @@ def api_search_status():
 
 @app.route('/health', methods=['GET'])
 def health():
+    if not _token_ok(request.headers.get('X-Admin-Token', '')):
+        return {'status': 'ok', 'time': datetime.now().isoformat(), 'version': 'v23.3'}
     try:
         bank = storage.load_bank()
         history = storage.load_history()
@@ -8710,9 +8783,51 @@ def index():
 # ============================================================
 # ОБНОВЛЕНИЕ РЕЗУЛЬТАТОВ ПРОПУЩЕННЫХ АНОМАЛИЙ
 # ============================================================
+def _anomaly_calc_result(rec, hg, ag):
+    """Результат аномалии по счёту. None — не удалось определить."""
+    fid = rec.get('fixture_id')
+    sel = (rec.get('selection') or rec.get('bet_type') or '').upper().strip()
+    if not sel:
+        best_odds = rec.get('best_odds', 0) or 0
+        avg_odds = rec.get('avg_odds', 0) or 0
+        if best_odds > 20:
+            logger.warning(
+                f"⚠️ Anomaly с подозрительным кэфом {best_odds}: "
+                f"{rec.get('home')} vs {rec.get('away')} — пропускаю"
+            )
+            return None
+        logger.warning(
+            f"⚠️ Anomaly без selection: fid={fid} | "
+            f"{rec.get('home')} vs {rec.get('away')} | "
+            f"bet_type={rec.get('bet_type')!r} | "
+            f"best_odds={best_odds} avg_odds={avg_odds}"
+        )
+        return None
+
+    if 'X2' in sel:
+        return 'win' if ag >= hg else 'loss'
+    if '1X' in sel:
+        return 'win' if hg >= ag else 'loss'
+    if sel == 'X' or 'DRAW' in sel or 'НИЧЬЯ' in sel:
+        return 'win' if hg == ag else 'loss'
+    if 'П1' in sel or sel == '1' or 'HOME' in sel:
+        return 'win' if hg > ag else 'loss'
+    if 'П2' in sel or sel == '2' or 'AWAY' in sel:
+        return 'win' if ag > hg else 'loss'
+    if 'ТМ' in sel or 'UNDER' in sel:
+        return 'win' if (hg + ag) < 2.5 else 'loss'
+    if 'ТБ' in sel or 'OVER' in sel:
+        return 'win' if (hg + ag) > 2.5 else 'loss'
+    if 'ОБЗ' in sel or 'BTTS' in sel:
+        return 'win' if hg > 0 and ag > 0 else 'loss'
+    return None
+
+
 def update_anomaly_results():
     """
     Проверяет и обновляет результаты пропущенных аномалий.
+    Фаза 1 (без блокировки): запросы к API. Фаза 2 (под блокировкой):
+    перечитать файл и применить результаты только к ещё не закрытым записям.
     """
     try:
         path = ANOMALY_FILE
@@ -8722,25 +8837,20 @@ def update_anomaly_results():
         with open(path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
-        updated = 0
+        finals = {}
+        checked = set()
         api_errors = 0
-        new_lines = []
         for line in lines:
             try:
                 rec = json.loads(line.strip())
             except Exception:
-                new_lines.append(line)
                 continue
-
             if rec.get('result') and rec['result'] not in ('pending', None):
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
-
             fid = rec.get('fixture_id')
-            if not fid:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            if not fid or fid in checked:
                 continue
-
+            checked.add(fid)
             md = football_api.get_match_result(fid)
             if not md:
                 api_errors += 1
@@ -8749,71 +8859,41 @@ def update_anomaly_results():
                     f"{rec.get('home')} vs {rec.get('away')} "
                     f"(повторная попытка через 30 мин)"
                 )
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
             if not md.get('is_final'):
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
-
             hg = md['goals']['home']
             ag = md['goals']['away']
             if hg is None or ag is None:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
+            finals[fid] = (hg, ag)
 
-            sel = (rec.get('selection') or rec.get('bet_type') or '').upper().strip()
-
-            if not sel:
-                best_odds = rec.get('best_odds', 0) or 0
-                avg_odds = rec.get('avg_odds', 0) or 0
-                if best_odds > 20:
-                    logger.warning(
-                        f"⚠️ Anomaly с подозрительным кэфом {best_odds}: "
-                        f"{rec.get('home')} vs {rec.get('away')} — пропускаю"
-                    )
+        updated = 0
+        if finals:
+            with _jsonl_lock:
+                with open(path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                new_lines = []
+                for line in lines:
+                    try:
+                        rec = json.loads(line.strip())
+                    except Exception:
+                        new_lines.append(line)
+                        continue
+                    fid = rec.get('fixture_id')
+                    if (fid in finals and
+                            (not rec.get('result') or rec['result'] in ('pending', None))):
+                        hg, ag = finals[fid]
+                        res = _anomaly_calc_result(rec, hg, ag)
+                        if res:
+                            rec['result'] = res
+                            rec['home_goals'] = hg
+                            rec['away_goals'] = ag
+                            rec['settled_at'] = datetime.now().isoformat()
+                            updated += 1
                     new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                    continue
-                logger.warning(
-                    f"⚠️ Anomaly без selection: fid={fid} | "
-                    f"{rec.get('home')} vs {rec.get('away')} | "
-                    f"bet_type={rec.get('bet_type')!r} | "
-                    f"best_odds={best_odds} avg_odds={avg_odds}"
-                )
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            if 'X2' in sel:
-                res = 'win' if ag >= hg else 'loss'
-            elif '1X' in sel:
-                res = 'win' if hg >= ag else 'loss'
-            elif sel == 'X' or 'DRAW' in sel or 'НИЧЬЯ' in sel:
-                res = 'win' if hg == ag else 'loss'
-            elif 'П1' in sel or sel == '1' or 'HOME' in sel:
-                res = 'win' if hg > ag else 'loss'
-            elif 'П2' in sel or sel == '2' or 'AWAY' in sel:
-                res = 'win' if ag > hg else 'loss'
-            elif 'ТМ' in sel or 'UNDER' in sel:
-                res = 'win' if (hg + ag) < 2.5 else 'loss'
-            elif 'ТБ' in sel or 'OVER' in sel:
-                res = 'win' if (hg + ag) > 2.5 else 'loss'
-            elif 'ОБЗ' in sel or 'BTTS' in sel:
-                res = 'win' if hg > 0 and ag > 0 else 'loss'
-            else:
-                res = 'unknown'
-
-            if res == 'unknown':
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-                continue
-
-            rec['result'] = res
-            rec['home_goals'] = hg
-            rec['away_goals'] = ag
-            rec['settled_at'] = datetime.now().isoformat()
-            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-            updated += 1
-
-        with open(path, 'w', encoding='utf-8') as f:
-            f.writelines(new_lines)
+                if updated > 0:
+                    _atomic_write_lines(path, new_lines)
 
         if updated > 0:
             logger.info(f"📊 Anomaly results updated: {updated}")
@@ -8962,70 +9042,79 @@ def api_lab():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+def _lab_calc_result(reverse_bet, hg, ag):
+    if reverse_bet == 'П1':
+        return 'win' if hg > ag else 'loss'
+    if reverse_bet == 'П2':
+        return 'win' if ag > hg else 'loss'
+    if reverse_bet == 'X2':
+        return 'win' if ag >= hg else 'loss'
+    if reverse_bet == '1X':
+        return 'win' if hg >= ag else 'loss'
+    return 'unknown'
+
+
 def update_lab_results():
+    """Фаза 1 (без блокировки): запрашиваем финальные счета у API.
+    Фаза 2 (под блокировкой): перечитываем файл и меняем только записи,
+    которые всё ещё pending — новые записи и ручные правки не теряются."""
     try:
         lab_file = os.path.join(DATA_DIR, 'lab_anomalies.jsonl')
         if not os.path.exists(lab_file):
             return 0
-        
-        updated = 0
-        new_lines = []
-        
+
         with open(lab_file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            
+
+        finals = {}   # fixture_id -> (hg, ag)
+        checked = set()
         for line in lines:
             try:
                 rec = json.loads(line.strip())
-            except:
-                new_lines.append(line)
+            except Exception:
                 continue
-                
             if rec.get('result') and rec['result'] != 'pending':
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
-                
             fid = rec.get('fixture_id')
-            if not fid:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            if not fid or fid in checked:
                 continue
-                
+            checked.add(fid)
             md = football_api.get_match_result(fid)
             if not md or not md.get('is_final'):
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
-                
             hg = md['goals']['home']
             ag = md['goals']['away']
             if hg is None or ag is None:
-                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
                 continue
-                
-            reverse_bet = rec.get('reverse_bet', '')
-            res = 'unknown'
-            
-            if reverse_bet == 'П1':
-                res = 'win' if hg > ag else 'loss'
-            elif reverse_bet == 'П2':
-                res = 'win' if ag > hg else 'loss'
-            elif reverse_bet == 'X2':
-                res = 'win' if ag >= hg else 'loss'
-            elif reverse_bet == '1X':
-                res = 'win' if hg >= ag else 'loss'
-                
-            if res != 'unknown':
-                rec['result'] = res
-                rec['home_goals'] = hg
-                rec['away_goals'] = ag
-                updated += 1
-                
-            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
-            
-        if updated > 0:
-            with open(lab_file, 'w', encoding='utf-8') as f:
-                f.writelines(new_lines)
-            logger.info(f"🧪 Лаборатория: обновлено {updated} результатов")
-            
+            finals[fid] = (hg, ag)
+
+        if not finals:
+            return 0
+
+        updated = 0
+        with _jsonl_lock:
+            with open(lab_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            new_lines = []
+            for line in lines:
+                try:
+                    rec = json.loads(line.strip())
+                except Exception:
+                    new_lines.append(line)
+                    continue
+                fid = rec.get('fixture_id')
+                if fid in finals and (not rec.get('result') or rec['result'] == 'pending'):
+                    hg, ag = finals[fid]
+                    res = _lab_calc_result(rec.get('reverse_bet', ''), hg, ag)
+                    if res != 'unknown':
+                        rec['result'] = res
+                        rec['home_goals'] = hg
+                        rec['away_goals'] = ag
+                        updated += 1
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+            if updated > 0:
+                _atomic_write_lines(lab_file, new_lines)
+                logger.info(f"🧪 Лаборатория: обновлено {updated} результатов")
         return updated
     except Exception as e:
         logger.error(f"update_lab_results: {e}")
@@ -9077,41 +9166,42 @@ def api_lab_set_result():
         if not os.path.exists(lab_file):
             return jsonify({'status': 'error', 'error': 'Файл лаборатории не найден'}), 404
 
-        # Читаем файл, ищем нужную запись
-        with open(lab_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+        with _jsonl_lock:
+            # Читаем файл, ищем нужную запись
+            with open(lab_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
 
-        updated = False
-        new_lines = []
-        for line in lines:
-            try:
-                rec = json.loads(line.strip())
-            except Exception:
-                new_lines.append(line)
-                continue
+            updated = False
+            new_lines = []
+            for line in lines:
+                try:
+                    rec = json.loads(line.strip())
+                except Exception:
+                    new_lines.append(line)
+                    continue
 
-            if rec.get('fixture_id') == int(fixture_id):
-                rec['result'] = result
-                rec['home_goals'] = hg
-                rec['away_goals'] = ag
-                rec['manual'] = True
-                rec['settled_at'] = datetime.now().isoformat()
-                updated = True
-                logger.info(
-                    f"🧪 Лаб. вручную: fid={fixture_id} | {hg}:{ag} | "
-                    f"{reverse_bet} → {result.upper()}"
-                )
+                if rec.get('fixture_id') == int(fixture_id):
+                    rec['result'] = result
+                    rec['home_goals'] = hg
+                    rec['away_goals'] = ag
+                    rec['manual'] = True
+                    rec['settled_at'] = datetime.now().isoformat()
+                    updated = True
+                    logger.info(
+                        f"🧪 Лаб. вручную: fid={fixture_id} | {hg}:{ag} | "
+                        f"{reverse_bet} → {result.upper()}"
+                    )
 
-            new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
+                new_lines.append(json.dumps(rec, ensure_ascii=False) + '\n')
 
-        if not updated:
-            return jsonify({'status': 'error', 'error': 'Матч не найден в лаборатории'}), 404
+            if not updated:
+                return jsonify({'status': 'error', 'error': 'Матч не найден в лаборатории'}), 404
 
-        # Атомарная запись
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(lab_file) or '.', suffix='.tmp')
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            f.writelines(new_lines)
-        os.replace(tmp, lab_file)
+            # Атомарная запись
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(lab_file) or '.', suffix='.tmp')
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            os.replace(tmp, lab_file)
 
         return jsonify({
             'status': 'ok',
@@ -9173,7 +9263,7 @@ if __name__ == "__main__":
         WEBHOOK_URL = (os.getenv('RENDER_EXTERNAL_URL', 'https://quantumbet-bot-pro.onrender.com') + '/webhook')
         r = requests.get(
             f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/setWebhook",
-            params={'url': WEBHOOK_URL}, timeout=10
+            params={'url': WEBHOOK_URL, 'secret_token': _WEBHOOK_SECRET}, timeout=10
         )
         resp = r.json()
         if resp.get('ok'):
@@ -9187,9 +9277,12 @@ if __name__ == "__main__":
     odds_scheduler = BackgroundScheduler()
     odds_scheduler.add_job(
         func=safe_job(snapshot_odds_for_upcoming, "snapshot_odds"),
-        trigger='interval', minutes=60, id='odds_snapshot', # было 30
+        trigger='interval',
+        minutes=int(getattr(Config, 'LINE_MOVEMENT_SNAPSHOT_INTERVAL_MIN', 30)),
+        id='odds_snapshot',
+        next_run_time=datetime.now() + timedelta(seconds=20),   # первый снимок сразу после старта
         replace_existing=True, max_instances=1,
-        misfire_grace_time=60, coalesce=True
+        misfire_grace_time=300, coalesce=True
     )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
     odds_scheduler.add_job(
