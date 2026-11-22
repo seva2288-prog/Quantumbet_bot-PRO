@@ -11,7 +11,7 @@ import shutil
 import sqlite3
 import tempfile
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.utils.logger import get_logger
 
@@ -59,6 +59,9 @@ class Storage:
         }
 
         self.ODDS_HISTORY_RETENTION_DAYS = 30
+        # ★ Если кэф не менялся, всё равно пишем снимок раз в N секунд (иначе у
+        #   стабильных матчей навсегда остаётся 1 снимок). main.py берёт значение из Config.
+        self.SNAPSHOT_HEARTBEAT_SEC = 25 * 60
         self.ANOMALY_RETENTION_DAYS = 60  # ★ новое
 
         # ★ SQLite
@@ -71,6 +74,9 @@ class Storage:
         # ★ Путь к аномалиям — теперь гибкий
         self._anomaly_path = os.path.join(self.data_dir, 'anomaly_skipped.jsonl')
 
+        if self.data_dir == 'data':
+            logger.warning("⚠️ Диск Render не найден: снимки кэфов лежат во временной папке "
+                           "и пропадут при перезапуске/деплое!")
         logger.info(f"🗄️ Storage: {self.data_dir}")
         logger.info(f"📁 Аномалии: {self._anomaly_path}")
 
@@ -187,23 +193,26 @@ class Storage:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             cur = conn.cursor()
 
+            # возраст последнего снимка считаем в SQLite (UTC, как CURRENT_TIMESTAMP)
             cur.execute("""
-                SELECT odds, created_at FROM snapshots
+                SELECT odds, (julianday('now') - julianday(created_at)) * 86400.0
+                FROM snapshots
                 WHERE fixture_id = ? AND market = ? AND selection = ?
                 ORDER BY id DESC LIMIT 1
             """, (int(fixture_id), str(market), str(selection)))
             row = cur.fetchone()
 
             if row:
-                last_odds, last_ts = row
+                last_odds, age_sec = row
                 try:
-                    last_dt = datetime.fromisoformat(str(last_ts))
-                    if (datetime.now() - last_dt).total_seconds() < 60:
-                        conn.close()
-                        return False
+                    age_sec = float(age_sec) if age_sec is not None else 1e9
                 except Exception:
-                    pass
-                if abs(float(last_odds) - float(odds)) < 0.001:
+                    age_sec = 1e9
+                if age_sec < 60:
+                    conn.close()
+                    return False
+                if (abs(float(last_odds) - float(odds)) < 0.001
+                        and age_sec < getattr(self, 'SNAPSHOT_HEARTBEAT_SEC', 1500)):
                     conn.close()
                     return False
 
@@ -383,7 +392,7 @@ class Storage:
 
     def cleanup_old_odds_history(self, days=None):
         days = days or self.ODDS_HISTORY_RETENTION_DAYS
-        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=30)
             cur = conn.cursor()
@@ -437,9 +446,11 @@ class Storage:
 
     def get_snapshots_since(self, cutoff_iso):
         try:
-            cutoff_clean = str(cutoff_iso).strip().replace(' ', 'T')
-            if 'T' not in cutoff_clean:
-                cutoff_clean += 'T00:00:00'
+            # created_at хранится как 'YYYY-MM-DD HH:MM:SS' — формат должен совпадать,
+            # иначе (пробел < 'T') срез по дате ломается
+            cutoff_clean = str(cutoff_iso).strip().replace('T', ' ')[:19]
+            if ' ' not in cutoff_clean:
+                cutoff_clean += ' 00:00:00'
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
