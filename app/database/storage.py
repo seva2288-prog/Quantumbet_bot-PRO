@@ -172,6 +172,8 @@ class Storage:
                 'home':   "TEXT DEFAULT ''",
                 'away':   "TEXT DEFAULT ''",
                 'league': "TEXT DEFAULT ''",
+                'league_id':  "INTEGER",      # ★ ID лиги API-Football (для фильтра по LM-лигам)
+                'match_time': "TEXT DEFAULT ''",  # ★ начало матча (МСК, 'дд.мм.гггг чч:мм')
             }
             for col, definition in new_cols.items():
                 if col not in existing:
@@ -186,7 +188,8 @@ class Storage:
             logger.error(f"❌ _migrate_odds_db: {e}")
 
     def save_odds_snapshot(self, fixture_id, market, selection, odds,
-                            bookmaker='—', home='', away='', league=''):
+                            bookmaker='—', home='', away='', league='',
+                            league_id=None, match_time=None):
         if not fixture_id or not odds or odds <= 1.01:
             return False
         try:
@@ -216,14 +219,30 @@ class Storage:
                     conn.close()
                     return False
 
+            # league_id / match_time: если не переданы — наследуем от прошлых снимков матча
+            if league_id is None or not match_time:
+                cur.execute("""
+                    SELECT league_id, match_time FROM snapshots
+                    WHERE fixture_id = ? AND (league_id IS NOT NULL OR match_time != '')
+                    ORDER BY id DESC LIMIT 1
+                """, (int(fixture_id),))
+                prev = cur.fetchone()
+                if prev:
+                    if league_id is None:
+                        league_id = prev[0]
+                    if not match_time:
+                        match_time = prev[1]
+
             cur.execute("""
                 INSERT INTO snapshots
                 (fixture_id, market, selection, odds, bookmaker,
-                 home, away, league)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 home, away, league, league_id, match_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (int(fixture_id), str(market), str(selection),
                   round(float(odds), 3), str(bookmaker),
-                  str(home or ''), str(away or ''), str(league or '')))
+                  str(home or ''), str(away or ''), str(league or ''),
+                  (int(league_id) if league_id is not None else None),
+                  str(match_time or '')))
             conn.commit()
             conn.close()
             return True
@@ -456,7 +475,7 @@ class Storage:
             cur = conn.cursor()
             cur.execute("""
                 SELECT fixture_id, market, selection, odds, bookmaker,
-                       home, away, league, created_at
+                       home, away, league, league_id, match_time, created_at
                 FROM snapshots
                 WHERE created_at >= ?
                 ORDER BY id DESC
@@ -467,6 +486,23 @@ class Storage:
         except Exception as e:
             logger.error(f"❌ get_snapshots_since: {e}")
             return []
+
+    def get_lm_fixture_ids(self, league_ids):
+        """ID матчей, снимки которых сделаны по лигам из списка (для фильтра вкладок)."""
+        ids = [int(x) for x in (league_ids or [])]
+        if not ids:
+            return set()
+        try:
+            conn = sqlite3.connect(self._odds_db_path, timeout=10)
+            cur = conn.cursor()
+            marks = ','.join('?' * len(ids))
+            cur.execute(f"SELECT DISTINCT fixture_id FROM snapshots WHERE league_id IN ({marks})", ids)
+            out = {r[0] for r in cur.fetchall()}
+            conn.close()
+            return out
+        except Exception as e:
+            logger.error(f"❌ get_lm_fixture_ids: {e}")
+            return set()
 
     def get_snapshots_by_fixture(self, fixture_id):
         try:
