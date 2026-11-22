@@ -1,0 +1,228 @@
+        .bet-card {
+            padding: 14px; background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            margin-bottom: 10px; transition: var(--transition); position: relative;
+            overflow: hidden; cursor: pointer; touch-action: pan-y;
+        }
+        .bet-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .bet-card.active {
+            border-color: rgba(16, 185, 129, 0.35);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, var(--bg-card) 100%);
+        }
+        .bet-card.active::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--emerald-400), var(--emerald-600));
+        }
+        .bet-card .swipe-hint {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            font-size: 11px; font-weight: 700; opacity: 0; transition: opacity 0.15s ease;
+            pointer-events: none; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .bet-card .swipe-hint.left { left: 12px; color: var(--emerald-400); }
+        .bet-card .swipe-hint.right { right: 12px; color: var(--red-400); }
+        .bet-card.swipe-left .swipe-hint.left { opacity: 1; }
+        .bet-card.swipe-right .swipe-hint.right { opacity: 1; }
+        .bet-card.swipe-left { transform: translateX(60px); }
+        .bet-card.swipe-right { transform: translateX(-60px); }
+
+        .bet-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+        .bet-match { font-size: 14px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+        .bet-league { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .bet-time { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .bet-score { font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; }
+        .bet-halftime {
+            font-size: 10px; font-weight: 600; color: var(--text-tertiary);
+            font-variant-numeric: tabular-nums; padding: 1px 6px;
+            background: rgba(255, 255, 255, 0.04); border-radius: var(--radius-full);
+            border: 1px solid var(--border-color);
+        }
+        .bet-badge { padding: 4px 10px; border-radius: var(--radius-full); font-size: 10px; font-weight: 700; white-space: nowrap; }
+        .bet-badge.bet-1x { background: rgba(16, 185, 129, 0.15); color: var(--emerald-400); }
+        .bet-badge.bet-x2 { background: rgba(52, 211, 153, 0.15); color: var(--emerald-400); }
+        .bet-badge.bet-under { background: rgba(245, 158, 11, 0.15); color: var(--gold-400); }
+        .bet-badge.bet-over { background: rgba(248, 113, 113, 0.15); color: var(--red-400); }
+        .bet-badge.bet-btts { background: rgba(167, 139, 250, 0.15); color: var(--purple-400); }
+
+        .source-badge {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: var(--radius-full); font-size: 9px;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+            border: 1px solid; white-space: nowrap;
+        }
+        .source-badge.auto { background: rgba(96, 165, 250, 0.12); color: var(--blue-400); border-color: rgba(96, 165, 250, 0.25); }
+        .source-badge.manual { background: rgba(167, 139, 250, 0.12); color: var(--purple-400); border-color: rgba(167, 139, 250, 0.25); }
+        .source-badge.cache { background: rgba(16, 185, 129, 0.12); color: var(--emerald-400); border-color: rgba(16, 185, 129, 0.25); }
+        .source-badge.import { background: rgba(245, 158, 11, 0.12); color: var(--gold-400); border-color: rgba(245, 158, 11, 0.25); }
+
+        .bet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .bet-stat { display: flex; flex-direction: column; gap: 2px; }
+        .bet-stat .stat-label { font-size: 9px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .bet-stat .stat-value { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .bet-stat .stat-value.emerald { color: var(--emerald-400); }
+        .bet-stat .stat-value.gold { color: var(--gold-400); }
+        .bet-stat .stat-value.red { color: var(--red-400); }
+
+        .live-card {
+            padding: 14px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .live-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .live-card.is-live {
+            border-color: rgba(248, 113, 113, 0.4);
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.05) 0%, var(--bg-card) 100%);
+        }
+        .live-card.is-live::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--red-400), var(--red-500));
+            animation: pulseLive 1.5s ease-in-out infinite;
+        }
+        @keyframes pulseLive {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .live-card.is-soon {
+            border-color: rgba(245, 158, 11, 0.3);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, var(--bg-card) 100%);
+        }
+        .live-card.is-soon::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+        }
+        .live-score {
+            font-size: 18px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--red-400);
+            letter-spacing: 1px;
+        }
+        .live-minute {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--red-400);
+            padding: 2px 8px;
+            background: rgba(248, 113, 113, 0.15);
+            border-radius: var(--radius-full);
+            animation: pulseLive 1.5s ease-in-out infinite;
+        }
+        .live-badge-live {
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            font-size: 9px;
+            font-weight: 700;
+            background: rgba(248, 113, 113, 0.15);
+            color: var(--red-400);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            animation: pulseLive 1.5s ease-in-out infinite;
+        }
+        .live-badge-soon {
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            font-size: 9px;
+            font-weight: 700;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--gold-400);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .live-badge-final {
+            padding: 3px 9px;
+            border-radius: var(--radius-full);
+            font-size: 9px;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--emerald-400);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .snapshot-card {
+            padding: 14px; background: var(--bg-card); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            margin-bottom: 10px; cursor: pointer; transition: var(--transition);
+            position: relative; overflow: hidden;
+        }
+        .snapshot-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .snapshot-card.has-anomaly {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card) 100%);
+        }
+        .snapshot-card.has-anomaly::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+            background: linear-gradient(180deg, var(--gold-400), var(--gold-500));
+        }
+        .snapshot-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+        .snapshot-match { font-size: 14px; font-weight: 700; line-height: 1.3; }
+        .snapshot-meta { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
+        .snapshot-badge {
+            padding: 3px 9px; border-radius: var(--radius-full); font-size: 9px;
+            font-weight: 700; background: rgba(16, 185, 129, 0.1); color: var(--emerald-400);
+            border: 1px solid rgba(16, 185, 129, 0.2); white-space: nowrap;
+        }
+        .snapshot-badge.anomaly { background: rgba(245, 158, 11, 0.12); color: var(--gold-400); border-color: rgba(245, 158, 11, 0.25); }
+        .snapshot-trends { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .snapshot-trend { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; }
+        .snapshot-trend .trend-label { font-size: 9px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .snapshot-trend .trend-values { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+        .snapshot-trend .trend-pct { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .snapshot-trend .trend-pct.up { color: var(--emerald-400); }
+        .snapshot-trend .trend-pct.down { color: var(--red-400); }
+        .snapshot-trend .trend-pct.flat { color: var(--text-tertiary); }
+
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: -4px; padding: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 700px; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th {
+            color: var(--text-tertiary); font-weight: 700; font-size: 9px;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            background: rgba(16, 185, 129, 0.03); position: sticky; top: 0;
+            cursor: pointer; user-select: none; white-space: nowrap;
+        }
+        th:hover { color: var(--emerald-400); }
+        th .sort-arrow { font-size: 8px; margin-left: 4px; opacity: 0.4; }
+        th.sorted .sort-arrow { opacity: 1; color: var(--emerald-400); }
+        tr:hover td { background: rgba(16, 185, 129, 0.03); }
+        .profit-positive { color: var(--emerald-400); font-weight: 700; }
+        .profit-negative { color: var(--red-400); font-weight: 700; }
+
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: var(--radius-full);
+            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .badge.win { background: rgba(16, 185, 129, 0.15); color: var(--emerald-400); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .badge.loss { background: rgba(248, 113, 113, 0.15); color: var(--red-400); border: 1px solid rgba(248, 113, 113, 0.2); }
+        .badge.push { background: rgba(245, 158, 11, 0.15); color: var(--gold-400); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .badge.pending { background: rgba(255, 255, 255, 0.05); color: var(--text-tertiary); border: 1px solid var(--border-color); }
+
+        .bottom-nav {
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            width: 96%; max-width: 540px;
+            background: rgba(7, 16, 14, 0.75);
+            backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border-radius: var(--radius-lg); border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 6px 4px; z-index: 1000; transition: var(--transition);
+        }
+        [data-theme="light"] .bottom-nav { background: rgba(255, 255, 255, 0.85); }

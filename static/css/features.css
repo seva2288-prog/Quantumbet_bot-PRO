@@ -1,0 +1,45 @@
+/* Движение кэфов в карточке */
+.dm-box{margin-top:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);}
+.dm-title{font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;}
+.dm-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.dm-chip{display:flex;flex-direction:column;gap:1px;padding:5px 8px;border-radius:10px;background:rgba(255,255,255,.07);min-width:74px;}
+.dm-name{font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;}
+.dm-odds{font-size:11px;color:var(--text-secondary);}
+.dm-odds b{color:var(--text-primary,inherit);}
+.dm-ch{font-size:11px;font-weight:800;}
+
+/* Матчи дня: сводка, сортировка, подсветка, детали */
+.dm-sortrow{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-size:11px;color:var(--text-tertiary);}
+.dm-sortrow select{flex:1;min-width:0;padding:7px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:12px;}
+.dm-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;}
+.dm-sum-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
+.dm-sum-item b{font-size:15px;font-weight:800;}
+.dm-sum-item span{font-size:9px;color:var(--text-tertiary);text-align:center;}
+.bet-card.dm-hot-drop{box-shadow:0 0 0 2px rgba(52,211,153,.75),0 0 18px rgba(52,211,153,.25);}
+.bet-card.dm-hot-rise{box-shadow:0 0 0 2px rgba(248,113,113,.75),0 0 18px rgba(248,113,113,.25);}
+.bet-card.dm-warm{box-shadow:0 0 0 1px rgba(251,191,36,.6);}
+.dm-clv{margin-top:8px;font-size:11px;font-weight:700;}
+.dm-detail{margin-top:16px;}
+.dm-detail-sel{padding:10px;margin-top:8px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);}
+.dm-times{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:10px;color:var(--text-tertiary);}
+.dm-times b{color:var(--text-secondary);}
+
+/* Избранное, заметки, состояние бота, аналитика */
+.fav-btn{margin-left:auto;background:none;border:none;font-size:18px;line-height:1;padding:0 4px;color:var(--text-tertiary);cursor:pointer;}
+.fav-btn.on{color:#fbbf24;}
+.card-note{margin-top:8px;font-size:11px;color:var(--text-secondary);padding:6px 10px;border-radius:10px;background:rgba(251,191,36,.1);}
+.note-input{width:100%;box-sizing:border-box;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:13px;font-family:inherit;resize:vertical;}
+.health-card{padding:12px;margin-bottom:12px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);}
+.health-card.ok{border-color:rgba(52,211,153,.4);}
+.health-card.warn{border-color:rgba(251,146,60,.6);}
+.health-head{font-size:13px;font-weight:800;margin-bottom:8px;}
+.health-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.health-grid div{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.health-grid b{font-size:13px;}
+.health-grid span{font-size:9px;color:var(--text-tertiary);text-align:center;}
+.health-warn{margin-top:8px;font-size:11px;color:#fb923c;}
+.dm-tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.dm-table{width:100%;min-width:0!important;font-size:11px;border-collapse:collapse;table-layout:auto;}
+.dm-table th,.dm-table td{padding:6px 3px!important;text-align:right;white-space:nowrap;}
+.dm-table th:first-child,.dm-table td:first-child{text-align:left;white-space:normal;}
+.dm-table th{color:var(--text-tertiary);font-weight:600;font-size:10px;}
