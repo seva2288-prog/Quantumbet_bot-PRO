@@ -657,6 +657,11 @@ class FootballAPI:
         try:
             r = requests.get(url, headers=headers, params=params, timeout=Config.REQUEST_TIMEOUT)
             self.last_request_time = time.time()
+            try:   # остаток лимита API-Football для вкладки «Состояние бота»
+                self.quota = {'remaining': r.headers.get('x-ratelimit-requests-remaining'),
+                              'limit': r.headers.get('x-ratelimit-requests-limit')}
+            except Exception:
+                pass
             if r.status_code == 429:
                 retry_after = int(r.headers.get('Retry-After', 30))
                 time.sleep(retry_after)
@@ -8531,6 +8536,209 @@ def notify_day_events():
             logger.info(f"📨 day_notify: отправлено событий {min(len(lines), 8)}")
     except Exception as e:
         logger.exception(f"notify_day_events error: {e}")
+
+
+# ============================================================
+# ★ АНАЛИТИКА LINE MOVEMENT: CLV, разрезы по лигам и размеру движения
+# ============================================================
+_BET_SEL = {'П1': '1', 'P1': '1', '1': '1', 'Х': 'X', 'X': 'X', 'Н': 'X',
+            'П2': '2', 'P2': '2', '2': '2', '1Х': '1X', '1X': '1X', 'Х2': 'X2', 'X2': 'X2'}
+
+
+def _bet_selection(label):
+    t = str(label or '').upper().replace(' ', '')
+    return _BET_SEL.get(t)
+
+
+def _lm_bets_with_clv():
+    """Ставки Line Movement + CLV (кэф ставки vs последний снимок) и движение (первый снимок -> кэф ставки)."""
+    hist = [b for b in lm_filter(storage.load_history())
+            if b.get('source') == 'line_movement' or b.get('engine') == 'line_movement']
+    cutoff = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d %H:%M:%S')
+    idx = {}
+    for r in storage.get_snapshots_since(cutoff):
+        fid, sel, o, t = r.get('fixture_id'), r.get('selection'), r.get('odds') or 0, r.get('created_at') or ''
+        if not fid or not sel or o <= 0:
+            continue
+        d = idx.setdefault((fid, sel), {'first': (t, o), 'last': (t, o)})
+        if t < d['first'][0]:
+            d['first'] = (t, o)
+        if t >= d['last'][0]:
+            d['last'] = (t, o)
+    out = []
+    for b in hist:
+        row = dict(b)
+        sel = _bet_selection(b.get('bet'))
+        d = idx.get((b.get('fixture_id'), sel)) if sel else None
+        odds = b.get('odds') or 0
+        row['clv'] = round((odds / d['last'][1] - 1) * 100, 2) if d and odds and d['last'][1] else None
+        row['move'] = round((odds / d['first'][1] - 1) * 100, 2) if d and odds and d['first'][1] else None
+        out.append(row)
+    return out
+
+
+def _agg_bets(rows):
+    settled = [b for b in rows if b.get('result') in ('win', 'loss')]
+    wins = sum(1 for b in settled if b['result'] == 'win')
+    stake = sum(b.get('stake') or 0 for b in settled)
+    profit = sum(b.get('profit') or 0 for b in settled)
+    clvs = [b['clv'] for b in rows if b.get('clv') is not None]
+    return {
+        'n': len(rows), 'settled': len(settled), 'wins': wins, 'losses': len(settled) - wins,
+        'winrate': round(wins / len(settled) * 100, 1) if settled else None,
+        'profit': round(profit, 2),
+        'roi': round(profit / stake * 100, 1) if stake else None,
+        'clv_n': len(clvs),
+        'avg_clv': round(sum(clvs) / len(clvs), 2) if clvs else None,
+        'clv_pos': round(sum(1 for c in clvs if c > 0) / len(clvs) * 100, 1) if clvs else None,
+    }
+
+
+@app.route('/api/lm_analytics', methods=['GET'])
+def api_lm_analytics():
+    try:
+        rows = _lm_bets_with_clv()
+        by_league = {}
+        for b in rows:
+            by_league.setdefault(b.get('league') or '?', []).append(b)
+        buckets = [('до 3%', 0, 3), ('3–5%', 3, 5), ('5–8%', 5, 8), ('8–12%', 8, 12), ('12%+', 12, 10 ** 6)]
+        by_move = []
+        for name, lo, hi in buckets:
+            sub = [b for b in rows if b.get('move') is not None and lo <= abs(b['move']) < hi]
+            by_move.append(dict(_agg_bets(sub), bucket=name))
+        return jsonify({
+            'status': 'ok',
+            'overall': _agg_bets(rows),
+            'by_league': sorted([dict(_agg_bets(v), league=k) for k, v in by_league.items()],
+                                key=lambda x: -x['n']),
+            'by_move': by_move,
+        })
+    except Exception as e:
+        logger.exception(f"api_lm_analytics error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# ★ ЭКСПОРТ ИСТОРИИ В CSV
+# ============================================================
+@app.route('/api/export_history.csv', methods=['GET'])
+def api_export_history_csv():
+    try:
+        import csv, io
+        from flask import Response as _Resp
+        try:
+            by_fid = {r.get('fixture_id'): r for r in _lm_bets_with_clv() if r.get('fixture_id')}
+        except Exception:
+            by_fid = {}
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=';')
+        w.writerow(['Дата', 'Время матча', 'Лига', 'Хозяева', 'Гости', 'Ставка', 'Кэф', 'Сумма',
+                    'Результат', 'Прибыль', 'Голы дома', 'Голы гости', '1-й тайм', 'Движение %', 'CLV %', 'Источник'])
+        for b in storage.load_history():
+            e = by_fid.get(b.get('fixture_id'), {})
+            ht = (f"{b.get('halftime_home')}-{b.get('halftime_away')}"
+                  if b.get('halftime_home') is not None else '')
+            w.writerow([b.get('date', ''), b.get('match_time', ''), b.get('league', ''), b.get('home', ''),
+                        b.get('away', ''), b.get('bet', ''), b.get('odds', ''), b.get('stake', ''),
+                        b.get('result', ''), b.get('profit', ''), b.get('home_goals', ''), b.get('away_goals', ''),
+                        ht, e.get('move', ''), e.get('clv', ''), b.get('source', '')])
+        data = '﻿' + buf.getvalue()
+        return _Resp(data, mimetype='text/csv; charset=utf-8',
+                     headers={'Content-Disposition': 'attachment; filename=history.csv'})
+    except Exception as e:
+        logger.exception(f"export csv error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# ★ СОСТОЯНИЕ БОТА
+# ============================================================
+@app.route('/api/bot_health', methods=['GET'])
+def api_bot_health():
+    try:
+        now = datetime.now()
+        interval = int(getattr(Config, 'LINE_MOVEMENT_SNAPSHOT_INTERVAL_MIN', 30))
+        rows = storage.get_snapshots_since((now - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))
+        rows = [r for r in rows if is_lm_item(r)]
+        last = max((r.get('created_at') or '' for r in rows), default='')
+        today0 = now.strftime('%Y-%m-%d')
+        today_rows = [r for r in rows if str(r.get('created_at', '')).startswith(today0)]
+        minutes_ago = None
+        if last:
+            try:
+                minutes_ago = int((now - datetime.strptime(last[:19], '%Y-%m-%d %H:%M:%S')).total_seconds() // 60)
+            except Exception:
+                pass
+        disk_ok = os.path.abspath(DATA_DIR) != os.path.abspath('.')
+        quota = getattr(football_api, 'quota', None) or {}
+        warnings = []
+        if minutes_ago is None:
+            warnings.append('Снимков за сутки нет')
+        elif minutes_ago > interval * 2 + 10:
+            warnings.append(f'Снимки не делались {minutes_ago} мин (интервал {interval} мин)')
+        if not disk_ok:
+            warnings.append('Диск Render не подключён: снимки пропадут при перезапуске')
+        try:
+            if quota.get('remaining') is not None and int(quota['remaining']) < 100:
+                warnings.append(f"Лимит API-Football почти исчерпан: осталось {quota['remaining']}")
+        except Exception:
+            pass
+        if not getattr(football_api, 'api_key', None):
+            warnings.append('FOOTBALL_API_KEY не задан')
+        return jsonify({
+            'status': 'ok', 'ok': not warnings, 'warnings': warnings,
+            'last_snapshot': last, 'minutes_ago': minutes_ago, 'interval_min': interval,
+            'snapshots_today': len(today_rows),
+            'fixtures_today': len({r.get('fixture_id') for r in today_rows}),
+            'leagues': len(_lm_league_ids()),
+            'disk_ok': disk_ok, 'quota': quota,
+        })
+    except Exception as e:
+        logger.exception(f"api_bot_health error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# ★ ЗАМЕТКИ К СТАВКАМ (хранятся на сервере)
+# ============================================================
+_NOTES_FILE = os.path.join(DATA_DIR, 'bet_notes.json')
+_notes_lock = Lock()
+
+
+def _load_notes():
+    try:
+        with open(_NOTES_FILE, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+@app.route('/api/notes', methods=['GET'])
+def api_notes_get():
+    return jsonify({'status': 'ok', 'notes': _load_notes()})
+
+
+@app.route('/api/notes', methods=['POST'])
+def api_notes_set():
+    try:
+        body = request.get_json(silent=True) or {}
+        key = str(body.get('key', '')).strip()[:200]
+        note = str(body.get('note', '')).strip()[:500]
+        if not key:
+            return jsonify({'status': 'error', 'error': 'key required'}), 400
+        with _notes_lock:
+            notes = _load_notes()
+            if note:
+                notes[key] = note
+            else:
+                notes.pop(key, None)
+            with open(_NOTES_FILE, 'w', encoding='utf-8') as f:
+                json.dump(notes, f, ensure_ascii=False)
+        return jsonify({'status': 'ok', 'saved': bool(note)})
+    except Exception as e:
+        logger.exception(f"api_notes_set error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
