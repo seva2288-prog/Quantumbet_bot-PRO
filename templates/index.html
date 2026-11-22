@@ -1063,7 +1063,17 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
         }
-    </style>
+    
+/* Движение кэфов в карточке */
+.dm-box{margin-top:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);}
+.dm-title{font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;}
+.dm-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.dm-chip{display:flex;flex-direction:column;gap:1px;padding:5px 8px;border-radius:10px;background:rgba(255,255,255,.07);min-width:74px;}
+.dm-name{font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;}
+.dm-odds{font-size:11px;color:var(--text-secondary);}
+.dm-odds b{color:var(--text-primary,inherit);}
+.dm-ch{font-size:11px;font-weight:800;}
+</style>
 </head>
 <body>
 
@@ -3511,6 +3521,18 @@ function openFromMore(page) {
 // ============================================================
 // ЗАГРУЗКА ДАННЫХ
 // ============================================================
+let dayMatchesData = [];
+async function loadDayMatches() {
+    try {
+        const r = await fetch(API_BASE + '/api/day_matches?t=' + Date.now());
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j && Array.isArray(j.matches)) dayMatchesData = j.matches;
+    } catch (e) {}
+}
+const DM_FINISHED = ['FT', 'AET', 'PEN'];
+const DM_LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+
 async function loadPageData(page) {
     if (isLoading) return;
     isLoading = true;
@@ -3527,6 +3549,7 @@ async function loadPageData(page) {
                 }
             }
         } catch (e) {}
+        if (page === 'matches') { await loadDayMatches(); }
         cachedData = data;
         updateLastUpdate();
 
@@ -4000,7 +4023,7 @@ function renderBetCard(m, isActive = false) {
     else if (result === 'loss') scoreColor = 'var(--red-400)';
     else if (result === 'push') scoreColor = 'var(--gold-400)';
 
-    const showScore = !isActive && score !== '-' && homeGoals !== '-' && awayGoals !== '-';
+    const showScore = (!isActive || (m.dm && m.dm.status && m.dm.status !== 'NS')) && score !== '-' && homeGoals !== '-' && awayGoals !== '-';
 
     let resultBadge = '';
     if (!isActive && result && result !== 'pending') {
@@ -4051,6 +4074,10 @@ function renderBetCard(m, isActive = false) {
              ${best.movement_hours ? ` • за ${best.movement_hours}ч` : ''}
            </div>`
         : '';
+
+    const dmHtml = renderDayMovement(m.dm);
+    const dmFinal = (m.dm && DM_FINISHED.includes(m.dm.status))
+        ? '<span class="bet-halftime">🏁 Итог</span>' : '';
 
     // ★ УЛУЧШЕНИЕ 1: Цветной Score (исправлен баг: было matchScore, стало matchScoreColor)
     let matchScoreColor = 'var(--text-tertiary)';
@@ -4111,7 +4138,8 @@ function renderBetCard(m, isActive = false) {
                         ${m.weather_reason && m.weather_reason !== '🌤️ Нет данных' ? `<span title="${escapeHtml(m.weather_reason)}" style="cursor:help;font-size:10px;">${m.weather_reason.split(',')[0] || ''}</span>` : ''}
                         ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
                         ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
-                        ${(m.live_minute || m.live_status) && result === 'pending' ? `<span class="bet-halftime">🔴 LIVE ${m.live_status === 'HT' ? 'HT' : (m.live_minute || '') + "'"}</span>` : ''}
+                        ${dmFinal}
+                        ${(m.live_minute || m.live_status) && result === 'pending' && !(m.dm && DM_FINISHED.includes(m.dm.status)) ? `<span class="bet-halftime">🔴 LIVE ${m.live_status === 'HT' ? 'HT' : (m.live_minute || '') + "'"}</span>` : ''}
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -4120,7 +4148,7 @@ function renderBetCard(m, isActive = false) {
                     ${resultBadge}
                 </div>
             </div>
-            <div class="bet-stats" style="${statsGridStyle}">
+            <div class="bet-stats" style="${statsGridStyle}${m.type === 'daymatch' ? 'display:none;' : ''}">
                 <div class="bet-stat">
                     <span class="stat-label">Кэф</span>
                     <span class="stat-value">${oddsDisplay}</span>
@@ -4136,8 +4164,54 @@ function renderBetCard(m, isActive = false) {
                 ${scoreHtml}
             </div>
             ${lmMovementHtml}
+            ${dmHtml}
         </div>
     `;
+}
+
+function renderDayMovement(d) {
+    if (!d || !d.selections) return '';
+    const order = ['1', 'X', '2', '1X', 'X2'];
+    const names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'};
+    const keys = order.filter(k => d.selections[k]);
+    if (!keys.length) return '';
+    const chips = keys.map(k => {
+        const x = d.selections[k];
+        const ch = Number(x.change_pct) || 0;
+        const col = ch < -0.05 ? 'var(--emerald-400)' : ch > 0.05 ? 'var(--red-400)' : 'var(--text-tertiary)';
+        const arrow = ch < -0.05 ? '▼' : ch > 0.05 ? '▲' : '•';
+        return `<div class="dm-chip">
+            <span class="dm-name">${names[k]}</span>
+            <span class="dm-odds">${Number(x.first).toFixed(2)} → <b>${Number(x.last).toFixed(2)}</b></span>
+            <span class="dm-ch" style="color:${col};">${arrow} ${ch > 0 ? '+' : ''}${ch}%</span>
+        </div>`;
+    }).join('');
+    const main = d.selections['2'] || d.selections[keys[0]];
+    const spark = renderDmSpark(main.points || []);
+    return `<div class="dm-box">
+        <div class="dm-title">📈 Движение кэфов <span style="opacity:.7;">• ${d.snapshots_count} сним.</span></div>
+        <div class="dm-chips">${chips}</div>
+        ${spark}
+    </div>`;
+}
+
+function renderDmSpark(points) {
+    if (!points || points.length < 2) return '';
+    const vals = points.map(p => p[1]);
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const w = 260, h = 34, pad = 3;
+    const rng = (mx - mn) || 1;
+    const pts = vals.map((v, i) => {
+        const x = pad + i * (w - 2 * pad) / (vals.length - 1);
+        const y = h - pad - (v - mn) / rng * (h - 2 * pad);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    const up = vals[vals.length - 1] > vals[0];
+    const col = vals[vals.length - 1] < vals[0] ? '#34d399' : up ? '#f87171' : '#94a3b8';
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:34px;margin-top:6px;">
+        <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);">
+            <span>${points[0][0]}</span><span>${points[points.length - 1][0]}</span></div>`;
 }
 
 function handleCardClick(event, m) {
@@ -4350,6 +4424,9 @@ function renderTableView(items) {
 function buildAllItems(history, matches) {
     const items = [];
     const historyFids = new Set((history || []).map(h => h.fixture_id).filter(Boolean));
+    const dmMap = {};
+    (dayMatchesData || []).forEach(d => { if (d.fixture_id) dmMap[d.fixture_id] = d; });
+    const seenFids = new Set();
     if (matches && matches.length) {
         matches.forEach(m => {
             if (m.fixture_id && historyFids.has(m.fixture_id)) return;   // этот матч есть в истории (со счётом)
@@ -4416,6 +4493,44 @@ function buildAllItems(history, matches) {
             });
         });
     }
+    // применяем данные снимков: движение кэфов + счёт
+    items.forEach(it => {
+        const d = it.fixture_id ? dmMap[it.fixture_id] : null;
+        if (!d) return;
+        seenFids.add(it.fixture_id);
+        it.dm = d;
+        if (d.home_goals != null && d.away_goals != null && (!it.score || it.score === '-')) {
+            it.score = d.home_goals + ' - ' + d.away_goals;
+            it.home_goals = d.home_goals; it.away_goals = d.away_goals;
+        }
+        if (it.halftime_home == null && d.halftime_home != null) {
+            it.halftime_home = d.halftime_home; it.halftime_away = d.halftime_away;
+        }
+    });
+    // матчи со снимками, по которым нет ставки
+    (dayMatchesData || []).forEach(d => {
+        if (!d.fixture_id || seenFids.has(d.fixture_id)) return;
+        const fin = DM_FINISHED.includes(d.status);
+        const live = DM_LIVE.includes(d.status);
+        const hasScore = d.home_goals != null && d.away_goals != null;
+        items.push({
+            type: 'daymatch',
+            date: d.match_time || 'Сегодня',
+            home: d.home || 'Unknown', away: d.away || 'Unknown',
+            score: hasScore ? d.home_goals + ' - ' + d.away_goals : '-',
+            bet: '—', odds: 0, stake: 0, ev: 0, prob: 0,
+            result: 'pending', profit: 0,
+            is_active: !fin && !live,
+            league: d.league || '', country: d.country || '', country_flag: d.country_flag || '',
+            total_xg: 0, fixture_id: d.fixture_id,
+            best_bet: {}, bets: [],
+            halftime_home: d.halftime_home, halftime_away: d.halftime_away,
+            home_goals: d.home_goals, away_goals: d.away_goals,
+            live_minute: live ? (d.elapsed || 0) : 0,
+            live_status: live ? d.status : '',
+            source: 'snapshots', dm: d,
+        });
+    });
     return items;
 }
 
