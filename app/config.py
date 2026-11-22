@@ -69,7 +69,8 @@ class Config:
     # ============================================================
     DATABASE_URL = os.getenv("DATABASE_URL", "/data/bot.db")
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "15"))
-    USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year)))
+    # ★ Европейский сезон стартует в июле: с января по июнь это ещё прошлый год
+    USE_SEASON = int(os.getenv("USE_SEASON", str(datetime.now().year if datetime.now().month >= 7 else datetime.now().year - 1)))
     CACHE_TTL = int(os.getenv("CACHE_TTL", "600"))
 
     USE_API_LEAGUES = False  
@@ -232,6 +233,17 @@ class Config:
     # ============================================================
     # ★ LINE MOVEMENT — Whitelist лиг
     # ============================================================
+    # ★ ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ: ID лиг (API-Football) для Line Movement.
+    #   Снимки кэфов, поиск матчей и сам LM работают ТОЛЬКО по этим лигам.
+    #   Чтобы добавить/убрать лигу — правь только этот список.
+    #   39=АПЛ, 197=Греция Super League, 88=Эредивизи, 94=Примейра,
+    #   144=Бельгия Pro League, 180=Шотландия Championship
+    LINE_MOVEMENT_LEAGUE_IDS = [39, 197, 88, 94, 144, 180]
+
+    LINE_MOVEMENT_SNAPSHOT_INTERVAL_MIN = 30    # как часто снимать кэфы (мин)
+    LINE_MOVEMENT_SNAPSHOT_DAYS_AHEAD = 1       # сегодня + N дней вперёд (МСК)
+    LINE_MOVEMENT_SNAPSHOT_HEARTBEAT_MIN = 25   # писать снимок, даже если кэф не изменился
+
     LINE_MOVEMENT_LEAGUE_WHITELIST = [
         'Premier League',   # АПЛ (Англия) - ROI +18.1%
         'Super League',     # Греция - ROI +26.1%
@@ -552,15 +564,9 @@ class Config:
     # ============================================================
     # ★ ЛИГИ (Резервный список, если USE_API_LEAGUES = False)
     # ============================================================
-    LEAGUES = [
-        39,   # АПЛ (Англия)
-        197,  # Супер Лиг (Греция)
-        88,   # Эредивизи (Нидерланды)
-        94,   # Примейра (Португалия)
-        144,  # Про Лига (Бельгия)
-    ]
+    LEAGUES = list(LINE_MOVEMENT_LEAGUE_IDS)   # ★ те же лиги, что и у Line Movement
 
-    CUP_LEAGUES = [2, 3, 848]
+    CUP_LEAGUES = []   # ★ кубки не нужны для Line Movement (было [2, 3, 848])
 
     # ============================================================
     # ★ LEAGUE_NAMES (Резервный список)
@@ -575,7 +581,7 @@ class Config:
         144: "Pro League", 145: "Challenger Pro League", 203: "Süper Lig", 204: "TFF 1. Lig",
         235: "РПЛ", 236: "Первая Лига", 333: "Premier League Ukraine", 334: "Persha Liga",
         179: "Premiership", 180: "Championship", 187: "Bundesliga Austria", 188: "Australia Cup",
-        206: "Super League", 207: "Challenge League", 198: "Super League", 197: "Super League 2",
+        206: "Super League", 207: "Challenge League", 198: "Super League 2", 197: "Super League",
         261: "National Division", 345: "FNL", 106: "Ekstraklasa", 107: "I Liga",
         119: "Superliga", 120: "1. Division", 164: "Eliteserien", 165: "OBOS-ligaen",
         113: "Allsvenskan", 114: "Superettan", 166: "HNL", 167: "2. HNL",
