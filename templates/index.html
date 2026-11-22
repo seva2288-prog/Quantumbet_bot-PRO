@@ -1057,7 +1057,7 @@
                 </button>
             </div>
             <div style="font-size:11px;color:var(--text-tertiary);">
-                История движения коэффициентов. Бот делает снимки каждые 30 минут для матчей в ближайшие 2 часа.
+                История движения коэффициентов. Бот делает снимки каждые 30 минут для матчей 6 лиг Line Movement (сегодня и завтра).
             </div>
         </div>
 
@@ -1085,6 +1085,9 @@
             <div class="filter-group">
                 <button class="filter-btn active" data-snapfilter="all" onclick="setSnapshotFilter('all')">
                     🌐 Все
+                </button>
+                <button class="filter-btn" data-snapfilter="today" onclick="setSnapshotFilter('today')">
+                    ☀️ Сегодня
                 </button>
                 <button class="filter-btn" data-snapfilter="week" onclick="setSnapshotFilter('week')">
                     📅 За 7 дней
@@ -2006,7 +2009,7 @@
                     <div class="label">Экспорт в Excel</div>
                     <div class="desc">Скачать всю историю</div>
                 </div>
-                <button class="btn btn-primary" onclick="window.location.href='/export'" style="padding:6px 12px;font-size:11px;">
+                <button class="btn btn-primary" onclick="downloadExcel()" style="padding:6px 12px;font-size:11px;">
                     📥 Excel
                 </button>
             </div>
@@ -2529,21 +2532,61 @@
 // КОНФИГУРАЦИЯ
 // ============================================================
 const API_BASE = window.location.origin;
-const ADMIN_TOKEN = 'KfC4L7yzyjS+rK9r40lLNwoDplQQhUXEeolu/mlhibE=';   // ← сюда вставь токен
 
-// Автоматически добавляем токен ко всем /api/* запросам
-// (кроме /api/keepalive — он публичный)
-const _origFetch = window.fetch;
-window.fetch = function(url, opts = {}) {
-    if (typeof url === 'string' && url.includes('/api/') && !url.includes('/api/keepalive')) {
-        opts = opts || {};
-        opts.headers = Object.assign({}, opts.headers || {}, {
-            'X-Admin-Token': ADMIN_TOKEN
-        });
+// ===== ADMIN TOKEN: автоматически добавляется ко всем запросам к /api/* и /export =====
+const _origFetch = window.fetch.bind(window);
+let _tokenPrompt = null;
+let _tokenCancelAt = 0;
+function getAdminToken() {
+    try { return localStorage.getItem('qb_admin_token') || ''; } catch (e) { return ''; }
+}
+function setAdminToken(t) {
+    try { localStorage.setItem('qb_admin_token', t); } catch (e) {}
+}
+function askAdminToken() {
+    if (_tokenPrompt) return _tokenPrompt;
+    if (Date.now() - _tokenCancelAt < 60000) return Promise.resolve('');
+    _tokenPrompt = new Promise(function (resolve) {
+        setTimeout(function () {
+            const t = (window.prompt('Введите ADMIN_TOKEN') || '').trim();
+            if (t) setAdminToken(t); else _tokenCancelAt = Date.now();
+            _tokenPrompt = null;
+            resolve(t);
+        }, 0);
+    });
+    return _tokenPrompt;
+}
+window.fetch = async function (input, init) {
+    const url = (typeof input === 'string') ? input : ((input && input.url) || '');
+    const guarded = (url.indexOf('/api/') !== -1 && url.indexOf('/api/keepalive') === -1)
+                    || /\/export(\?|$)/.test(url);
+    if (!guarded) return _origFetch(input, init);
+    const send = function (tok) {
+        const o = Object.assign({}, init || {});
+        const hd = new Headers(o.headers || {});
+        if (tok) hd.set('X-Admin-Token', tok);
+        o.headers = hd;
+        return _origFetch(input, o);
+    };
+    let resp = await send(getAdminToken());
+    if (resp.status === 401) {
+        const t = await askAdminToken();
+        if (t) resp = await send(t);
     }
-    return _origFetch.call(this, url, opts);
+    return resp;
 };
-
+async function downloadExcel() {
+    try {
+        const r = await fetch(API_BASE + '/export');
+        if (!r.ok) { alert('Экспорт не удался: ' + (await r.text()).slice(0, 200)); return; }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'history_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    } catch (e) { alert('Ошибка экспорта: ' + e); }
+}
 const AUTO_REFRESH_MS = 60000;
 const KEEPALIVE_MS = 180000;
 const AUTO_IMPORT_MS = 180000;
@@ -3755,6 +3798,7 @@ function renderBetCard(m, isActive = false) {
                         ${m.weather_reason && m.weather_reason !== '🌤️ Нет данных' ? `<span title="${escapeHtml(m.weather_reason)}" style="cursor:help;font-size:10px;">${m.weather_reason.split(',')[0] || ''}</span>` : ''}
                         ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
                         ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
+                        ${(m.live_minute || m.live_status) && result === 'pending' ? `<span class="bet-halftime">🔴 LIVE ${m.live_status === 'HT' ? 'HT' : (m.live_minute || '') + "'"}</span>` : ''}
                     </div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -3992,8 +4036,10 @@ function renderTableView(items) {
 
 function buildAllItems(history, matches) {
     const items = [];
+    const historyFids = new Set((history || []).map(h => h.fixture_id).filter(Boolean));
     if (matches && matches.length) {
         matches.forEach(m => {
+            if (m.fixture_id && historyFids.has(m.fixture_id)) return;   // этот матч есть в истории (со счётом)
             const best = m.best_bet || (m.bets && m.bets[0]) || {};
             items.push({
                 type: 'match',
@@ -4029,7 +4075,11 @@ function buildAllItems(history, matches) {
                 date: h.date || '-',
                 home: h.home || 'Unknown',
                 away: h.away || 'Unknown',
-                score: (h.home_goals != null && h.away_goals != null) ? h.home_goals + ' - ' + h.away_goals : '-',
+                score: (h.home_goals != null && h.away_goals != null)
+                    ? h.home_goals + ' - ' + h.away_goals
+                    : (h.live_score ? String(h.live_score).replace('-', ' - ') : '-'),
+                live_minute: h.live_minute || 0,
+                live_status: h.live_status || '',
                 bet: h.bet || '—',
                 odds: h.odds || 0,
                 stake: h.stake || 0,
@@ -4417,8 +4467,11 @@ async function loadSnapshots() {
     loadAnomalyStats();
 
     try {
-        let url = API_BASE + '/api/snapshots?days=7&limit=100';
+        // Все = всё, что хранится (30 дней); За 7 дней и Сегодня/Аномалии = последние 7 дней
+        const snapDays = (snapshotFilter === 'all') ? 30 : 7;
+        let url = API_BASE + '/api/snapshots?days=' + snapDays + '&limit=200';
         if (snapshotFilter === 'anomaly') url += '&only_anomaly=true';
+        if (snapshotFilter === 'today') url += '&only_today=true';
         const resp = await fetch(url + '&t=' + Date.now());
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
@@ -4520,7 +4573,7 @@ function renderSnapshots() {
             <div class="no-data">
                 <div class="emoji">📭</div>
                 <div class="title">Нет снимков</div>
-                <div class="desc">Снимки делаются каждые 30 минут для матчей в ближайшие 2 часа</div>
+                <div class="desc">Снимки делаются каждые 30 минут для матчей 6 лиг Line Movement</div>
             </div>
         `;
         return;
