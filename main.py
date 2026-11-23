@@ -61,6 +61,7 @@ from botcore.routes_calib import *  # noqa: F401,F403
 from botcore.routes_data import *  # noqa: F401,F403
 from botcore.routes_lab import *  # noqa: F401,F403
 from botcore.ops import *  # noqa: F401,F403
+from botcore.ht_stats import *  # noqa: F401,F403
 
 
 if __name__ == "__main__":
