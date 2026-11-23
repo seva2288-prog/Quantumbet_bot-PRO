@@ -492,6 +492,7 @@ function showMatchDetail(match) {
     }
 
     html += renderDmDetail(match);
+    html += renderRealOddsBox(match);
     html += renderNoteBox(match);
     body.innerHTML = html;
     modal.classList.add('active');

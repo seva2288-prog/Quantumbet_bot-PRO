@@ -12,10 +12,45 @@ async function loadDayMatches() {
         const r2 = await fetch(API_BASE + '/api/notes?t=' + Date.now());
         if (r2.ok) { const j2 = await r2.json(); if (j2 && j2.notes) betNotes = j2.notes; }
     } catch (e) {}
+    try {
+        const r3 = await fetch(API_BASE + '/api/real_odds?t=' + Date.now());
+        if (r3.ok) { const j3 = await r3.json(); if (j3 && j3.odds) realOdds = j3.odds; }
+    } catch (e) {}
 }
 
 // ===== Избранное (на устройстве) и заметки (на сервере) =====
 let betNotes = {};
+let realOdds = {};
+function renderRealOddsBox(m) {
+    if (!m.fixture_id || m.type === 'daymatch' || !m.odds) return '';
+    const key = 'f' + m.fixture_id;
+    const val = realOdds[key] || '';
+    return `<div class="dm-detail">
+        <div class="dm-title">💵 Реальный кэф (по какому поставили)</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <input type="number" id="realOddsInput" class="note-input" style="width:120px;" step="0.01" min="1.01" value="${val}" placeholder="${Number(m.odds).toFixed(2)}">
+            <button class="btn btn-primary" data-key="${key}" onclick="saveRealOdds(this.dataset.key)" style="padding:8px 14px;font-size:12px;">Сохранить</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;">Пусто = удалить. Попадает в «Аналитику» как прибыль по реальным кэфам.</div>
+    </div>`;
+}
+async function saveRealOdds(key) {
+    const el = document.getElementById('realOddsInput');
+    if (!el) return;
+    const v = el.value.trim();
+    try {
+        const r = await fetch(API_BASE + '/api/real_odds', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({key: key, odds: v === '' ? null : parseFloat(v)})
+        });
+        const j = await r.json();
+        if (!r.ok || j.status !== 'ok') throw new Error(j.error || r.status);
+        if (v === '') delete realOdds[key]; else realOdds[key] = parseFloat(v);
+        showNotification('💵 Сохранено', 'success');
+    } catch (e) {
+        showNotification('❌ ' + e.message, 'error');
+    }
+}
 function itemKey(m) {
     return m.fixture_id ? 'f' + m.fixture_id : ((m.home || '') + '|' + (m.away || '') + '|' + String(m.date || m.match_time || '').split(' ')[0]);
 }
@@ -89,7 +124,7 @@ function lmRow(name, a) {
     const clvCol = a.avg_clv == null ? '' : a.avg_clv > 0 ? 'var(--emerald-400)' : 'var(--red-400)';
     const roiCol = a.roi == null ? '' : a.roi > 0 ? 'var(--emerald-400)' : a.roi < 0 ? 'var(--red-400)' : '';
     return `<tr>
-        <td>${escapeHtml(String(name))}</td><td>${a.n}</td>
+        <td>${escapeHtml(String(name))}${a.weak ? ' <span title="CLV < 0 после 30+ ставок">⚠️</span>' : ''}</td><td>${a.n}</td>
         <td>${a.wins}/${a.losses}</td><td>${fmtPct(a.winrate)}</td>
         <td style="color:${roiCol};">${fmtPct(a.roi, true)}</td>
         <td style="color:${clvCol};">${fmtPct(a.avg_clv, true)}</td></tr>`;
@@ -115,6 +150,14 @@ async function loadLmAnalytics() {
             <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
                 CLV — насколько кэф ставки выше последнего снимка перед матчем. Стабильно выше 0 = стратегия берёт цену лучше рынка. Доля ставок с CLV&gt;0: ${fmtPct(o.clv_pos)} (по ${o.clv_n} ставкам).
             </div>
+            <div class="dm-summary" style="grid-template-columns:repeat(3,1fr);">
+                <div class="dm-sum-item"><b style="color:var(--emerald-400);">${d.streaks.best_win}</b><span>макс. серия побед</span></div>
+                <div class="dm-sum-item"><b style="color:var(--red-400);">${d.streaks.best_loss}</b><span>макс. серия поражений</span></div>
+                <div class="dm-sum-item"><b>${d.streaks.current}${d.streaks.current_type === 'win' ? ' ✅' : d.streaks.current_type === 'loss' ? ' ❌' : ''}</b><span>текущая серия</span></div>
+            </div>
+            ${o.real && o.real.n ? `<div style="font-size:12px;margin-bottom:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);">
+                💵 По реальным кэфам (${o.real.n} ставок): <b style="color:${o.real.profit >= 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">${o.real.profit > 0 ? '+' : ''}${o.real.profit}</b>
+                против ${o.real.model_profit > 0 ? '+' : ''}${o.real.model_profit} по кэфам бота • ROI ${fmtPct(o.real.roi, true)}</div>` : ''}
             <div class="dm-title">По лигам</div>
             <div class="dm-tablewrap"><table class="dm-table">${head}<tbody>${d.by_league.map(x => lmRow(x.league, x)).join('') || '<tr><td colspan="6">Нет данных</td></tr>'}</tbody></table></div>
             <div class="dm-title" style="margin-top:12px;">По размеру движения (от первого снимка до кэфа ставки)</div>

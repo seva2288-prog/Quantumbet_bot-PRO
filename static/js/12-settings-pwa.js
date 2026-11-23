@@ -1,6 +1,76 @@
 // SETTINGS
 // ============================================================
+// ===== Настройки сигналов, уведомлений и отчёта (хранятся на сервере) =====
+const BOT_SETTING_FIELDS = [
+    {k: 'LINE_MOVEMENT_MIN_DROP_PCT', t: 'Мин. падение кэфа, %', d: 'Падение кэфа от (число с минусом)', step: 0.5},
+    {k: 'LINE_MOVEMENT_MAX_DROP_PCT', t: 'Макс. падение кэфа, %', d: 'Падение глубже этого — игнорируем (минус)', step: 0.5},
+    {k: 'LINE_MOVEMENT_MIN_ODDS', t: 'Мин. кэф', d: 'Ставим только на кэфы не ниже', step: 0.05},
+    {k: 'LINE_MOVEMENT_MAX_ODDS', t: 'Макс. кэф', d: 'и не выше', step: 0.05},
+    {k: 'LINE_MOVEMENT_STAKE_PCT', t: 'Ставка, % от банка', d: 'Размер ставки по сигналу', step: 0.1, scale: 100},
+    {k: 'LINE_MOVEMENT_MAX_BETS', t: 'Макс. ставок за запуск', d: 'Сколько сигналов брать за раз', step: 1},
+    {k: 'DAY_NOTIFY_MOVE_PCT', t: 'Уведомлять при движении, %', d: 'Telegram при изменении кэфа от этого порога', step: 0.5},
+    {k: 'NOTIFY_QUIET_ENABLED', t: 'Тихие часы', d: 'Ночью уведомления копятся и приходят утром', bool: true},
+    {k: 'NOTIFY_QUIET_FROM', t: 'Тихие часы: с (час, МСК)', d: '0–23', step: 1},
+    {k: 'NOTIFY_QUIET_TO', t: 'Тихие часы: до (час, МСК)', d: '0–23', step: 1},
+    {k: 'DAILY_REPORT_ENABLED', t: 'Ежедневный отчёт', d: 'Итоги вчерашнего дня в Telegram', bool: true},
+    {k: 'DAILY_REPORT_HOUR', t: 'Час отчёта (МСК)', d: 'Не раньше этого часа', step: 1},
+    {k: 'STREAK_ALERT_LOSSES', t: 'Предупреждать о серии поражений', d: 'Сообщение в Telegram после N проигрышей подряд (0 = выкл.)', step: 1},
+];
+async function loadBotSettingsUI() {
+    const box = document.getElementById('botSettingsBox');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/bot_settings_ui?t=' + Date.now());
+        if (!r.ok) throw new Error(r.status);
+        const j = await r.json();
+        const v = j.settings || {};
+        box.innerHTML = '<h2>🎛️ Сигналы и уведомления</h2>' + BOT_SETTING_FIELDS.map(f => {
+            const raw = v[f.k];
+            const input = f.bool
+                ? `<input type="checkbox" data-k="${f.k}" ${raw ? 'checked' : ''} style="width:22px;height:22px;">`
+                : `<input type="number" data-k="${f.k}" data-scale="${f.scale || 1}" step="${f.step}" value="${raw == null ? '' : +(raw * (f.scale || 1)).toFixed(3)}" style="width:90px;">`;
+            return `<div class="setting-item"><div><div class="label">${f.t}</div><div class="desc">${f.d}</div></div><div class="input-group">${input}</div></div>`;
+        }).join('') + '<button class="btn btn-primary" onclick="saveBotSettingsUI()" style="margin-top:10px;width:100%;padding:10px;">Сохранить</button>';
+    } catch (e) {
+        box.innerHTML = '<h2>🎛️ Сигналы и уведомления</h2><div style="font-size:12px;color:var(--text-tertiary);">Недоступно (обновите сервер)</div>';
+    }
+}
+async function saveBotSettingsUI() {
+    const body = {};
+    document.querySelectorAll('#botSettingsBox [data-k]').forEach(el => {
+        if (el.type === 'checkbox') body[el.dataset.k] = el.checked;
+        else if (el.value !== '') body[el.dataset.k] = parseFloat(el.value) / (parseFloat(el.dataset.scale) || 1);
+    });
+    try {
+        const r = await fetch(API_BASE + '/api/bot_settings_ui', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        });
+        const j = await r.json();
+        if (!r.ok || j.status !== 'ok') throw new Error(j.error || r.status);
+        showNotification('✅ Настройки сохранены', 'success');
+        loadBotSettingsUI();
+    } catch (e) {
+        showNotification('❌ ' + e.message, 'error');
+    }
+}
+async function downloadBackup() {
+    try {
+        showNotification('⏳ Готовлю архив…', '');
+        const r = await fetch(API_BASE + '/api/backup/download');
+        if (!r.ok) throw new Error('Сервер: ' + r.status);
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'quantum_backup.zip';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+        showNotification('❌ Бэкап: ' + e.message, 'error');
+    }
+}
+
 function renderSettings() {
+    loadBotSettingsUI();
     const bank = cachedData && cachedData.stats ? cachedData.stats.bank : 1000;
     document.getElementById('bankInput').value = bank;
     document.getElementById('x2CountSettings').textContent = x2Data.length + autoX2Data.length;

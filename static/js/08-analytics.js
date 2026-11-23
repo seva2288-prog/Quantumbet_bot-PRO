@@ -1,5 +1,89 @@
 // ANALYTICS
 // ============================================================
+function renderBankCalc() {
+    const box = document.getElementById('bankCalcBody');
+    if (!box) return;
+    const hist = ((cachedData && cachedData.history) || []).filter(b => b.result === 'win' || b.result === 'loss');
+    const bankDef = (cachedData && cachedData.stats && cachedData.stats.bank) || 1000;
+    const bank = parseFloat(safeLSGet('calcBank', bankDef)) || bankDef;
+    const pct = parseFloat(safeLSGet('calcPct', 1.5)) || 1.5;
+    const sorted = hist.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    let cum = 0, peak = 0, maxDd = 0;
+    sorted.forEach(b => {
+        cum += Number(b.profit) || 0;
+        if (cum > peak) peak = cum;
+        maxDd = Math.max(maxDd, peak - cum);
+    });
+    const curDd = peak - cum;
+    const stake = bank * pct / 100;
+    box.innerHTML = `
+        <div class="dm-calc-row">
+            <label>Банк<input type="number" id="calcBank" value="${bank}" step="10" oninput="saveBankCalc()"></label>
+            <label>% на ставку<input type="number" id="calcPct" value="${pct}" step="0.1" min="0.1" max="20" oninput="saveBankCalc()"></label>
+        </div>
+        <div class="dm-summary" style="grid-template-columns:repeat(3,1fr);">
+            <div class="dm-sum-item"><b id="calcStake">${stake.toFixed(2)}</b><span>ставка</span></div>
+            <div class="dm-sum-item"><b style="color:var(--red-400);">−${maxDd.toFixed(2)}</b><span>макс. просадка</span></div>
+            <div class="dm-sum-item"><b style="color:${curDd > 0 ? 'var(--red-400)' : 'var(--emerald-400)'};">${curDd > 0 ? '−' + curDd.toFixed(2) : '0'}</b><span>сейчас от пика</span></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-tertiary);">Просадка считается по ${hist.length} рассчитанным ставкам. Макс. просадка = ${bank ? (maxDd / bank * 100).toFixed(1) : 0}% от банка.</div>`;
+}
+function saveBankCalc() {
+    const b = parseFloat(document.getElementById('calcBank').value) || 0;
+    const p = parseFloat(document.getElementById('calcPct').value) || 0;
+    safeLSSet('calcBank', String(b)); safeLSSet('calcPct', String(p));
+    const el = document.getElementById('calcStake');
+    if (el) el.textContent = (b * p / 100).toFixed(2);
+}
+
+async function renderBacktestForm() {
+    const box = document.getElementById('backtestForm');
+    if (!box || box.dataset.ready) return;
+    let v = {};
+    try {
+        const r = await fetch(API_BASE + '/api/bot_settings_ui');
+        if (r.ok) v = (await r.json()).settings || {};
+    } catch (e) {}
+    const f = (id, label, val, step) => `<label>${label}<input type="number" id="${id}" value="${val}" step="${step}"></label>`;
+    box.innerHTML = `<div class="dm-calc-row" style="grid-template-columns:repeat(2,1fr);">
+        ${f('btMinDrop', 'Мин. падение, %', v.LINE_MOVEMENT_MIN_DROP_PCT ?? -4, 0.5)}
+        ${f('btMaxDrop', 'Макс. падение, %', v.LINE_MOVEMENT_MAX_DROP_PCT ?? -15, 0.5)}
+        ${f('btMinOdds', 'Мин. кэф', v.LINE_MOVEMENT_MIN_ODDS ?? 2, 0.05)}
+        ${f('btMaxOdds', 'Макс. кэф', v.LINE_MOVEMENT_MAX_ODDS ?? 4.5, 0.05)}
+    </div>
+    <button class="btn btn-primary" onclick="runBacktest()" style="width:100%;padding:10px;margin-bottom:10px;">▶️ Запустить бэктест</button>`;
+    box.dataset.ready = '1';
+}
+async function runBacktest() {
+    const out = document.getElementById('backtestResult');
+    out.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Считаю…</div>';
+    const g = id => document.getElementById(id).value;
+    const q = `min_drop=${g('btMinDrop')}&max_drop=${g('btMaxDrop')}&min_odds=${g('btMinOdds')}&max_odds=${g('btMaxOdds')}`;
+    try {
+        const r = await fetch(API_BASE + '/api/backtest?days=60&' + q);
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const x = d.result;
+        const col = v => v == null ? '' : v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        const row = (name, a) => `<tr><td>${name}</td><td>${a.n}</td><td>${a.wins}/${a.losses}</td><td>${fmtPct(a.winrate)}</td><td style="color:${col(a.roi)};">${fmtPct(a.roi, true)}</td><td style="color:${col(a.avg_clv)};">${fmtPct(a.avg_clv, true)}</td></tr>`;
+        const head = '<thead><tr><th></th><th>Ст.</th><th>W/L</th><th>Win%</th><th>ROI</th><th>CLV</th></tr></thead>';
+        out.innerHTML = `
+            <div class="dm-summary" style="grid-template-columns:repeat(4,1fr);">
+                <div class="dm-sum-item"><b>${x.n}</b><span>ставок</span></div>
+                <div class="dm-sum-item"><b>${fmtPct(x.winrate)}</b><span>Win rate</span></div>
+                <div class="dm-sum-item"><b style="color:${col(x.roi)};">${fmtPct(x.roi, true)}</b><span>ROI</span></div>
+                <div class="dm-sum-item"><b style="color:${col(x.profit)};">${x.profit > 0 ? '+' : ''}${x.profit}</b><span>прибыль (ед.)</span></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">Матчей со снимками: ${d.coverage.fixtures}, из них со счётом: ${d.coverage.with_result}. Чем больше матчей со счётом, тем надёжнее вывод (меньше 30 ставок — это скорее шум).</div>
+            <div class="dm-title">Порог падения (мин.)</div>
+            <div class="dm-tablewrap"><table class="dm-table">${head}<tbody>${d.grid_drop.map(g => row(g.value + '%', g)).join('')}</tbody></table></div>
+            <div class="dm-title" style="margin-top:12px;">Диапазон кэфов</div>
+            <div class="dm-tablewrap"><table class="dm-table">${head}<tbody>${d.grid_odds.map(g => row(g.value, g)).join('')}</tbody></table></div>`;
+    } catch (e) {
+        out.innerHTML = '<div style="font-size:12px;color:var(--red-400);">Ошибка: ' + escapeHtml(String(e.message)) + '</div>';
+    }
+}
+
 function renderAnalytics(data) {
     if (!data) data = cachedData;
     if (!data) return;
@@ -14,6 +98,8 @@ function renderAnalytics(data) {
     document.getElementById('aAvgOdds').textContent = avgOdds;
     setTimeout(() => renderAnalyticsChart(), 100);
     loadLmAnalytics();
+    renderBankCalc();
+    renderBacktestForm();
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);
     renderLeagueBreakdown(history);

@@ -138,6 +138,17 @@ function renderAnomalyStats(data) {
 // ============================================================
 // SNAPSHOTS
 // ============================================================
+let snapshotQuery = '';
+let _snapSearchTimer = null;
+function onSnapshotSearch() {
+    clearTimeout(_snapSearchTimer);
+    _snapSearchTimer = setTimeout(() => {
+        const el = document.getElementById('snapshotSearch');
+        snapshotQuery = el ? el.value.trim() : '';
+        loadSnapshots();
+    }, 400);
+}
+
 async function loadSnapshots() {
     const container = document.getElementById('snapshotsList');
     const countEl = document.getElementById('snapshotsCount');
@@ -158,6 +169,7 @@ async function loadSnapshots() {
         let url = API_BASE + '/api/snapshots?days=' + snapDays + '&limit=200';
         if (snapshotFilter === 'anomaly') url += '&only_anomaly=true';
         if (snapshotFilter === 'today') url += '&only_today=true';
+        if (snapshotQuery) url += '&q=' + encodeURIComponent(snapshotQuery);
         const resp = await fetch(url + '&t=' + Date.now());
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
