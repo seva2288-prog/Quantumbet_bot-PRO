@@ -8,7 +8,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'today' || page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest' || page === 'split3way') {
+    } else if (page === 'x2' || page === 'today' || page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest' || page === 'split3way') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -44,6 +44,7 @@ function switchPage(page) {
     }
     else if (page === 'today') loadPageData('today');
     else if (page === 'x2') renderX2Page();
+    else if (page === 'ht') loadHtPage();
     else if (page === 'lab') loadLab();
     else if (page === 'snapshots') loadSnapshots();
     else if (page === 'autobets') loadAutobets();
@@ -109,7 +110,7 @@ function openFromMore(page) {
 (function initSwipe() {
     let touchStartX = 0;
     let touchStartY = 0;
-    const pages = ['dashboard', 'matches', 'snapshots', 'live', 'x2'];
+    const pages = ['dashboard', 'matches', 'snapshots', 'live', 'ht'];
     document.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
@@ -301,6 +302,9 @@ function openFromMore(page) {
                 break;
             case 'x2':
                 await renderX2Page();
+                break;
+            case 'ht':
+                await loadHtPage();
                 break;
             case 'analytics':
                 cachedData = null;

@@ -285,3 +285,37 @@ async function loadHtLive() {
         box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
+
+// ===== Стратегия «Перерыв» =====
+async function loadHtPage() {
+    const list = document.getElementById('htsList');
+    if (!list) return;
+    try {
+        const r = await fetch(API_BASE + '/api/ht_signals');
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        document.getElementById('htsTotal').textContent = d.total;
+        document.getElementById('htsWins').textContent = d.wins;
+        document.getElementById('htsLosses').textContent = d.losses;
+        document.getElementById('htsRoi').textContent = (d.roi > 0 ? '+' : '') + d.roi + '%';
+        const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        const bs = document.getElementById('htsBySel');
+        bs.innerHTML = d.by_sel.length ? '<div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Рынок</th><th>Ст.</th><th>WIN</th><th>ROI</th></tr></thead><tbody>' +
+            d.by_sel.map(x => `<tr><td>${x.sel}</td><td>${x.n}</td><td>${x.wins}</td><td style="color:${col(x.roi)};">${x.roi > 0 ? '+' : ''}${x.roi}%</td></tr>`).join('') + '</tbody></table></div>' : '';
+        if (!d.items.length) {
+            list.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Сигналов пока нет. Они появятся, когда в перерыве матча ваших лиг кэф окажется выгоднее исторической частоты (порог: перевес от ' + Math.round(d.params.min_ev * 100) + '%, кэф ' + d.params.odds[0] + '–' + d.params.odds[1] + '). Выводы можно делать после 30+ сигналов.</div>';
+            return;
+        }
+        list.innerHTML = d.items.map(x => {
+            const st = x.result === 'win' ? '✅' : x.result === 'loss' ? '❌' : '⏳';
+            return `<div style="padding:10px 0;border-bottom:1px solid var(--border,rgba(255,255,255,.08));">
+                <div style="display:flex;justify-content:space-between;gap:8px;"><b>${x.match}</b><span>${st}</span></div>
+                <div style="font-size:11px;color:var(--text-tertiary);">${x.league} • перерыв ${x.ht}${x.ft ? ' • итог ' + x.ft : ''}</div>
+                <div style="font-size:13px;margin-top:3px;">${x.sel} @ <b>${x.odds}</b>
+                    <span style="color:var(--text-tertiary);font-size:11px;">шанс ${x.p}% против ${x.implied}% • EV +${x.ev}% • выборка ${x.n}</span></div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        list.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
