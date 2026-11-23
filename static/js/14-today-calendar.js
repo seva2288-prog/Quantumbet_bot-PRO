@@ -258,3 +258,30 @@ async function loadHtStats() {
         box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
+
+// ===== Live-кэфы в перерыве против реальности =====
+async function loadHtLive() {
+    const box = document.getElementById('htLiveBody');
+    if (!box) return;
+    const sel = document.getElementById('htSel');
+    const ht = sel ? sel.value : '';
+    try {
+        const r = await fetch(API_BASE + '/api/ht_live?ht=' + ht);
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        let h = `<div style="font-size:12px;margin-bottom:8px;">Сохранено матчей: ${d.saved}, с итогом: ${d.finished}. При счёте ${ht || 'любом'}: ${d.matching}.</div>`;
+        if (d.rows.length) {
+            const rows = d.rows.map(x => `<tr><td>${x.sel}</td><td>${x.n}</td><td>${x.avg_odds}</td><td>${x.hit}%</td><td>${x.implied}%</td>
+                <td style="color:${col(x.hit - x.implied)};">${x.hit - x.implied > 0 ? '+' : ''}${(x.hit - x.implied).toFixed(1)}</td>
+                <td style="color:${col(x.roi)};">${x.roi > 0 ? '+' : ''}${x.roi}%</td></tr>`).join('');
+            h += `<div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Исход</th><th>Ст.</th><th>Ср.кэф</th><th>Сыграл</th><th>Кэф</th><th>Перев.</th><th>ROI</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        } else {
+            h += '<div style="font-size:12px;color:var(--text-tertiary);">Данных пока нет: бот начнёт собирать кэфы с ближайшего матча в перерыве (обычно после 13:00 по Москве).</div>';
+        }
+        if (d.markets_seen && d.markets_seen.length) h += `<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;">Рынки у API: ${d.markets_seen.join(', ')}</div>`;
+        box.innerHTML = h;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
