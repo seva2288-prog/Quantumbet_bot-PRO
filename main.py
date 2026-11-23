@@ -60,6 +60,7 @@ from botcore.routes_x2 import *  # noqa: F401,F403
 from botcore.routes_calib import *  # noqa: F401,F403
 from botcore.routes_data import *  # noqa: F401,F403
 from botcore.routes_lab import *  # noqa: F401,F403
+from botcore.ops import *  # noqa: F401,F403
 
 
 if __name__ == "__main__":
@@ -138,6 +139,31 @@ if __name__ == "__main__":
         trigger='interval', minutes=5,
         id='day_notify', replace_existing=True, max_instances=1,
         misfire_grace_time=120, coalesce=True
+    )
+    # ★ Ежедневный отчёт и резервная копия (проверка раз в 15 мин, отправка раз в сутки)
+    odds_scheduler.add_job(
+        func=safe_job(ops_report_job, "daily_report"),
+        trigger='interval', minutes=15,
+        id='daily_report', replace_existing=True, max_instances=1,
+        misfire_grace_time=300, coalesce=True
+    )
+    odds_scheduler.add_job(
+        func=safe_job(ops_backup_job, "daily_backup"),
+        trigger='interval', minutes=30,
+        id='daily_backup', replace_existing=True, max_instances=1,
+        misfire_grace_time=600, coalesce=True
+    )
+    odds_scheduler.add_job(
+        func=safe_job(ops_streak_job, "streak_alert"),
+        trigger='interval', minutes=15,
+        id='streak_alert', replace_existing=True, max_instances=1,
+        misfire_grace_time=300, coalesce=True
+    )
+    odds_scheduler.add_job(
+        func=safe_job(ops_results_job, "fixture_results"),
+        trigger='interval', minutes=60,
+        id='fixture_results', replace_existing=True, max_instances=1,
+        misfire_grace_time=600, coalesce=True
     )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
     odds_scheduler.add_job(
