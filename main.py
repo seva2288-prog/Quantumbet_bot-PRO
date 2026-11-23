@@ -62,6 +62,7 @@ from botcore.routes_data import *  # noqa: F401,F403
 from botcore.routes_lab import *  # noqa: F401,F403
 from botcore.ops import *  # noqa: F401,F403
 from botcore.ht_stats import *  # noqa: F401,F403
+from botcore.ht_strategy import *  # noqa: F401,F403
 
 
 if __name__ == "__main__":
@@ -171,6 +172,12 @@ if __name__ == "__main__":
         func=safe_job(ht_odds_job, "ht_odds"),
         trigger='interval', minutes=5,
         id='ht_odds', replace_existing=True, max_instances=1,
+        misfire_grace_time=120, coalesce=True
+    )
+    odds_scheduler.add_job(
+        func=safe_job(ht_signal_job, "ht_signals"),
+        trigger='interval', minutes=3,
+        id='ht_signals', replace_existing=True, max_instances=1,
         misfire_grace_time=120, coalesce=True
     )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
