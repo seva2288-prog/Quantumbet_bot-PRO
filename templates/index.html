@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=4">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=5">
 </head>
 <body>
 
@@ -491,6 +491,25 @@
                 <h2>📅 Календарь результатов</h2>
             </div>
             <div id="calBody"></div>
+        </div>
+
+        <div class="card" id="anomalyOutcomeCard">
+            <div class="card-header"><h2>🧬 Аномалии: чем заканчивались</h2></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Как часто выигрывал исход, на который кэф сильно упал или вырос, против вероятности, заложенной в кэф. «Перевес» выше нуля значит, что рынок недооценивал исход.
+            </div>
+            <div class="dm-calc-row">
+                <label>Порог движения
+                    <select id="anThr" onchange="loadAnomalyOutcomes()">
+                        <option value="3">от 3%</option><option value="5" selected>от 5%</option>
+                        <option value="8">от 8%</option><option value="10">от 10%</option>
+                    </select></label>
+                <label>Диапазон кэфов
+                    <select id="anOdds" onchange="loadAnomalyOutcomes()">
+                        <option value="">любые</option><option value="1.5-4.5">1.5–4.5</option><option value="2-4.5">2.0–4.5</option>
+                    </select></label>
+            </div>
+            <div id="anomalyOutcomeBody"></div>
         </div>
 
         <div class="card" id="backtestCard">
@@ -1897,19 +1916,19 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=4"></script>
-<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=5"></script>
 </body>
 </html>   
