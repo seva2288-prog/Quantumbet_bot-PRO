@@ -492,11 +492,13 @@ function showMatchDetail(match) {
     }
 
     html += renderDmDetail(match);
+    html += '<div id="bmCompare"></div>';
     html += renderRealOddsBox(match);
     html += renderNoteBox(match);
     body.innerHTML = html;
     modal.classList.add('active');
     haptic(8);
+    loadBmCompare(match);
 }
 
 function closeMatchDetail() {

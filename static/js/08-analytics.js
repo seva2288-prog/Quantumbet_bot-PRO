@@ -100,6 +100,7 @@ function renderAnalytics(data) {
     loadLmAnalytics();
     renderBankCalc();
     renderCalendar();
+    loadAnomalyOutcomes();
     renderBacktestForm();
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);

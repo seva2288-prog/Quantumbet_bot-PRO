@@ -159,3 +159,67 @@ function renderCalendar() {
         <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">За месяц: ${monthBets} ставок, прибыль <b style="color:${monthProfit > 0 ? 'var(--emerald-400)' : monthProfit < 0 ? 'var(--red-400)' : 'inherit'};">${monthProfit > 0 ? '+' : ''}${monthProfit.toFixed(2)}</b>. Нажмите на день, чтобы увидеть ставки.</div>
         ${detail}`;
 }
+
+
+// ===== Сравнение букмекеров (в окне матча) =====
+async function loadBmCompare(m) {
+    const box = document.getElementById('bmCompare');
+    if (!box || !m || !m.fixture_id) return;
+    try {
+        const r = await fetch(API_BASE + '/api/bookmaker_odds/' + m.fixture_id + '?t=' + Date.now());
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.status !== 'ok') return;
+        if (!d.available) {
+            box.innerHTML = '<div class="dm-detail"><div class="dm-title">🏦 Букмекеры</div><div style="font-size:11px;color:var(--text-tertiary);">Данные по букмекерам появятся после следующего снимка (после обновления бота).</div></div>';
+            return;
+        }
+        const names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'};
+        const betKey = dmBetSelection(m.bet);
+        let h = '<div class="dm-detail"><div class="dm-title">🏦 Сравнение букмекеров' + (d.updated ? ' <span style="opacity:.6;">• ' + escapeHtml(String(d.updated).slice(11, 16)) + '</span>' : '') + '</div>';
+        ['1', 'X', '2', '1X', 'X2'].filter(k => d.selections[k]).forEach(k => {
+            const x = d.selections[k];
+            let mine = '';
+            if (k === betKey && m.odds) {
+                const diff = (x.best_odds / Number(m.odds) - 1) * 100;
+                mine = `<div style="font-size:11px;margin-top:4px;color:${diff > 0.5 ? 'var(--amber-400,#fbbf24)' : 'var(--emerald-400)'};">Ваша ставка ${Number(m.odds).toFixed(2)} • лучший кэф ${x.best_odds.toFixed(2)} (${x.best}) ${diff > 0.5 ? '— можно было взять на ' + diff.toFixed(1) + '% выше' : '— вы взяли лучшую цену'}</div>`;
+            }
+            h += `<div class="dm-detail-sel">
+                <div style="display:flex;justify-content:space-between;font-size:12px;"><b>${names[k]}${k === betKey ? ' • ваша ставка' : ''}</b>
+                    <span style="color:var(--text-tertiary);">среднее ${x.avg.toFixed(2)} • лучший +${x.best_vs_avg_pct}%</span></div>
+                ${x.rows.slice(0, 6).map((r, i) => `<div class="bm-row${i === 0 ? ' best' : ''}"><span>${escapeHtml(r.bm)}</span>
+                    <span>${r.change_pct != null && r.change_pct !== 0 ? `<i style="color:${r.change_pct < 0 ? 'var(--emerald-400)' : 'var(--red-400)'};">${r.change_pct > 0 ? '+' : ''}${r.change_pct}%</i> ` : ''}<b>${r.odds.toFixed(2)}</b></span></div>`).join('')}
+                ${mine}
+            </div>`;
+        });
+        box.innerHTML = h + '</div>';
+    } catch (e) {}
+}
+
+// ===== Аномалии: чем заканчивались =====
+async function loadAnomalyOutcomes() {
+    const box = document.getElementById('anomalyOutcomeBody');
+    if (!box) return;
+    const thr = document.getElementById('anThr').value;
+    const od = document.getElementById('anOdds').value.split('-');
+    let q = 'threshold=' + thr;
+    if (od.length === 2) q += '&min_odds=' + od[0] + '&max_odds=' + od[1];
+    try {
+        const r = await fetch(API_BASE + '/api/anomaly_outcomes?days=60&' + q);
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2', 'ALL': 'Все исходы'};
+        const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        const rows = d.rows.map(x => `<tr${x.selection === 'ALL' ? ' style="font-weight:800;"' : ''}>
+            <td>${x.direction === 'drop' ? '📉 падение' : '📈 рост'} • ${names[x.selection] || x.selection}</td>
+            <td>${x.n}</td><td>${x.hit}%</td><td>${x.implied}%</td>
+            <td style="color:${col(x.edge)};">${x.edge > 0 ? '+' : ''}${x.edge}</td>
+            <td style="color:${col(x.roi)};">${x.roi > 0 ? '+' : ''}${x.roi}%</td></tr>`).join('');
+        box.innerHTML = `<div class="dm-tablewrap"><table class="dm-table">
+            <thead><tr><th></th><th>Ст.</th><th>Выиг.</th><th>Кэф</th><th>Перев.</th><th>ROI</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6">Нет данных</td></tr>'}</tbody></table></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Матчей со снимками: ${d.coverage.fixtures}, со счётом: ${d.coverage.with_result}. «Выиг.» — как часто исход сыграл, «Кэф» — вероятность по кэфу, «Перев.» — разница в п.п. Меньше 30 случаев в строке — скорее шум.</div>`;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
