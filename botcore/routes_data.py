@@ -71,6 +71,9 @@ __all__ = [
     'api_anomalies',
     'api_snapshots_list',
     'api_day_matches',
+    'api_day_feed',
+    '_feed_observe',
+    '_hour_change',
     '_build_day_matches',
     'notify_day_events',
     '_quiet_now',
@@ -365,6 +368,22 @@ def api_snapshots_list():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+def _hour_change(ts_list, vals):
+    """Изменение кэфа за последний час: последний снимок против снимка ~60 мин назад (None, если истории мало)."""
+    try:
+        last_dt = datetime.fromisoformat(str(ts_list[-1])[:19])
+        target = last_dt - timedelta(minutes=60)
+        ref = None
+        for t, v in zip(ts_list, vals):
+            if datetime.fromisoformat(str(t)[:19]) <= target:
+                ref = v
+        if ref and ref > 0:
+            return round((vals[-1] / ref - 1) * 100, 1)
+    except Exception:
+        pass
+    return None
+
+
 def _build_day_matches():
     """Матчи дня со снимками: счёт + движение кэфов (общая логика для API и уведомлений)."""
     now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
@@ -406,8 +425,9 @@ def _build_day_matches():
             o = s.get('odds') or 0
             if not k or o <= 0:
                 continue
-            d = sel.setdefault(k, {'points': []})
+            d = sel.setdefault(k, {'points': [], 'ts': []})
             d['points'].append([(s.get('created_at') or '')[11:16], o])
+            d['ts'].append(s.get('created_at') or '')
         selections = {}
         for k, d in sel.items():
             pts = d['points']
@@ -417,6 +437,7 @@ def _build_day_matches():
                 'first': f0, 'last': l0, 'min': min(vals), 'max': max(vals),
                 'change_pct': round((l0 / f0 - 1) * 100, 1) if f0 else 0,
                 'count': len(pts), 'points': pts[-120:],
+                'hour_change_pct': _hour_change(d['ts'], vals),
             }
 
         lid = first.get('league_id')
@@ -447,6 +468,10 @@ def _build_day_matches():
         out.append(item)
 
     out.sort(key=lambda x: (str(x['match_time'])[11:16], x['fixture_id']))
+    try:
+        _feed_observe(out, now_msk)
+    except Exception as e:
+        logger.warning(f"feed observe: {e}")
     return out, today_dm
 
 
@@ -480,11 +505,15 @@ def notify_day_events():
     """Telegram: сильное движение кэфа и завершение матчей со снимками (без повторов)."""
     if not getattr(Config, 'DAY_NOTIFY_ENABLED', True):
         return
+    try:
+        items, today = _build_day_matches()      # заодно пополняет ленту событий (и ночью тоже)
+    except Exception as e:
+        logger.exception(f"notify_day_events build error: {e}")
+        return
     if _quiet_now():          # ночью молчим; события накопятся и придут утром одним сообщением
         return
     try:
         import html as _html
-        items, today = _build_day_matches()
         try:
             with open(_DAY_NOTIFY_FILE, 'r', encoding='utf-8') as f:
                 state = json.load(f)
@@ -823,6 +852,106 @@ def api_notes_set():
     except Exception as e:
         logger.exception(f"api_notes_set error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# ★ ЛЕНТА СОБЫТИЙ ДНЯ
+# ============================================================
+_FEED_FILE = os.path.join(DATA_DIR, 'day_feed.json')
+_feed_lock = Lock()
+_FINISHED = ('FT', 'AET', 'PEN')
+_LIVE_ST = ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT')
+
+
+def _feed_load(today):
+    try:
+        with open(_FEED_FILE, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        if d.get('date') == today:
+            return d
+    except Exception:
+        pass
+    return {'date': today, 'events': [], 'seen': []}
+
+
+def _feed_observe(items, now_msk):
+    """Фиксирует «матч начался» и «матч завершён» в момент, когда мы это впервые заметили."""
+    today = now_msk.strftime('%Y-%m-%d')
+    with _feed_lock:
+        d = _feed_load(today)
+        seen = set(d['seen'])
+        changed = False
+        for it in items:
+            fid, st = it['fixture_id'], it.get('status')
+            try:
+                mdt = datetime.strptime(str(it['match_time']), '%d.%m.%Y %H:%M')
+                age_h = (now_msk - mdt).total_seconds() / 3600
+            except Exception:
+                age_h = 0
+            title = f"{it['home']} — {it['away']}"
+            for key, cond, fresh, text in (
+                (f'live:{fid}', st in _LIVE_ST or st in _FINISHED, age_h < 2.0, f"▶️ {title}: матч начался"),
+                (f'ft:{fid}', st in _FINISHED and it.get('home_goals') is not None, age_h < 3.5,
+                 f"🏁 {title}: итог {it.get('home_goals')}:{it.get('away_goals')}"),
+            ):
+                if cond and key not in seen:
+                    seen.add(key)
+                    changed = True
+                    if fresh:        # давно идущие/завершённые матчи не выдаём за новые события
+                        d['events'].append({'ts': now_msk.strftime('%Y-%m-%d %H:%M'), 'type': key.split(':')[0],
+                                            'fid': fid, 'text': text})
+        if changed:
+            d['seen'] = sorted(seen)
+            with open(_FEED_FILE, 'w', encoding='utf-8') as f:
+                json.dump(d, f, ensure_ascii=False)
+
+
+@app.route('/api/day_feed', methods=['GET'])
+def api_day_feed():
+    try:
+        now_msk = datetime.now() + timedelta(hours=TIMEZONE_OFFSET)
+        today = now_msk.strftime('%Y-%m-%d')
+        events = list(_feed_load(today)['events'])
+        names = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'}
+        # движение кэфов: скачок от 3% между соседними снимками
+        cutoff = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')
+        series, meta = {}, {}
+        for r in _lm_snapshots_since(cutoff):
+            fid, sel, o = r.get('fixture_id'), r.get('selection'), r.get('odds') or 0
+            if fid and sel and o > 0:
+                series.setdefault((fid, sel), []).append((r.get('created_at') or '', o))
+                meta[fid] = (r.get('home') or '?', r.get('away') or '?')
+        for (fid, sel), pts in series.items():
+            pts.sort()
+            for (_, a), (t, b) in zip(pts, pts[1:]):
+                ch = (b / a - 1) * 100
+                if abs(ch) < 3:
+                    continue
+                try:
+                    ts = (datetime.strptime(t[:19], '%Y-%m-%d %H:%M:%S') + timedelta(hours=TIMEZONE_OFFSET)).strftime('%Y-%m-%d %H:%M')
+                except Exception:
+                    continue
+                if ts[:10] != today:
+                    continue
+                h, a_ = meta[fid]
+                events.append({'ts': ts, 'type': 'move', 'fid': fid,
+                               'text': f"{'📉' if ch < 0 else '📈'} {h} — {a_}: {names.get(sel, sel)} {a:.2f} → {b:.2f} ({ch:+.1f}%)"})
+        # ставки, добавленные сегодня
+        try:
+            for b in storage.load_history():
+                if b.get('source') != 'line_movement':
+                    continue
+                d = str(b.get('date', ''))[:16]
+                if d[:10] == today:
+                    events.append({'ts': d, 'type': 'bet', 'fid': b.get('fixture_id'),
+                                   'text': f"🎯 Ставка: {b.get('home')} — {b.get('away')} • {b.get('bet')} @ {b.get('odds')}"})
+        except Exception:
+            pass
+        events.sort(key=lambda e: e['ts'], reverse=True)
+        return jsonify({'status': 'ok', 'events': [dict(e, time=e['ts'][11:16]) for e in events[:80]]})
+    except Exception as e:
+        logger.exception(f"api_day_feed error: {e}")
+        return jsonify({'status': 'error', 'error': str(e), 'events': []}), 500
 
 
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])
