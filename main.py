@@ -166,6 +166,13 @@ if __name__ == "__main__":
         id='fixture_results', replace_existing=True, max_instances=1,
         misfire_grace_time=600, coalesce=True
     )
+    # ★ Live-кэфы в перерыве (для сравнения со статистикой «счёт 1-го тайма → итог»)
+    odds_scheduler.add_job(
+        func=safe_job(ht_odds_job, "ht_odds"),
+        trigger='interval', minutes=5,
+        id='ht_odds', replace_existing=True, max_instances=1,
+        misfire_grace_time=120, coalesce=True
+    )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
     odds_scheduler.add_job(
         func=safe_job(get_matches_with_factors, "update_matches"),
