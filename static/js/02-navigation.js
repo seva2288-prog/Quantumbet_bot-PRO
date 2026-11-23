@@ -8,7 +8,7 @@ function switchPage(page) {
     const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navBtn) {
         navBtn.classList.add('active');
-    } else if (page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest' || page === 'split3way') {
+    } else if (page === 'today' || page === 'autobets' || page === 'simulator' || page === 'settings' || page === 'analytics' || page === 'calibration' || page === 'daily' || page === 'traintest' || page === 'split3way') {
         const navItems = document.querySelectorAll('.nav-item');
         const moreBtn = navItems[navItems.length - 1];
         if (moreBtn) moreBtn.classList.add('active');
@@ -42,6 +42,7 @@ function switchPage(page) {
         loadLive();
         startLiveRefresh();
     }
+    else if (page === 'today') loadPageData('today');
     else if (page === 'x2') renderX2Page();
     else if (page === 'lab') loadLab();
     else if (page === 'snapshots') loadSnapshots();

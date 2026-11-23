@@ -101,6 +101,7 @@ function renderBetCard(m, isActive = false) {
         : Math.abs(_mv) >= DM_WARM_PCT ? 'dm-warm' : '';
     const dmFinal = (m.dm && DM_FINISHED.includes(m.dm.status))
         ? '<span class="bet-halftime">🏁 Итог</span>' : '';
+    const hourBadge = dmHourBadge(m.dm);
 
     // ★ УЛУЧШЕНИЕ 1: Цветной Score (исправлен баг: было matchScore, стало matchScoreColor)
     let matchScoreColor = 'var(--text-tertiary)';
@@ -162,6 +163,7 @@ function renderBetCard(m, isActive = false) {
                         ${showScore ? `<span class="bet-score" style="color:${scoreColor};">${homeGoals} - ${awayGoals}</span>` : ''}
                         ${hasHalftime && showScore ? `<span class="bet-halftime">1-й тайм: ${htH}-${htA}</span>` : ''}
                         ${dmFinal}
+                        ${hourBadge}
                         ${favBtn}
                         ${(m.live_minute || m.live_status) && result === 'pending' && !(m.dm && DM_FINISHED.includes(m.dm.status)) ? `<span class="bet-halftime">🔴 LIVE ${m.live_status === 'HT' ? 'HT' : (m.live_minute || '') + "'"}</span>` : ''}
                     </div>
@@ -221,6 +223,7 @@ function renderDayMovement(d, m) {
             <span class="dm-name">${names[k]}</span>
             <span class="dm-odds">${Number(x.first).toFixed(2)} → <b>${Number(x.last).toFixed(2)}</b></span>
             <span class="dm-ch" style="color:${col};">${arrow} ${ch > 0 ? '+' : ''}${ch}%</span>
+            ${x.hour_change_pct != null && Math.abs(x.hour_change_pct) >= 1 ? `<span class="dm-h">за 1ч: ${x.hour_change_pct > 0 ? '+' : ''}${x.hour_change_pct}%</span>` : ''}
         </div>`;
     }).join('');
     const main = d.selections['2'] || d.selections[keys[0]];

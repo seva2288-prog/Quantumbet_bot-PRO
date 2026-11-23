@@ -99,6 +99,7 @@ function renderAnalytics(data) {
     setTimeout(() => renderAnalyticsChart(), 100);
     loadLmAnalytics();
     renderBankCalc();
+    renderCalendar();
     renderBacktestForm();
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);

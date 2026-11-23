@@ -185,6 +185,32 @@ const DM_LIVE = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const DM_HOT_PCT = 8;     // сильное движение
 const DM_WARM_PCT = 5;    // заметное движение
 
+const DM_HOUR_PCT = 4;    // резкое движение за час
+// самое сильное изменение кэфа за последний час (со знаком) или 0
+function dmMaxHour(d) {
+    if (!d || !d.selections) return 0;
+    let best = 0;
+    Object.values(d.selections).forEach(x => {
+        const c = Number(x.hour_change_pct);
+        if (!isNaN(c) && x.hour_change_pct != null && Math.abs(c) > Math.abs(best)) best = c;
+    });
+    return best;
+}
+function dmHourBadge(d) {
+    const h = dmMaxHour(d);
+    if (Math.abs(h) < DM_HOUR_PCT) return '';
+    return `<span class="dm-hour ${h < 0 ? 'drop' : 'rise'}">⚡ ${h > 0 ? '+' : ''}${h}% за 60 мин</span>`;
+}
+let dayFeed = [];
+async function loadDayFeed() {
+    try {
+        const r = await fetch(API_BASE + '/api/day_feed?t=' + Date.now());
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j && Array.isArray(j.events)) dayFeed = j.events;
+    } catch (e) {}
+}
+
 function dmMaxMove(d) {
     if (!d || !d.selections) return 0;
     let best = 0;
@@ -220,7 +246,14 @@ function dmBetSelection(label) {
 // автообновление вкладки «Матчи»: счёт, минуты, кэфы + уведомления о событиях
 let _dmPrev = null;
 async function dmAutoRefresh() {
-    if (currentPage !== 'matches' || document.hidden) return;
+    if (document.hidden) return;
+    if (currentPage === 'today') {
+        await loadDayMatches(); await loadDayFeed();
+        dmNotifyChanges();
+        renderTodayPage();
+        return;
+    }
+    if (currentPage !== 'matches') return;
     const modal = document.getElementById('matchDetailModal');
     if (modal && modal.classList && (modal.classList.contains('show') || modal.classList.contains('active'))) return;
     await loadDayMatches();
@@ -263,7 +296,8 @@ async function loadPageData(page) {
                 }
             }
         } catch (e) {}
-        if (page === 'matches') { await loadDayMatches(); }
+        if (page === 'matches' || page === 'today') { await loadDayMatches(); }
+        if (page === 'today') { await loadDayFeed(); }
         cachedData = data;
         updateLastUpdate();
 
@@ -274,6 +308,8 @@ async function loadPageData(page) {
             loadDashboardAutobets();
         } else if (page === 'matches') {
             renderMatchesPage(data);
+        } else if (page === 'today') {
+            renderTodayPage();
         } else if (page === 'analytics') {
             renderAnalytics(data);
         }
