@@ -73,6 +73,15 @@ __all__ = [
     'api_day_matches',
     '_build_day_matches',
     'notify_day_events',
+    '_quiet_now',
+    '_lm_bets_with_clv',
+    '_agg_bets',
+    '_flag_weak',
+    '_bet_ts',
+    '_streaks',
+    'api_real_odds_get',
+    'api_real_odds_set',
+    '_bet_selection',
     'api_lm_analytics',
     'api_export_history_csv',
     'api_bot_health',
@@ -252,6 +261,7 @@ def api_snapshots_list():
         days = int(request.args.get('days', 7))
         only_anomaly = request.args.get('only_anomaly', 'false').lower() == 'true'
         only_today = request.args.get('only_today', 'false').lower() == 'true'
+        q_text = request.args.get('q', '').strip().lower()
         today_ddmmyyyy = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).strftime('%d.%m.%Y')
         limit = int(request.args.get('limit', 50))
         cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
@@ -322,6 +332,8 @@ def api_snapshots_list():
                             'last': last_odds[sel], 'trend': round(trend, 1)
                         })
             if only_anomaly and not anomalies:
+                continue
+            if q_text and q_text not in f"{info['home']} {info['away']} {info['league']}".lower():
                 continue
 
             mt_value = info.get('match_time') or match_time_lookup.get(fid, '?')
@@ -452,9 +464,23 @@ _DAY_NOTIFY_FILE = os.path.join(DATA_DIR, 'day_notify.json')
 _SEL_NAMES = {'1': 'П1', 'X': 'Х', '2': 'П2', '1X': '1Х', 'X2': 'Х2'}
 
 
+def _quiet_now():
+    """Тихие часы уведомлений (по МСК). Окно может переходить через полночь."""
+    if not getattr(Config, 'NOTIFY_QUIET_ENABLED', True):
+        return False
+    h = (datetime.now() + timedelta(hours=TIMEZONE_OFFSET)).hour
+    a = int(getattr(Config, 'NOTIFY_QUIET_FROM', 0))
+    b = int(getattr(Config, 'NOTIFY_QUIET_TO', 8))
+    if a == b:
+        return False
+    return (a <= h < b) if a < b else (h >= a or h < b)
+
+
 def notify_day_events():
     """Telegram: сильное движение кэфа и завершение матчей со снимками (без повторов)."""
     if not getattr(Config, 'DAY_NOTIFY_ENABLED', True):
+        return
+    if _quiet_now():          # ночью молчим; события накопятся и придут утром одним сообщением
         return
     try:
         import html as _html
@@ -501,8 +527,8 @@ def notify_day_events():
         except Exception as e:
             logger.warning(f"day_notify: не удалось сохранить состояние: {e}")
         if lines:
-            send_telegram('\n\n'.join(lines[:8]))
-            logger.info(f"📨 day_notify: отправлено событий {min(len(lines), 8)}")
+            send_telegram('\n\n'.join(lines[:15]))
+            logger.info(f"📨 day_notify: отправлено событий {min(len(lines), 15)}")
     except Exception as e:
         logger.exception(f"notify_day_events error: {e}")
 
@@ -517,6 +543,78 @@ _BET_SEL = {'П1': '1', 'P1': '1', '1': '1', 'Х': 'X', 'X': 'X', 'Н': 'X',
 def _bet_selection(label):
     t = str(label or '').upper().replace(' ', '')
     return _BET_SEL.get(t)
+
+
+_REAL_ODDS_FILE = os.path.join(DATA_DIR, 'real_odds.json')
+_real_odds_lock = Lock()
+
+
+def _load_real_odds():
+    try:
+        with open(_REAL_ODDS_FILE, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+@app.route('/api/real_odds', methods=['GET'])
+def api_real_odds_get():
+    return jsonify({'status': 'ok', 'odds': _load_real_odds()})
+
+
+@app.route('/api/real_odds', methods=['POST'])
+def api_real_odds_set():
+    try:
+        body = request.get_json(silent=True) or {}
+        key = str(body.get('key', '')).strip()[:100]
+        if not key:
+            return jsonify({'status': 'error', 'error': 'key required'}), 400
+        raw = body.get('odds')
+        with _real_odds_lock:
+            d = _load_real_odds()
+            if raw in (None, '', 0):
+                d.pop(key, None)
+            else:
+                v = float(raw)
+                if not (1.01 <= v <= 100):
+                    return jsonify({'status': 'error', 'error': 'кэф должен быть 1.01…100'}), 400
+                d[key] = round(v, 3)
+            with open(_REAL_ODDS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(d, f)
+        return jsonify({'status': 'ok'})
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'error': 'кэф не число'}), 400
+    except Exception as e:
+        logger.exception(f"api_real_odds_set error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+def _bet_ts(b):
+    """Время матча ставки (для порядка серий)."""
+    for fmt, key in (('%d.%m.%Y %H:%M', 'match_time'), ('%Y-%m-%d %H:%M', 'date')):
+        try:
+            return datetime.strptime(str(b.get(key, ''))[:16], fmt)
+        except Exception:
+            pass
+    return datetime.min
+
+
+def _streaks(rows):
+    seq = [b['result'] for b in sorted((b for b in rows if b.get('result') in ('win', 'loss')), key=_bet_ts)]
+    best_w = best_l = cur = 0
+    cur_type = None
+    for r in seq:
+        if r == cur_type:
+            cur += 1
+        else:
+            cur_type, cur = r, 1
+        if r == 'win':
+            best_w = max(best_w, cur)
+        else:
+            best_l = max(best_l, cur)
+    return {'best_win': best_w, 'best_loss': best_l,
+            'current': cur if seq else 0, 'current_type': cur_type if seq else None}
 
 
 def _lm_bets_with_clv():
@@ -535,8 +633,11 @@ def _lm_bets_with_clv():
         if t >= d['last'][0]:
             d['last'] = (t, o)
     out = []
+    real = _load_real_odds()
     for b in hist:
         row = dict(b)
+        if b.get('fixture_id') and real.get('f' + str(b['fixture_id'])):
+            row['real_odds'] = real['f' + str(b['fixture_id'])]
         sel = _bet_selection(b.get('bet'))
         d = idx.get((b.get('fixture_id'), sel)) if sel else None
         odds = b.get('odds') or 0
@@ -552,7 +653,14 @@ def _agg_bets(rows):
     stake = sum(b.get('stake') or 0 for b in settled)
     profit = sum(b.get('profit') or 0 for b in settled)
     clvs = [b['clv'] for b in rows if b.get('clv') is not None]
+    real_rows = [b for b in settled if b.get('real_odds')]
+    real_stake = sum(b.get('stake') or 0 for b in real_rows)
+    real_profit = sum((b.get('stake') or 0) * (b['real_odds'] - 1) if b['result'] == 'win' else -(b.get('stake') or 0)
+                      for b in real_rows)
     return {
+        'real': {'n': len(real_rows), 'profit': round(real_profit, 2),
+                 'model_profit': round(sum(b.get('profit') or 0 for b in real_rows), 2),
+                 'roi': round(real_profit / real_stake * 100, 1) if real_stake else None},
         'n': len(rows), 'settled': len(settled), 'wins': wins, 'losses': len(settled) - wins,
         'winrate': round(wins / len(settled) * 100, 1) if settled else None,
         'profit': round(profit, 2),
@@ -561,6 +669,12 @@ def _agg_bets(rows):
         'avg_clv': round(sum(clvs) / len(clvs), 2) if clvs else None,
         'clv_pos': round(sum(1 for c in clvs if c > 0) / len(clvs) * 100, 1) if clvs else None,
     }
+
+
+def _flag_weak(a):
+    """Лига «слабая»: не меньше 30 рассчитанных ставок и отрицательный средний CLV."""
+    a['weak'] = bool(a['settled'] >= 30 and a['avg_clv'] is not None and a['avg_clv'] < 0)
+    return a
 
 
 @app.route('/api/lm_analytics', methods=['GET'])
@@ -578,7 +692,8 @@ def api_lm_analytics():
         return jsonify({
             'status': 'ok',
             'overall': _agg_bets(rows),
-            'by_league': sorted([dict(_agg_bets(v), league=k) for k, v in by_league.items()],
+            'streaks': _streaks(rows),
+            'by_league': sorted([_flag_weak(dict(_agg_bets(v), league=k)) for k, v in by_league.items()],
                                 key=lambda x: -x['n']),
             'by_move': by_move,
         })
