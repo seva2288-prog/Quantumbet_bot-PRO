@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=7">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=7">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=7">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=7">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=7">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=7">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=8">
 </head>
 <body>
 
@@ -693,6 +693,32 @@
             <div class="skeleton" style="height:80px;"></div>
             <div class="skeleton" style="height:80px;"></div>
             <div class="skeleton" style="height:80px;"></div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         PAGE: ПЕРЕРЫВ
+         ============================================================ -->
+    <div id="page-ht" class="page">
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">⏱ Перерыв</h2>
+                <button class="btn btn-outline" onclick="loadHtPage()" style="padding:4px 10px;font-size:10px;">🔄</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Тестовый режим: ставки не делаются. В перерыве матчей ваших лиг бот сравнивает live-кэф с частотой исхода при таком же счёте первого тайма (5 сезонов). Если кэф выгоднее, приходит сигнал. Рынки: тоталы, «обе забьют», ничья.
+            </div>
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="stat-card"><div class="value" id="htsTotal">0</div><div class="label">Сигналов</div></div>
+                <div class="stat-card"><div class="value green" id="htsWins">0</div><div class="label">WIN</div></div>
+                <div class="stat-card"><div class="value red" id="htsLosses">0</div><div class="label">LOSS</div></div>
+                <div class="stat-card"><div class="value gold" id="htsRoi">0%</div><div class="label">ROI</div></div>
+            </div>
+            <div id="htsBySel" style="margin-top:10px;"></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>📋 Сигналы</h2></div>
+            <div id="htsList"><div class="skeleton" style="width:80%"></div></div>
         </div>
     </div>
 
@@ -1577,9 +1603,9 @@
         <span class="label">Live</span>
         <span class="nav-badge" id="liveNavBadge" style="display:none;">0</span>
     </button>
-    <button class="nav-item" data-page="x2" onclick="switchPage('x2')">
-        <span class="icon">🔥</span>
-        <span class="label">X2</span>
+    <button class="nav-item" data-page="ht" onclick="switchPage('ht')">
+        <span class="icon">⏱</span>
+        <span class="label">Перерыв</span>
     </button>
     <button class="nav-item" data-page="lab" onclick="switchPage('lab')">
         <span class="icon">🧪</span>
@@ -1620,6 +1646,14 @@
             <div>
                 <div class="sheet-label">Статистика по дням</div>
                 <div class="sheet-desc">Прибыль, WIN/LOSS по каждому дню</div>
+            </div>
+        </button>
+
+        <button class="sheet-item" onclick="openFromMore('x2')">
+            <span class="sheet-icon">🔥</span>
+            <div>
+                <div class="sheet-label">X2 стратегия</div>
+                <div class="sheet-desc">Аутсайдер не проиграет</div>
             </div>
         </button>
 
@@ -1942,19 +1976,19 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=7"></script>
-<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=8"></script>
 </body>
 </html>   
