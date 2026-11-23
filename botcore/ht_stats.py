@@ -6,6 +6,7 @@ import json
 import time
 from threading import Thread, Lock
 from flask import request, jsonify
+from app.config import Config
 
 from botcore.common import *  # noqa: F401,F403
 from botcore.football_api import *  # noqa: F401,F403
