@@ -81,3 +81,8 @@
 .cal-cell.zero{background:rgba(255,255,255,.12);}.cal-cell.pend{background:rgba(251,191,36,.15);}
 .cal-cell.today{outline:2px solid rgba(255,255,255,.5);}.cal-cell.sel{outline:2px solid #60a5fa;}
 .cal-cell[onclick]{cursor:pointer;}
+
+.bm-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05);}
+.bm-row.best{font-weight:800;color:var(--emerald-400);}
+.bm-row i{font-style:normal;font-size:10px;}
+.dm-calc-row select{width:100%;padding:9px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:14px;}
