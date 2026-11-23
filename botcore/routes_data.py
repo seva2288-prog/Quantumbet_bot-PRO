@@ -72,6 +72,7 @@ __all__ = [
     'api_snapshots_list',
     'api_day_matches',
     'api_day_feed',
+    'api_bookmaker_odds',
     '_feed_observe',
     '_hour_change',
     '_build_day_matches',
@@ -952,6 +953,42 @@ def api_day_feed():
     except Exception as e:
         logger.exception(f"api_day_feed error: {e}")
         return jsonify({'status': 'error', 'error': str(e), 'events': []}), 500
+
+
+# ============================================================
+# ★ СРАВНЕНИЕ БУКМЕКЕРОВ
+# ============================================================
+_BM_KEYS = {'1': 'home', 'X': 'draw', '2': 'away', '1X': '1x', 'X2': 'x2'}
+
+
+@app.route('/api/bookmaker_odds/<int:fixture_id>', methods=['GET'])
+def api_bookmaker_odds(fixture_id):
+    try:
+        rec = _bm_odds_load().get(str(fixture_id))
+        if not rec:
+            return jsonify({'status': 'ok', 'available': False, 'selections': {}})
+        first, last = rec.get('first') or {}, rec.get('last') or {}
+        out = {}
+        for sel, key in _BM_KEYS.items():
+            rows = []
+            for bm, data in last.items():
+                o = (data or {}).get(key) or 0
+                if o <= 1.0:
+                    continue
+                o0 = ((first.get(bm) or {}).get(key)) or 0
+                rows.append({'bm': bm, 'odds': round(o, 2),
+                             'change_pct': round((o / o0 - 1) * 100, 1) if o0 > 1.0 else None})
+            if not rows:
+                continue
+            rows.sort(key=lambda r: -r['odds'])
+            avg = sum(r['odds'] for r in rows) / len(rows)
+            out[sel] = {'rows': rows, 'best': rows[0]['bm'], 'best_odds': rows[0]['odds'],
+                        'avg': round(avg, 2),
+                        'best_vs_avg_pct': round((rows[0]['odds'] / avg - 1) * 100, 1)}
+        return jsonify({'status': 'ok', 'available': bool(out), 'updated': rec.get('ts'), 'selections': out})
+    except Exception as e:
+        logger.exception(f"api_bookmaker_odds error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 @app.route('/api/snapshots/<int:fixture_id>', methods=['GET'])

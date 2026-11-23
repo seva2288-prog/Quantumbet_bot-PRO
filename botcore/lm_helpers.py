@@ -65,6 +65,7 @@ __all__ = [
     '_snapshot_lock',
     'snapshot_odds_for_upcoming',
     '_save_snapshot_from_odds',
+    '_bm_odds_load',
 ]
 
 
@@ -340,10 +341,48 @@ def snapshot_odds_for_upcoming(custom_matches=None):
         _snapshot_lock.release()
 
 
+_BM_ODDS_FILE = os.path.join(DATA_DIR, 'bookmaker_odds.json')
+_bm_lock = Lock()
+
+
+def _bm_odds_load():
+    try:
+        with open(_BM_ODDS_FILE, 'r', encoding='utf-8') as f:
+            d = json.load(f)
+            return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _store_bookmaker_odds(fid, fo):
+    """Кэфы по каждому букмекеру: первый увиденный набор и последний (для сравнения букмекеров)."""
+    try:
+        bms = fo.get('all_bookmakers') or {}
+        if not bms or not fid:
+            return
+        now = datetime.now()
+        stamp = now.strftime('%Y-%m-%d %H:%M:%S')
+        with _bm_lock:
+            d = _bm_odds_load()
+            rec = d.get(str(fid)) or {'first': bms}
+            rec['last'] = bms
+            rec['ts'] = stamp
+            d[str(fid)] = rec
+            lim = (now - timedelta(days=4)).strftime('%Y-%m-%d %H:%M:%S')
+            d = {k: v for k, v in d.items() if v.get('ts', '') >= lim}
+            tmp = _BM_ODDS_FILE + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(d, f, ensure_ascii=False)
+            os.replace(tmp, _BM_ODDS_FILE)
+    except Exception as e:
+        logger.warning(f"_store_bookmaker_odds: {e}")
+
+
 def _save_snapshot_from_odds(fo, fid, home='', away='', league=''):
     try:
         if not fo:
             return 0
+        _store_bookmaker_odds(fid, fo)
         bookmaker = fo.get('bookmaker', 'Football API')
         saved = 0
 

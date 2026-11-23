@@ -71,6 +71,7 @@ __all__ = [
     'ops_streak_job',
     'ops_results_job',
     'api_backtest',
+    'api_anomaly_outcomes',
 ]
 
 # ============================================================
@@ -481,4 +482,61 @@ def api_backtest():
                         'grid_drop': grid_drop, 'grid_odds': grid_odds})
     except Exception as e:
         logger.exception(f"api_backtest error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+# ============================================================
+# Чем заканчивались аномалии (сильное движение кэфа)
+# ============================================================
+@app.route('/api/anomaly_outcomes', methods=['GET'])
+def api_anomaly_outcomes():
+    """Для матчей со счётом: как часто выигрывал исход, на который кэф сильно упал / вырос,
+    против вероятности, заложенной в кэф (1/кэф)."""
+    try:
+        g = request.args.get
+
+        def num(name, default):
+            try:
+                return float(g(name)) if g(name) not in (None, '') else default
+            except ValueError:
+                return default
+        days = int(min(max(num('days', 60), 1), 180))
+        thr = max(num('threshold', 5.0), 0.5)
+        lo, hi = num('min_odds', 1.01), num('max_odds', 1000.0)
+        series, meta, results = _bt_collect(days)
+        agg = {}
+        fids, with_res = set(), set()
+        for (fid, sel), pts in series.items():
+            fids.add(fid)
+            r = results.get(str(fid))
+            if not r or len(pts) < 3:
+                continue
+            with_res.add(fid)
+            first, last = pts[0][1], pts[-1][1]
+            tr = (last / first - 1) * 100
+            if abs(tr) < thr or not (lo <= last <= hi):
+                continue
+            won = _sel_wins(sel, r['hg'], r['ag'])
+            if won is None:
+                continue
+            d = 'drop' if tr < 0 else 'rise'
+            for key in ((d, sel), (d, 'ALL')):
+                a = agg.setdefault(key, {'n': 0, 'wins': 0, 'imp': 0.0, 'profit': 0.0})
+                a['n'] += 1
+                a['wins'] += 1 if won else 0
+                a['imp'] += 1 / last
+                a['profit'] += (last - 1) if won else -1
+        rows = []
+        for (d, sel), a in agg.items():
+            hit = a['wins'] / a['n'] * 100
+            imp = a['imp'] / a['n'] * 100
+            rows.append({'direction': d, 'selection': sel, 'n': a['n'], 'wins': a['wins'],
+                         'hit': round(hit, 1), 'implied': round(imp, 1), 'edge': round(hit - imp, 1),
+                         'roi': round(a['profit'] / a['n'] * 100, 1)})
+        order = {'1': 0, 'X': 1, '2': 2, '1X': 3, 'X2': 4, 'ALL': 9}
+        rows.sort(key=lambda r: (r['direction'] != 'drop', order.get(r['selection'], 5)))
+        return jsonify({'status': 'ok', 'days': days, 'threshold': thr,
+                        'coverage': {'fixtures': len(fids), 'with_result': len(with_res)}, 'rows': rows})
+    except Exception as e:
+        logger.exception(f"api_anomaly_outcomes error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
