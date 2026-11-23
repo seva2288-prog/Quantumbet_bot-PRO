@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=3">
 </head>
 <body>
 
@@ -358,6 +358,9 @@
             <div style="font-size:11px;color:var(--text-tertiary);">
                 История движения коэффициентов. Бот делает снимки каждые 30 минут для матчей 6 лиг Line Movement (сегодня и завтра).
             </div>
+            <div class="search-bar" style="margin-top:10px;">
+                <input type="text" id="snapshotSearch" placeholder="Поиск по команде или лиге…" oninput="onSnapshotSearch()">
+            </div>
         </div>
 
         <div class="card" id="anomalyStatsCard">
@@ -464,6 +467,20 @@
          PAGE: ANALYTICS
          ============================================================ -->
     <div id="page-analytics" class="page">
+
+        <div class="card" id="backtestCard">
+            <div class="card-header"><h2>🔬 Бэктест настроек</h2></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Пересчёт накопленных снимков с другими порогами: сколько было бы ставок и какой результат (1 единица на ставку). Считаются только матчи с известным счётом.
+            </div>
+            <div id="backtestForm"></div>
+            <div id="backtestResult"></div>
+        </div>
+
+        <div class="card" id="bankCalcCard">
+            <div class="card-header"><h2>🧮 Калькулятор банка</h2></div>
+            <div id="bankCalcBody"></div>
+        </div>
 
         <div class="card" id="lmAnalyticsCard">
             <div class="card-header">
@@ -1238,6 +1255,19 @@
             </div>
         </div>
 
+        <div class="setting-group" id="botSettingsBox"></div>
+
+        <div class="setting-group">
+            <h2>💾 Резервная копия</h2>
+            <div class="setting-item">
+                <div>
+                    <div class="label">Скачать данные</div>
+                    <div class="desc">История, снимки, заметки, настройки. Копия также приходит в Telegram раз в сутки.</div>
+                </div>
+                <button class="btn btn-primary" onclick="downloadBackup()" style="padding:6px 12px;font-size:11px;">⬇️ ZIP</button>
+            </div>
+        </div>
+
         <div class="setting-group">
             <h2>💰 Банк</h2>
             <div class="setting-item">
@@ -1834,18 +1864,18 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=1"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=3"></script>
 </body>
 </html>   
