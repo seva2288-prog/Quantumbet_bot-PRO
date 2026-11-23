@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=3">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=4">
 </head>
 <body>
 
@@ -94,6 +94,8 @@
     <div id="page-dashboard" class="page active">
 
         <div id="botHealthBox"></div>
+
+        <button class="btn btn-primary" onclick="switchPage('today')" style="width:100%;padding:12px;margin-bottom:12px;">📅 Сегодня: матчи, кэфы, события</button>
 
         <div class="quick-actions">
             <button class="action-btn primary" onclick="runBotUpdate()">
@@ -346,6 +348,22 @@
     <!-- ============================================================
          PAGE: SNAPSHOTS
          ============================================================ -->
+    <div id="page-today" class="page">
+        <div class="card emerald">
+            <div class="card-header">
+                <h2 class="emerald-title">📅 Сегодня</h2>
+                <button class="btn btn-outline" onclick="refreshToday()" style="padding:4px 10px;font-size:10px;">🔄 Обновить</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);">Матчи 6 лиг Line Movement со снимками: что идёт, что скоро, что закончилось. Обновляется само каждые 45 секунд.</div>
+        </div>
+        <div id="todaySummary"></div>
+        <div id="todayBody"></div>
+        <div class="card" id="todayFeedCard">
+            <div class="card-header"><h2>📰 Лента событий</h2></div>
+            <div id="todayFeed"></div>
+        </div>
+    </div>
+
     <div id="page-snapshots" class="page">
 
         <div class="card emerald">
@@ -467,6 +485,13 @@
          PAGE: ANALYTICS
          ============================================================ -->
     <div id="page-analytics" class="page">
+
+        <div class="card" id="calendarCard">
+            <div class="card-header">
+                <h2>📅 Календарь результатов</h2>
+            </div>
+            <div id="calBody"></div>
+        </div>
 
         <div class="card" id="backtestCard">
             <div class="card-header"><h2>🔬 Бэктест настроек</h2></div>
@@ -1529,6 +1554,14 @@
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-title">Меню</div>
 
+        <button class="sheet-item" onclick="openFromMore('today')">
+            <span class="sheet-icon">📅</span>
+            <div>
+                <div class="sheet-label">Сегодня</div>
+                <div class="sheet-desc">Матчи дня, движение кэфов, лента событий</div>
+            </div>
+        </button>
+
         <button class="sheet-item" onclick="openFromMore('analytics')">
             <span class="sheet-icon">📈</span>
             <div>
@@ -1864,18 +1897,19 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=3"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=4"></script>
 </body>
 </html>   
