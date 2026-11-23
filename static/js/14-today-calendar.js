@@ -223,3 +223,38 @@ async function loadAnomalyOutcomes() {
         box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
+
+// ===== Счёт 1-го тайма -> итог =====
+async function refreshHtStats() {
+    const box = document.getElementById('htStatsBody');
+    if (box) box.innerHTML = '<div style="font-size:12px;">Загрузка данных с API… (около минуты)</div>';
+    try { await fetch(API_BASE + '/api/ht_stats/refresh', {method: 'POST'}); } catch (e) {}
+    setTimeout(loadHtStats, 15000);
+}
+async function loadHtStats() {
+    const box = document.getElementById('htStatsBody');
+    if (!box) return;
+    const ht = document.getElementById('htSel').value;
+    try {
+        const r = await fetch(API_BASE + '/api/ht_stats?ht=' + ht);
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        if (d.job && d.job.running) {
+            box.innerHTML = '<div style="font-size:12px;">Загрузка: ' + d.job.done + ' из ' + d.job.total + '…</div>';
+            setTimeout(loadHtStats, 8000); return;
+        }
+        if (!d.total) { box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Данных нет. Нажмите «Обновить данные».</div>'; return; }
+        const o = d.detail ? d.detail.overall : null;
+        let h = '';
+        if (o) {
+            h += `<div style="font-size:13px;margin-bottom:8px;"><b>При ${ht}</b> (матчей: ${o.n}): итог остаётся ${ht} — <b>${o.g0}%</b>; 1 гол во 2т — ${o.g1}%; 2+ голов — ${o.g2p}%.<br>
+            Итог: П1 ${o.home}% • Х ${o.draw}% • П2 ${o.away}% • обе забьют ${o.btts}% • 2-й тайм сыгран тем же счётом ${o.same2h}% • среднее голов во 2т ${o.avg2h}</div>`;
+            const lr = d.detail.leagues.map(x => `<tr><td>${x.league}</td><td>${x.n}</td><td>${x.g0}%</td><td>${x.draw}%</td><td>${x.avg2h}</td></tr>`).join('');
+            h += `<div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Лига</th><th>Матчей</th><th>Без голов 2т</th><th>Ничья</th><th>Голов 2т</th></tr></thead><tbody>${lr}</tbody></table></div>`;
+        }
+        h += `<div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Всего матчей в базе: ${d.total}, обновлено: ${d.updated || '—'}. Меньше 30 матчей в строке — скорее шум. Для сравнения со ставкой: справедливый кэф = 100 / вероятность.</div>`;
+        box.innerHTML = h;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
