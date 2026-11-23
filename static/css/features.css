@@ -43,3 +43,11 @@
 .dm-table th,.dm-table td{padding:6px 3px!important;text-align:right;white-space:nowrap;}
 .dm-table th:first-child,.dm-table td:first-child{text-align:left;white-space:normal;}
 .dm-table th{color:var(--text-tertiary);font-weight:600;font-size:10px;}
+
+/* Калькулятор банка и настройки */
+.dm-calc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.dm-calc-row label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-tertiary);}
+.dm-calc-row input{padding:9px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:16px;}
+#botSettingsBox input[type=number]{padding:7px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:16px;text-align:right;}
+.dm-calc-row input{width:100%;min-width:0;box-sizing:border-box;}
+.dm-calc-row label{min-width:0;}
