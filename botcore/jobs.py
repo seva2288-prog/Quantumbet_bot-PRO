@@ -102,8 +102,13 @@ def auto_update_results():
 # ============================================================
 # SCHEDULER HELPERS
 # ============================================================
+_PAUSE_ALLOWED_JOBS = ('daily_backup', 'cleanup_odds', 'daily_report')
+
+
 def safe_job(func, name):
     def wrapper():
+        if bot_paused() and name not in _PAUSE_ALLOWED_JOBS:
+            return None          # бот на паузе (выключатель в приложении)
         try:
             logger.info(f"▶️ START: {name}")
             result = func()
@@ -580,7 +585,13 @@ def load_bot_settings():
                         'LIVE_REFRESH_SEC', 'LIVE_CACHE_TTL_LIVE',
                         'LIVE_CACHE_TTL_SOON', 'LIVE_CACHE_TTL_FINAL',
                         'LIVE_MAX_MATCHES', 'LIVE_SPARKLINE_ENABLED',
-                        'LIVE_SPARKLINE_POINTS']:
+                        'LIVE_SPARKLINE_POINTS',
+                        'LINE_MOVEMENT_MIN_DROP_PCT', 'LINE_MOVEMENT_MAX_DROP_PCT',
+                        'LINE_MOVEMENT_MIN_ODDS', 'LINE_MOVEMENT_MAX_ODDS',
+                        'LINE_MOVEMENT_STAKE_PCT', 'LINE_MOVEMENT_MAX_BETS',
+                        'DAY_NOTIFY_MOVE_PCT', 'NOTIFY_QUIET_ENABLED',
+                        'NOTIFY_QUIET_FROM', 'NOTIFY_QUIET_TO',
+                        'DAILY_REPORT_ENABLED', 'DAILY_REPORT_HOUR']:
                 if key.lower() in s:
                     setattr(Config, key, s[key.lower()])
             logger.info("✅ Настройки загружены")

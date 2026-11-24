@@ -40,12 +40,41 @@ from app.llm import (
 from botcore.common import *  # noqa: F401,F403
 
 __all__ = [
+    'bot_paused',
+    'set_bot_paused',
     'FootballAPI',
     'football_api',
     'OddsAPIClient',
     'odds_api',
 ]
 
+
+
+# ============================================================
+# ПАУЗА БОТА: главный выключатель. Пока включена, ни один запрос к API-Football не уходит,
+# а фоновые задачи (кроме резервной копии и очистки) пропускаются.
+# ============================================================
+_PAUSE_FILE = os.path.join(DATA_DIR, 'bot_paused.json')
+_PAUSE_CACHE = {'ts': 0.0, 'val': False}
+
+
+def bot_paused():
+    now = time.time()
+    if now - _PAUSE_CACHE['ts'] < 3:
+        return _PAUSE_CACHE['val']
+    try:
+        with open(_PAUSE_FILE, 'r', encoding='utf-8') as fh:
+            val = bool(json.load(fh).get('paused'))
+    except Exception:
+        val = False
+    _PAUSE_CACHE.update(ts=now, val=val)
+    return val
+
+
+def set_bot_paused(flag):
+    with open(_PAUSE_FILE, 'w', encoding='utf-8') as fh:
+        json.dump({'paused': bool(flag), 'since': time.strftime('%Y-%m-%d %H:%M:%S')}, fh)
+    _PAUSE_CACHE.update(ts=time.time(), val=bool(flag))
 
 # ============================================================
 # FOOTBALL API
@@ -86,6 +115,8 @@ class FootballAPI:
             pass
 
     def _make_request(self, endpoint, params=None):
+        if bot_paused():
+            return None          # пауза: запрос не отправляем и лимит не тратим
         self._count_usage(endpoint)
         try:
             self.rate_limiter.wait_if_needed()

@@ -767,6 +767,18 @@ def api_export_history_csv():
 # ============================================================
 # ★ СОСТОЯНИЕ БОТА
 # ============================================================
+@app.route('/api/bot_pause', methods=['GET', 'POST'])
+def api_bot_pause():
+    try:
+        if request.method == 'POST':
+            body = request.get_json(silent=True) or {}
+            set_bot_paused(bool(body.get('paused')))
+            logger.info(f"⏸ Пауза бота: {'ВКЛ' if bot_paused() else 'выкл'}")
+        return jsonify({'status': 'ok', 'paused': bot_paused()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
 @app.route('/api/bot_health', methods=['GET'])
 def api_bot_health():
     try:
@@ -786,7 +798,10 @@ def api_bot_health():
         disk_ok = os.path.abspath(DATA_DIR) != os.path.abspath('.')
         quota = getattr(football_api, 'quota', None) or {}
         warnings = []
-        if minutes_ago is None:
+        paused = bot_paused()
+        if paused:
+            pass          # на паузе предупреждения про снимки не нужны
+        elif minutes_ago is None:
             warnings.append('Снимков за сутки нет')
         elif minutes_ago > interval * 2 + 10:
             warnings.append(f'Снимки не делались {minutes_ago} мин (интервал {interval} мин)')
@@ -800,7 +815,7 @@ def api_bot_health():
         if not getattr(football_api, 'api_key', None):
             warnings.append('FOOTBALL_API_KEY не задан')
         return jsonify({
-            'status': 'ok', 'ok': not warnings, 'warnings': warnings,
+            'status': 'ok', 'ok': not warnings, 'paused': paused, 'warnings': warnings,
             'last_snapshot': last, 'minutes_ago': minutes_ago, 'interval_min': interval,
             'snapshots_today': len(today_rows),
             'fixtures_today': len({r.get('fixture_id') for r in today_rows}),
