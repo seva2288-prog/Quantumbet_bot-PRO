@@ -341,3 +341,40 @@ async function loadStratBoard() {
         box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
+
+// ===== Гол после 40-й минуты =====
+async function loadLateGoal() {
+    const box = document.getElementById('lateGoalBody');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/late_goal');
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        const tbl = (title, head, rows) => rows.length ? `<div style="font-size:12px;margin:12px 0 6px;"><b>${title}</b></div><div class="dm-tablewrap"><table class="dm-table"><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '';
+        const grp = (arr) => arr.map(x => `<tr><td>${x.key}</td><td>${x.n}</td><td>${x.late}%</td><td>${x.late41}%</td></tr>`);
+        let h = `<div style="font-size:13px;margin-bottom:6px;">Матчей отслеживается: <b>${d.tracked}</b>, 1-й тайм завершён: <b>${d.finished_1h}</b>, с данными около 40-й минуты: <b>${d.with_cp40}</b>.</div>`;
+        if (!d.with_cp40) {
+            h += '<div style="font-size:12px;color:var(--text-tertiary);">Данных пока нет: бот начнёт собирать с ближайшего матча (окно сбора 13:00–01:00 по Москве).</div>';
+            box.innerHTML = h; return;
+        }
+        h += `<div style="font-size:13px;margin-bottom:6px;">Гол после последней точки до 40-й минуты: <b>${d.late}%</b> • гол на 41–45-й и в добавленное: <b>${d.late41}%</b></div>`;
+        const head3 = '<th>Случай</th><th>Матчей</th><th>Гол после ≤40′</th><th>Гол 41′+</th>';
+        h += tbl('По счёту на 40-й минуте', head3, grp(d.by_score));
+        h += tbl('По ударам в створ (обе команды)', head3, grp(d.by_sot));
+        h += tbl('Кто проигрывает / ведёт', head3, grp(d.by_fav));
+        h += tbl('По лигам', head3, grp(d.by_league));
+        const oddsTbl = (title, arr, note) => arr && arr.length ? `<div style="font-size:12px;margin:12px 0 6px;"><b>${title}</b>${note || ''}</div><div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Кэф</th><th>Ст.</th><th>Ср.кэф</th><th>Гол был</th><th>В кэфе</th><th>ROI</th></tr></thead><tbody>` +
+            arr.map(x => `<tr><td>${x.bucket}</td><td>${x.n}</td><td>${x.avg_odds}</td><td>${x.hit}%</td><td>${x.implied}%</td><td style="color:${col(x.roi)};">${x.roi > 0 ? '+' : ''}${x.roi}%</td></tr>`).join('') + '</tbody></table></div>' : '';
+        if (d.odds_all) {
+            const o = d.odds_all;
+            h += `<div style="font-size:13px;margin:12px 0 4px;"><b>Кэф на 40-й минуте</b> на «ещё гол в 1-м тайме» (тотал 1Т больше текущие голы + 0,5): ${o.n} матчей, гол после 40′ был в ${o.hit}% случаев, кэф обещал ${o.implied}%, ROI <span style="color:${col(o.roi)};">${o.roi > 0 ? '+' : ''}${o.roi}%</span></div>`;
+        }
+        h += oddsTbl('По величине кэфа на 40-й минуте (все счета)', d.odds_buckets);
+        h += oddsTbl('То же, только при счёте 0-0', d.odds_buckets_00);
+        h += oddsTbl('Как менялся этот кэф с 26–36′ до 40′', d.move_buckets);
+        box.innerHTML = h;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}

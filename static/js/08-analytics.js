@@ -103,6 +103,7 @@ function renderAnalytics(data) {
     loadAnomalyOutcomes();
     loadHtStats();
     loadHtLive();
+    loadLateGoal();
     renderBacktestForm();
     renderStrategyBars(history);
     renderBetTypeBreakdown(history);
