@@ -100,12 +100,17 @@ class FootballAPI:
             import sys
             f = sys._getframe(2)
             caller = '?'
-            while f is not None:
+            chain = []
+            while f is not None and len(chain) < 3:
                 mod = f.f_globals.get('__name__', '')
-                if mod not in (__name__, 'botcore.football_api'):
-                    caller = f"{mod.split('.')[-1]}.{f.f_code.co_name}"
-                    break
+                fn = f.f_code.co_name
+                if mod in (__name__, 'botcore.football_api') or fn == 'wrapper' or mod.endswith('common'):
+                    f = f.f_back
+                    continue
+                chain.append(f"{mod.split('.')[-1]}.{fn}")
                 f = f.f_back
+            if chain:
+                caller = ' < '.join(chain)
             day = time.strftime('%Y-%m-%d', time.gmtime())
             if getattr(self, '_usage_day', None) != day:
                 self._usage_day = day
