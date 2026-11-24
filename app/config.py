@@ -192,8 +192,7 @@ class Config:
     # ★ LINE MOVEMENT (Аномалии кэфов) — v5.1
     # ============================================================
     LINE_MOVEMENT_ENABLED = True
-    LINE_MOVEMENT_LIVE_ALERTS = True
-    
+
     LINE_MOVEMENT_MIN_DROP_PCT = -4.0
     LINE_MOVEMENT_MAX_DROP_PCT = -15.0
     LINE_MOVEMENT_MIN_RISE_PCT = 8.0
@@ -238,8 +237,8 @@ class Config:
     #   Снимки кэфов, поиск матчей и сам LM работают ТОЛЬКО по этим лигам.
     #   Чтобы добавить/убрать лигу — правь только этот список.
     #   39=АПЛ, 197=Греция Super League, 88=Эредивизи, 94=Примейра,
-    #   144=Бельгия Pro League, 180=Шотландия Championship
-    LINE_MOVEMENT_LEAGUE_IDS = [39, 197, 88, 94, 144, 180]
+    #   144=Бельгия Pro League, 180=Шотландия Championship, 179=Шотландия Premiership
+    LINE_MOVEMENT_LEAGUE_IDS = [39, 197, 88, 94, 144, 180, 179]
 
     LINE_MOVEMENT_SNAPSHOT_INTERVAL_MIN = 30    # как часто снимать кэфы (мин)
     LINE_MOVEMENT_SNAPSHOT_DAYS_AHEAD = 1       # сегодня + N дней вперёд (МСК)
