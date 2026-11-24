@@ -82,6 +82,30 @@ __all__ = [
 ]
 
 
+# Кэш свежих кэфов для X2-кандидатов: раньше каждый заход на страницу слал по 2 запроса на каждого кандидата
+_X2_FRESH_CACHE = {}   # fid -> (ts, x2, 1x) | (ts, None)  (None = матч идёт/закончен, не трогаем)
+_X2_FRESH_TTL = 900
+
+
+def _x2_fresh_odds(fid):
+    import time as _t
+    now = _t.time()
+    hit = _X2_FRESH_CACHE.get(fid)
+    if hit and now - hit[0] < _X2_FRESH_TTL:
+        return hit[1:] if hit[1] is not None else None
+    md = football_api.get_match_result(fid)
+    if md and (md.get('is_final') or md.get('is_live')):
+        _X2_FRESH_CACHE[fid] = (now + 86400 * 365, None)   # завершённый/идущий матч больше не опрашиваем
+        return None
+    od = football_api.get_match_odds(fid) if md else None
+    if not od:
+        _X2_FRESH_CACHE[fid] = (now, 0, 0)
+        return (0, 0)
+    res = (now, od.get('x2_odds', 0) or 0, od.get('1x_odds', 0) or 0)
+    _X2_FRESH_CACHE[fid] = res
+    return res[1:]
+
+
 # ============================================================
 # API: X2
 # ============================================================
@@ -112,16 +136,12 @@ def api_x2_auto():
             odds_trend = 0
             try:
                 if fid:
-                    md = football_api.get_match_result(fid)
-                    if md and not md.get('is_final') and not md.get('is_live'):
-                        odds_data = football_api.get_match_odds(fid)
-                        if odds_data:
-                            fresh_x2 = odds_data.get('x2_odds', 0) or 0
-                            fresh_1x = odds_data.get('1x_odds', 0) or 0
-                            if fresh_x2 > 0:
-                                current_odds = fresh_x2
-                            if fresh_1x > 0:
-                                current_1x_odds = fresh_1x
+                    fresh = _x2_fresh_odds(fid)
+                    if fresh:
+                        if fresh[0] > 0:
+                            current_odds = fresh[0]
+                        if fresh[1] > 0:
+                            current_1x_odds = fresh[1]
 
                     if c.get('x2_side') == 'X2':
                         dc_hist = storage.get_odds_history(fid, 'DC', 'X2')
