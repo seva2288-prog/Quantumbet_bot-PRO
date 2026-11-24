@@ -105,8 +105,13 @@ async function loadBotHealth() {
         const ok = h.ok;
         const ago = h.minutes_ago == null ? 'нет данных' : (h.minutes_ago < 1 ? 'только что' : h.minutes_ago + ' мин назад');
         const q = h.quota && h.quota.remaining != null ? h.quota.remaining + (h.quota.limit ? ' / ' + h.quota.limit : '') : '—';
-        box.innerHTML = `<div class="health-card ${ok ? 'ok' : 'warn'}">
-            <div class="health-head">${ok ? '🟢 Бот работает' : '🟠 Нужно внимание'}</div>
+        const pz = !!h.paused;
+        box.innerHTML = `<div class="health-card ${pz ? 'warn' : (ok ? 'ok' : 'warn')}">
+            <div class="health-head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <span>${pz ? '⏸ Бот на паузе' : (ok ? '🟢 Бот работает' : '🟠 Нужно внимание')}</span>
+                <button class="btn btn-outline" onclick="toggleBotPause(${pz ? 'false' : 'true'})" style="padding:4px 12px;font-size:11px;">${pz ? '▶ Включить' : '⏸ Пауза'}</button>
+            </div>
+            ${pz ? '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">Пауза: бот не ищет матчи, не делает снимки и не тратит лимит API. Сохранённые данные доступны.</div>' : ''}
             <div class="health-grid">
                 <div><b>${ago}</b><span>последний снимок</span></div>
                 <div><b>${h.snapshots_today}</b><span>снимков сегодня</span></div>
@@ -596,3 +601,17 @@ setInterval(async () => {
 }, 120000);
 
 // ============================================================
+
+// ===== Выключатель бота (пауза) =====
+async function toggleBotPause(flag) {
+    if (flag && !confirm('Поставить бота на паузу? Он перестанет искать матчи, делать снимки и тратить запросы API.')) return;
+    try {
+        const r = await fetch(API_BASE + '/api/bot_pause', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({paused: flag})});
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        if (typeof showNotification === 'function') showNotification(d.paused ? '⏸ Бот на паузе' : '▶ Бот включён');
+    } catch (e) {
+        alert('Не удалось переключить: ' + e.message);
+    }
+    loadBotHealth();
+}
