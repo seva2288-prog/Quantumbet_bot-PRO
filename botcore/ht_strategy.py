@@ -16,8 +16,9 @@ from botcore.football_api import *  # noqa: F401,F403
 from botcore.lm_helpers import *  # noqa: F401,F403
 from botcore.routes_data import *  # noqa: F401,F403
 from botcore.ht_stats import _hto_load, _ht_load, _sel_hit  # noqa: F401
+from botcore.analysis import _compute_all_strategy_clv  # noqa: F401
 
-__all__ = ['ht_signal_job', 'api_ht_signals']
+__all__ = ['ht_signal_job', 'api_ht_signals', 'api_strategy_board']
 
 _SIG_FILE = os.path.join(DATA_DIR, 'ht_signals.json')
 _sig_lock = Lock()
@@ -194,4 +195,33 @@ def api_ht_signals():
                         'params': {'min_ev': float(_cfg('HT_MIN_EV', 0.12)), 'odds': [float(_cfg('HT_MIN_ODDS', 1.5)), float(_cfg('HT_MAX_ODDS', 8.0))]}})
     except Exception as e:
         logger.exception(f"api_ht_signals error: {e}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
+
+
+_STRAT_NAMES = {'70_percent': 'TOP 70%+', 'x2': 'X2', 'line_movement': 'Line Movement', 'lm': 'Line Movement',
+                'value': 'VALUE', 'btts': 'BTTS', 'tm25': 'TM 2.5', 'stats': 'Stats', 'combined': 'Combined'}
+
+
+@app.route('/api/strategy_board', methods=['GET'])
+def api_strategy_board():
+    """Светофор стратегий: CLV (виртуальные автоставки) и ROI «Перерыва». Серый — меньше 30 случаев."""
+    try:
+        min_n = int(request.args.get('min_n', 30))
+        rows = []
+        for src, v in (_compute_all_strategy_clv(days=30) or {}).items():
+            n = int(v.get('count') or 0)
+            avg = float(v.get('avg_clv') or 0)
+            color = 'grey' if n < min_n else ('green' if avg > 0 else 'red')
+            rows.append({'name': _STRAT_NAMES.get(src, src), 'metric': 'CLV', 'value': avg, 'n': n, 'color': color})
+        done = [s for s in _sig_load().values() if s.get('result')]
+        if True:
+            n = len(done)
+            roi = round(100.0 * sum((s['odds'] - 1) if s['result'] == 'win' else -1 for s in done) / n, 1) if n else 0
+            rows.append({'name': 'Перерыв (тест)', 'metric': 'ROI %', 'value': roi, 'n': n,
+                         'color': 'grey' if n < min_n else ('green' if roi > 0 else 'red')})
+        order = {'green': 0, 'grey': 1, 'red': 2}
+        rows.sort(key=lambda r: (order[r['color']], -r['n']))
+        return jsonify({'status': 'ok', 'min_n': min_n, 'rows': rows})
+    except Exception as e:
+        logger.exception(f"api_strategy_board error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
