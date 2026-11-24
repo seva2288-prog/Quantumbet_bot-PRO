@@ -23,8 +23,10 @@ function switchPage(page) {
     if (target) {
         target.classList.add('active');
         target.style.display = 'block';
-        target.classList.add('page-transition');
-        setTimeout(() => target.classList.remove('page-transition'), 400);
+        const dir = window._swipeDir; window._swipeDir = null;
+        const cls = dir === 'left' ? 'slide-in-right' : dir === 'right' ? 'slide-in-left' : 'page-transition';
+        target.classList.add(cls);
+        setTimeout(() => target.classList.remove(cls), 400);
     }
 
     currentPage = page;
@@ -108,22 +110,36 @@ function openFromMore(page) {
 // СВАЙПЫ между страницами
 // ============================================================
 (function initSwipe() {
-    let touchStartX = 0;
-    let touchStartY = 0;
-    const pages = ['dashboard', 'matches', 'snapshots', 'live', 'ht'];
+    let sx = 0, sy = 0, st = 0, blocked = false;
+    const pages = ['dashboard', 'matches', 'snapshots', 'live', 'ht', 'lab'];
+    // не листаем страницы, если палец начался на поле ввода, окне или прокручиваемой вбок таблице/графике
+    function startsInBlockedArea(el) {
+        if (el.closest('input, textarea, select, .modal-overlay.active, .bottom-sheet, .chart-container, canvas')) return true;
+        let n = el;
+        while (n && n !== document.body) {
+            if (n.scrollWidth > n.clientWidth + 4) {
+                const ox = getComputedStyle(n).overflowX;
+                if (ox === 'auto' || ox === 'scroll') return true;
+            }
+            n = n.parentElement;
+        }
+        return false;
+    }
     document.addEventListener('touchstart', (e) => {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
+        if (e.touches.length !== 1) { blocked = true; return; }
+        const t = e.touches[0];
+        sx = t.clientX; sy = t.clientY; st = Date.now();
+        blocked = sx < 24 || sx > window.innerWidth - 24 || startsInBlockedArea(e.target);   // края экрана оставляем системе iOS
     }, { passive: true });
     document.addEventListener('touchend', (e) => {
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        const dy = e.changedTouches[0].clientY - touchStartY;
-        if (Math.abs(dx) < 80 || Math.abs(dy) > 60) return;
-        if (e.target.closest('input, textarea, .table-wrapper, .chart-container, .modal, .bet-card, .bottom-sheet, .live-card')) return;
-        if (currentPage === 'settings' || currentPage === 'autobets' || currentPage === 'simulator' || currentPage === 'analytics' || currentPage === 'calibration' || currentPage === 'daily' || currentPage === 'traintest' || currentPage === 'split3way') return;
+        if (blocked) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - sx, dy = t.clientY - sy;
+        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - st > 700) return;
         const idx = pages.indexOf(currentPage);
-        if (dx < 0 && idx < pages.length - 1) switchPage(pages[idx + 1]);
-        else if (dx > 0 && idx > 0) switchPage(pages[idx - 1]);
+        if (idx < 0) return;
+        if (dx < 0 && idx < pages.length - 1) { window._swipeDir = 'left'; switchPage(pages[idx + 1]); }
+        else if (dx > 0 && idx > 0) { window._swipeDir = 'right'; switchPage(pages[idx - 1]); }
     }, { passive: true });
 })();
 
@@ -133,7 +149,7 @@ function openFromMore(page) {
 (async function initPullToRefresh() {
     const PULL_THRESHOLD = 80;
     const PULL_RESISTANCE = 0.5;
-    const INDICATOR_HEIGHT = 60;
+    const INDICATOR_HEIGHT = 74;
 
     let startY = 0;
     let currentY = 0;
@@ -143,33 +159,17 @@ function openFromMore(page) {
 
     const indicator = document.createElement('div');
     indicator.id = 'pullToRefreshIndicator';
-    indicator.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%) translateY(-100%);
-        width: 60px;
-        height: 60px;
-        background: var(--bg-card);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid var(--border-color);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        z-index: 9998;
-        transition: transform 0.2s ease, opacity 0.2s ease;
-        opacity: 0;
-        pointer-events: none;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-        color: var(--emerald-400);
-    `;
-    indicator.innerHTML = '<span style="transform: rotate(0deg); display: block;">↓</span>';
+    indicator.className = 'ptr-icon';
+    indicator.innerHTML = '<svg class="ptr-arrow" viewBox="0 0 40 40" width="22" height="22" aria-hidden="true"><defs><linearGradient id="ptrG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fb3f0"/><stop offset="1" stop-color="#8fe3ff"/></linearGradient></defs><path d="M37 20 L5 35 L13 20 L5 5 Z" fill="url(#ptrG)" stroke="#bdeeff" stroke-width="1" stroke-linejoin="round"/></svg>';
     document.body.appendChild(indicator);
 
-    const indicatorIcon = indicator.querySelector('span');
+    const arrow = indicator.querySelector('.ptr-arrow');
+    // стрелка едет слева направо вслед за протяжкой: progress 0 -> у левого края, 1 -> у правого
+    function setArrow(progress) {
+        const x = (progress - 0.5) * 66;
+        arrow.style.transform = `translateX(${x}px)`;
+    }
+    setArrow(0);
 
     function isScrollableElement(el) {
         if (!el || el === document.body) return false;
@@ -214,7 +214,7 @@ function openFromMore(page) {
         if (deltaY <= 0 || !canPull()) {
             if (!isPulling) return;
             isPulling = false;
-            indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+            indicator.style.transform = 'translateX(-50%) translateY(-170%)';
             indicator.style.opacity = '0';
             return;
         }
@@ -226,9 +226,7 @@ function openFromMore(page) {
         indicator.style.opacity = Math.min(distance / PULL_THRESHOLD, 1);
 
         const progress = Math.min(distance / PULL_THRESHOLD, 1);
-        const rotation = progress * 180;
-        indicatorIcon.style.transform = `rotate(${rotation}deg)`;
-        indicatorIcon.textContent = progress >= 1 ? '↻' : '↓';
+        setArrow(progress);
 
         if (progress >= 1 && !indicator._thresholdHit) {
             indicator._thresholdHit = true;
@@ -250,9 +248,8 @@ function openFromMore(page) {
             isRefreshing = true;
             indicator.style.transform = 'translateX(-50%) translateY(-10px)';
             indicator.style.opacity = '1';
-            indicatorIcon.style.transform = 'none';
-            indicatorIcon.textContent = '↻';
-            indicatorIcon.style.animation = 'spin 0.8s linear infinite';
+            arrow.style.transform = '';
+            indicator.classList.add('ptr-loading');
             haptic(30);
 
             try {
@@ -264,15 +261,14 @@ function openFromMore(page) {
             }
 
             setTimeout(() => {
-                indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+                indicator.style.transform = 'translateX(-50%) translateY(-170%)';
                 indicator.style.opacity = '0';
-                indicatorIcon.style.animation = '';
-                indicatorIcon.textContent = '↓';
-                indicatorIcon.style.transform = 'rotate(0deg)';
+                indicator.classList.remove('ptr-loading');
+                setArrow(0);
                 isRefreshing = false;
             }, 400);
         } else {
-            indicator.style.transform = 'translateX(-50%) translateY(-100%)';
+            indicator.style.transform = 'translateX(-50%) translateY(-170%)';
             indicator.style.opacity = '0';
         }
 
