@@ -4,7 +4,7 @@
 import os
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Thread, Lock
 from flask import request, jsonify
 
@@ -13,6 +13,7 @@ from app.config import Config
 from botcore.common import *  # noqa: F401,F403
 from botcore.football_api import *  # noqa: F401,F403
 from botcore.lm_helpers import *  # noqa: F401,F403
+from app.database.storage import storage
 
 __all__ = ['api_ht_stats', 'api_ht_stats_refresh', 'ht_odds_job', 'api_ht_live']
 
@@ -195,6 +196,42 @@ def _parse_live_odds(resp):
     return out, sorted(set(names))[:25]
 
 
+def _pre_odds_map(fids):
+    """Предматчевые 1X2 из снимков бота (последний снимок до матча): {fid: {'1':o,'X':o,'2':o}}."""
+    out = {}
+    try:
+        cutoff = (datetime.utcnow() - timedelta(days=6)).strftime('%Y-%m-%d %H:%M:%S')
+        want = {str(f) for f in fids}
+        last = {}
+        for r in storage.get_snapshots_since(cutoff):
+            fid = str(r.get('fixture_id'))
+            if fid not in want or r.get('market', '1X2') not in ('1X2', None, ''):
+                continue
+            sel = r.get('selection')
+            if sel not in ('1', 'X', '2'):
+                continue
+            ca = r.get('created_at') or ''
+            if (fid, sel) not in last or ca >= last[(fid, sel)][0]:
+                last[(fid, sel)] = (ca, float(r.get('odds') or 0))
+        for (fid, sel), (_, o) in last.items():
+            if o > 1.0:
+                out.setdefault(fid, {})[sel] = o
+    except Exception as e:
+        logger.warning(f"pre odds map: {e}")
+    return out
+
+
+def _fav_side(pre):
+    """'1' / '2' — явный фаворит по предматчевым кэфам (разница вероятностей от 12 п.п.), '0' — равные матч."""
+    try:
+        i1, ix, i2 = 1 / pre['1'], 1 / pre['X'], 1 / pre['2']
+        t = i1 + ix + i2
+        gap = (i1 - i2) / t
+        return '1' if gap >= 0.12 else '2' if gap <= -0.12 else '0'
+    except Exception:
+        return None
+
+
 def ht_odds_job():
     """Каждые 5 минут в окне матчей: находит матчи лиг LM на перерыве и сохраняет live-кэфы; дописывает итоговые счета."""
     try:
@@ -232,10 +269,18 @@ def ht_odds_job():
                     'away': (f.get('teams') or {}).get('away', {}).get('name'),
                     'ht': [g['home'], g['away']], 'ft': None,
                     'odds': odds, 'markets': names,
+                    'pre': (_pre_odds_map([fid]).get(fid) or None),
                     'ts': datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
                 }
                 changed = True
                 logger.info(f"⏱ HT odds saved: {fid} {data[fid]['home']} {g['home']}-{g['away']}")
+        # доп.: дописываем предматчевые кэфы к уже сохранённым перерывам (пока снимки ещё хранятся)
+        need = [fid for fid, r in data.items() if 'pre' not in r]
+        if need:
+            pm = _pre_odds_map(need)
+            for fid in need:
+                data[fid]['pre'] = pm.get(fid) or None
+            changed = True
         if changed:
             _hto_save(data)
     except Exception as e:
@@ -296,9 +341,35 @@ def api_ht_live():
             rows.append({'sel': name, 'n': n, 'avg_odds': round(avg, 2), 'hit': round(100.0 * a['hits'] / n, 1),
                          'implied': round(100.0 / avg, 1), 'roi': round(100.0 * a['profit'] / n, 1)})
         rows.sort(key=lambda x: -x['n'])
+        # проигрывает фаворит или аутсайдер (только счёт перерыва с разницей в 1 гол)
+        fav = {}
+        for r in data.values():
+            if r.get('ft') is None or not r.get('pre'):
+                continue
+            h, a = r['ht']
+            if abs(h - a) != 1:
+                continue
+            side = _fav_side(r['pre'])
+            if side is None:
+                continue
+            lead = '1' if h > a else '2'
+            case = 'Проигрывает фаворит' if side not in ('0', lead) else ('Проигрывает аутсайдер' if side == lead else 'Равные команды')
+            t_ht = a if lead == '1' else h
+            t_ft = r['ft'][1] if lead == '1' else r['ft'][0]
+            l_ft = r['ft'][0] if lead == '1' else r['ft'][1]
+            b = fav.setdefault(case, {'n': 0, 'draw': 0, 'comeback': 0, 'tscores': 0, 'over15': 0})
+            b['n'] += 1
+            b['draw'] += 1 if t_ft == l_ft else 0
+            b['comeback'] += 1 if t_ft > l_ft else 0
+            b['tscores'] += 1 if t_ft > t_ht else 0
+            b['over15'] += 1 if sum(r['ft']) > 1.5 else 0
+        fav_rows = [{'case': k, 'n': v['n'], 'draw': round(100.0 * v['draw'] / v['n'], 1),
+                     'comeback': round(100.0 * v['comeback'] / v['n'], 1),
+                     'tscores': round(100.0 * v['tscores'] / v['n'], 1),
+                     'over15': round(100.0 * v['over15'] / v['n'], 1)} for k, v in fav.items()]
         markets = sorted({m for r in data.values() for m in (r.get('markets') or [])})
         return jsonify({'status': 'ok', 'saved': len(data), 'finished': len([r for r in data.values() if r.get('ft') is not None]),
-                        'matching': len(recs), 'rows': rows[:30], 'markets_seen': markets[:25]})
+                        'matching': len(recs), 'rows': rows[:30], 'fav': fav_rows, 'markets_seen': markets[:25]})
     except Exception as e:
         logger.exception(f"api_ht_live error: {e}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
