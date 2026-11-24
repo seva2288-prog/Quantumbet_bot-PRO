@@ -305,6 +305,7 @@ async function loadPageData(page) {
             renderDashboard(data);
             loadDashboardAnomalies();
             loadBotHealth();
+            loadStratBoard();
             loadDashboardAutobets();
         } else if (page === 'matches') {
             renderMatchesPage(data);

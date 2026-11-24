@@ -323,3 +323,21 @@ async function loadHtPage() {
         list.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
+
+// ===== Светофор стратегий (главная) =====
+async function loadStratBoard() {
+    const box = document.getElementById('stratBoardBody');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/strategy_board');
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const dot = {green: '🟢', red: '🔴', grey: '⚪'};
+        const txt = {green: 'в плюсе', red: 'в минусе', grey: 'мало данных'};
+        const rows = d.rows.map(x => `<tr><td>${dot[x.color]} ${x.name}</td><td>${x.metric} ${x.value > 0 ? '+' : ''}${x.value}</td><td>${x.n}</td><td>${txt[x.color]}</td></tr>`).join('');
+        box.innerHTML = `<div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Стратегия</th><th>Показатель</th><th>Ставок</th><th>Статус</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Нет данных</td></tr>'}</tbody></table></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">🟢 — показатель выше нуля при ${d.min_n}+ ставках, 🔴 — ниже нуля, ⚪ — рано судить. CLV: насколько кэф вашей ставки был лучше закрывающего. Автоставки идут на виртуальный банк.</div>`;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
