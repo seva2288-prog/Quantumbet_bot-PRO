@@ -806,6 +806,9 @@ def api_bot_health():
             'fixtures_today': len({r.get('fixture_id') for r in today_rows}),
             'leagues': len(_lm_league_ids()),
             'disk_ok': disk_ok, 'quota': quota,
+            'usage': sorted(((k, v) for k, v in (getattr(football_api, 'usage', None) or {}).items()),
+                            key=lambda kv: -kv[1])[:8],
+            'usage_total': sum((getattr(football_api, 'usage', None) or {}).values()),
         })
     except Exception as e:
         logger.exception(f"api_bot_health error: {e}")
