@@ -160,14 +160,21 @@ function openFromMore(page) {
     const indicator = document.createElement('div');
     indicator.id = 'pullToRefreshIndicator';
     indicator.className = 'ptr-icon';
-    indicator.innerHTML = '<svg class="ptr-arrow" viewBox="0 0 40 40" width="22" height="22" aria-hidden="true"><defs><linearGradient id="ptrG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fb3f0"/><stop offset="1" stop-color="#8fe3ff"/></linearGradient></defs><path d="M37 20 L5 35 L13 20 L5 5 Z" fill="url(#ptrG)" stroke="#bdeeff" stroke-width="1" stroke-linejoin="round"/></svg>';
+    indicator.innerHTML = '<svg class="ptr-ring" viewBox="0 0 60 60" aria-hidden="true"><circle class="ptr-ring-bg" cx="30" cy="30" r="27"/><circle class="ptr-ring-fg" cx="30" cy="30" r="27"/></svg>'
+        + '<span class="ptr-disc"><svg class="ptr-arrow" viewBox="0 0 40 40" width="20" height="20" aria-hidden="true"><defs><linearGradient id="ptrG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4fb3f0"/><stop offset="1" stop-color="#8fe3ff"/></linearGradient></defs><path d="M37 20 L5 35 L13 20 L5 5 Z" fill="url(#ptrG)" stroke="#bdeeff" stroke-width="1" stroke-linejoin="round"/></svg></span>';
     document.body.appendChild(indicator);
 
     const arrow = indicator.querySelector('.ptr-arrow');
-    // стрелка едет слева направо вслед за протяжкой: progress 0 -> у левого края, 1 -> у правого
+    const ringFg = indicator.querySelector('.ptr-ring-fg');
+    const RING_LEN = 2 * Math.PI * 27;
+    ringFg.style.strokeDasharray = RING_LEN;
+    // стрелка едет слева направо вслед за протяжкой, кольцо заполняется по кругу
     function setArrow(progress) {
-        const x = (progress - 0.5) * 66;
+        const x = (progress - 0.5) * 40;
         arrow.style.transform = `translateX(${x}px)`;
+        arrow.style.opacity = progress < 0.05 ? 0 : 1;
+        ringFg.style.strokeDashoffset = RING_LEN * (1 - progress);
+        indicator.style.setProperty('--ptr-p', progress);
     }
     setArrow(0);
 
@@ -246,9 +253,11 @@ function openFromMore(page) {
 
         if (distance >= PULL_THRESHOLD && !isRefreshing) {
             isRefreshing = true;
-            indicator.style.transform = 'translateX(-50%) translateY(-10px)';
+            indicator.style.transform = 'translateX(-50%) translateY(14px)';
             indicator.style.opacity = '1';
             arrow.style.transform = '';
+            arrow.style.opacity = '';
+            ringFg.style.strokeDashoffset = '';
             indicator.classList.add('ptr-loading');
             haptic(30);
 
