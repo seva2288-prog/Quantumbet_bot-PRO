@@ -149,7 +149,7 @@ def _to_f(x):
 
 def _parse_live_odds(resp):
     """Из ответа /odds/live: 1X2, тотал матча, обе забьют. Возвращает (odds, названия рынков)."""
-    out = {'1x2': {}, 'ou': {}, 'btts': {}}
+    out = {'1x2': {}, 'ou': {}, 'btts': {}, 'ou1h': {}}
     names = []
     for item in (resp or {}).get('response', []):
         books = item.get('odds')
@@ -161,9 +161,26 @@ def _parse_live_odds(resp):
             nm = str(b.get('name') or '').strip()
             low = nm.lower()
             names.append(nm)
+            vals = b.get('values') or []
+            if 'over/under' in low and ('1st half' in low or 'first half' in low) and '2nd' not in low and 'team' not in low:
+                for v in vals:
+                    txt = str(v.get('value') or '').strip().lower()
+                    line = v.get('handicap')
+                    side = 'over' if txt.startswith('over') else 'under' if txt.startswith('under') else None
+                    if side and line in (None, ''):
+                        try:
+                            line = txt.split()[-1]
+                        except Exception:
+                            line = None
+                    o = _to_f(v.get('odd'))
+                    if side and line not in (None, '') and o and not v.get('suspended'):
+                        try:
+                            out['ou1h'].setdefault('%.1f' % float(line), {})[side] = o
+                        except Exception:
+                            pass
+                continue
             if any(w in low for w in _BAD_WORDS):
                 continue
-            vals = b.get('values') or []
             if low in ('fulltime result', 'match winner', '1x2', 'full time result'):
                 for v in vals:
                     key = {'home': '1', 'draw': 'X', 'away': '2'}.get(str(v.get('value')).strip().lower())
