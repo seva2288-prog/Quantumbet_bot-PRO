@@ -86,3 +86,16 @@
 .bm-row.best{font-weight:800;color:var(--emerald-400);}
 .bm-row i{font-style:normal;font-size:10px;}
 .dm-calc-row select{width:100%;padding:9px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text-primary,inherit);font-size:14px;}
+
+/* ===== Индикатор обновления: иконка приложения, стрелка едет слева направо ===== */
+.ptr-icon{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%) translateY(-170%);width:64px;height:64px;border-radius:15px;
+  background:#030a22 url('../ptr-icon.png') center/cover no-repeat;overflow:hidden;z-index:9998;opacity:0;pointer-events:none;
+  box-shadow:0 6px 24px rgba(59,130,246,.4),inset 0 0 0 1px rgba(150,190,255,.18);transition:transform .2s ease,opacity .2s ease;}
+.ptr-icon .ptr-arrow{position:absolute;left:21px;top:21px;filter:drop-shadow(0 0 5px rgba(90,190,255,.9));transition:transform .08s linear;}
+.ptr-icon.ptr-loading .ptr-arrow{transition:none;animation:ptrSlide .95s cubic-bezier(.45,.05,.4,1) infinite;}
+@keyframes ptrSlide{0%{transform:translateX(-46px);opacity:0;}18%{opacity:1;}82%{opacity:1;}100%{transform:translateX(46px);opacity:0;}}
+/* листание вкладок свайпом */
+.slide-in-right{animation:slideInR .32s cubic-bezier(.4,0,.2,1);}
+.slide-in-left{animation:slideInL .32s cubic-bezier(.4,0,.2,1);}
+@keyframes slideInR{from{opacity:0;transform:translateX(36px);}to{opacity:1;transform:translateX(0);}}
+@keyframes slideInL{from{opacity:0;transform:translateX(-36px);}to{opacity:1;transform:translateX(0);}}
