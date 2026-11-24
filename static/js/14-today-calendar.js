@@ -279,6 +279,10 @@ async function loadHtLive() {
         } else {
             h += '<div style="font-size:12px;color:var(--text-tertiary);">Данных пока нет: бот начнёт собирать кэфы с ближайшего матча в перерыве (обычно после 13:00 по Москве).</div>';
         }
+        if (d.fav && d.fav.length) {
+            h += '<div style="font-size:12px;margin:12px 0 6px;"><b>Если ведёт на 1 гол: кто проигрывает?</b></div><div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Случай</th><th>Матчей</th><th>Ничья</th><th>Отыгр. и выигр.</th><th>Гол отст.</th><th>Тотал&gt;1.5</th></tr></thead><tbody>' +
+                d.fav.map(x => `<tr><td>${x.case}</td><td>${x.n}</td><td>${x.draw}%</td><td>${x.comeback}%</td><td>${x.tscores}%</td><td>${x.over15}%</td></tr>`).join('') + '</tbody></table></div>';
+        }
         if (d.markets_seen && d.markets_seen.length) h += `<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;">Рынки у API: ${d.markets_seen.join(', ')}</div>`;
         box.innerHTML = h;
     } catch (e) {
