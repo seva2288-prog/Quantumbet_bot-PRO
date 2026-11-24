@@ -114,6 +114,7 @@ async function loadBotHealth() {
                 <div><b>${q}</b><span>лимит API</span></div>
             </div>
             ${(h.warnings || []).map(w => `<div class="health-warn">⚠️ ${escapeHtml(w)}</div>`).join('')}
+            ${(h.usage && h.usage.length) ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Запросов к API с 00:00 UTC (после перезапуска сервера): <b>${h.usage_total}</b><br>${h.usage.map(u => escapeHtml(u[0]) + ': ' + u[1]).join('<br>')}</div>` : ''}
         </div>`;
     } catch (e) {}
 }
