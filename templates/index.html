@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=11">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=11">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=11">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=11">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=11">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=11">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=13">
 </head>
 <body>
 
@@ -541,6 +541,14 @@
                 Бот сам сохраняет live-кэфы на матчи ваших лиг, когда идёт перерыв, и дописывает итог. «Перев.» выше нуля значит, что исход выигрывал чаще, чем в кэфе. Выводы можно делать от 30 матчей в строке.
             </div>
             <div id="htLiveBody"></div>
+        </div>
+
+        <div class="card" id="lateGoalCard">
+            <div class="card-header"><h2>⚽ Гол после 40-й минуты</h2></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Бот следит за 1-м таймом матчей ваших лиг, фиксирует кэф на 40-й минуте (и как он менялся до неё), счёт и удары, потом проверяет, был ли гол после 40-й. По кэфам ищем закономерность. Выводы можно делать от 30 матчей в строке.
+            </div>
+            <div id="lateGoalBody"></div>
         </div>
 
         <div class="card" id="backtestCard">
@@ -1981,19 +1989,19 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=11"></script>
-<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=11"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=13"></script>
 </body>
 </html>   
