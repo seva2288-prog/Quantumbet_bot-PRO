@@ -352,7 +352,7 @@ async function loadLateGoal() {
         if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
         const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
         const tbl = (title, head, rows) => rows.length ? `<div style="font-size:12px;margin:12px 0 6px;"><b>${title}</b></div><div class="dm-tablewrap"><table class="dm-table"><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '';
-        const grp = (arr) => arr.map(x => `<tr><td>${x.key}</td><td>${x.n}</td><td>${x.late}%</td><td>${x.late41}%</td></tr>`);
+        const grp = (arr, withTeams) => arr.map(x => `<tr><td>${escapeHtml(String(x.key))}${withTeams && x.late_matches && x.late_matches.length ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.4;">⚽ ' + x.late_matches.map(escapeHtml).join('<br>⚽ ') + '</div>' : ''}</td><td>${x.n}</td><td>${x.late}%</td><td>${x.late41}%</td></tr>`);
         let h = `<div style="font-size:13px;margin-bottom:6px;">Матчей отслеживается: <b>${d.tracked}</b>, 1-й тайм завершён: <b>${d.finished_1h}</b>, с данными около 40-й минуты: <b>${d.with_cp40}</b>.</div>`;
         if (!d.with_cp40) {
             h += '<div style="font-size:12px;color:var(--text-tertiary);">Данных пока нет: бот начнёт собирать с ближайшего матча (окно сбора 13:00–01:00 по Москве).</div>';
@@ -363,7 +363,7 @@ async function loadLateGoal() {
         h += tbl('По счёту на 40-й минуте', head3, grp(d.by_score));
         h += tbl('По ударам в створ (обе команды)', head3, grp(d.by_sot));
         h += tbl('Кто проигрывает / ведёт', head3, grp(d.by_fav));
-        h += tbl('По лигам', head3, grp(d.by_league));
+        h += tbl('По лигам', head3, grp(d.by_league, true));
         const oddsTbl = (title, arr, note) => arr && arr.length ? `<div style="font-size:12px;margin:12px 0 6px;"><b>${title}</b>${note || ''}</div><div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Кэф</th><th>Ст.</th><th>Ср.кэф</th><th>Гол был</th><th>В кэфе</th><th>ROI</th></tr></thead><tbody>` +
             arr.map(x => `<tr><td>${x.bucket}</td><td>${x.n}</td><td>${x.avg_odds}</td><td>${x.hit}%</td><td>${x.implied}%</td><td style="color:${col(x.roi)};">${x.roi > 0 ? '+' : ''}${x.roi}%</td></tr>`).join('') + '</tbody></table></div>' : '';
         if (d.odds_all) {
