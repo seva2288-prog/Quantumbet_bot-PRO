@@ -219,6 +219,15 @@ def api_strategy_board():
             roi = round(100.0 * sum((s['odds'] - 1) if s['result'] == 'win' else -1 for s in done) / n, 1) if n else 0
             rows.append({'name': 'Перерыв (тест)', 'metric': 'ROI %', 'value': roi, 'n': n,
                          'color': 'grey' if n < min_n else ('green' if roi > 0 else 'red')})
+        try:
+            from botcore.ht_zero import _z_load
+            zd = [r for r in _z_load().values() if r.get('signal') and r.get('result') in ('zero', 'goal')]
+            n = len(zd)
+            roi = round(100.0 * sum((r['signal']['odds'] - 1) if r['result'] == 'zero' else -1 for r in zd) / n, 1) if n else 0
+            rows.append({'name': 'ТМ 0.5 1Т (тест)', 'metric': 'ROI %', 'value': roi, 'n': n,
+                         'color': 'grey' if n < min_n else ('green' if roi > 0 else 'red')})
+        except Exception as e:
+            logger.warning(f"strategy_board ht_zero: {e}")
         order = {'green': 0, 'grey': 1, 'red': 2}
         rows.sort(key=lambda r: (order[r['color']], -r['n']))
         return jsonify({'status': 'ok', 'min_n': min_n, 'rows': rows})
