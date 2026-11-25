@@ -37,16 +37,24 @@
 <!-- ============================================================
      LOADING SCREEN
      ============================================================ -->
-<div id="loadingScreen">
-    <div class="loading-bg-1"></div>
-    <div class="loading-bg-2"></div>
+<div id="loadingScreen" style="background:#0E1117;">
     <div id="loadingStars" class="loading-stars"></div>
-    <div class="loading-logo">
-        <div class="loading-logo-main">QUANTUM</div>
-        <div class="loading-logo-sub">Tracker</div>
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading</div>
-    </div>
+    <svg viewBox="0 0 380 660" role="img" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:420px;height:auto;display:block;">
+        <title>Quantum Tracker, загрузка</title>
+        <desc>Тёмный экран с красной кривой-пульсом, белым мячом в центре, надписью QUANTUM и индикатором загрузки.</desc>
+        <polyline pathLength="100" points="20,330 110,330 130,300 150,360 170,250 190,330 215,330 230,310 245,340 260,330 360,330" fill="none" stroke="#E4262E" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="100">
+            <animate attributeName="stroke-dashoffset" values="100;0;0;-100" keyTimes="0;0.45;0.8;1" dur="2.4s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="1;0.55;1" dur="1.2s" repeatCount="indefinite"/>
+        </polyline>
+        <g transform="translate(190 330)">
+            <circle cx="0" cy="0" r="34" fill="#FFFFFF"><animate attributeName="r" values="34;38;34" dur="1.2s" repeatCount="indefinite"/></circle>
+            <polygon points="0,-16 13,-6 8,9 -8,9 -13,-6" fill="#0E1117"/>
+        </g>
+        <text x="190" y="440" text-anchor="middle" font-family="sans-serif" font-size="44" font-weight="700" letter-spacing="4" fill="#FFFFFF">QUANTUM</text>
+        <text x="190" y="470" text-anchor="middle" font-family="sans-serif" font-size="13" letter-spacing="3" fill="#9AA0AE">Tracker</text>
+        <rect x="120" y="600" width="140" height="3" rx="1.5" fill="#1C2230"/>
+        <rect x="120" y="600" width="60" height="3" rx="1.5" fill="#E4262E"/>
+    </svg>
 </div>
 
 <!-- ============================================================
