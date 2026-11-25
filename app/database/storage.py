@@ -370,7 +370,13 @@ class Storage:
             logger.error(f"❌ get_odds_history_batch: {e}")
             return {}
 
-    def get_latest_odds_before(self, fixture_id, market, selection, before_iso):
+    def get_latest_odds_before(self, fixture_id, market, selection, before_iso, window_min=60):
+        """Последний снимок в окне [before_iso - window_min, before_iso].
+
+        before_iso — UTC, формат 'YYYY-MM-DD HH:MM:SS' или ISO с 'T'.
+        datetime() приводит обе строки к одному виду, поэтому сравнение корректно.
+        Снимки старше окна не берём: закрывающим кэфом может быть только свежий.
+        """
         try:
             conn = sqlite3.connect(self._odds_db_path, timeout=10)
             cur = conn.cursor()
@@ -378,9 +384,11 @@ class Storage:
                 SELECT odds, bookmaker, created_at
                 FROM snapshots
                 WHERE fixture_id = ? AND market = ? AND selection = ?
-                  AND created_at <= ?
-                ORDER BY id DESC LIMIT 1
-            """, (int(fixture_id), str(market), str(selection), str(before_iso)))
+                  AND datetime(created_at) <= datetime(?)
+                  AND datetime(created_at) >= datetime(?, ?)
+                ORDER BY datetime(created_at) DESC, id DESC LIMIT 1
+            """, (int(fixture_id), str(market), str(selection),
+                  str(before_iso), str(before_iso), f'-{int(window_min)} minutes'))
             row = cur.fetchone()
             conn.close()
             if not row:
