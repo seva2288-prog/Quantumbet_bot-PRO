@@ -64,6 +64,7 @@ from botcore.ops import *  # noqa: F401,F403
 from botcore.ht_stats import *  # noqa: F401,F403
 from botcore.ht_strategy import *  # noqa: F401,F403
 from botcore.ht_timeline import *  # noqa: F401,F403
+from botcore.ht_zero import *  # noqa: F401,F403
 
 
 if __name__ == "__main__":
@@ -187,6 +188,13 @@ if __name__ == "__main__":
         trigger='interval', minutes=3,
         id='ht_timeline', replace_existing=True, max_instances=1,
         misfire_grace_time=120, coalesce=True
+    )
+    # ★ «ТМ 0.5 в 1-м тайме»: вероятность 0-0 к перерыву по истории команд + предматчевые кэфы
+    odds_scheduler.add_job(
+        func=safe_job(ht_zero_job, "ht_zero"),
+        trigger='interval', minutes=20,
+        id='ht_zero', replace_existing=True, max_instances=1,
+        misfire_grace_time=300, coalesce=True
     )
     # ★ АВТО-ОБНОВЛЕНИЕ СПИСКА МАТЧЕЙ (чтобы бот работал 24/7)
     odds_scheduler.add_job(
