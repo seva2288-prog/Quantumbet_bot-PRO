@@ -25,12 +25,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=18">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=18">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=18">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=18">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=18">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=18">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}?v=19">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cards.css') }}?v=19">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nav-modals.css') }}?v=19">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages.css') }}?v=19">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/glass.css') }}?v=19">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/features.css') }}?v=19">
 </head>
 <body>
 
@@ -728,6 +728,13 @@
                 <div class="stat-card"><div class="value gold" id="htsRoi">0%</div><div class="label">ROI</div></div>
             </div>
             <div id="htsBySel" style="margin-top:10px;"></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>🛡 ТМ 0.5 в 1-м тайме</h2></div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:10px;">
+                Тестовый режим. Бот считает шанс 0-0 к перерыву по последним матчам обеих команд, получает честный кэф и сравнивает с кэфом букмекеров на «1-й тайм, тотал меньше 0.5». ✅ — кэф выгоднее честного, ❌ — ловушка.
+            </div>
+            <div id="htzBody"><div class="skeleton" style="width:80%"></div></div>
         </div>
         <div class="card">
             <div class="card-header"><h2>📋 Сигналы</h2></div>
@@ -1989,19 +1996,19 @@
 <!-- ============================================================ -->
 <!-- ЧАСТЬ 3/3 — JAVASCRIPT (v23.0 — все 13 фиксов)                -->
 <!-- ============================================================ -->
-<script src="{{ url_for('static', filename='js/01-core.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=18"></script>
-<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=18"></script>
+<script src="{{ url_for('static', filename='js/01-core.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/02-navigation.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/03-data-live.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/04-dashboard.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/05-cards.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/06-matches.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/07-snapshots.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/08-analytics.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/09-x2.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/10-autobets-simulator.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/11-lab.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/12-settings-pwa.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/13-anomalies-init.js') }}?v=19"></script>
+<script src="{{ url_for('static', filename='js/14-today-calendar.js') }}?v=19"></script>
 </body>
 </html>   
