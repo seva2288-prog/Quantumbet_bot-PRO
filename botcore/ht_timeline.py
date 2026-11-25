@@ -151,8 +151,11 @@ def api_late_goal():
                 k = keyf(r, cp)
                 if k is None:
                     continue
-                b = g.setdefault(k, [0, 0, 0]); b[0] += 1; b[1] += 1 if late else 0; b[2] += 1 if l41 else 0
-            return [{'key': k, 'n': v[0], 'late': _pc(v[1], v[0]), 'late41': _pc(v[2], v[0])}
+                b = g.setdefault(k, [0, 0, 0, []]); b[0] += 1; b[1] += 1 if late else 0; b[2] += 1 if l41 else 0
+                if late:
+                    mins = [x for x in r['g1h'] if x > max(cp['min'], 40)]
+                    b[3].append('%s – %s (гол %s′)' % (r.get('home'), r.get('away'), ', '.join(str(x) for x in mins)))
+            return [{'key': k, 'n': v[0], 'late': _pc(v[1], v[0]), 'late41': _pc(v[2], v[0]), 'late_matches': v[3]}
                     for k, v in sorted(g.items(), key=lambda kv: -kv[1][0])]
 
         out['by_score'] = group(lambda r, cp: '%d-%d' % tuple(cp['score']))
