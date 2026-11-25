@@ -317,9 +317,12 @@ class AutoBetManager:
                 before_iso = None
                 if match_time_str and match_time_str != '?':
                     try:
-                        match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M")
-                        match_dt = match_dt - timedelta(minutes=10)
-                        before_iso = match_dt.isoformat()
+                        # match_time — МСК (UTC+3, без летнего времени с 2014).
+                        # created_at в БД — UTC, поэтому cutoff переводим в UTC.
+                        msk = timezone(timedelta(hours=3))
+                        match_dt = datetime.strptime(match_time_str, "%d.%m.%Y %H:%M").replace(tzinfo=msk)
+                        before_utc = (match_dt - timedelta(minutes=10)).astimezone(timezone.utc)
+                        before_iso = before_utc.strftime('%Y-%m-%d %H:%M:%S')
                     except Exception:
                         pass
                 if not before_iso:
