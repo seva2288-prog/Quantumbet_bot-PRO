@@ -294,6 +294,7 @@ async function loadHtLive() {
 async function loadHtPage() {
     const list = document.getElementById('htsList');
     if (!list) return;
+    loadHtZero();
     try {
         const r = await fetch(API_BASE + '/api/ht_signals');
         const d = await r.json();
@@ -321,6 +322,39 @@ async function loadHtPage() {
         }).join('');
     } catch (e) {
         list.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
+    }
+}
+
+// ===== ТМ 0.5 в 1-м тайме =====
+async function loadHtZero() {
+    const box = document.getElementById('htzBody');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + '/api/ht_zero');
+        const d = await r.json();
+        if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
+        const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
+        const s = d.signals;
+        let h = `<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="stat-card"><div class="value">${s.done}/${s.total}</div><div class="label">Сигналов (рассчитано)</div></div>
+            <div class="stat-card"><div class="value green">${s.wins}</div><div class="label">WIN</div></div>
+            <div class="stat-card"><div class="value red">${s.losses}</div><div class="label">LOSS</div></div>
+            <div class="stat-card"><div class="value gold">${s.roi > 0 ? '+' : ''}${s.roi}%</div><div class="label">ROI</div></div></div>`;
+        if (d.calib) h += `<div style="font-size:12px;margin:8px 0;">Проверка прогноза по ${d.calib.n} матчам: ждали 0-0 в <b>${d.calib.pred}%</b>, было в <b>${d.calib.real}%</b>.${s.clv !== null ? ' CLV сигналов: ' + (s.clv > 0 ? '+' : '') + s.clv + '%.' : ''}</div>`;
+        if (!d.history_ready) h += '<div style="font-size:12px;color:var(--text-tertiary);margin:8px 0;">История команд ещё загружается (до ~20 минут после запуска). Матчи появятся ниже.</div>';
+        const icon = {value: '✅', trap: '❌', fair: '➖', few: '❔', no_odds: '⏳'};
+        const rows = d.upcoming.map(x => {
+            const res = x.result === 'zero' ? ' 🟰0-0' : x.result === 'goal' ? ' ⚽' + escapeHtml(x.ht || '') : '';
+            return `<tr><td>${escapeHtml(x.home)} – ${escapeHtml(x.away)}<div style="font-size:10px;color:var(--text-tertiary);">${escapeHtml(x.league)} • ${x.time}</div></td>
+            <td>${x.p}%</td><td>${x.fair || '—'}</td><td>${x.odds || '—'}</td>
+            <td style="color:${col(x.ev)};">${icon[x.flag] || ''} ${x.ev === null ? '' : (x.ev > 0 ? '+' : '') + x.ev + '%'}${res}</td></tr>`;
+        });
+        h += rows.length ? `<div class="dm-tablewrap"><table class="dm-table"><thead><tr><th>Матч</th><th>0-0 в 1Т</th><th>Честный</th><th>Кэф</th><th>Перевес</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+            <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;">❔ — у команды мало матчей в истории, ⏳ — кэф ещё не получен. Кэф — медиана по букмекерам. Выводы можно делать после 30+ сигналов.</div>`
+            : '<div style="font-size:12px;color:var(--text-tertiary);">Ближайших матчей ваших лиг нет.</div>';
+        box.innerHTML = h;
+    } catch (e) {
+        box.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">Нет данных (обновите сервер)</div>';
     }
 }
 
@@ -352,7 +386,7 @@ async function loadLateGoal() {
         if (!r.ok || d.status !== 'ok') throw new Error(d.error || r.status);
         const col = v => v > 0 ? 'var(--emerald-400)' : v < 0 ? 'var(--red-400)' : '';
         const tbl = (title, head, rows) => rows.length ? `<div style="font-size:12px;margin:12px 0 6px;"><b>${title}</b></div><div class="dm-tablewrap"><table class="dm-table"><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '';
-        const grp = (arr, withTeams) => arr.map(x => `<tr><td>${escapeHtml(String(x.key))}${withTeams && x.late_matches && x.late_matches.length ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.4;">⚽ ' + x.late_matches.map(escapeHtml).join('<br>⚽ ') + '</div>' : ''}</td><td>${x.n}</td><td>${x.late}%</td><td>${x.late41}%</td></tr>`);
+        const grp = (arr, withTeams) => arr.map(x => `<tr><td>${escapeHtml(String(x.key))}${withTeams && x.late_matches && x.late_matches.length ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">' + x.late_matches.map(escapeHtml).join('<br>') + '</div>' : ''}</td><td>${x.n}</td><td>${x.late}%</td><td>${x.late41}%</td></tr>`);
         let h = `<div style="font-size:13px;margin-bottom:6px;">Матчей отслеживается: <b>${d.tracked}</b>, 1-й тайм завершён: <b>${d.finished_1h}</b>, с данными около 40-й минуты: <b>${d.with_cp40}</b>.</div>`;
         if (!d.with_cp40) {
             h += '<div style="font-size:12px;color:var(--text-tertiary);">Данных пока нет: бот начнёт собирать с ближайшего матча (окно сбора 13:00–01:00 по Москве).</div>';
