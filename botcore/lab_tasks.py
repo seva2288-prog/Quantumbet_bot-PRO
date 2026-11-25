@@ -103,6 +103,38 @@ def _anomaly_calc_result(rec, hg, ag):
     return None
 
 
+# ★ Троттлинг проверок аномалий: раньше каждые 15 мин заново запрашивались ВСЕ незакрытые матчи (до 8000 запросов в сутки)
+_ANOM_STATE_FILE = os.path.join(DATA_DIR, 'anomaly_check_state.json')
+_ANOM_MAX_PER_RUN = 40
+
+
+def _anom_state_load():
+    try:
+        with open(_ANOM_STATE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _anom_state_save(st):
+    try:
+        with open(_ANOM_STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(st, f)
+    except Exception:
+        pass
+
+
+def _anom_due(st, fid, now):
+    """Пора ли проверять матч: свежие — раз в 2 часа, старше 3 суток — раз в сутки, старше 10 — раз в неделю."""
+    e = st.get(str(fid))
+    if not e:
+        return True
+    first, last = e
+    age = now - first
+    gap = 7200 if age < 3 * 86400 else 86400 if age < 10 * 86400 else 7 * 86400
+    return now - last >= gap
+
+
 def update_anomaly_results():
     """
     Проверяет и обновляет результаты пропущенных аномалий.
@@ -120,6 +152,10 @@ def update_anomaly_results():
         finals = {}
         checked = set()
         api_errors = 0
+        import time as _time
+        _now = _time.time()
+        _st = _anom_state_load()
+        _calls = 0
         for line in lines:
             try:
                 rec = json.loads(line.strip())
@@ -131,6 +167,13 @@ def update_anomaly_results():
             if not fid or fid in checked:
                 continue
             checked.add(fid)
+            if not _anom_due(_st, fid, _now):
+                continue
+            if _calls >= _ANOM_MAX_PER_RUN:
+                break
+            _calls += 1
+            _e = _st.get(str(fid))
+            _st[str(fid)] = [(_e[0] if _e else _now), _now]
             md = football_api.get_match_result(fid)
             if not md:
                 api_errors += 1
@@ -147,6 +190,10 @@ def update_anomaly_results():
             if hg is None or ag is None:
                 continue
             finals[fid] = (hg, ag)
+
+        for _f in finals:
+            _st.pop(str(_f), None)
+        _anom_state_save(_st)
 
         updated = 0
         if finals:
