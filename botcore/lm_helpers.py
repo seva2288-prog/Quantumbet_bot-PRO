@@ -196,7 +196,7 @@ def _persist_lm_picks(picks):
                      for h in history}
     today_str = now_msk.strftime('%Y-%m-%d')
     added = 0
-        new_picks = []
+    new_picks = []
     for md in picks:
         bb = md.get('best_bet', {}) or {}
         fid = md.get('fixture_id')
@@ -223,7 +223,7 @@ def _persist_lm_picks(picks):
     if added:
         storage.save_history(history)
         logger.info(f"📝 LM: добавлено в историю {added}")
-            # Telegram-сигнал для ручной ставки (только новые, без повторов)
+    # Telegram-сигнал для ручной ставки (только новые, без повторов)
     if getattr(Config, 'LM_TELEGRAM_SIGNALS', True):
         import html as _html
         for md in new_picks:
@@ -333,7 +333,7 @@ def lm_take_snapshots():
                                                       league_id=lid, match_time=mt_msk):
                             saved += 1
                 for sel, key in (('1X', '1x_odds'), ('X2', 'x2_odds')):
-                    if sel in bet_types and fo.get(key, 0) > 1.01:
+                    if (sel in bet_types or sel in ('1X', 'X2')) and fo.get(key, 0) > 1.01:
                         if storage.save_odds_snapshot(fid, 'DC', sel, fo[key], 'LM-Job', home, away, league,
                                                       league_id=lid, match_time=mt_msk):
                             saved += 1
