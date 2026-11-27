@@ -196,6 +196,7 @@ def _persist_lm_picks(picks):
                      for h in history}
     today_str = now_msk.strftime('%Y-%m-%d')
     added = 0
+        new_picks = []
     for md in picks:
         bb = md.get('best_bet', {}) or {}
         fid = md.get('fixture_id')
@@ -218,9 +219,26 @@ def _persist_lm_picks(picks):
             'steam_move': True, 'clv_adjusted': True, 'score': 0,
         })
         added += 1
+        new_picks.append(md)
     if added:
         storage.save_history(history)
         logger.info(f"📝 LM: добавлено в историю {added}")
+            # Telegram-сигнал для ручной ставки (только новые, без повторов)
+    if getattr(Config, 'LM_TELEGRAM_SIGNALS', True):
+        import html as _html
+        for md in new_picks:
+            try:
+                bb = md.get('best_bet', {}) or {}
+                txt = (f"📈 <b>СИГНАЛ Line Movement</b>\n\n"
+                       f"🏟️ {_html.escape(str(md.get('home', '')))} vs {_html.escape(str(md.get('away', '')))}\n"
+                       f"🏆 {_html.escape(str(md.get('league', '')))}\n"
+                       f"🎯 {_html.escape(str(bb.get('label', '—')))} @ {bb.get('odds', '—')}\n"
+                       f"📈 EV: {bb.get('ev', 0)}% | Prob: {bb.get('prob', 0)}%\n"
+                       f"🏦 {_html.escape(str(bb.get('bookmaker', '—')))}\n"
+                       f"🕒 Начало: {md.get('match_time', '—')} (МСК)")
+                send_telegram(txt)
+            except Exception as e:
+                logger.error(f"LM telegram signal: {e}")
     try:
         placed = autobet_manager.place_bets_from_cache()
         if placed:
