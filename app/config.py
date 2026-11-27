@@ -209,6 +209,7 @@ class Config:
     LINE_MOVEMENT_TRADE_RISES = False
 
     LINE_MOVEMENT_BET_TYPES = ['2']
+    LM_TELEGRAM_SIGNALS = True          # Telegram-сигнал на каждую новую ставку Line Movement
 
     LINE_MOVEMENT_MAX_BETS = 3
     LINE_MOVEMENT_MAX_LEAGUE_BETS = 1
