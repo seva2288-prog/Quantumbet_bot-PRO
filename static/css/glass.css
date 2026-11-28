@@ -8,24 +8,24 @@
            Чтобы вернуть старый дизайн — удалить весь этот блок целиком (до закрывающего тега style).
            ============================================================ */
         :root {
-            --bg-primary: #05080c;
+            --bg-primary: #020406;
             --bg-secondary: rgba(30, 34, 42, 0.78);
             --bg-card: rgba(255, 255, 255, 0.07);
             --bg-card-hover: rgba(255, 255, 255, 0.11);
             --bg-input: rgba(255, 255, 255, 0.08);
             --emerald-50: #eafff1;
             --emerald-100: #c9f7d8;
-            --emerald-400: #5be584;
-            --emerald-500: #30d158;
-            --emerald-600: #22b04a;
-            --emerald-700: #178a39;
+            --emerald-400: #3ee07a;
+            --emerald-500: #12b84a;
+            --emerald-600: #0a9440;
+            --emerald-700: #066b2c;
             --gold-400: #ffd60a;
-            --gold-500: #ff9f0a;
+            --gold-500: #f08c00;
             --red-400: #ff6961;
-            --red-500: #ff453a;
+            --red-500: #e8232f;
             --blue-400: #5ac8fa;
-            --blue-500: #0a84ff;
-            --purple-400: #bf5af2;
+            --blue-500: #0060ff;
+            --purple-400: #a24dff;
             --text-primary: #f5f7fb;
             --text-secondary: rgba(235, 240, 250, 0.70);
             --text-tertiary: rgba(235, 240, 250, 0.48);
@@ -35,7 +35,7 @@
             --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
             --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.32);
             --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
-            --shadow-emerald: 0 8px 30px rgba(48, 209, 88, 0.18);
+            --shadow-emerald: 0 8px 30px rgba(18, 184, 74, 0.18);
             --radius-sm: 12px;
             --radius-md: 20px;
             --radius-lg: 28px;
@@ -44,7 +44,7 @@
             --glass-edge: rgba(255, 255, 255, 0.14);
             --glass-hi: rgba(255, 255, 255, 0.20);
             --glass-blur: blur(28px) saturate(190%);
-            --accent-grad: linear-gradient(180deg, #46e26f 0%, #22b04a 100%);
+            --accent-grad: linear-gradient(180deg, #2fd66b 0%, #0a9440 100%);
             --transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
         }
 
@@ -84,13 +84,13 @@
             background: var(--bg-primary);
         }
         body { padding-bottom: 130px; }
-        ::selection { background: rgba(48, 209, 88, 0.35); }
+        ::selection { background: rgba(18, 184, 74, 0.35); }
 
         /* ---------- фон: мягкая «аврора» вместо звёзд ---------- */
         .star, .loading-star { display: none !important; }
         .milky-way-1 {
             top: -15%; left: -25%; width: 90%; height: 60%;
-            background: radial-gradient(circle at 50% 50%, rgba(48, 209, 88, 0.42) 0%, rgba(48, 209, 88, 0.12) 45%, transparent 70%);
+            background: radial-gradient(circle at 50% 50%, rgba(18, 184, 74, 0.42) 0%, rgba(18, 184, 74, 0.12) 45%, transparent 70%);
             filter: blur(60px); transform: none; opacity: 0.9;
         }
         .milky-way-2 {
@@ -103,7 +103,7 @@
             background: radial-gradient(circle at 50% 50%, rgba(191, 90, 242, 0.26) 0%, transparent 68%);
             filter: blur(70px);
         }
-        [data-theme="light"] .milky-way-1 { background: radial-gradient(circle at 50% 50%, rgba(48, 209, 88, 0.34) 0%, transparent 68%); }
+        [data-theme="light"] .milky-way-1 { background: radial-gradient(circle at 50% 50%, rgba(18, 184, 74, 0.34) 0%, transparent 68%); }
         [data-theme="light"] .milky-way-2 { background: radial-gradient(circle at 50% 50%, rgba(10, 132, 255, 0.26) 0%, transparent 68%); }
         [data-theme="light"] .stars-container::after { background: radial-gradient(circle at 50% 50%, rgba(255, 159, 10, 0.22) 0%, transparent 68%); }
 
@@ -120,8 +120,8 @@
             border-color: var(--border-hover); transform: none; box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-lg);
         }
         .card.emerald {
-            background: linear-gradient(155deg, rgba(48, 209, 88, 0.20), var(--glass-b));
-            border-color: rgba(48, 209, 88, 0.32);
+            background: linear-gradient(155deg, rgba(18, 184, 74, 0.20), var(--glass-b));
+            border-color: rgba(18, 184, 74, 0.32);
         }
         .stat-card::before { display: none; }
 
@@ -138,7 +138,7 @@
         .header-subtitle { font-size: 11px; letter-spacing: 0.2px; }
         .status-pill {
             padding: 6px 12px; font-size: 12px; border-radius: 999px;
-            background: rgba(48, 209, 88, 0.16); border: 1px solid rgba(48, 209, 88, 0.32);
+            background: rgba(18, 184, 74, 0.16); border: 1px solid rgba(18, 184, 74, 0.32);
             color: var(--emerald-400);
         }
         .status-dot { box-shadow: 0 0 10px var(--emerald-500); background: var(--emerald-500); }
@@ -161,7 +161,7 @@
         .action-btn .action-desc { font-size: 11px; }
         .action-btn.primary {
             background: var(--accent-grad); border: 1px solid rgba(255, 255, 255, 0.28); color: #fff;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 28px rgba(48, 209, 88, 0.32);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 28px rgba(18, 184, 74, 0.32);
         }
         .btn {
             min-height: 38px; padding: 9px 16px; border-radius: 999px; font-size: 13px;
@@ -173,7 +173,7 @@
         .btn:active { transform: scale(0.96); }
         .btn-primary, .btn-success {
             background: var(--accent-grad); border: 1px solid rgba(255, 255, 255, 0.26); color: #fff;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 18px rgba(48, 209, 88, 0.28);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 18px rgba(18, 184, 74, 0.28);
         }
         .btn-danger {
             background: linear-gradient(180deg, #ff6b61, #e0352b); border: 1px solid rgba(255, 255, 255, 0.24); color: #fff;
@@ -188,8 +188,8 @@
         /* ---------- карточки матчей / live / снимки ---------- */
         .bet-card, .live-card, .snapshot-card { padding: 16px; border-radius: 22px; margin-bottom: 12px; }
         .bet-card.active {
-            background: linear-gradient(155deg, rgba(48, 209, 88, 0.16), var(--glass-b));
-            border-color: rgba(48, 209, 88, 0.34);
+            background: linear-gradient(155deg, rgba(18, 184, 74, 0.16), var(--glass-b));
+            border-color: rgba(18, 184, 74, 0.34);
         }
         .bet-card.active::before { top: 16px; bottom: 16px; height: auto; width: 3px; border-radius: 0 4px 4px 0; background: var(--emerald-500); box-shadow: 0 0 12px var(--emerald-500); }
         .bet-match { font-size: 15px; letter-spacing: -0.2px; }
@@ -201,7 +201,7 @@
             font-size: 10px; padding: 4px 11px; border-radius: 999px; letter-spacing: 0.4px;
             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
         }
-        .badge.win { background: rgba(48, 209, 88, 0.20); border-color: rgba(48, 209, 88, 0.38); }
+        .badge.win { background: rgba(18, 184, 74, 0.20); border-color: rgba(18, 184, 74, 0.38); }
         .badge.loss { background: rgba(255, 69, 58, 0.18); border-color: rgba(255, 69, 58, 0.36); }
         .badge.push { background: rgba(255, 159, 10, 0.18); border-color: rgba(255, 159, 10, 0.36); }
 
@@ -256,7 +256,7 @@
             background: var(--bg-input); border: 1px solid var(--border-color);
         }
         .modal-field input:focus, .modal-field select:focus, .search-bar input:focus {
-            border-color: rgba(48, 209, 88, 0.55); box-shadow: 0 0 0 4px rgba(48, 209, 88, 0.14);
+            border-color: rgba(18, 184, 74, 0.55); box-shadow: 0 0 0 4px rgba(18, 184, 74, 0.14);
         }
         .input-group input { border-radius: 12px; }
 
@@ -268,9 +268,9 @@
             color: var(--text-secondary);
         }
         .filter-btn.active {
-            background: linear-gradient(180deg, rgba(48, 209, 88, 0.34), rgba(48, 209, 88, 0.16));
-            border-color: rgba(48, 209, 88, 0.55); color: var(--text-primary);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(48, 209, 88, 0.2);
+            background: linear-gradient(180deg, rgba(18, 184, 74, 0.34), rgba(18, 184, 74, 0.16));
+            border-color: rgba(18, 184, 74, 0.55); color: var(--text-primary);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(18, 184, 74, 0.2);
         }
         .setting-group { border-radius: 22px; padding: 16px; }
         .setting-item .label { font-size: 14px; }
@@ -285,7 +285,7 @@
 
         /* ---------- экран загрузки ---------- */
         #loadingScreen { background: var(--bg-primary); }
-        .loading-bg-1 { background: radial-gradient(circle at 40% 45%, rgba(48, 209, 88, 0.40) 0%, transparent 62%); filter: blur(70px); }
+        .loading-bg-1 { background: radial-gradient(circle at 40% 45%, rgba(18, 184, 74, 0.40) 0%, transparent 62%); filter: blur(70px); }
         .loading-bg-2 { background: radial-gradient(circle at 60% 55%, rgba(10, 132, 255, 0.34) 0%, rgba(191, 90, 242, 0.14) 40%, transparent 68%); filter: blur(80px); }
         .loading-logo-main {
             font-size: 56px; letter-spacing: -2px;
