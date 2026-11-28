@@ -1,0 +1,143 @@
+/* ============================================================
+   Свой стиль: плоские блоки, две темы (тёмная и светлая).
+   Подключён последним. Чтобы вернуть прежний вид, удалите строку
+   <link ... own-theme.css> в templates/index.html.
+   ============================================================ */
+
+:root {
+    --own-bg: #000000;
+    --own-surface: #0d0e11;
+    --own-surface-2: #15161a;
+    --own-line: #1f2126;
+    --own-text: #f5f5f5;
+    --own-sub: #9aa0aa;
+    --own-muted: #6b707a;
+    --own-green: #12b84a;
+    --own-green-soft: rgba(18, 184, 74, 0.14);
+    --own-red: #ef4444;
+    --own-red-soft: rgba(239, 68, 68, 0.14);
+    --own-amber: #f59e0b;
+    --own-amber-soft: rgba(245, 158, 11, 0.14);
+    --own-blue: #3b82f6;
+    --own-radius: 14px;
+    --own-tap: 44px;
+}
+
+[data-theme="light"] {
+    --own-bg: #f2f3f6;
+    --own-surface: #ffffff;
+    --own-surface-2: #f7f8fa;
+    --own-line: #e3e5ea;
+    --own-text: #111111;
+    --own-sub: #5c6069;
+    --own-muted: #8a8f98;
+    --own-green: #0f9a40;
+    --own-green-soft: rgba(15, 154, 64, 0.12);
+    --own-red: #d12d2d;
+    --own-red-soft: rgba(209, 45, 45, 0.12);
+    --own-amber: #b46900;
+    --own-amber-soft: rgba(180, 105, 0, 0.12);
+    --own-blue: #1d4ed8;
+}
+
+/* фон и текст */
+html, body {
+    background: var(--own-bg) !important;
+    color: var(--own-text);
+}
+.milky-way-1, .milky-way-2, .stars-container::after { display: none !important; }
+
+/* блоки: плоские, без стекла и теней */
+.header, .card, .stat-card, .action-btn, .bet-card, .live-card, .snapshot-card,
+.setting-group, .modal, .bottom-sheet, .notification {
+    background: var(--own-surface) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    border: 0.5px solid var(--own-line) !important;
+    box-shadow: none !important;
+    border-radius: var(--own-radius) !important;
+}
+.card:hover, .bet-card:hover, .stat-card:hover, .snapshot-card:hover, .live-card:hover,
+.action-btn:hover, .icon-btn:hover, .btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background: var(--own-surface-2) !important;
+}
+.card.emerald, .bet-card.active {
+    background: var(--own-green-soft) !important;
+    border-color: var(--own-green) !important;
+}
+
+/* нижнее меню: одна плоская полоса по низу */
+.bottom-nav {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 0 !important;
+    border-top: 0.5px solid var(--own-line) !important;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)) !important;
+}
+.nav-item { min-height: var(--own-tap); border-radius: 10px !important; }
+.nav-item .icon { font-size: 20px; }
+.nav-item .label { color: var(--own-sub); }
+.nav-item.active { background: transparent !important; box-shadow: none !important; }
+.nav-item.active .label { color: var(--own-green) !important; }
+
+/* кнопки: плоские, с нормальной высотой для пальца */
+.btn, .icon-btn, .filter-btn {
+    min-height: var(--own-tap);
+    box-shadow: none !important;
+    background: var(--own-surface-2) !important;
+    border: 0.5px solid var(--own-line) !important;
+    color: var(--own-text);
+}
+.btn-primary, .btn-success, .action-btn.primary {
+    background: var(--own-green) !important;
+    border-color: var(--own-green) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+}
+.btn-danger { background: var(--own-red) !important; border-color: var(--own-red) !important; color: #fff !important; }
+.filter-btn.active {
+    background: var(--own-green-soft) !important;
+    border-color: var(--own-green) !important;
+    color: var(--own-text) !important;
+    box-shadow: none !important;
+}
+
+/* подписи и цифры */
+.header-title, .stat-card .value, .bet-stat .stat-value, .bet-score {
+    color: var(--own-text) !important;
+    -webkit-text-fill-color: currentColor !important;
+}
+.stat-card .label, .bet-stat .stat-label, .header-subtitle, .setting-item .desc {
+    color: var(--own-sub);
+}
+.status-pill {
+    background: var(--own-green-soft) !important;
+    border: 0.5px solid var(--own-green) !important;
+    color: var(--own-green) !important;
+}
+
+/* статусы: только цвет текста и фон-полоска */
+.badge.win { background: var(--own-green-soft) !important; border-color: var(--own-green) !important; color: var(--own-green) !important; }
+.badge.loss { background: var(--own-red-soft) !important; border-color: var(--own-red) !important; color: var(--own-red) !important; }
+.badge.push { background: var(--own-amber-soft) !important; border-color: var(--own-amber) !important; color: var(--own-amber) !important; }
+
+/* поля ввода */
+.modal-field input, .modal-field select, .search-bar input {
+    background: var(--own-surface-2) !important;
+    border: 0.5px solid var(--own-line) !important;
+    color: var(--own-text);
+}
+.modal-field input:focus, .modal-field select:focus, .search-bar input:focus {
+    border-color: var(--own-green) !important;
+    box-shadow: none !important;
+}
+
+/* плашка «Пинг активен» не перекрывает контент: прижата к низу над меню */
+.ping-indicator, [class*="ping"] {
+    opacity: 0.85;
+}
